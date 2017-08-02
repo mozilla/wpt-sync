@@ -1,0 +1,10 @@
+credentials.ini
+_venv
+\#*
+*~
+repos
+logs
+work
+.\#*
+*.pyc
+sync.db

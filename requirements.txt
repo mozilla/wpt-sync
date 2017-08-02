@@ -1,0 +1,6 @@
+GitPython==2.1.5
+mercurial==4.2.2
+-e git+hg::https://hg.mozilla.org/hgcustom/version-control-tools/@90bc3303a2b46911bbd796d8ed8c9e77db3775e3#egg=mozautomation&subdirectory=pylib/mozautomation
+-e git+git@github.com:mozilla-services/mozillapulse.git@4ceb179fbb33641a580ec38cc5c9fb3bf21a4d99#egg=MozillaPulse
+PyGithub==1.35
+SQLAlchemy==1.1.11
