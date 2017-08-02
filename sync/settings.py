@@ -25,15 +25,20 @@ def load():
         ini_sync = read_ini(os.path.join(root, "sync.ini"))
         ini_credentials = read_ini(os.path.join(root, "credentials.ini"))
 
-        nested = lambda: defaultdict(nested)
-
-        _config = nested()
-        _config["root"] = root
-
-        for section in ini_sync.sections():
-            for name, value in ini_sync.items(section):
-                set_value(_config, section, name, value, ini_credentials)
+        _config = load_files(ini_sync, ini_credentials)
     return _config
+
+
+def load_files(ini_sync, ini_credentials):
+    nested = lambda: defaultdict(nested)
+
+    config = nested()
+    config["root"] = root
+
+    for section in ini_sync.sections():
+        for name, value in ini_sync.items(section):
+            set_value(config, section, name, value, ini_credentials)
+    return config
 
 
 def configure(f):

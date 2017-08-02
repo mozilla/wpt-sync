@@ -21,8 +21,6 @@ class Sync(Base):
     wpt_worktree = Column(String, unique=True)
     repository_id = Column(Integer, ForeignKey('repository.id'))
     source_id = Column(Integer, ForeignKey('branch.id'))
-    merged = Column(Boolean, default=False)
-    travis_passed = Column(Boolean, default=False)
 
     closed = Column(Boolean, default=False)
     merged = Column(Boolean, default=False)
@@ -37,6 +35,8 @@ class Repository(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
+
+    last_processed_commit_id = Column(Integer, ForeignKey('commit.id'))
 
     @classmethod
     def by_name(cls, session, name):
