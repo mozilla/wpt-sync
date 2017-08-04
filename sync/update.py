@@ -36,9 +36,9 @@ def get_backouts(repo, commits):
             nodes_bugs = commitparser.parse_backouts(commit.message)
             if nodes_bugs is None:
                 # We think this a backout, but have no idea what it backs out
-                # it's not clear how to handle that case
-                # TODO logging here
-                raise NotImplementedError
+                # it's not clear how to handle that case so for now we pretend it isn't
+                # a backout
+                continue
 
             nodes, bugs = nodes_bugs
             # Assuming that all commits are listed.
