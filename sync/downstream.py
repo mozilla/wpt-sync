@@ -21,9 +21,10 @@ from mozvcssync.gitutil import GitCommand
 
 import settings
 import repos
+from projectutil import Command
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
-logger = logging.getLogger('mozvcssync.servo')
+logger = logging.getLogger('wpt-sync')
 
 
 @settings.configure
@@ -39,7 +40,8 @@ def downstream(config, body):
     gecko_pr_branch = create_fresh_branch(git_gecko.root)
     copy_changes(git_wpt.root,
                  os.path.join(git_gecko.root, config["gecko"]["path"]["wpt"]))
-    _mach('wpt-manifest-update', git_gecko.root)
+    mach = Command('mach', c['path_to_gecko'])
+    mach.get('wpt-manifest-update')
     is_changed = commit_changes(git_gecko.path, config["gecko"]["path"]["wpt"], "PR " + pr_id)
     if is_changed:
         push_to_try(git_gecko.root, gecko_pr_branch)
@@ -134,6 +136,47 @@ def commit_changes(git_repo_path, path, message):
     return True
 
 
+def get_affected_tests(path_to_wpt, revish=None):
+    wpt = Command("wpt", path_to_wpt)
+    wpt.get("manifest")
+    affected = ["tests-affected", "--show-type", "--new"]
+    if revish:
+        affected.append(revish)
+    s = wpt.get(*affected)
+    tests_by_type = defaultdict(set)
+    for item in s.strip().split("\n"):
+        pair = item.strip().split("\t")
+        assert len(pair) == 2
+        tests_by_type[pair[1]].add(pair[0])
+    return tests_by_type
+
+
+def construct_try_message(tests_by_type):
+    # TODO specify relevant platforms
+    # try: -b do -p win32,win64,linux64,linux,macosx64 -u web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none --artifact
+    try_message = ("try: -b do -p linux,linux64 -u {test_jobs} "
+                   "-t none --artifact --try-test-paths {prefixed_paths}")
+    test_type_suite = {
+        "testharness": "web-platform-tests",
+        "reftest": "web-platform-tests-reftests",
+        "wdspec": "web-platform-tests-wdspec",
+    }
+    test_data = {
+        "test_jobs": [],
+        "prefixed_paths": [],
+    }
+    for test_type, paths in tests_by_type.iteritems():
+        suite = test_type_suite[test_type]
+        if len(paths):
+            test_data["test_jobs"].append(suite)
+            test_data["test_jobs"].append(suite + "-e10s")
+        for p in paths:
+            test_data["prefixed_paths"].append(suite + ":" + p)
+    test_data["test_jobs"] = ",".join(test_data["test_jobs"])
+    test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
+    return try_message.format(**test_data)
+
+
 def push_to_try(git_repo_path, branch):
     # TODO determine affected tests (use new wpt command in upstream repo)
     affected_tests = [
@@ -156,12 +199,13 @@ def push_to_try(git_repo_path, branch):
                        "jobs?repo=try&revision=") + rev_match.group('rev')
     finally:
         git.cmd(b'reset', b'HEAD~')
-
+    # TODO also return task_group_id
     return results_url
 
 
-def _mach(name, path_to_gecko, options=None):
-    command = [os.path.join(path_to_gecko, b"mach"), name]
-    if options:
-        command.extend(options)
-    subprocess.check_call(command, cwd=path_to_gecko)
+if __name__ == '__main__':
+    configure_stdout()
+    c = load_config("./wpt-sync/sync/example-config.ini")
+    t = get_affected_tests("/Users/mfrydrychowicz/dev/web-platform-tests", "a94ae52e4e21d6240fe1bd1b34c27e82ae159109")
+    print(t)
+    print(construct_try_message(t))

@@ -1,6 +1,7 @@
 GitPython==2.1.5
 mercurial==4.2.2
 -e ../pylib/mozautomation
+-e ../vcssync
 -e git+git@github.com:mozilla-services/mozillapulse.git@4ceb179fbb33641a580ec38cc5c9fb3bf21a4d99#egg=MozillaPulse
 PyGithub==1.35
 SQLAlchemy==1.1.11
