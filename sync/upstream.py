@@ -8,7 +8,6 @@ import urlparse
 import uuid
 from collections import defaultdict
 
-import bug
 import git
 import gh
 import github
@@ -17,7 +16,6 @@ from sqlalchemy.orm import joinedload
 
 import log
 import model
-import repos
 import settings
 from model import Sync, Commit, Repository, session_scope
 
@@ -348,10 +346,7 @@ def update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
 
 
 def try_land_pr(config, gh_wpt, bz, sync):
-    statuses = gh_wpt.get_statuses(sync.pr)
-
-    failed_checks = [item for item in statuses if item.state != "success"]
-
+    failed_checks = not gh.status_checks_pass(sync.pr)
     msg = None
 
     if failed_checks:
@@ -386,8 +381,6 @@ def land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
     git_wpt.git.worktree("prune")
 
     for sync, modified in syncs:
-        sync.merged = True
-
         if not sync.commits:
             if modified:
                 # It's not really clear this should happen unless we miss a push to
@@ -498,43 +491,10 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
     return modified_syncs
 
 
-@settings.configure
-def setup(config, repo_name):
-    model.configure(config)
-    session = model.session()
-
-    git_gecko = repos.Gecko(config).repo()
-    git_wpt = repos.WebPlatformTests(config).repo()
-
-    gh_wpt = gh.GitHub(config["web-platform-tests"]["github"]["token"],
-                       config["web-platform-tests"]["repo"]["url"])
-
-    bz = bug.MockBugzilla(config)
-
-    repository, _ = model.get_or_create(session, model.Repository, name=repo_name)
-
-    return config, session, git_gecko, git_wpt, gh_wpt, bz, repository
-
-
-def log_exceptions(f):
-    def inner(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except Exception as e:
-            logger.critical("%s failed with error:%s" % (f.__name__, traceback.format_exc(e)))
-            # For now:
-            raise
-
-    inner.__name__ = f.__name__
-    inner.__doc__ = f.__doc__
-    return inner
-
-
-@log_exceptions
-def integration_commit(repo_name):
+def integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_name):
     """Update PRs for a new commit to an integration repository such as
     autoland or mozilla-inbound."""
-    config, session, git_gecko, git_wpt, gh_wpt, bz, repository = setup(repo_name)
+    repository, _ = model.get_or_create(session, model.Repository, name=repo_name)
 
     first_commit = config["gecko"]["refs"]["central"]
 
@@ -547,9 +507,9 @@ def integration_commit(repo_name):
         update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
 
 
-@log_exceptions
-def landing_commit():
-    config, session, git_gecko, git_wpt, gh_wpt, bz, repository = setup("central")
+def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz):
+
+    repository, _ = model.get_or_create(session, model.Repository, name="central")
 
     last_sync_commit = repository.last_processed_commit_id
     if last_sync_commit is None:
@@ -564,22 +524,47 @@ def landing_commit():
     with session_scope(session):
         syncs = syncs_for_push(config, session, git_gecko, git_wpt,
                                repository, last_sync_commit)
-
+        for sync in syncs:
+            sync.repository = repository
         land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
 
 
-if __name__ == "__main__":
+def status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync, context, status, url):
+    if status == "pending":
+        # Never change anything for pending
+        return
+
+    if status == "passed":
+        if gh_wpt.status_checks_pass(sync.pr):
+            if sync.repository.name != "central":
+                land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, [sync])
+            else:
+                bz.add_comment(sync.bug, "Upstream web-platform-tests status checked passed, "
+                               "PR will merge once commit reaches central.")
+    else:
+        bz.add_comment(sync.bug, "Upstream web-platform-tests status %s for %s. "
+                       "This will block the upstream PR from merging. "
+                       "See %s for more information" % (status, context, url))
+
+
+@settings.configure
+def main(config):
+    import handlers
+    session, git_gecko, git_wpt, gh_wpt, bz = handlers.setup(config)
     try:
         repo_name = sys.argv[1]
         if repo_name in ("mozilla-inbound", "autoland"):
-            integration_commit(repo_name)
-        elif repo_name == "mozilla-central":
-            landing_commit()
+            integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_name)
+        elif repo_name == "central":
+            landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz)
         else:
             print >> sys.stderr, "Unrecognised repo %s" % repo_name
     except Exception:
-        import traceback
         traceback.print_exc()
         if "--no-debug" not in sys.argv:
             import pdb
             pdb.post_mortem()
+
+
+if __name__ == "__main__":
+    main()

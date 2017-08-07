@@ -84,6 +84,18 @@ class GitHub(object):
             input=post_parameters
         )
 
+    def status_checks_pass(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if not pr.mergeable:
+            return False
+        statuses = self.get_statuses(pr_id)
+        latest = {}
+        for status in statuses:
+            if status.context not in latest and status.context != "upstream/gecko":
+                latest[status.context] = status.status
+
+        return all(status.status == "success" for status in latest.itervalues())
+
 
 class AttrDict(dict):
     def __getattr__(self, name):

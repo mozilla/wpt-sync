@@ -8,8 +8,7 @@ import urlparse
 import kombu
 from mozvcssync import pulse
 
-import upstream
-import downstream
+import handlers
 
 here = os.path.dirname(__file__)
 
@@ -68,7 +67,7 @@ class Consumer(object):
         try:
             if callbacks:
                 for cb in callbacks:
-                    cb(body, message, self._extra_data)
+                    cb(body, self._extra_data)
             else:
                 raise Exception('received message from unknown exchange: %s' %
                                 exchange)
@@ -146,76 +145,6 @@ def get_consumer(userid, password,
     return consumer
 
 
-class OnGitHubCallback(object):
-    def __init__(self, config):
-        self.config = config
-
-    def __call__(self, body, message, config):
-        routing_key = body['_meta']['routing_key']
-        if not routing_key.startswith("w3c/"):
-            return
-
-        logger.debug('Look, an event:' + body['event'])
-        logger.debug('from:' + body['_meta']['routing_key'])
-
-        if body['event'] == "pull_request":
-            handle_pr(self.config, body)
-
-        # TODO: other events to check if we can merge a PR
-        # because of some update
-
-
-def handle_pr(config, body):
-    model.configure(config)
-    session = model.session()
-    event = body['payload']
-
-    pr_id = event['number']
-    sync = session.query(Sync).filter(Sync.pr == pr_id).first()
-
-    if not sync:
-        # If we don't know about this sync then it's a new thing that we should
-        # set up state for
-        if event["action"] == "opened":
-            downstream.new_wpt_pr(config, session, body)
-    elif sync.direction == "upstream":
-        # This is something that we're upstreaming, so update the status there as appropriate
-        # TODO
-        pass
-    else:
-        assert sync.direction == "downstream"
-        # It's a PR we already started to downstream, so update as appropriate
-        # TODO
-
-
-class OnCommitCallback(object):
-    def __init__(self, config):
-        self.config = config
-
-        self.integration_repos = {}
-        for repo_name, url in config["sync"]["integration"].iteritems():
-            url_parts = urlparse.urlparse(url)
-            url = urlparse.urlunparse(("https",) + url_parts[1:])
-            self.integration_repos[url] = repo_name
-
-        self.landing_repo = config["sync"]["landing"]
-
-    def __call__(self, body, message, config):
-        data = body["payload"]["data"]
-        repo_url = data["repo_url"]
-        logger.debug("Commit landed in repo %s" % repo_url)
-        if repo_url in self.integration_repos:
-            update.integration_commit(self.integration_repos[repo_url])
-        elif repo_url == self.landing_repo:
-            update.landing_commit(self.integration_repos[repo_url])
-
-
-def on_task_finished(body, message, config):
-    # TODO: check if this is a try job we started, and if so
-    # update the metadata for the relevant branch, or land the commits
-    logger.debug("Taskcluster task group finished %s" % body)
-
-
 def run_pulse_listener(config):
     """Trigger events from Pulse messages."""
     exchanges = [(config['pulse']['github']['queue'],
@@ -235,9 +164,12 @@ def run_pulse_listener(config):
                             ssl=config['pulse']['ssl'],
                             exchanges=exchanges)
 
-    consumer.add_callback(config['pulse']['github']['exchange'], OnGitHubCallback(config))
-    consumer.add_callback(config['pulse']['hgmo']['exchange'], OnCommitCallback(config))
-    consumer.add_callback(config['pulse']['taskcluster']['exchange'], on_task_finished)
+    consumer.add_callback(config['pulse']['github']['exchange'],
+                          handlers.GitHubHandler(config))
+    consumer.add_callback(config['pulse']['hgmo']['exchange'],
+                          handlers.CommitHandler(config))
+    consumer.add_callback(config['pulse']['taskcluster']['exchange'],
+                          handlers.TaskHandler(config))
 
     try:
         with consumer:

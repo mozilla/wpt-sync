@@ -26,28 +26,26 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = logging.getLogger('wpt-sync')
 
 
-def new_wpt_pr(config, session, body):
+def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
     pr_id = body['payload']['pull_request']['number']
 
-    with model.session_scope(session):
+    with session_scope(session):
         # assuming:
         # - git cinnabar, checkout of the gecko repo,
         #     remotes configured, mercurial python lib
         sync = Sync(pr=pr_id, direction="downstream")
         session.add(sync)
 
-        git_gecko = repos.Gecko(config)
-        git_wpt = repos.WebPlatformTests(config)
+        get_pr(config['web-platform-tests']["repo"]["url"], git_wpt.working_dir, pr_id)
+        gecko_pr_branch = create_fresh_branch(git_gecko.working_dir)
 
-        get_pr(config['web-platform-tests']["repo"]["url"], git_wpt.root, pr_id)
-        gecko_pr_branch = create_fresh_branch(git_gecko.root)
-
-        files_changed = get_files_changed(git_wpt.root)
+        files_changed = get_files_changed(git_wpt.working_dir)
         # Getting the component now doesn't really work well because a PR that only adds files
         # won't have a component before we move the commits. But we would really like to start
         # a bug for logging now, so get a component here and change it if needed after we have
         # put all the new commits onto the gecko tree.
-        component = get_bug_component(git_gecko.root, files_changed,
+        component = get_bug_component(git_gecko.working_dir,
+                                      files_changed,
                                       default=("Testing", "web-platform-tests"))
 
         pr = body["payload"]["pull_request"]
@@ -58,10 +56,10 @@ def new_wpt_pr(config, session, body):
 
         sync.bug = bug
 
-        copy_changes(git_wpt.root,
-                     os.path.join(git_gecko.root, config["gecko"]["path"]["wpt"]))
+        copy_changes(git_wpt.working_dir,
+                     os.path.join(git_gecko.working_dir, config["gecko"]["path"]["wpt"]))
 
-        new_component = get_bug_component(git_gecko.root, files_changed,
+        new_component = get_bug_component(git_gecko.working_dir, files_changed,
                                           default=("Testing", "web-platform-tests"))
         if new_component != component:
             bz.set_component(bug, *component)
@@ -70,7 +68,7 @@ def new_wpt_pr(config, session, body):
         mach.get('wpt-manifest-update')
         is_changed = commit_changes(git_gecko.path, config["gecko"]["path"]["wpt"], "PR " + pr_id)
         if is_changed:
-            push_to_try(git_gecko.root, gecko_pr_branch)
+            push_to_try(git_gecko.working_dir, gecko_pr_branch)
 
 
 def get_files_changed(git_path):
@@ -110,6 +108,11 @@ def get_bug_component(config, git_gecko, files_changed, default):
         return default
 
     return component.split(" :: ")
+
+
+def status_changed(config, session, bz, sync, context, status, url):
+    # TODO: if the status is "passed" this should start a try run
+    raise NotImplementedError
 
 
 def get_pr(git_source_url, git_repo_path, pr_id, ref='master'):
