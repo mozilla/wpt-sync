@@ -19,6 +19,7 @@ from mozvcssync.gitutil import GitCommand
 
 import settings
 import repos
+from model import session_scope
 from projectutil import Command
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
@@ -28,7 +29,7 @@ logger = logging.getLogger('wpt-sync')
 def new_wpt_pr(config, session, body):
     pr_id = body['payload']['pull_request']['number']
 
-    with session_scope(session):
+    with model.session_scope(session):
         # assuming:
         # - git cinnabar, checkout of the gecko repo,
         #     remotes configured, mercurial python lib

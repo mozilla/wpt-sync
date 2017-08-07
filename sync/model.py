@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from sqlalchemy import create_engine
 from sqlalchemy import Boolean, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
@@ -99,6 +101,17 @@ def get_or_create(session, model, defaults=None, **kwargs):
         created = True
 
     return instance, created
+
+
+@contextmanager
+def session_scope(session):
+    """Provide a transactional scope around a series of operations."""
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
 
 
 if __name__ == "__main__":

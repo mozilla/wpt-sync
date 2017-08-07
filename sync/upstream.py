@@ -7,7 +7,6 @@ import traceback
 import urlparse
 import uuid
 from collections import defaultdict
-from contextlib import contextmanager
 
 import bug
 import git
@@ -20,7 +19,7 @@ import log
 import model
 import repos
 import settings
-from model import Sync, Commit, Repository
+from model import Sync, Commit, Repository, session_scope
 
 logger = log.get_logger("upstream")
 
@@ -515,19 +514,6 @@ def setup(config, repo_name):
     repository, _ = model.get_or_create(session, model.Repository, name=repo_name)
 
     return config, session, git_gecko, git_wpt, gh_wpt, bz, repository
-
-
-@contextmanager
-def session_scope(session):
-    """Provide a transactional scope around a series of operations."""
-    try:
-        yield session
-        session.commit()
-    except:
-        session.rollback()
-        raise
-    finally:
-        session.close()
 
 
 def log_exceptions(f):
