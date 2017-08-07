@@ -141,7 +141,8 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
                 .filter(Sync.bug==bug, Sync.merged==False)).first()
 
         if sync is None:
-            sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name))
+            sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name),
+                        direction="upstream")
             session.add(sync)
 
         if not sync.commits:
@@ -280,7 +281,7 @@ def create_pr(config, gh_wpt, bz, sync, msg):
     bugzilla_url = ("https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % sync.bug
                     if sync.bug else None)
 
-    while not gh_wpt.get_branch(sync.remote_branch):
+    while not gh_wpt.get_branch(sync.wpt_branch):
         logger.debug("Waiting for branch")
         time.sleep(1)
 
@@ -289,7 +290,7 @@ def create_pr(config, gh_wpt, bz, sync, msg):
                                                     msg.splitlines()[0]),
                             body=pr_body,
                             base="master",
-                            head=sync.remote_branch)
+                            head=sync.wpt_branch)
     sync.pr = pr.number
     # TODO: add label to bug
     bz.comment(sync.bug,
@@ -307,14 +308,14 @@ def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
             logger.error("Moving commits failed, skipping further commits in this patch")
             return False
 
-    if not sync.remote_branch:
-        sync.remote_branch = "gecko_%s_%s" % (branch_name, uuid.uuid4())
+    if not sync.wpt_branch:
+        sync.wpt_branch = "gecko_%s_%s" % (branch_name, uuid.uuid4())
 
     # TODO: maybe if there's >1 commit use the bug title in the PR title
     msg = git_work.commit("HEAD").message
 
-    logger.info("Pushing commits from bug %s to branch %s" % (sync.bug, sync.remote_branch))
-    git_wpt.remotes["origin"].push("%s:%s" % (branch_name, sync.remote_branch), force=True)
+    logger.info("Pushing commits from bug %s to branch %s" % (sync.bug, sync.wpt_branch))
+    git_wpt.remotes["origin"].push("%s:%s" % (branch_name, sync.wpt_branch), force=True)
 
     if not sync.pr:
         create_pr(config, gh_wpt, bz, sync, msg)

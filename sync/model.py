@@ -16,11 +16,16 @@ class Sync(Base):
     id = Column(Integer, primary_key=True)
     bug = Column(Integer)
     pr = Column(Integer, unique=True)
-    remote_branch = Column(String, unique=True)
     gecko_worktree = Column(String, unique=True)
     wpt_worktree = Column(String, unique=True)
     repository_id = Column(Integer, ForeignKey('repository.id'))
     source_id = Column(Integer, ForeignKey('branch.id'))
+    # Only two allowed values 'upstream' and 'downstream'. Maybe should
+    # use a different representation here
+    direction = Column(String(10), null=False)
+
+    # Upstreaming only
+    wpt_branch = Column(String, unique=True)
 
     closed = Column(Boolean, default=False)
     merged = Column(Boolean, default=False)

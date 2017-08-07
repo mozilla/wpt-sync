@@ -13,9 +13,7 @@ import subprocess
 import sys
 import shutil
 import uuid
-from ConfigParser import (
-    RawConfigParser,
-)
+from collections import defaultdict
 
 from mozvcssync.gitutil import GitCommand
 
@@ -27,50 +25,90 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = logging.getLogger('wpt-sync')
 
 
-@settings.configure
-def downstream(config, body):
+def new_wpt_pr(config, session, body):
     pr_id = body['payload']['pull_request']['number']
-    # assuming:
-    # - git cinnabar, checkout of the gecko repo,
-    #     remotes configured, mercurial python lib
-    git_gecko = repos.Gecko(config)
-    git_wpt = repos.WebPlatformTests(config)
 
-    get_pr(config['web-platform-tests']["repo"]["url"], git_gecko.root, pr_id)
-    gecko_pr_branch = create_fresh_branch(git_gecko.root)
-    copy_changes(git_wpt.root,
-                 os.path.join(git_gecko.root, config["gecko"]["path"]["wpt"]))
-    mach = Command('mach', c['path_to_gecko'])
-    mach.get('wpt-manifest-update')
-    is_changed = commit_changes(git_gecko.path, config["gecko"]["path"]["wpt"], "PR " + pr_id)
-    if is_changed:
-        push_to_try(git_gecko.root, gecko_pr_branch)
+    with session_scope(session):
+        # assuming:
+        # - git cinnabar, checkout of the gecko repo,
+        #     remotes configured, mercurial python lib
+        sync = Sync(pr=pr_id, direction="downstream")
+        session.add(sync)
+
+        git_gecko = repos.Gecko(config)
+        git_wpt = repos.WebPlatformTests(config)
+
+        get_pr(config['web-platform-tests']["repo"]["url"], git_wpt.root, pr_id)
+        gecko_pr_branch = create_fresh_branch(git_gecko.root)
+
+        files_changed = get_files_changed(git_wpt.root)
+        # Getting the component now doesn't really work well because a PR that only adds files
+        # won't have a component before we move the commits. But we would really like to start
+        # a bug for logging now, so get a component here and change it if needed after we have
+        # put all the new commits onto the gecko tree.
+        component = get_bug_component(git_gecko.root, files_changed,
+                                      default=("Testing", "web-platform-tests"))
+
+        pr = body["payload"]["pull_request"]
+        bug = bz.new(summary="[wpt-sync] PR %i - %s" % pr_id, pr["title"],
+                     comment=pr["body"],
+                     product=component[0],
+                     component=component[1])
+
+        sync.bug = bug
+
+        copy_changes(git_wpt.root,
+                     os.path.join(git_gecko.root, config["gecko"]["path"]["wpt"]))
+
+        new_component = get_bug_component(git_gecko.root, files_changed,
+                                          default=("Testing", "web-platform-tests"))
+        if new_component != component:
+            bz.set_component(bug, *component)
+
+        mach = Command('mach', c['path_to_gecko'])
+        mach.get('wpt-manifest-update')
+        is_changed = commit_changes(git_gecko.path, config["gecko"]["path"]["wpt"], "PR " + pr_id)
+        if is_changed:
+            push_to_try(git_gecko.root, gecko_pr_branch)
 
 
-def load_config(path):
-    c = RawConfigParser()
-    c.read(path)
-    wpt = 'web-platform-tests'
-
-    d = {}
-    d.update(c.items(wpt))
-
-    d['pulse_port'] = c.getint(wpt, 'pulse_port')
-    d['pulse_ssl'] = c.getboolean(wpt, 'pulse_ssl')
-
-    return d
+def get_files_changed(git_path):
+    wpt = Command("wpt", git_path)
+    output = wpt.get("files-changed")
+    return set(output.split("\n"))
 
 
-def configure_stdout():
-    # Unbuffer stdout.
-    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
+def get_bug_component(config, git_gecko, files_changed, default):
+    if not files_changed:
+        return default
 
-    # Log to stdout.
-    root = logging.getLogger()
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(name)s %(message)s')
-    handler.setFormatter(formatter)
-    root.addHandler(handler)
+    path_prefix = config["gecko"]["path"]["wpt"]
+    paths = [os.path.join(path_prefix, item) for item in files_changed]
+
+    mach = Command('mach', git_gecko.worktree)
+    output = mach.get("file-info", "bugzilla-component", *paths)
+
+    components = defaultdict(int)
+    current = None
+    for line in output.split("\n"):
+        if line.startswith(" "):
+            assert current is not None
+            components[current] += 1
+        else:
+            current = line.strip()
+
+    if not components:
+        return default
+
+    components = sorted(components.items(), key=lambda x:-x[1])
+    component = components[0][0]
+    if component == "UNKNOWN" and len(components) > 1:
+        component = components[1][0]
+
+    if component == "UNKNOWN":
+        return default
+
+    return component.split(" :: ")
 
 
 def get_pr(git_source_url, git_repo_path, pr_id, ref='master'):
@@ -203,9 +241,13 @@ def push_to_try(git_repo_path, branch):
     return results_url
 
 
-if __name__ == '__main__':
-    configure_stdout()
-    c = load_config("./wpt-sync/sync/example-config.ini")
-    t = get_affected_tests("/Users/mfrydrychowicz/dev/web-platform-tests", "a94ae52e4e21d6240fe1bd1b34c27e82ae159109")
+@settings.configure
+def print_affected_tests(config):
+    t = get_affected_tests(config["web-platform-tests"]["path"],
+                           "a94ae52e4e21d6240fe1bd1b34c27e82ae159109")
     print(t)
     print(construct_try_message(t))
+
+
+if __name__ == '__main__':
+    print_affected_tests()

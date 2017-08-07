@@ -159,11 +159,33 @@ class OnGitHubCallback(object):
         logger.debug('from:' + body['_meta']['routing_key'])
 
         if body['event'] == "pull_request":
-            # TODO, check if we created this PR
-            downstream.downstream(body)
+            handle_pr(self.config, body)
 
         # TODO: other events to check if we can merge a PR
         # because of some update
+
+
+def handle_pr(config, body):
+    model.configure(config)
+    session = model.session()
+    event = body['payload']
+
+    pr_id = event['number']
+    sync = session.query(Sync).filter(Sync.pr == pr_id).first()
+
+    if not sync:
+        # If we don't know about this sync then it's a new thing that we should
+        # set up state for
+        if event["action"] == "opened":
+            downstream.new_wpt_pr(config, session, body)
+    elif sync.direction == "upstream":
+        # This is something that we're upstreaming, so update the status there as appropriate
+        # TODO
+        pass
+    else:
+        assert sync.direction == "downstream"
+        # It's a PR we already started to downstream, so update as appropriate
+        # TODO
 
 
 class OnCommitCallback(object):

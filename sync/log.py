@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from logging import handlers
 
 import settings
@@ -7,6 +8,9 @@ import settings
 root = logging.getLogger()
 
 configured = set()
+
+# Unbuffer stdout.
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
 
 # Add a handler for stdout on the root logger
 logging.basicConfig(level=logging.DEBUG)
