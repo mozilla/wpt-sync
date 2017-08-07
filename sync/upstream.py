@@ -22,7 +22,7 @@ import repos
 import settings
 from model import Sync, Commit, Repository
 
-logger = log.get_logger("update")
+logger = log.get_logger("upstream")
 
 
 def get_backouts(repo, commits):

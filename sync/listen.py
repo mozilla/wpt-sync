@@ -8,7 +8,7 @@ import urlparse
 import kombu
 from mozvcssync import pulse
 
-import update
+import upstream
 import downstream
 
 here = os.path.dirname(__file__)
