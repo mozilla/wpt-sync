@@ -26,15 +26,19 @@ class Sync(Base):
     # use a different representation here
     direction = Column(String(10), null=False)
 
+    closed = Column(Boolean, default=False)
+    # If the upstream PR has been merged
+    pr_merged = Column(Boolean, default=False)
+
     # Upstreaming only
     wpt_branch = Column(String, unique=True)
-
-    closed = Column(Boolean, default=False)
-    merged = Column(Boolean, default=False)
 
     repository = relationship("Repository")
     source = relationship("Branch")
     commits = relationship("Commit")
+
+    # Only for downstreaming
+    try_pushes = relationship("TryPush")
 
 
 class Repository(Base):
@@ -63,6 +67,16 @@ class Commit(Base):
 
     id = Column(Integer, primary_key=True)
     rev = Column(String(40), unique=True)
+
+    sync_id = Column(Integer, ForeignKey('sync.id'))
+
+
+class TryPush(Base):
+    __tablename__ = 'try_push'
+
+    id = Column(Integer, primary_key=True)
+    rev = Column(String(40), unique=True) # Or link to Commit?
+    complete = Column(Boolean, default=False)
 
     sync_id = Column(Integer, ForeignKey('sync.id'))
 
