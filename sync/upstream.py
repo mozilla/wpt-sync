@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -19,6 +18,7 @@ import log
 import model
 import settings
 from model import Sync, SyncDirection, Commit, Repository, session_scope
+from worktree import ensure_worktree, remove_worktrees
 
 logger = log.get_logger("upstream")
 
@@ -71,7 +71,7 @@ def get_backouts(repo, commits):
 
 def is_empty(commit, path):
     data = commit.repo.git.show(commit.hexsha, "--", path,
-                                patch=True,binary=True, format="format:").strip()
+                                patch=True, binary=True, format="format:").strip()
     return data == ""
 
 
@@ -235,49 +235,6 @@ def move_commit(config, git_gecko, git_work, bz, sync, commit):
     return True
 
 
-def get_worktree_path(config, session, git_wpt, subdir, prefix):
-    base_path = os.path.join(subdir, prefix)
-    count = 0
-    while True:
-        rel_path = base_path
-        if count > 0:
-            rel_path = "%s-%i" % (rel_path, count)
-        path = os.path.join(config["paths"]["worktrees"], rel_path)
-        branch_name = os.path.split(rel_path)[1]
-        if not (os.path.exists(path) or
-                branch_name in git_wpt.branches or
-                session.query(Sync).filter(Sync.wpt_worktree == rel_path).first()):
-            return rel_path
-        count += 1
-
-
-def ensure_worktree(config, session, git_wpt, sync):
-    if not sync.wpt_worktree:
-        path = get_worktree_path(config, session, git_wpt, "web-platform-tests", str(sync.bug))
-        sync.wpt_worktree = path
-        logger.info("Setting up worktree in path %s" % path)
-
-    worktree_path = os.path.join(config["paths"]["worktrees"], sync.wpt_worktree)
-
-    # TODO: If we want to prune these need to be careful about atomicity here
-    # Probably need to have a lock whilst the cleanup is running
-    if not os.path.exists(worktree_path):
-        base_dir, branch_name = os.path.split(worktree_path)
-        try:
-            os.makedirs(base_dir)
-        except OSError:
-            pass
-        git_wpt.git.worktree("add", "-b", branch_name,
-                             os.path.abspath(worktree_path),
-                             "origin/master")
-    else:
-        branch_name = os.path.split(worktree_path)[1]
-
-    git_work = git.Repo(worktree_path)
-
-    return git_work, branch_name
-
-
 def create_pr(config, gh_wpt, bz, sync, msg):
     bugzilla_url = ("https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % sync.bug
                     if sync.bug else None)
@@ -300,7 +257,8 @@ def create_pr(config, gh_wpt, bz, sync, msg):
 
 
 def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
-    git_work, branch_name = ensure_worktree(config, session, git_wpt, sync)
+    git_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
+                                            str(sync.bug), "origin/master")
     git_work.index.reset("origin/master", hard=True)
 
     for commit in sync.commits:
@@ -379,21 +337,6 @@ def try_land_pr(config, gh_wpt, bz, sync):
 
     if msg is not None:
         bz.comment(sync.bug, msg)
-
-
-def remove_worktrees(config, sync):
-    for rel_path in [sync.gecko_worktree, sync.wpt_worktree]:
-        if not rel_path:
-            continue
-        worktree_path = os.path.join(config["paths"]["worktrees"], sync.wpt_worktree)
-        if os.path.exists(worktree_path):
-            try:
-                shutil.rmtree(worktree_path)
-            except Exception:
-                logger.warning("Failed to remove worktree %s:%s" %
-                               (worktree_path, traceback.format_exc()))
-            else:
-                logger.debug("Removed worktree %s" % (worktree_path,))
 
 
 def land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
