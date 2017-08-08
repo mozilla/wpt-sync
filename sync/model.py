@@ -78,7 +78,7 @@ class Commit(Base):
     rev = Column(String(40), unique=True)
 
     sync_id = Column(Integer, ForeignKey('sync.id'))
-
+    sync = relationship("Sync")
 
 class TryPush(Base):
     __tablename__ = 'try_push'

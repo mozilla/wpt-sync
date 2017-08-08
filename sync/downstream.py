@@ -49,7 +49,7 @@ def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
                                       default=("Testing", "web-platform-tests"))
 
         pr = body["payload"]["pull_request"]
-        bug = bz.new(summary="[wpt-sync] PR %i - %s" % pr_id, pr["title"],
+        bug = bz.new(summary="[wpt-sync] PR %i - %s" % (pr_id, pr["title"]),
                      comment=pr["body"],
                      product=component[0],
                      component=component[1])

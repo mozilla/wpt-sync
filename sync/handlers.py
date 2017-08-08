@@ -119,7 +119,8 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     pr_id = pr_for_commit(git_wpt, rev)
 
     if not pr_id:
-        logger.info("Got status for commit %s, but that isn't the head of any PR" % rev)
+        logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
+        return
     else:
         logger.info("Got status for commit %s from PR %s" % (rev, pr_id))
 
@@ -127,7 +128,8 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
 
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
-        downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+        # TODO: Handle this case
+        logger.error("Got a status update for PR %i which is unknown to us" % pr_id)
 
     if sync.direction == SyncDirection.upstream:
         upstream.status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync,

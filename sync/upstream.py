@@ -114,11 +114,13 @@ def abort_sync(config, gh_wpt, bz, sync):
     sync.closed = True
 
 
-def group_by_bug(commits):
+def group_by_bug(git_gecko, commits):
     rv = defaultdict(list)
     for commit in commits:
         bugs = commitparser.parse_bugs(commit.message)
-        #TODO: log is we get > 1 bug
+        if len(bugs) > 1:
+            logger.warning("Got multiple bugs for commit %s: %s" %
+                           (git_gecko.cinnabar.git2hg(commit.hexsha),  ", ".join(bugs)))
         bug = bugs[0]
         rv[bug].append(commit)
     return rv
@@ -131,12 +133,13 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
     updated = []
 
     for bug, commits in commits_by_bug.iteritems():
-        #TODO: log this and continue or something
-        assert commits
+        if not commits:
+            logger.error("No commits for bug %s when trying to update" % bug)
+            continue
 
         sync = (session.query(Sync)
                 .options(joinedload(Sync.commits))
-                .filter(Sync.bug==bug, Sync.merged==False)).first()
+                .filter(Sync.bug==bug, Sync.pr_merged==False)).first()
 
         if sync is None:
             sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name),
@@ -371,7 +374,7 @@ def try_land_pr(config, gh_wpt, bz, sync):
             else:
                 msg = ("Merged associated web-platform-tests PR. "
                        "Thanks for writing web-platform-tests!")
-                sync.merged = True
+                sync.pr_merged = True
                 remove_worktrees(config, sync)
 
     if msg is not None:
@@ -498,7 +501,7 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
     # on syncs
 
     if commits:
-        by_bug = group_by_bug(commits)
+        by_bug = group_by_bug(git_gecko, commits)
 
         # There is one worrying case we don't handle yet. What if a bug lands in central,
         # but before we mark the commits as on-central, we get a new commit for the same bug

@@ -67,7 +67,7 @@ class Consumer(object):
         try:
             if callbacks:
                 for cb in callbacks:
-                    cb(body, self._extra_data)
+                    cb(body)
             else:
                 raise Exception('received message from unknown exchange: %s' %
                                 exchange)
