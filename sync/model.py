@@ -2,7 +2,8 @@ import enum
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy import Boolean, Column, Enum, Integer, String, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey
+from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -31,6 +32,8 @@ class Sync(Base):
     # Only two allowed values 'upstream' and 'downstream'. Maybe should
     # use a different representation here
     direction = Column(Enum(SyncDirection), null=False)
+
+    modified = Column(DateTime(timezone=True), onupdate=func.now())
 
     closed = Column(Boolean, default=False)
     # If the upstream PR has been merged
