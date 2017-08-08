@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -386,7 +387,8 @@ def remove_worktrees(config, sync):
             try:
                 shutil.rmtree(worktree_path)
             except Exception:
-                logger.warning("Failed to remove worktree %s:%s" % (worktree_path, traceback.format_exc()))
+                logger.warning("Failed to remove worktree %s:%s" %
+                               (worktree_path, traceback.format_exc()))
             else:
                 logger.debug("Removed worktree %s" % (worktree_path,))
 
