@@ -106,7 +106,7 @@ class AttrDict(dict):
 
 
 class MockGitHub(object):
-    def __init__(self, token, url):
+    def __init__(self):
         self.prs = {}
         self._id = itertools.count(1)
 
