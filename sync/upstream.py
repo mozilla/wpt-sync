@@ -371,9 +371,24 @@ def try_land_pr(config, gh_wpt, bz, sync):
                 msg = ("Merged associated web-platform-tests PR. "
                        "Thanks for writing web-platform-tests!")
                 sync.merged = True
+                remove_worktrees(config, sync)
 
     if msg is not None:
         bz.comment(sync.bug, msg)
+
+
+def remove_worktrees(config, sync):
+    for rel_path in [sync.gecko_worktree, sync.wpt_worktree]:
+        if not rel_path:
+            continue
+        worktree_path = os.path.join(config["paths"]["worktrees"], sync.wpt_worktree)
+        if os.path.exists(worktree_path):
+            try:
+                shutil.rmtree(worktree_path)
+            except Exception:
+                logger.warning("Failed to remove worktree %s:%s" % (worktree_path, traceback.format_exc()))
+            else:
+                logger.debug("Removed worktree %s" % (worktree_path,))
 
 
 def land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
