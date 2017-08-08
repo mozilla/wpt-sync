@@ -31,7 +31,7 @@ class Sync(Base):
     source_id = Column(Integer, ForeignKey('branch.id'))
     # Only two allowed values 'upstream' and 'downstream'. Maybe should
     # use a different representation here
-    direction = Column(Enum(SyncDirection), null=False)
+    direction = Column(Enum(SyncDirection), nullable=False)
 
     modified = Column(DateTime(timezone=True), onupdate=func.now())
 
