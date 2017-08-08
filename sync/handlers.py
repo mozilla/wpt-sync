@@ -8,7 +8,7 @@ import log
 import model
 import repos
 import upstream
-from model import Sync
+from model import Sync, SyncDirection
 
 
 logger = log.get_logger("handlers")
@@ -87,11 +87,11 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
         # set up state for
         if event["action"] == "opened":
             downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
-    elif sync.direction == "upstream":
+    elif sync.direction == SyncDirection.upstream:
         # This is a PR we created, so ignore it for now
         pass
     else:
-        assert sync.direction == "downstream"
+        assert sync.direction == SyncDirection.downstream
         # It's a PR we already started to downstream, so update as appropriate
         # TODO
 
@@ -129,10 +129,10 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
         downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
 
-    if sync.direction == "upstream":
+    if sync.direction == SyncDirection.upstream:
         upstream.status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync,
                                 event["context"], event["status"], event["url"])
-    elif sync.direction == "downstream":
+    elif sync.direction == SyncDirection.downstream:
         downstream.status_changed(config, session, bz, sync,
                                   event["context"], event["status"], event["url"])
 

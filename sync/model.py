@@ -1,7 +1,8 @@
+import enum
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey
+from sqlalchemy import Boolean, Column, Enum, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -10,6 +11,11 @@ import settings
 Base = declarative_base()
 Session = sessionmaker()
 engine = None
+
+
+class SyncDirection(enum.Enum):
+    upstream = 1
+    downstream = 2
 
 
 class Sync(Base):
@@ -24,7 +30,7 @@ class Sync(Base):
     source_id = Column(Integer, ForeignKey('branch.id'))
     # Only two allowed values 'upstream' and 'downstream'. Maybe should
     # use a different representation here
-    direction = Column(String(10), null=False)
+    direction = Column(Enum(SyncDirection), null=False)
 
     closed = Column(Boolean, default=False)
     # If the upstream PR has been merged

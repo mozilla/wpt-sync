@@ -18,7 +18,7 @@ from sqlalchemy.orm import joinedload
 import log
 import model
 import settings
-from model import Sync, Commit, Repository, session_scope
+from model import Sync, SyncDirection, Commit, Repository, session_scope
 
 logger = log.get_logger("upstream")
 
@@ -140,7 +140,7 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
 
         if sync is None:
             sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name),
-                        direction="upstream")
+                        direction=SyncDirection.upstream)
             session.add(sync)
 
         if not sync.commits:

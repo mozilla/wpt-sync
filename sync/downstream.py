@@ -19,7 +19,7 @@ from mozvcssync.gitutil import GitCommand
 
 import settings
 import repos
-from model import session_scope
+from model import session_scope, Sync, SyncDirection
 from projectutil import Command
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
@@ -33,7 +33,7 @@ def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
         # assuming:
         # - git cinnabar, checkout of the gecko repo,
         #     remotes configured, mercurial python lib
-        sync = Sync(pr=pr_id, direction="downstream")
+        sync = Sync(pr=pr_id, direction=SyncDirection.downstream)
         session.add(sync)
 
         get_pr(config['web-platform-tests']["repo"]["url"], git_wpt.working_dir, pr_id)
