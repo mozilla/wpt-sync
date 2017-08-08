@@ -483,6 +483,12 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
         git_gecko.git.fetch("autoland")
         logger.info("Fetch done")
 
+    # List of syncs that have changed, so we can update them all as appropriate at the end
+    modified_syncs = []
+
+    if repository.name == "autoland":
+        modified_syncs.extend(remove_missing_commits(config, session, git_gecko, repository))
+
     revish = "%s..%s" % (first_commit,
                          config["gecko"]["refs"][repository.name])
     all_commits, wpt_commits = get_wpt_commits(config, git_gecko, revish)
@@ -493,8 +499,6 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
     backout_revs, commits = filter_backouts(git_gecko, all_commits, wpt_commits)
     commits = filter_empty(gecko_wpt_path, commits)
 
-    # List of syncs that have changed, so we can update them all as appropriate at the end
-    modified_syncs = []
     modified_syncs.extend(update_for_backouts(session, git_gecko, backout_revs))
 
     # TODO: check autoland to ensure that there aren't any commits that no longer exist in git
@@ -510,6 +514,26 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
 
     return modified_syncs
 
+
+def remove_missing_commits(config, session, git_gecko, repository):
+    """Remove any commits from the database that are no longer in the source
+    repository"""
+    commits = session.query(Commit).join(Sync).filter(Sync.repository == repository)
+    upstream = config["gecko"]["refs"][repository.name]
+    syncs = set()
+
+    for commit in commits:
+        status, _, _ = git_gecko.git.merge_base(upstream,
+                                                git_gecko.cinnabar.hg2git(commit.rev),
+                                                is_ancecstor=True,
+                                                with_extended_output=True,
+                                                with_exceptions=False)
+        if status != 0:
+            logger.debug("Removed commit %s that was deleted upstream" % commit.rev)
+            syncs.add(commit.sync)
+            session.delete(commit)
+
+    return syncs
 
 def integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_name):
     """Update PRs for a new commit to an integration repository such as
