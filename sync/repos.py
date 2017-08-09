@@ -12,7 +12,7 @@ class GitSettings(object):
 
     @property
     def root(self):
-        return os.path.join(self.config["paths"]["repos"], self.name)
+        return os.path.join(self.config["root"], self.config["paths"]["repos"], self.name)
 
     @property
     def remotes(self):

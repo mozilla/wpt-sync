@@ -1,6 +1,7 @@
 import itertools
 import random
 import urlparse
+import sys
 
 import github
 
@@ -105,10 +106,11 @@ class AttrDict(dict):
             raise AttributeError(name)
 
 
-class MockGitHub(object):
+class MockGitHub(GitHub):
     def __init__(self):
         self.prs = {}
         self._id = itertools.count(1)
+        self.output = sys.stdout
 
     def _log(self, data):
         self.output.write(data)
@@ -128,9 +130,9 @@ class MockGitHub(object):
             "head": head,
             "merged": False,
             "state": "open",
-            "mergable": True,
+            "mergeable": True,
             "approved": True,
-            "_commits": [AttrDict(**{"sha": "%040x" % random.randbits(160),
+            "_commits": [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
                                      "message": "Test commit",
                                      "_statuses": []})],
         })
@@ -182,7 +184,9 @@ class MockGitHub(object):
         else:
             # TODO: raise the right kind of error here
             raise ValueError
+        self._log("Merged PR with id %s" % pr_id)
 
     def approve_pull(self, pr_id):
         pr = self.get_pull(pr_id)
         pr.approved = True
+

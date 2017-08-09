@@ -80,6 +80,7 @@ class Commit(Base):
     sync_id = Column(Integer, ForeignKey('sync.id'))
     sync = relationship("Sync")
 
+
 class TryPush(Base):
     __tablename__ = 'try_push'
 
@@ -102,6 +103,11 @@ def configure(config):
 def create():
     assert engine is not None
     Base.metadata.create_all(engine)
+
+
+def drop():
+    assert engine is not None
+    Base.metadata.drop_all(engine)
 
 
 def session():

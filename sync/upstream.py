@@ -249,7 +249,7 @@ def create_pr(config, gh_wpt, bz, sync, msg):
                             body=pr_body,
                             base="master",
                             head=sync.wpt_branch)
-    sync.pr = pr.number
+    sync.pr = pr
     # TODO: add label to bug
     bz.comment(sync.bug,
                "Created web-platform-tests PR %s for changes under testing/web-platform/tests" %
@@ -308,7 +308,7 @@ def update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
 
 
 def try_land_pr(config, gh_wpt, bz, sync):
-    failed_checks = not gh.status_checks_pass(sync.pr)
+    failed_checks = not gh_wpt.status_checks_pass(sync.pr)
     msg = None
 
     if failed_checks:
@@ -339,6 +339,24 @@ def try_land_pr(config, gh_wpt, bz, sync):
         bz.comment(sync.bug, msg)
 
 
+<<<<<<< HEAD
+=======
+def remove_worktrees(config, sync):
+    for rel_path in [sync.gecko_worktree, sync.wpt_worktree]:
+        if not rel_path:
+            continue
+        worktree_path = os.path.join(config["root"], config["paths"]["worktrees"], sync.wpt_worktree)
+        if os.path.exists(worktree_path):
+            try:
+                shutil.rmtree(worktree_path)
+            except Exception:
+                logger.warning("Failed to remove worktree %s:%s" %
+                               (worktree_path, traceback.format_exc()))
+            else:
+                logger.debug("Removed worktree %s" % (worktree_path,))
+
+
+>>>>>>> Add tests for creating and landing a PR, and fix some bugs found by tests
 def land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
     # Ensure that any worktrees that got deleted are not in the git config
     git_wpt.git.worktree("prune")
@@ -415,25 +433,18 @@ def filter_empty(gecko_wpt_path, commits):
 def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit):
     gecko_wpt_path = config["gecko"]["path"]["wpt"]
 
-    logger.info("Fetching mozilla-unified")
-    # Not using the built in fetch() function since that tries to parse the output
-    # and sometimes fails
-    git_gecko.git.fetch("mozilla")
-    logger.info("Fetch done")
-
-    if repository.name == "autoland":
-        logger.info("Fetch autoland")
-        git_gecko.git.fetch("autoland")
-        logger.info("Fetch done")
-
     # List of syncs that have changed, so we can update them all as appropriate at the end
     modified_syncs = []
 
     if repository.name == "autoland":
         modified_syncs.extend(remove_missing_commits(config, session, git_gecko, repository))
 
-    revish = "%s..%s" % (first_commit,
-                         config["gecko"]["refs"][repository.name])
+    if first_commit:
+        revish = "%s..%s" % (first_commit,
+                             config["gecko"]["refs"][repository.name])
+    else:
+        revish = config["gecko"]["refs"][repository.name]
+
     all_commits, wpt_commits = get_wpt_commits(config, git_gecko, revish)
 
     logger.info("Found %i commits affecting wpt: %s" % (len(wpt_commits), " ".join(wpt_commits)))
@@ -478,10 +489,26 @@ def remove_missing_commits(config, session, git_gecko, repository):
 
     return syncs
 
+
+def update_gecko(git_gecko, repository):
+    logger.info("Fetching mozilla-unified")
+    # Not using the built in fetch() function since that tries to parse the output
+    # and sometimes fails
+    git_gecko.git.fetch("mozilla")
+    logger.info("Fetch done")
+
+    if repository.name == "autoland":
+        logger.info("Fetch autoland")
+        git_gecko.git.fetch("autoland")
+        logger.info("Fetch done")
+
+
 def integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_name):
     """Update PRs for a new commit to an integration repository such as
     autoland or mozilla-inbound."""
     repository, _ = model.get_or_create(session, model.Repository, name=repo_name)
+
+    update_gecko(git_gecko, repository)
 
     first_commit = config["gecko"]["refs"]["central"]
 
@@ -498,12 +525,18 @@ def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz):
 
     repository, _ = model.get_or_create(session, model.Repository, name="central")
 
+    update_gecko(git_gecko, repository)
+
     last_sync_commit = repository.last_processed_commit_id
     if last_sync_commit is None:
         merge_commits = git_gecko.iter_commits(config["gecko"]["refs"]["central"], min_parents=2)
         merge_commits.next()
-        prev_merge = merge_commits.next()
-        last_sync_commit = prev_merge.hexsha
+        try:
+            prev_merge = merge_commits.next()
+            last_sync_commit = prev_merge.hexsha
+        except StopIteration:
+            # This is really only needed for tests
+            last_sync_commit = ""
 
     commits = git_gecko.iter_commits(config["gecko"]["refs"]["central"])
     repository.last_processed_commit_id = commits.next().hexsha
@@ -511,7 +544,7 @@ def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz):
     with session_scope(session):
         syncs = syncs_for_push(config, session, git_gecko, git_wpt,
                                repository, last_sync_commit)
-        for sync in syncs:
+        for sync, _ in syncs:
             sync.repository = repository
         land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
 
