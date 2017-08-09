@@ -28,7 +28,7 @@ def get_worktree_path(config, session, repo, project, prefix):
         rel_path = base_path
         if count > 0:
             rel_path = "%s-%i" % (rel_path, count)
-        path = os.path.join(config["paths"]["worktrees"], rel_path)
+        path = os.path.join(config["root"], config["paths"]["worktrees"], rel_path)
         branch_name = os.path.split(rel_path)[1]
         if not (os.path.exists(path) or
                 branch_name in repo.branches or
@@ -57,7 +57,8 @@ def ensure_worktree(config, session, repo, project, sync, prefix, base):
         setattr(sync, repo_worktree, path)
         logger.info("Setting up worktree in path %s" % path)
 
-    worktree_path = os.path.join(config["paths"]["worktrees"],
+    worktree_path = os.path.join(config["root"],
+                                 config["paths"]["worktrees"],
                                  getattr(sync, repo_worktree))
 
     # TODO: If we want to prune these need to be careful about atomicity here
@@ -83,7 +84,9 @@ def remove_worktrees(config, sync):
     for rel_path in [sync.gecko_worktree, sync.wpt_worktree]:
         if not rel_path:
             continue
-        worktree_path = os.path.join(config["paths"]["worktrees"], sync.wpt_worktree)
+        worktree_path = os.path.join(config["root"],
+                                     config["paths"]["worktrees"],
+                                     sync.wpt_worktree)
         if os.path.exists(worktree_path):
             try:
                 shutil.rmtree(worktree_path)
