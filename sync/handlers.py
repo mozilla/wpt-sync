@@ -82,6 +82,8 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     pr_id = event['number']
     sync = get_sync(session, pr_id)
 
+    gh_wpt.load_pull(event["pull_request"])
+
     if not sync:
         # If we don't know about this sync then it's a new thing that we should
         # set up state for
@@ -90,8 +92,10 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     elif sync.direction == SyncDirection.upstream:
         # This is a PR we created, so ignore it for now
         pass
-    else:
-        assert sync.direction == SyncDirection.downstream
+    elif sync.direction == SyncDirection.downstream
+        if event["action"] == closed:
+            # TODO - close the related bug, cancel try runs, etc.
+            pass
         # It's a PR we already started to downstream, so update as appropriate
         # TODO
 
