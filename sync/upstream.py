@@ -32,6 +32,8 @@ def get_backouts(repo, commits):
     for commit in commits:
         if commitparser.is_backout(commit.message):
             nodes_bugs = commitparser.parse_backouts(commit.message)
+            logger.debug("Commit %s is a backout for %s" %
+                         (commit, nodes_bugs))
             if nodes_bugs is None:
                 # We think this a backout, but have no idea what it backs out
                 # it's not clear how to handle that case so for now we pretend it isn't
@@ -88,11 +90,13 @@ def update_for_backouts(session, git_gecko, revs_by_backout):
     syncs = syncs_from_commits(session, git_gecko, backout_revs)
     rv = []
 
+    logger.debug("Backout revs: %s" % " ".join(backout_revs))
+
     # Remove the commits from the database
     for sync in syncs:
         modified = len(sync.commits) > 0
         for commit in sync.commits:
-            if commit.rev in backout_revs:
+            if git_gecko.cinnabar.hg2git(commit.rev) in backout_revs:
                 session.delete(commit)
         rv.append((sync, modified))
 
@@ -293,6 +297,7 @@ def update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
             logger.info("No changes to commits for bug %i" % sync.bug)
             continue
 
+        logger.debug("Sync for bug %i has %i commits" % (sync.bug, len(sync.commits)))
         if not sync.commits:
             abort_sync(config, gh_wpt, bz, sync)
         else:

@@ -61,3 +61,25 @@ def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wp
     assert sync.repository.name == "central"
     assert "Merged PR with id %s" % sync.pr in gh_wpt.output.getvalue()
     assert "Merged associated web-platform-tests PR" in bz.output.getvalue()
+
+
+def test_create_pr_backout_landing(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):
+    path = os.path.join(hg_gecko_upstream.working_tree, config["gecko"]["path"]["wpt"], "README")
+    with open(path, "w") as f:
+        f.write("Example change\n")
+
+    hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
+    # This updates the bookmark for mozilla/inbound only
+    hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
+    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+
+    head_rev = hg_gecko_upstream.log("-l1", "--template={node}").strip()
+
+    hg_gecko_upstream.backout("-r", "tip", "-m", "Backed out changeset %s (Bug 1111)" % head_rev[:12])
+
+    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+
+    syncs = list(session.query(model.Sync))
+    assert len(syncs) == 1
+    sync = syncs[0]
+    assert len(sync.commits) == 0
