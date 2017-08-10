@@ -8,14 +8,16 @@ from cStringIO import StringIO
 import git
 import pytest
 
-from sync import bug, gh, model, repos, settings
+from sync import settings
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-#TODO: Probably don't need all of these to be function scoped
 
+# TODO: Probably don't need all of these to be function scoped
 def cleanup(config):
-    for dir in config["paths"].itervalues():
+    for name, dir in config["paths"].iteritems():
+        if name == "logs":
+            continue
         path = os.path.join(config["root"], dir)
         if os.path.exists(path):
             shutil.rmtree(path)
@@ -23,12 +25,18 @@ def cleanup(config):
 
 @pytest.fixture(scope="function")
 def config():
+    global bug, gh, model, repos
     settings.root = here
     ini_sync = settings.read_ini(os.path.abspath(os.path.join(here, "test.ini")))
     ini_credentials = None
     config = settings.load_files(ini_sync, ini_credentials)
     cleanup(config)
+    settings._config = config
+    from sync import bug, gh, model, repos
     return config
+
+#Ensure that configuration is loaded
+config()
 
 
 @pytest.fixture(scope="function")
@@ -109,6 +117,7 @@ def git_gecko(config, session, hg_gecko_upstream):
     repo.last_processed_commit_id = (
         git_gecko.iter_commits(config["gecko"]["refs"]["central"]).next().hexsha)
     return git_gecko
+
 
 @pytest.fixture(scope="function")
 def git_wpt(config, git_wpt_upstream):

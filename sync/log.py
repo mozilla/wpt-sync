@@ -21,8 +21,13 @@ def setup_handlers(config, logger):
     base_name = name.split(".")[0]
 
     if base_name not in configured:
+        log_dir = os.path.join(config["root"],
+                               config["paths"]["logs"])
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
         base_logger = logging.getLogger(base_name)
-        handler = handlers.WatchedFileHandler(os.path.join(config["paths"]["logs"], "%s.log" % base_name))
+        handler = handlers.WatchedFileHandler(os.path.join(log_dir,
+                                                           "%s.log" % base_name))
         handler.setLevel(logging.DEBUG)
         base_logger.addHandler(handler)
         configured.add(base_name)
