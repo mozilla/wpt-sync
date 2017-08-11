@@ -37,6 +37,10 @@ class GitSettings(object):
                     for old_url in current_urls[1:]:
                         remote.delete_url(old_url)
                 remote.set_url(url, current_urls[0])
+            if self.config[self.name]["remote"][name]["fetch"]:
+                repo.git.config(
+                    "remote.{}.fetch".format(name),
+                    self.config[self.name]["remote"][name]["fetch"])
 
         if self.cinnabar:
             repo.git.config("fetch.prune", "true")

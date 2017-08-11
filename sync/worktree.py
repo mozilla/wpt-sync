@@ -74,7 +74,6 @@ def ensure_worktree(config, session, repo, project, sync, prefix, base):
                           base)
     else:
         branch_name = os.path.split(worktree_path)[1]
-    # TODO worktrees not supported: InvalidGitRepositoryError
     git_work = git.Repo(worktree_path)
 
     return git_work, branch_name
