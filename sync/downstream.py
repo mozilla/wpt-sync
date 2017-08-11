@@ -6,73 +6,89 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 """Functionality to support VCS syncing for WPT."""
 
-import logging
 import os
 import re
 import subprocess
-import sys
 import shutil
+import traceback
 import uuid
 from collections import defaultdict
+
+import git
 
 from mozvcssync.gitutil import GitCommand
 
 import settings
-import repos
+import log
+import model
+
 from model import session_scope, Sync, SyncDirection
 from projectutil import Command
+from worktree import ensure_worktree, remove_worktrees
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
-logger = logging.getLogger('wpt-sync')
+logger = log.get_logger("downstream")
 
 
 def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
     pr_id = body['payload']['pull_request']['number']
+    component = ("Testing", "web-platform-tests")
+    pr = body["payload"]["pull_request"]
+    bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr["title"]),
+                 comment=pr["body"],
+                 product=component[0],
+                 component=component[1])
 
     with session_scope(session):
-        # assuming:
-        # - git cinnabar, checkout of the gecko repo,
-        #     remotes configured, mercurial python lib
         sync = Sync(pr=pr_id, direction=SyncDirection.downstream)
         session.add(sync)
+        sync.bug = bug
 
-        get_pr(config['web-platform-tests']["repo"]["url"], git_wpt.working_dir, pr_id)
-        gecko_pr_branch = create_fresh_branch(git_gecko.working_dir)
+        try:
+            # TODO PR status should be "started"
+            wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
+        except git.GitCommandError as e:
+            logger.error("Failed to obtain web-platform-tests PR {}:\n{}}".format(rev, e))
+            bz.comment(sync.bug,
+                       "Downstreaming from web-platform-tests failed because obtaining "
+                       "PR {} failed:\n{}".format(pr_id, e))
+            return False
 
-        files_changed = get_files_changed(git_wpt.working_dir)
+        files_changed = get_files_changed(wpt_work.working_dir)
+
+        logger.info("Fetching mozilla-unified")
+        git_gecko.git.fetch("mozilla")
+        logger.info("Fetch done")
+        gecko_work, gecko_branch = ensure_worktree(
+            config, session, git_gecko, "gecko", sync,
+            "PR_" + str(sync.pr), config["gecko"]["refs"]["central"])
+        gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
+        success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
+        if success:
+            commit_manifest_update(gecko_work)
+
         # Getting the component now doesn't really work well because a PR that only adds files
         # won't have a component before we move the commits. But we would really like to start
         # a bug for logging now, so get a component here and change it if needed after we have
         # put all the new commits onto the gecko tree.
-        component = get_bug_component(git_gecko.working_dir,
-                                      files_changed,
-                                      default=("Testing", "web-platform-tests"))
-
-        pr = body["payload"]["pull_request"]
-        bug = bz.new(summary="[wpt-sync] PR %i - %s" % (pr_id, pr["title"]),
-                     comment=pr["body"],
-                     product=component[0],
-                     component=component[1])
-
-        sync.bug = bug
-
-        copy_changes(git_wpt.working_dir,
-                     os.path.join(git_gecko.working_dir, config["gecko"]["path"]["wpt"]))
-
-        new_component = get_bug_component(git_gecko.working_dir, files_changed,
-                                          default=("Testing", "web-platform-tests"))
+        new_component = get_bug_component(config, gecko_work, files_changed,
+                                          default=component)
         if new_component != component:
             bz.set_component(bug, *component)
 
-        mach = Command('mach', c['path_to_gecko'])
-        mach.get('wpt-manifest-update')
-        is_changed = commit_changes(git_gecko.path, config["gecko"]["path"]["wpt"], "PR " + pr_id)
-        if is_changed:
-            push_to_try(git_gecko.working_dir, gecko_pr_branch)
+
+def commit_manifest_update(gecko_work):
+    gecko_work.git.reset("HEAD", hard=True)
+    mach = Command('mach', gecko_work.working_dir)
+    mach.get('wpt-manifest-update')
+    if gecko_work.is_dirty:
+        gecko_work.git.add("testing/web-platform/meta")
+        gecko_work.git.commit(message="[wpt-sync] downstream {}: update manifest".format(
+            gecko_work.active_branch.name))
 
 
-def get_files_changed(git_path):
-    wpt = Command("wpt", git_path)
+def get_files_changed(project_path):
+    wpt = Command("wpt", project_path)
     output = wpt.get("files-changed")
     return set(output.split("\n"))
 
@@ -84,7 +100,7 @@ def get_bug_component(config, git_gecko, files_changed, default):
     path_prefix = config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in files_changed]
 
-    mach = Command('mach', git_gecko.worktree)
+    mach = Command('mach', git_gecko.working_dir)
     output = mach.get("file-info", "bugzilla-component", *paths)
 
     components = defaultdict(int)
@@ -115,66 +131,63 @@ def status_changed(config, session, bz, sync, context, status, url):
     raise NotImplementedError
 
 
-def get_pr(git_source_url, git_repo_path, pr_id, ref='master'):
-    """ Pull shallow repo and checkout given pr """
-    git = GitCommand(os.path.abspath(git_repo_path))
-    if not os.path.exists(git_repo_path):
-        git.cmd(b'init', git_repo_path)
-
-    git.cmd(b'checkout', b'master')
-    git.cmd(b'clean', b'-xdf')
-    git.cmd(b'pull', b'--no-tags', b'--ff-only', git_source_url,
-            b'heads/%s:heads/%s' % (ref, ref))
-    git.cmd(b'fetch', b'--no-tags', git_source_url,
-            b'pull/%s/head:heads/pull_%s' % (pr_id, pr_id))
-    git.cmd(b'checkout', b'pull_%s' % pr_id)
-    git.cmd(b'merge', 'heads/%s' % ref)
+def get_pr(config, session, git_wpt, sync):
+    logger.info("Fetching web-platform-tests origin/master")
+    git_wpt.git.fetch("origin", "master", no_tags=True)
+    logger.info("Fetch done")
+    wpt_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
+                                            "PR_" + str(sync.pr), "origin/master")
+    wpt_work.index.reset("origin/master", hard=True)
+    wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr, sync.pr),
+                       no_tags=True)
+    wpt_work.git.merge("heads/pull_{}".format(sync.pr))
+    return wpt_work, branch_name
 
 
-def create_fresh_branch(git_repo_path, base="central", tip="central/branches/default/tip"):
-    """reset repo and checkout a new branch for the new changes"""
-    git = GitCommand(os.path.abspath(git_repo_path))
-    git.cmd(b'checkout', base)
-    git.cmd(b'pull')
-    git.cmd(b'checkout', tip)
-    branch = uuid.uuid4().hex
-    git.cmd(b'checkout', b'-b', branch)
-
-    return branch
-
-
-def copy_changes(source, dest, ignore=None):
-    # TODO instead of copying files or convertin/moving patches, find
-    # a way to apply changesets from one repo to the other (git subtree,
-    # read-tree, filter-branch?)
-    source = os.path.abspath(source)
-    dest = os.path.abspath(dest)
-    if ignore is None:
-        ignore = ['.git', 'css']
-
-    if os.path.exists(dest):
-        assert os.path.isdir(dest)
-        shutil.rmtree(dest)
-
-    def ignore_in_path(ignore_path, *patterns):
-        patterns_fn = shutil.ignore_patterns(*patterns)
-
-        def ignore(path, names):
-            if path == ignore_path:
-                return patterns_fn(path, names)
-            return []
-        return ignore
-
-    shutil.copytree(source, dest, ignore=ignore_in_path(source, *ignore))
+def changed_pr(config, git_gecko, git_wpt, sync, bz):
+    """Get latest PR changes and apply to gecko worktree"""
+    wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
+    logger.info("Fetching mozilla-unified")
+    git_gecko.git.fetch("mozilla")
+    logger.info("Fetch done")
+    gecko_work, gecko_branch = ensure_worktree(
+            config, session, git_gecko, "gecko", sync,
+            "PR_" + str(sync.pr), config["gecko"]["refs"]["central"])
+    gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
+    return wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
 
 
-def commit_changes(git_repo_path, path, message):
-    git = GitCommand(os.path.abspath(git_repo_path))
-    # TODO nice commit message
-    git.cmd(b'add', b'-A', path)
-    if not git.get(b'diff', b'--cached', b'--name-only'):
-        logger.info("Nothing to commit")
-    git.cmd(b'commit', b'-m', message)
+def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
+    """Create a patch based on wpt branch, apply it to corresponding gecko branch"""
+    assert wpt_work.active_branch.name == os.path.basename(sync.wpt_worktree)
+    assert gecko_work.active_branch.name == os.path.basename(sync.gecko_worktree)
+
+    commits = "origin/master.."
+    try:
+        patch = wpt_work.git.show(commits, pretty="email") + "\n"
+    except git.GitCommandError as e:
+        logger.error("Failed to create patch from {}:\n{}".format(commits, e))
+        bz.comment(sync.bug,
+                   "Downstreaming from web-platform-tests failed because creating patch "
+                   "from {} at {} failed:\n{}".format(commits, wpt_work.head.commit, e))
+        return False
+
+    try:
+        proc = gecko_work.git.am("--directory=" + config["gecko"]["path"]["wpt"], "-",
+                                 istream=subprocess.PIPE,
+                                 as_process=True)
+        stdout, stderr = proc.communicate(patch)
+        if proc.returncode != 0:
+            # TODO skip empty patch (merge commit)
+            raise git.GitCommandError(["am", "--directory=" + config["gecko"]["path"]["wpt"], "-"],
+                                      proc.returncode, stderr, stdout)
+    except git.GitCommandError as e:
+        logger.error("Failed to import patch downstream {}\n\n{}\n\n{}".format(
+            wpt_work.head.commit, patch, e))
+        bz.comment(sync.bug,
+                   "Downstreaming from web-platform-tests failed because applying patch "
+                   "from {} at {} failed:\n{}".format(commits, wpt_work.head.commit, e))
+        return False
     return True
 
 
@@ -194,7 +207,6 @@ def get_affected_tests(path_to_wpt, revish=None):
 
 
 def construct_try_message(tests_by_type):
-    # TODO specify relevant platforms
     # try: -b do -p win32,win64,linux64,linux,macosx64 -u web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none --artifact
     try_message = ("try: -b do -p linux,linux64 -u {test_jobs} "
                    "-t none --artifact --try-test-paths {prefixed_paths}")
@@ -207,6 +219,7 @@ def construct_try_message(tests_by_type):
         "test_jobs": [],
         "prefixed_paths": [],
     }
+    # TODO? support files, harness changes -- don't want to update metadata
     for test_type, paths in tests_by_type.iteritems():
         suite = test_type_suite[test_type]
         if len(paths):
@@ -228,7 +241,7 @@ def push_to_try(git_repo_path, branch):
     ]
     results_url = None
     git = GitCommand(os.path.abspath(git_repo_path))
-    # TODO specify relevant platforms
+    # TODO only push to try on mac if necessary
     try_message = ("try: -b do -p linux,linux64 -u web-platform-tests-1,web-platform-tests-e10s-1 "
                    "-t none --artifact --try-test-paths ")
     try_message += "".join(["web-platform-tests:" + t for t in affected_tests])
@@ -246,12 +259,29 @@ def push_to_try(git_repo_path, branch):
 
 
 @settings.configure
-def print_affected_tests(config):
-    t = get_affected_tests(config["web-platform-tests"]["path"],
-                           "a94ae52e4e21d6240fe1bd1b34c27e82ae159109")
-    print(t)
-    print(construct_try_message(t))
-
+def main(config):
+    import handlers
+    session, git_gecko, git_wpt, gh_wpt, bz = handlers.setup(config)
+    try:
+        model.create()
+        wpt_repository, _ = model.get_or_create(session, model.Repository,
+            name="web-platform-tests")
+        gecko_repository, _ = model.get_or_create(session, model.Repository,
+            name="gecko")
+        body = {
+            "payload": {
+                "pull_request": {
+                    "number": 4,
+                    "title": "Test PR",
+                    "body": "blah blah body"
+                },
+            },
+        }
+        new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+    except Exception:
+        traceback.print_exc()
+        import pdb
+        pdb.post_mortem()
 
 if __name__ == '__main__':
-    print_affected_tests()
+    main()

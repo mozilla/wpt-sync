@@ -80,6 +80,7 @@ def ensure_worktree(config, session, repo, project, sync, prefix, base):
 
 
 def remove_worktrees(config, sync):
+    # TODO: periodically delete old branches also?
     for rel_path in [sync.gecko_worktree, sync.wpt_worktree]:
         if not rel_path:
             continue
