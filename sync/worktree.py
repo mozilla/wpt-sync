@@ -85,7 +85,7 @@ def remove_worktrees(config, sync):
             continue
         worktree_path = os.path.join(config["root"],
                                      config["paths"]["worktrees"],
-                                     sync.wpt_worktree)
+                                     rel_path)
         if os.path.exists(worktree_path):
             try:
                 shutil.rmtree(worktree_path)
