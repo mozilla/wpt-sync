@@ -92,7 +92,7 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     elif sync.direction == SyncDirection.upstream:
         # This is a PR we created, so ignore it for now
         pass
-    elif sync.direction == SyncDirection.downstream
+    elif sync.direction == SyncDirection.downstream:
         if event["action"] == closed:
             # TODO - close the related bug, cancel try runs, etc.
             pass
