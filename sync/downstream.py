@@ -207,14 +207,16 @@ def get_affected_tests(path_to_wpt, revish=None):
 
 
 def construct_try_message(tests_by_type):
-    # try: -b do -p win32,win64,linux64,linux,macosx64 -u web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none --artifact
-    try_message = ("try: -b do -p linux,linux64 -u {test_jobs} "
+    # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none --artifact
+    # TODO schedule mac jobs separately if needed
+    try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
                    "-t none --artifact --try-test-paths {prefixed_paths}")
     test_type_suite = {
         "testharness": "web-platform-tests",
         "reftest": "web-platform-tests-reftests",
         "wdspec": "web-platform-tests-wdspec",
     }
+    platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]"
     test_data = {
         "test_jobs": [],
         "prefixed_paths": [],
@@ -223,8 +225,9 @@ def construct_try_message(tests_by_type):
     for test_type, paths in tests_by_type.iteritems():
         suite = test_type_suite[test_type]
         if len(paths):
-            test_data["test_jobs"].append(suite)
-            test_data["test_jobs"].append(suite + "-e10s")
+            machines = platform_suffix if suite == "web-platform-tests" else ""
+            test_data["test_jobs"].append(suite + machines)
+            test_data["test_jobs"].append(suite + "-e10s" + machines)
         for p in paths:
             test_data["prefixed_paths"].append(suite + ":" + p)
     test_data["test_jobs"] = ",".join(test_data["test_jobs"])
