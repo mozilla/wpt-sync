@@ -333,10 +333,22 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
     return results_url
 
 
+def on_taskgroupresolved():
+    pass
+    # try_revision_or_taskgroup_id
+    # what kind of push is it: initial? stability? other?
+    # check if the test jobs ran, infra bustage, not "mostly green": set manual_intervention flag
+    # fetch logs
+    # given logs, run mach wpt-update to in gecko_work to update meta_data, commit
+    # push to try again
+
+
+
 @settings.configure
 def main(config):
-    import handlers
+    from . import handlers
     session, git_gecko, git_wpt, gh_wpt, bz = handlers.setup(config)
+    model.drop()
     try:
         model.create()
         wpt_repository, _ = model.get_or_create(session, model.Repository,
@@ -346,7 +358,7 @@ def main(config):
         body = {
             "payload": {
                 "pull_request": {
-                    "number": 9,
+                    "number": 11,
                     "title": "Test PR",
                     "body": "blah blah body"
                 },
@@ -355,19 +367,24 @@ def main(config):
         pr_id = body["payload"]["pull_request"]["number"]
         # new pr opened
         new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
-        sync = session.query(model.Sync).filter(Sync.pr == pr_id).first()
+        sync = session.query(model.Sync).filter(Sync.pr_id == pr_id).first()
         status_event = {
             "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
             "state": "pending",
             "context": "continuous-integration/travis-ci/pr",
         }
         status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
-        # should do nothing second time
+        status_event = {
+           "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
+           "state": "passed",
+           "context": "continuous-integration/travis-ci/pr",
+        }
         status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
     except Exception:
         traceback.print_exc()
         import pdb
         pdb.post_mortem()
+
 
 if __name__ == '__main__':
     main()

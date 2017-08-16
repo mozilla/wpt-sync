@@ -19,6 +19,19 @@ class SyncDirection(enum.Enum):
     downstream = 2
 
 
+class TryKind(enum.Enum):
+    # First narrow try push has been sent
+    first_try_run = 1
+    # Stability try push has been sent
+    stability_try_run = 2
+
+
+class TryResult(enum.Enum):
+    greenish = 1
+    infra = 2
+    orange = 3
+
+
 class Sync(Base):
     __tablename__ = 'sync'
 
@@ -48,6 +61,7 @@ class Sync(Base):
 
     # Only for downstreaming
     try_pushes = relationship("TryPush")
+    metadata_ready = Column(Boolean, default=False)
 
 
 class Landing(Base):
@@ -127,8 +141,10 @@ class TryPush(Base):
     id = Column(Integer, primary_key=True)
     # hg rev on try
     rev = Column(String(40), unique=True)
+    taskgroup_id = Column(String(22), unique=True)
     complete = Column(Boolean, default=False)
-
+    result = Column(Enum(TryResult))
+    kind = Column(Enum(TryKind), nullable=False)
     sync_id = Column(Integer, ForeignKey('sync.id'))
 
 
