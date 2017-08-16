@@ -96,8 +96,7 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
         if event["action"] == closed:
             # TODO - close the related bug, cancel try runs, etc.
             pass
-        # It's a PR we already started to downstream, so update as appropriate
-        # TODO
+        # TODO It's a PR we already started to downstream, so update as appropriate
 
 
 def pr_for_commit(git_wpt, rev):
@@ -140,9 +139,16 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
         upstream.status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync,
                                 event["context"], event["status"], event["url"])
     elif sync.direction == SyncDirection.downstream:
-        downstream.status_changed(config, session, bz, sync,
-                                  event["context"], event["status"], event["url"])
+        downstream.status_changed(config, session, git_gecko, git_wpt, bz, sync, event)
 
+
+def handle_pr_merge():
+    # prepare to land downstream
+    pass
+
+def handler_pr_approved():
+    # prepare to land downstream
+    pass
 
 class CommitHandler(Handler):
     def __init__(self, config):
@@ -173,3 +179,5 @@ class CommitHandler(Handler):
 class TaskHandler(Handler):
     def __call__(self, body):
         logger.debug("Taskcluster task group finished %s" % body)
+
+

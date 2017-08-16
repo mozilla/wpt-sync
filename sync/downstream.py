@@ -32,49 +32,17 @@ logger = log.get_logger("downstream")
 
 def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
     pr_id = body['payload']['pull_request']['number']
-    component = ("Testing", "web-platform-tests")
     pr = body["payload"]["pull_request"]
     bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr["title"]),
                  comment=pr["body"],
-                 product=component[0],
-                 component=component[1])
+                 product="Testing",
+                 component="web-platform-tests")
 
     with session_scope(session):
         sync = Sync(pr=pr_id, direction=SyncDirection.downstream)
         session.add(sync)
         sync.bug = bug
 
-        try:
-            # TODO PR status should be "started"
-            wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
-        except git.GitCommandError as e:
-            logger.error("Failed to obtain web-platform-tests PR {}:\n{}}".format(rev, e))
-            bz.comment(sync.bug,
-                       "Downstreaming from web-platform-tests failed because obtaining "
-                       "PR {} failed:\n{}".format(pr_id, e))
-            return False
-
-        files_changed = get_files_changed(wpt_work.working_dir)
-
-        logger.info("Fetching mozilla-unified")
-        git_gecko.git.fetch("mozilla")
-        logger.info("Fetch done")
-        gecko_work, gecko_branch = ensure_worktree(
-            config, session, git_gecko, "gecko", sync,
-            "PR_" + str(sync.pr), config["gecko"]["refs"]["central"])
-        gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
-        success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
-        if success:
-            commit_manifest_update(gecko_work)
-
-        # Getting the component now doesn't really work well because a PR that only adds files
-        # won't have a component before we move the commits. But we would really like to start
-        # a bug for logging now, so get a component here and change it if needed after we have
-        # put all the new commits onto the gecko tree.
-        new_component = get_bug_component(config, gecko_work, files_changed,
-                                          default=component)
-        if new_component != component:
-            bz.set_component(bug, *component)
 
 
 def commit_manifest_update(gecko_work):
@@ -93,7 +61,7 @@ def get_files_changed(project_path):
     return set(output.split("\n"))
 
 
-def get_bug_component(config, git_gecko, files_changed, default):
+def choose_bug_component(config, git_gecko, files_changed, default):
     if not files_changed:
         return default
 
@@ -126,9 +94,60 @@ def get_bug_component(config, git_gecko, files_changed, default):
     return component.split(" :: ")
 
 
-def status_changed(config, session, bz, sync, context, status, url):
-    # TODO: if the status is "passed" this should start a try run
-    raise NotImplementedError
+def is_worktree_tip(repo, worktree_path, rev):
+    if not worktree_path:
+        return False
+    branch_name = os.path.basename(worktree_path)
+    if branch_name in repo.heads:
+        return repo.heads[branch_name].commit.hexsha == rev
+    return False
+
+
+def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
+    if event["context"] != "continuous-integration/travis-ci/pr":
+        logger.info("Ignoring status for context {}".format(event["context"]))
+        return
+    if event["state"] == "pending":
+        if not is_worktree_tip(git_wpt, sync.wpt_worktree, event["sha"]):
+            update_sync(config, session, git_gecko, git_wpt, sync, bz)
+    elif event["state"] == "passed":
+        return
+        # TODO: if the status is "passed" this should start a try run
+        # TODO: check only for status of Firefox job(s)
+
+
+def update_sync(config, session, git_gecko, git_wpt, sync, bz):
+    with session_scope(session):
+        try:
+            wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
+        except git.GitCommandError as e:
+            logger.error("Failed to obtain web-platform-tests PR {}:\n{}}".format(rev, e))
+            bz.comment(sync.bug,
+                       "Downstreaming from web-platform-tests failed because obtaining "
+                       "PR {} failed:\n{}".format(pr_id, e))
+            return False
+
+        files_changed = get_files_changed(wpt_work.working_dir)
+
+        logger.info("Fetching mozilla-unified")
+        git_gecko.git.fetch("mozilla")
+        logger.info("Fetch done")
+        gecko_work, gecko_branch = ensure_worktree(
+            config, session, git_gecko, "gecko", sync,
+            "PR_" + str(sync.pr), config["gecko"]["refs"]["central"])
+        gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
+        success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
+        if not success:
+            return
+        commit_manifest_update(gecko_work)
+
+        # Getting the component now doesn't really work well because a PR that only adds files
+        # won't have a component before we move the commits. But we would really like to start
+        # a bug for logging now, so get a component here and change it if needed after we have
+        # put all the new commits onto the gecko tree.
+        new_component = choose_bug_component(config, gecko_work, files_changed,
+                                             default=("Testing", "web-platform-tests"))
+        bz.set_component(sync.bug, *new_component)
 
 
 def get_pr(config, session, git_wpt, sync):
@@ -142,19 +161,6 @@ def get_pr(config, session, git_wpt, sync):
                        no_tags=True)
     wpt_work.git.merge("heads/pull_{}".format(sync.pr))
     return wpt_work, branch_name
-
-
-def changed_pr(config, git_gecko, git_wpt, sync, bz):
-    """Get latest PR changes and apply to gecko worktree"""
-    wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
-    logger.info("Fetching mozilla-unified")
-    git_gecko.git.fetch("mozilla")
-    logger.info("Fetch done")
-    gecko_work, gecko_branch = ensure_worktree(
-            config, session, git_gecko, "gecko", sync,
-            "PR_" + str(sync.pr), config["gecko"]["refs"]["central"])
-    gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
-    return wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
 
 
 def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
@@ -211,7 +217,6 @@ def get_affected_tests(path_to_wpt, revish=None):
 
 def construct_try_message(tests_by_type):
     # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none --artifact
-    # TODO schedule mac jobs separately if needed
     try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
                    "-t none --artifact --try-test-paths {prefixed_paths}")
     test_type_suite = {
@@ -277,13 +282,24 @@ def main(config):
         body = {
             "payload": {
                 "pull_request": {
-                    "number": 4,
+                    "number": 9,
                     "title": "Test PR",
                     "body": "blah blah body"
                 },
             },
         }
+        pr_id = body["payload"]["pull_request"]["number"]
+        # new pr opened
         new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+        sync = session.query(model.Sync).filter(Sync.pr == pr_id).first()
+        status_event = {
+            "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
+            "state": "pending",
+            "context": "continuous-integration/travis-ci/pr",
+        }
+        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
+        # should do nothing second time
+        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
     except Exception:
         traceback.print_exc()
         import pdb
