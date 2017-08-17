@@ -103,9 +103,10 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
 def pr_for_commit(git_wpt, rev):
     #TODO: Work out how to add these to the config when we set up the repo
     git_wpt.remotes.origin.fetch("+refs/pull/*/head:refs/remotes/origin/pr/*")
-    branches = git_wpt.git.branch(rev, all=True, points_at=True)
+    branches = git_wpt.git.branch("--points-at", rev, all=True)
     pr_id = None
     for item in branches.split("\n"):
+        item = item.strip()
         if item.startswith("remotes/origin/pr/"):
             pr_id = int(item.rsplit("/", 1)[1])
             break
