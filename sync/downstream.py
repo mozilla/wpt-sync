@@ -164,7 +164,9 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
 
     commits = "origin/master.."
     try:
-        patch = wpt_work.git.show(commits, pretty="email") + "\n"
+        # Using reverse because git am applies the multi-commit patch file
+        # top-down instead of bottom up
+        patch = wpt_work.git.show(commits, pretty="email", reverse=True) + "\n"
     except git.GitCommandError as e:
         logger.error("Failed to create patch from {}:\n{}".format(commits, e))
         bz.comment(sync.bug,
@@ -178,7 +180,8 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
                                  as_process=True)
         stdout, stderr = proc.communicate(patch)
         if proc.returncode != 0:
-            # TODO skip empty patch (merge commit)
+            # TODO skip empty patch (merge commit); maybe apply patch one at a time
+            # for each commit?
             raise git.GitCommandError(["am", "--directory=" + config["gecko"]["path"]["wpt"], "-"],
                                       proc.returncode, stderr, stdout)
     except git.GitCommandError as e:
