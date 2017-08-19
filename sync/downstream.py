@@ -110,6 +110,7 @@ def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
     if event["state"] == "pending":
         if not is_worktree_tip(git_wpt, sync.wpt_worktree, event["sha"]):
             update_sync(config, session, git_gecko, git_wpt, sync, bz)
+            # TODO address any existing try pushes for this sync
     elif event["state"] == "passed":
         return
         # TODO: if the status is "passed" this should start a try run
@@ -121,10 +122,10 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
         try:
             wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
         except git.GitCommandError as e:
-            logger.error("Failed to obtain web-platform-tests PR {}:\n{}}".format(rev, e))
+            logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr, e))
             bz.comment(sync.bug,
                        "Downstreaming from web-platform-tests failed because obtaining "
-                       "PR {} failed:\n{}".format(pr_id, e))
+                       "PR {} failed:\n{}".format(sync.pr, e))
             return False
 
         files_changed = get_files_changed(wpt_work.working_dir)
@@ -168,35 +169,35 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
     assert wpt_work.active_branch.name == os.path.basename(sync.wpt_worktree)
     assert gecko_work.active_branch.name == os.path.basename(sync.gecko_worktree)
 
-    commits = "origin/master.."
-    try:
-        # Using reverse because git am applies the multi-commit patch file
-        # top-down instead of bottom up
-        patch = wpt_work.git.show(commits, pretty="email", reverse=True) + "\n"
-    except git.GitCommandError as e:
-        logger.error("Failed to create patch from {}:\n{}".format(commits, e))
-        bz.comment(sync.bug,
-                   "Downstreaming from web-platform-tests failed because creating patch "
-                   "from {} at {} failed:\n{}".format(commits, wpt_work.head.commit, e))
-        return False
+    for c in wpt_work.iter_commits("origin/master..", reverse=True):
+        try:
+            patch = wpt_work.git.show(c, pretty="email") + "\n"
+            if patch.endswith("\n\n\n"):
+                # skip empty patch
+                continue
+        except git.GitCommandError as e:
+            logger.error("Failed to create patch from {}:\n{}".format(c.hexsha, e))
+            bz.comment(sync.bug,
+                       "Downstreaming from web-platform-tests failed because creating patch "
+                       "from {} failed:\n{}".format(c.hexsha, e))
+            return False
 
-    try:
-        proc = gecko_work.git.am("--directory=" + config["gecko"]["path"]["wpt"], "-",
-                                 istream=subprocess.PIPE,
-                                 as_process=True)
-        stdout, stderr = proc.communicate(patch)
-        if proc.returncode != 0:
-            # TODO skip empty patch (merge commit); maybe apply patch one at a time
-            # for each commit?
-            raise git.GitCommandError(["am", "--directory=" + config["gecko"]["path"]["wpt"], "-"],
-                                      proc.returncode, stderr, stdout)
-    except git.GitCommandError as e:
-        logger.error("Failed to import patch downstream {}\n\n{}\n\n{}".format(
-            wpt_work.head.commit, patch, e))
-        bz.comment(sync.bug,
-                   "Downstreaming from web-platform-tests failed because applying patch "
-                   "from {} at {} failed:\n{}".format(commits, wpt_work.head.commit, e))
-        return False
+        try:
+            proc = gecko_work.git.am("--directory=" + config["gecko"]["path"]["wpt"], "-",
+                                     istream=subprocess.PIPE,
+                                     as_process=True)
+            stdout, stderr = proc.communicate(patch)
+            if proc.returncode != 0:
+                raise git.GitCommandError(
+                    ["am", "--directory=" + config["gecko"]["path"]["wpt"], "-"],
+                    proc.returncode, stderr, stdout)
+        except git.GitCommandError as e:
+            logger.error("Failed to import patch downstream {}\n\n{}\n\n{}".format(
+                c.hexsha, patch, e))
+            bz.comment(sync.bug,
+                       "Downstreaming from web-platform-tests failed because applying patch "
+                       "from {} failed:\n{}".format(c.hexsha, e))
+            return False
     return True
 
 
