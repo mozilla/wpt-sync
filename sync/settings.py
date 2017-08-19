@@ -13,6 +13,8 @@ root = os.path.abspath(
 
 def read_ini(path):
     parser = RawConfigParser()
+    # make option names case sensitive
+    parser.optionxform = str
     loaded = parser.read(path)
     if not path in loaded:
         raise ValueError("Failed to load ini file %s" % path)
