@@ -24,7 +24,7 @@ class Sync(Base):
 
     id = Column(Integer, primary_key=True)
     bug = Column(Integer)
-    pr = Column(Integer, unique=True)
+    pr_id = Column(Integer, ForeignKey('pull_request.id'))
     gecko_worktree = Column(String, unique=True)
     wpt_worktree = Column(String, unique=True)
     repository_id = Column(Integer, ForeignKey('repository.id'))
@@ -32,23 +32,31 @@ class Sync(Base):
     # Only two allowed values 'upstream' and 'downstream'. Maybe should
     # use a different representation here
     direction = Column(Enum(SyncDirection), nullable=False)
+    imported = Column(Boolean, default=False)
 
     modified = Column(DateTime(timezone=True), onupdate=func.now())
 
     closed = Column(Boolean, default=False)
-    # If the upstream PR has been merged
-    pr_merged = Column(Boolean, default=False)
 
     # Upstreaming only
     wpt_branch = Column(String, unique=True)
 
-    repository = relationship("Repository")
+    pr = relationship("PullRequest", back_populates="sync", uselist=False)
+    repository = relationship("Repository", uselist=False)
     source = relationship("Branch")
-    commits = relationship("Commit")
+    gecko_commits = relationship("GeckoCommit")
 
     # Only for downstreaming
     try_pushes = relationship("TryPush")
 
+
+class Landing(Base):
+    __tablename__ = "landing"
+
+    id = Column(Integer, primary_key=True)
+    last_push_commit = Column(String(40)) # Commit sha for which we last processed upstream metad
+    last_landed_commit = Column(String(40))
+    worktree = Column(String)
 
 class Repository(Base):
     __tablename__ = 'repository'
@@ -56,7 +64,7 @@ class Repository(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
 
-    last_processed_commit_id = Column(Integer, ForeignKey('commit.id'))
+    last_processed_commit_id = Column(Integer, ForeignKey('gecko_commit.id'))
 
     @classmethod
     def by_name(cls, session, name):
@@ -70,15 +78,40 @@ class Branch(Base):
     name = Column(String, unique=True)
 
 
-class Commit(Base):
+class GeckoCommit(Base):
     """Commits to gecko repositories"""
-    __tablename__ = 'commit'
+    __tablename__ = 'gecko_commit'
 
     id = Column(Integer, primary_key=True)
     rev = Column(String(40), unique=True)
 
     sync_id = Column(Integer, ForeignKey('sync.id'))
     sync = relationship("Sync")
+
+
+class WptCommit(Base):
+    """Commits to gecko repositories"""
+    __tablename__ = 'wpt_commit'
+
+    id = Column(Integer, primary_key=True)
+    rev = Column(String(40), unique=True)
+
+    pr_id = Column(Integer, ForeignKey('pull_request.id'))
+    pr = relationship("PullRequest")
+
+
+class PullRequest(Base):
+    """Upstream Pull Requests"""
+    __tablename__ = 'pull_request'
+
+    id = Column(Integer, primary_key=True)
+
+    # If the upstream PR has been merged
+    merged = Column(Boolean, default=False)
+
+    title = Column(String)  # TODO: fill this in
+    commits = relationship("WptCommit")
+    sync = relationship("Sync", back_populates="pr", uselist=False)
 
 
 class TryPush(Base):

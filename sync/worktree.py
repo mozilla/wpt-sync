@@ -33,7 +33,7 @@ def get_worktree_path(config, session, repo, project, prefix):
         if not (os.path.exists(path) or
                 branch_name in repo.branches or
                 query_worktree(session, project, rel_path)):
-            return rel_path
+            return path
         count += 1
 
 
@@ -51,15 +51,18 @@ def ensure_worktree(config, session, repo, project, sync, prefix, base):
     Returns:
         (git.Repo, str): worktree repo, branch name
     """
-    repo_worktree = worktree_attr(project)
-    if not getattr(sync, repo_worktree):
-        path = get_worktree_path(config, session, repo, project, prefix)
-        setattr(sync, repo_worktree, path)
-        logger.info("Setting up worktree in path %s" % path)
+    if sync is not None:
+        repo_worktree = worktree_attr(project)
+        if not getattr(sync, repo_worktree):
+            path = get_worktree_path(config, session, repo, project, prefix)
+            setattr(sync, repo_worktree, path)
+            logger.info("Setting up worktree in path %s" % path)
 
-    worktree_path = os.path.join(config["root"],
-                                 config["paths"]["worktrees"],
-                                 getattr(sync, repo_worktree))
+        worktree_path = os.path.join(config["root"],
+                                     config["paths"]["worktrees"],
+                                     getattr(sync, repo_worktree))
+    else:
+        worktree_path = get_worktree_path(config, session, repo, project, prefix)
 
     # TODO: If we want to prune these need to be careful about atomicity here
     # Probably need to have a lock whilst the cleanup is running

@@ -25,14 +25,14 @@ def cleanup(config):
 
 @pytest.fixture(scope="function")
 def config():
-    global bug, gh, model, repos
+    global bug, gh, model, repos, worktree
     settings.root = here
     ini_sync = settings.read_ini(os.path.abspath(os.path.join(here, "test.ini")))
     ini_credentials = None
     config = settings.load_files(ini_sync, ini_credentials)
     cleanup(config)
     settings._config = config
-    from sync import bug, gh, model, repos
+    from sync import bug, gh, model, repos, worktree
     return config
 
 #Ensure that configuration is loaded
@@ -92,7 +92,7 @@ def hg_gecko_upstream(config, initial_repo_content):
 
 
 @pytest.fixture(scope="function")
-def git_wpt_upstream(config, initial_repo_content):
+def git_wpt_upstream(config, session, initial_repo_content):
     repo_dir = os.path.join(config["root"], config["web-platform-tests"]["path"])
     os.makedirs(repo_dir)
 
@@ -104,7 +104,11 @@ def git_wpt_upstream(config, initial_repo_content):
             f.write(content)
         git_upstream.index.add([path])
 
-    git_upstream.index.commit("Initial commit")
+    head = git_upstream.index.commit("Initial commit")
+
+    landing, _ = model.get_or_create(session, model.Landing)
+    landing.last_push_commit = head.hexsha
+    landing.last_landed_commit = head.hexsha
 
     return git_upstream
 
@@ -136,3 +140,93 @@ def gh_wpt():
     gh_wpt = gh.MockGitHub()
     gh_wpt.output = StringIO()
     return gh_wpt
+
+
+def create_file_data(file_data, repo_workdir, prefix=""):
+    paths = []
+    if file_data is None:
+        file_data = {"README": "Example change\n"}
+    for rel_path, contents in file_data.iteritems():
+        repo_path = os.path.join(prefix, rel_path)
+        path = os.path.join(repo_workdir, repo_path)
+        paths.append(repo_path)
+        with open(path, "w") as f:
+            f.write(contents)
+    return paths
+
+
+@pytest.fixture
+def upstream_wpt_commit(session, git_wpt_upstream, gh_wpt, pull_request):
+    def inner(title="Example change", file_data=None, pr_id=1):
+        git_wpt_upstream.index.add(create_file_data(file_data, git_wpt_upstream.working_dir))
+        commit = git_wpt_upstream.index.commit("Example change")
+
+        wpt_commit, _ = model.get_or_create(session,
+                                            model.WptCommit,
+                                            rev=commit.hexsha,
+                                            pr_id=pr_id)
+
+        if pr_id is not None:
+            gh_wpt.commit_prs[commit.hexsha] = pr_id
+            pull_request(pr_id, title, commits=[wpt_commit])
+        return commit
+    return inner
+
+
+@pytest.fixture
+def local_gecko_commit(config, session, git_gecko, pull_request):
+    def inner(test_changes=None, meta_changes=None, pr_id=1, sync_direction=None,
+              bug=1234, title="Example changes"):
+        if sync_direction:
+            sync = model.Sync(direction=sync_direction)
+            session.add(sync)
+            sync.pr = pull_request(pr_id=pr_id)
+            sync.bug = bug
+        else:
+            sync = None
+
+        git_work, branch_name = worktree.ensure_worktree(config, session, git_gecko,
+                                                         "gecko", sync, "test",
+                                                         config["gecko"]["refs"]["mozilla-inbound"])
+        for path in create_file_data(test_changes, git_work.working_dir, config["gecko"]["path"]["wpt"]):
+            git_work.git.add(path)
+        git_work.git.commit(message=title)
+        if meta_changes is not None:
+            git_work.index.add(
+                create_file_data(meta_changes, os.path.join(git_work.working_dir,
+                                                            config["gecko"]["path"]["meta"])))
+            git_work.commit("%s [metadata]" % title)
+        return git_work, sync
+    return inner
+
+
+@pytest.fixture
+def pull_request(session):
+    def inner(pr_id, title=None, commits=None):
+        pr, created = model.get_or_create(session,
+                                          model.PullRequest,
+                                          id=pr_id)
+        if created:
+            pr.title = title if title is not None else "Example PR"
+            if commits is not None:
+                pr.commits = commits
+        else:
+            assert title is None and commits is None
+        return pr
+
+    inner.__name__ = "pull_request"
+    return inner
+
+
+@pytest.fixture
+def mock_mach():
+    from sync import projectutil
+    log = []
+
+    def get(self, *args, **kwargs):
+        log.append({"command": self.name,
+                    "cwd": self.path,
+                    "args": args,
+                    "kwargs": kwargs})
+    projectutil.Mach.get = get
+    return log

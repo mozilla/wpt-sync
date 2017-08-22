@@ -22,8 +22,8 @@ def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, gi
     assert sync.direction == model.SyncDirection.upstream
     assert sync.repository.name == "mozilla-inbound"
     assert sync.bug == 1111
-    assert len(sync.commits) == 1
-    assert sync.commits[0].rev == hg_gecko_upstream.log("-l1", "--template={node}").strip()
+    assert len(sync.gecko_commits) == 1
+    assert sync.gecko_commits[0].rev == hg_gecko_upstream.log("-l1", "--template={node}").strip()
     worktree_path = os.path.join(config["root"], config["paths"]["worktrees"], sync.wpt_worktree)
     assert os.path.exists(worktree_path)
     git_work = git.Repo(worktree_path)
@@ -32,7 +32,7 @@ def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, gi
     assert commit.message.split("\n")[0] == "Change README"
     assert "README" in commit.tree
     assert "Posting to bug 1111" in bz.output.getvalue()
-    assert "Created PR with id %s" % sync.pr in gh_wpt.output.getvalue()
+    assert "Created PR with id %s" % sync.pr_id in gh_wpt.output.getvalue()
 
 
 def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):
@@ -59,7 +59,7 @@ def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wp
     assert len(syncs) == 1
     sync = syncs[0]
     assert sync.repository.name == "central"
-    assert "Merged PR with id %s" % sync.pr in gh_wpt.output.getvalue()
+    assert "Merged PR with id %s" % sync.pr_id in gh_wpt.output.getvalue()
     assert "Merged associated web-platform-tests PR" in bz.output.getvalue()
 
 
@@ -82,4 +82,4 @@ def test_create_pr_backout_landing(config, session, hg_gecko_upstream, git_gecko
     syncs = list(session.query(model.Sync))
     assert len(syncs) == 1
     sync = syncs[0]
-    assert len(sync.commits) == 0
+    assert len(sync.gecko_commits) == 0

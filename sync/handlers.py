@@ -6,9 +6,10 @@ import downstream
 import gh
 import log
 import model
+import push
 import repos
 import upstream
-from model import Sync, SyncDirection
+from model import Metadata, Sync, SyncDirection
 
 
 logger = log.get_logger("handlers")
@@ -67,6 +68,7 @@ class GitHubHandler(Handler):
         dispatch_event = {
             "pull_request": handle_pr,
             "status": handle_status,
+            "push": handle_push,
         }
 
         handler = dispatch_event.get(body['event'])
@@ -87,6 +89,8 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     if not sync:
         # If we don't know about this sync then it's a new thing that we should
         # set up state for
+        # TODO: maybe want to create a new sync here irrespective of the event
+        # type because we missed some events.
         if event["action"] == "opened":
             downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
     elif sync.direction == SyncDirection.upstream:
@@ -146,9 +150,24 @@ def handle_pr_merge():
     # prepare to land downstream
     pass
 
+
 def handler_pr_approved():
     # prepare to land downstream
     pass
+
+
+def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
+    event = body["payload"]
+    if event["ref"] != "refs/heads/master":
+        return
+
+    last_push_commit = push.get_last_push(session)
+    if last_push_commit is None:
+        landing, _ = model.get_or_create(session, model.Landing)
+        landing.last_push_commit = event["before"]
+
+    push.wpt_push(session, git_wpt, gh_wpt)
+
 
 class CommitHandler(Handler):
     def __init__(self, config):

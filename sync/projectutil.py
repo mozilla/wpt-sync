@@ -9,6 +9,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import os
 import subprocess
+import types
 
 logger = logging.getLogger(__name__)
 
@@ -33,3 +34,15 @@ class Command(object):
         assert subcommand and len(subcommand)
         command = [os.path.join(self.path, self.name)] + list(subcommand)
         return subprocess.check_output(command, cwd=self.path, **opts)
+
+    def __getattr__(self, name):
+        def call(self, *args, **kwargs):
+            return self.get(name.replace("_", "-"), *args, **kwargs)
+        call.__name__ = name
+        self.__dict__[name] = types.MethodType(call, self, self.__class__)
+        return self.__dict__[name]
+
+
+class Mach(Command):
+    def __init__(self, repo):
+        Command.__init__(self, "mach", repo.working_dir)

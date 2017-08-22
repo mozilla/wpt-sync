@@ -4,6 +4,10 @@ import urlparse
 import sys
 
 import github
+import log
+
+
+logger = log.get_logger(__name__)
 
 
 class GitHub(object):
@@ -101,6 +105,19 @@ class GitHub(object):
 
         return all(status.status == "success" for status in latest.itervalues())
 
+    def pr_for_commit(self, sha):
+        owner, repo = self.repo_name.split("/")
+        prs = self.github.search_issues(query="is:pr owner:%s repo:%s %s" % (owner, repo, sha))
+        if len(prs) == 0:
+            return
+
+        if len(prs > 1):
+            logger.warning("Got multiple PRs related to commit %s: %s" %
+                           (sha, ", ".join(item["number"] for item in prs)))
+            prs = sorted(prs, key=lambda x: x["number"])
+
+        return prs[0]
+
 
 class AttrDict(dict):
     def __getattr__(self, name):
@@ -113,6 +130,7 @@ class AttrDict(dict):
 class MockGitHub(GitHub):
     def __init__(self):
         self.prs = {}
+        self.commit_prs = {}
         self._id = itertools.count(1)
         self.output = sys.stdout
 
@@ -194,3 +212,5 @@ class MockGitHub(GitHub):
         pr = self.get_pull(pr_id)
         pr.approved = True
 
+    def pr_for_commit(self, sha):
+        return self.commit_prs.get(sha)

@@ -17,7 +17,7 @@ from sqlalchemy.orm import joinedload
 import log
 import model
 import settings
-from model import Sync, SyncDirection, Commit, Repository, session_scope
+from model import Sync, SyncDirection, GeckoCommit, PullRequest, Repository, session_scope
 from worktree import ensure_worktree, remove_worktrees
 
 logger = log.get_logger("upstream")
@@ -79,7 +79,7 @@ def is_empty(commit, path):
 
 def syncs_from_commits(session, git_gecko, commit_shas):
     hg_revs = [git_gecko.cinnabar.git2hg(git_rev) for git_rev in commit_shas]
-    return session.query(Sync).join(Commit).filter(Commit.rev.in_(hg_revs))
+    return session.query(Sync).join(GeckoCommit).filter(GeckoCommit.rev.in_(hg_revs))
 
 
 def update_for_backouts(session, git_gecko, revs_by_backout):
@@ -94,8 +94,8 @@ def update_for_backouts(session, git_gecko, revs_by_backout):
 
     # Remove the commits from the database
     for sync in syncs:
-        modified = len(sync.commits) > 0
-        for commit in sync.commits:
+        modified = len(sync.gecko_commits) > 0
+        for commit in sync.gecko_commits:
             if git_gecko.cinnabar.hg2git(commit.rev) in backout_revs:
                 session.delete(commit)
         rv.append((sync, modified))
@@ -112,7 +112,7 @@ def pr_url(config, pr_id):
 
 def abort_sync(config, gh_wpt, bz, sync):
     if sync.pr:
-        gh_wpt.close_pull(sync.pr)
+        gh_wpt.close_pull(sync.pr_id)
         bz.comment(sync.bug, "Closed web-platform-tests PR due to backout")
 
     sync.closed = True
@@ -142,25 +142,27 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
             continue
 
         sync = (session.query(Sync)
-                .options(joinedload(Sync.commits))
-                .filter(Sync.bug==bug, Sync.pr_merged==False)).first()
+                .join(PullRequest)
+                .options(joinedload(Sync.gecko_commits))
+                .filter(Sync.bug == bug,
+                        PullRequest.merged.is_(False))).first()
 
         if sync is None:
             sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name),
                         direction=SyncDirection.upstream)
             session.add(sync)
 
-        if not sync.commits:
+        if not sync.gecko_commits:
             # This is either new or backed out and relanded,
             # so create a new set of commits
             for commit in commits:
-                commit = Commit(rev=git_gecko.cinnabar.git2hg(commit.hexsha))
-                sync.commits.append(commit)
+                commit = GeckoCommit(rev=git_gecko.cinnabar.git2hg(commit.hexsha))
+                sync.gecko_commits.append(commit)
                 session.add(commit)
             modified = True
         else:
             new_commits = [git_gecko.cinnabar.git2hg(item.hexsha) for item in commits]
-            prev_commits = [item.rev for item in sync.commits]
+            prev_commits = [item.rev for item in sync.gecko_commits]
 
             modified = new_commits != prev_commits
 
@@ -179,11 +181,11 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
                 prev_revs = set(prev_commits)
                 for rev in new_commits:
                     if rev not in prev_revs:
-                        sync.commits.append(Commit(rev=rev))
+                        sync.gecko_commits.append(GeckoCommit(rev=rev))
             else:
                 # More commits were added to a bug that already has some
                 for rev in new_commits[len(prev_commits):]:
-                    sync.commits.append(Commit(rev=rev))
+                    sync.gecko_commits.append(GeckoCommit(rev=rev))
 
         updated.append((sync, modified))
 
@@ -253,11 +255,11 @@ def create_pr(config, gh_wpt, bz, sync, msg):
                             body=pr_body,
                             base="master",
                             head=sync.wpt_branch)
-    sync.pr = pr
+    sync.pr = PullRequest(id=pr)
     # TODO: add label to bug
     bz.comment(sync.bug,
                "Created web-platform-tests PR %s for changes under testing/web-platform/tests" %
-               pr_url(config, sync.pr))
+               pr_url(config, sync.pr_id))
 
 
 def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
@@ -265,7 +267,7 @@ def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
                                             str(sync.bug), "origin/master")
     git_work.index.reset("origin/master", hard=True)
 
-    for commit in sync.commits:
+    for commit in sync.gecko_commits:
         success = move_commit(config, git_gecko, git_work, bz, sync, commit)
         if not success:
             logger.error("Moving commits failed, skipping further commits in this patch")
@@ -297,15 +299,15 @@ def update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
             logger.info("No changes to commits for bug %i" % sync.bug)
             continue
 
-        logger.debug("Sync for bug %i has %i commits" % (sync.bug, len(sync.commits)))
-        if not sync.commits:
+        logger.debug("Sync for bug %i has %i commits" % (sync.bug, len(sync.gecko_commits)))
+        if not sync.gecko_commits:
             abort_sync(config, gh_wpt, bz, sync)
         else:
             success = update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync)
             if not success:
                 continue
 
-            gh_wpt.set_status(sync.pr,
+            gh_wpt.set_status(sync.pr_id,
                               "failure",
                               target_url=bugzilla_url,
                               description="Landed on mozilla-central",
@@ -313,7 +315,7 @@ def update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
 
 
 def try_land_pr(config, gh_wpt, bz, sync):
-    failed_checks = not gh_wpt.status_checks_pass(sync.pr)
+    failed_checks = not gh_wpt.status_checks_pass(sync.pr_id)
     msg = None
 
     if failed_checks:
@@ -321,23 +323,23 @@ def try_land_pr(config, gh_wpt, bz, sync):
                                (item.state, item.description, item.target_url)
                                for item in failed)
         logger.warning("Failed to land PR %s because of failed status checks:\n%s" %
-                       (sync.pr, failed_str))
+                       (sync.pr_id, failed_str))
         msg = ("Can't merge web-platform-tests PR due to failing status checks:\n%s" %
                failed_str)
     else:
-        if not gh_wpt.is_mergeable(sync.pr):
-            logger.warning("Failed to land PR %s because it isn't mergeable" % sync.pr)
+        if not gh_wpt.is_mergeable(sync.pr_id):
+            logger.warning("Failed to land PR %s because it isn't mergeable" % sync.pr_id)
             msg = "Can't merge web-platform-tests PR"
         else:
             try:
-                gh_wpt.merge_pull(sync.pr)
+                gh_wpt.merge_pull(sync.pr_id)
             except github.GithubException as e:
-                logger.error("Merging PR %s failed:\n%s" % (sync.pr, e))
+                logger.error("Merging PR %s failed:\n%s" % (sync.pr_id, e))
                 msg = "Merging web-platform-tests PR failed"
             else:
                 msg = ("Merged associated web-platform-tests PR. "
                        "Thanks for writing web-platform-tests!")
-                sync.pr_merged = True
+                sync.pr.merged = True
                 remove_worktrees(config, sync)
 
     if msg is not None:
@@ -349,7 +351,7 @@ def land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
     git_wpt.git.worktree("prune")
 
     for sync, modified in syncs:
-        if not sync.commits:
+        if not sync.gecko_commits:
             if modified:
                 # It's not really clear this should happen unless we miss a push to
                 # a landing repo or something
@@ -360,7 +362,7 @@ def land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs):
                 if not success:
                     continue
 
-            gh_wpt.set_status(sync.pr,
+            gh_wpt.set_status(sync.pr_id,
                               "success",
                               target_url=None,
                               description=None,
@@ -459,7 +461,7 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
 def remove_missing_commits(config, session, git_gecko, repository):
     """Remove any commits from the database that are no longer in the source
     repository"""
-    commits = session.query(Commit).join(Sync).filter(Sync.repository == repository)
+    commits = session.query(GeckoCommit).join(Sync).filter(Sync.repository == repository)
     upstream = config["gecko"]["refs"][repository.name]
     syncs = set()
 
@@ -542,7 +544,7 @@ def status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync, contex
         return
 
     if status == "passed":
-        if gh_wpt.status_checks_pass(sync.pr):
+        if gh_wpt.status_checks_pass(sync.pr_id):
             if sync.repository.name != "central":
                 land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, [sync])
             else:
