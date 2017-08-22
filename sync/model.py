@@ -113,6 +113,12 @@ class PullRequest(Base):
     commits = relationship("WptCommit")
     sync = relationship("Sync", back_populates="pr", uselist=False)
 
+    @classmethod
+    def update_from_github(cls, session, data):
+        instance, _ = session.get_or_create(session, cls, id=data["number"])
+        instance.title = data["title"]
+        instance.merged = data["merged"]
+
 
 class TryPush(Base):
     __tablename__ = 'try_push'

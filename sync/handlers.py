@@ -9,7 +9,7 @@ import model
 import push
 import repos
 import upstream
-from model import Metadata, Sync, SyncDirection
+from model import Landing, PullRequest, Sync, SyncDirection
 
 
 logger = log.get_logger("handlers")
@@ -85,6 +85,7 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     sync = get_sync(session, pr_id)
 
     gh_wpt.load_pull(event["pull_request"])
+    PullRequest.update_from_github(session, event["pull_request"])
 
     if not sync:
         # If we don't know about this sync then it's a new thing that we should
@@ -163,7 +164,7 @@ def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
 
     last_push_commit = push.get_last_push(session)
     if last_push_commit is None:
-        landing, _ = model.get_or_create(session, model.Landing)
+        landing, _ = model.get_or_create(session, Landing)
         landing.last_push_commit = event["before"]
 
     push.wpt_push(session, git_wpt, gh_wpt)
