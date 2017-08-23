@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import absolute_import, print_function, unicode_literals
+from __future__ import absolute_import, print_function
 
 """Functionality to support VCS syncing for WPT."""
 
@@ -18,13 +18,21 @@ import git
 
 from mozvcssync.gitutil import GitCommand
 
-import settings
-import log
-import model
+from . import (
+    settings,
+    log,
+    model
+)
 
-from model import session_scope, Sync, SyncDirection
-from projectutil import Command
-from worktree import ensure_worktree, remove_worktrees
+from .model import (
+    session_scope,
+    PullRequest,
+    Repository,
+    Sync,
+    SyncDirection,
+)
+from .projectutil import Mach, WPT
+from .worktree import ensure_worktree, remove_worktrees
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = log.get_logger("downstream")
@@ -32,14 +40,17 @@ logger = log.get_logger("downstream")
 
 def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
     pr_id = body['payload']['pull_request']['number']
-    pr = body["payload"]["pull_request"]
-    bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr["title"]),
-                 comment=pr["body"],
+    pr_data = body["payload"]["pull_request"]
+    bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr_data["title"]),
+                 comment=pr_data["body"],
                  product="Testing",
                  component="web-platform-tests")
 
     with session_scope(session):
-        sync = Sync(pr=pr_id, direction=SyncDirection.downstream)
+        pr = PullRequest(id=pr_id)
+        session.add(pr)
+        sync = Sync(direction=SyncDirection.downstream, pr=pr,
+                    repository=Repository.by_name(session, "web-platform-tests"))
         session.add(sync)
         sync.bug = bug
 
@@ -47,8 +58,8 @@ def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
 
 def commit_manifest_update(gecko_work):
     gecko_work.git.reset("HEAD", hard=True)
-    mach = Command('mach', gecko_work.working_dir)
-    mach.get('wpt-manifest-update')
+    mach = Mach(gecko_work.working_dir)
+    mach.wpt_manifest_update()
     if gecko_work.is_dirty:
         gecko_work.git.add("testing/web-platform/meta")
         gecko_work.git.commit(message="[wpt-sync] downstream {}: update manifest".format(
@@ -56,8 +67,8 @@ def commit_manifest_update(gecko_work):
 
 
 def get_files_changed(project_path):
-    wpt = Command("wpt", project_path)
-    output = wpt.get("files-changed")
+    wpt = WPT(project_path)
+    output = wpt.files_changed()
     return set(output.split("\n"))
 
 
@@ -68,8 +79,8 @@ def choose_bug_component(config, git_gecko, files_changed, default):
     path_prefix = config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in files_changed]
 
-    mach = Command('mach', git_gecko.working_dir)
-    output = mach.get("file-info", "bugzilla-component", *paths)
+    mach = Mach(git_gecko.working_dir)
+    output = mach.file_info("bugzilla-component", *paths)
 
     components = defaultdict(int)
     current = None
@@ -122,10 +133,10 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
         try:
             wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
         except git.GitCommandError as e:
-            logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr, e))
+            logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr_id, e))
             bz.comment(sync.bug,
                        "Downstreaming from web-platform-tests failed because obtaining "
-                       "PR {} failed:\n{}".format(sync.pr, e))
+                       "PR {} failed:\n{}".format(sync.pr_id, e))
             return False
 
         files_changed = get_files_changed(wpt_work.working_dir)
@@ -135,7 +146,7 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
         logger.info("Fetch done")
         gecko_work, gecko_branch = ensure_worktree(
             config, session, git_gecko, "gecko", sync,
-            "PR_" + str(sync.pr), config["gecko"]["refs"]["central"])
+            "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
         gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
         success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
         if not success:
@@ -156,11 +167,11 @@ def get_pr(config, session, git_wpt, sync):
     git_wpt.git.fetch("origin", "master", no_tags=True)
     logger.info("Fetch done")
     wpt_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
-                                            "PR_" + str(sync.pr), "origin/master")
+                                            "PR_" + str(sync.pr_id), "origin/master")
     wpt_work.index.reset("origin/master", hard=True)
-    wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr, sync.pr),
+    wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr_id, sync.pr_id),
                        no_tags=True)
-    wpt_work.git.merge("heads/pull_{}".format(sync.pr))
+    wpt_work.git.merge("heads/pull_{}".format(sync.pr_id))
     return wpt_work, branch_name
 
 
@@ -202,17 +213,18 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
 
 
 def get_affected_tests(path_to_wpt, revish=None):
-    wpt = Command("wpt", path_to_wpt)
-    wpt.get("manifest")
-    affected = ["tests-affected", "--show-type", "--new"]
-    if revish:
-        affected.append(revish)
-    s = wpt.get(*affected)
     tests_by_type = defaultdict(set)
-    for item in s.strip().split("\n"):
-        pair = item.strip().split("\t")
-        assert len(pair) == 2
-        tests_by_type[pair[1]].add(pair[0])
+    wpt = WPT(path_to_wpt)
+    wpt.manifest()
+    args = ["--show-type", "--new"]
+    if revish:
+        args.append(revish)
+    s = wpt.tests_affected(*args)
+    if s is not None:
+        for item in s.strip().split("\n"):
+            pair = item.strip().split("\t")
+            assert len(pair) == 2
+            tests_by_type[pair[1]].add(pair[0])
     return tests_by_type
 
 
