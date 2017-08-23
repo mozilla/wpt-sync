@@ -52,6 +52,14 @@ def initial_repo_content():
     return [("README", "Initial text\n")]
 
 
+@pytest.fixture
+def pr_content():
+    branches_commits = [
+        [("README", "More text, Initial text\n"), ("README", "Another line\nInitial text\n")],
+        [("README", "Changed text\n")]
+    ]
+    return branches_commits
+
 class hg(object):
     def __init__(self, path):
         self.working_tree = path
@@ -92,7 +100,7 @@ def hg_gecko_upstream(config, initial_repo_content):
 
 
 @pytest.fixture(scope="function")
-def git_wpt_upstream(config, session, initial_repo_content):
+def git_wpt_upstream(config, session, initial_repo_content, pr_content):
     repo_dir = os.path.join(config["root"], config["web-platform-tests"]["path"])
     os.makedirs(repo_dir)
 
@@ -105,6 +113,20 @@ def git_wpt_upstream(config, session, initial_repo_content):
         git_upstream.index.add([path])
 
     head = git_upstream.index.commit("Initial commit")
+
+    count = 0
+    for pr_id, commits in enumerate(pr_content):
+        git_upstream.heads.master.checkout()
+        pr_branch = git_upstream.create_head("pull/{}/head".format(pr_id))
+        pr_branch.checkout()
+        for path, content in commits:
+            count += 1
+            file_path = os.path.join(repo_dir, path)
+            with open(file_path, "w") as f:
+                f.write(content)
+            git_upstream.index.add([path])
+            git_upstream.index.commit("Commit {}".format(count))
+    git_upstream.heads.master.checkout()
 
     landing, _ = model.get_or_create(session, model.Landing)
     landing.last_push_commit = head.hexsha
@@ -229,4 +251,18 @@ def mock_mach():
                     "args": args,
                     "kwargs": kwargs})
     projectutil.Mach.get = get
+    return log
+
+
+@pytest.fixture
+def mock_wpt():
+    from sync import projectutil
+    log = []
+
+    def get(self, *args, **kwargs):
+        log.append({"command": self.name,
+                    "cwd": self.path,
+                    "args": args,
+                    "kwargs": kwargs})
+    projectutil.WPT.get = get
     return log

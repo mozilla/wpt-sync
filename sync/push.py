@@ -112,7 +112,7 @@ def add_metadata(config, git_gecko, git_work_gecko, sync):
 
 
 def manifest_update(git_work_gecko):
-    mach = Mach(git_work_gecko)
+    mach = Mach(git_work_gecko.working_dir)
     mach.wpt_manifest_update()
     if git_work_gecko.is_dirty():
         git_work_gecko.git.add("testing/web-platform/meta")

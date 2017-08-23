@@ -44,5 +44,10 @@ class Command(object):
 
 
 class Mach(Command):
-    def __init__(self, repo):
-        Command.__init__(self, "mach", repo.working_dir)
+    def __init__(self, path):
+        Command.__init__(self, "mach", path)
+
+
+class WPT(Command):
+    def __init__(self, path):
+        Command.__init__(self, "wpt", path)
