@@ -65,6 +65,9 @@ def set_value(config, section, name, value, ini_credentials):
     if value == "%SECRET%":
         value = ini_credentials.get(section, name)
 
+    if "%ROOT%" in value:
+        value = value.replace("%ROOT%", config["root"])
+
     if value.startswith("$"):
         value = os.environ.get(value[1:])
     elif value.lower() == "true":

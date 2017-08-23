@@ -101,7 +101,7 @@ def hg_gecko_upstream(config, initial_repo_content):
 
 @pytest.fixture(scope="function")
 def git_wpt_upstream(config, session, initial_repo_content, pr_content):
-    repo_dir = os.path.join(config["root"], config["web-platform-tests"]["path"])
+    repo_dir = config["web-platform-tests"]["path"]
     os.makedirs(repo_dir)
 
     git_upstream = git.Repo.init(repo_dir)
