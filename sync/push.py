@@ -77,7 +77,7 @@ def get_outstanding_syncs(session):
 
 def reapply_local_commits(session, bz, git_gecko, git_work_gecko, syncs):
     for sync in syncs:
-        for commit in reversed(sync.commits):
+        for commit in reversed(sync.gecko_commits):
             try:
                 git_work_gecko.git.cherry_pick(
                     git_gecko.cinnabar.hg2git(commit.hexsha, no_commit=True))
