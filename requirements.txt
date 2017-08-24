@@ -1,7 +1,10 @@
--e git+https://github.com/gitpython-developers/GitPython.git#egg=gitpython
+git+https://github.com/gitpython-developers/GitPython.git#egg=gitpython
 mercurial==4.2.2
--e ../pylib/mozautomation
 PyGithub==1.35
 SQLAlchemy==1.1.11
 bugsy==0.10.1
 enum34==1.1.6
+celery==4.1.0
+git+https://github.com/mozilla/version-control-tools.git#egg=mozautomation&subdirectory=pylib/mozautomation
+pytest
+mock

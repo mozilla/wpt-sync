@@ -74,6 +74,7 @@ class Consumer(object):
         finally:
             message.ack()
 
+
 def get_consumer(userid, password,
                  hostname='pulse.mozilla.org',
                  port=5571,
