@@ -16,8 +16,6 @@ from collections import defaultdict
 
 import git
 
-from mozvcssync.gitutil import GitCommand
-
 from . import (
     settings,
     log,
@@ -256,7 +254,7 @@ def construct_try_message(tests_by_type):
     return try_message.format(**test_data)
 
 
-def push_to_try(git_repo_path, branch):
+def push_to_try(git_work, branch):
     # TODO determine affected tests (use new wpt command in upstream repo)
     affected_tests = [
         "testing/web-platform/tests/webdriver",
@@ -264,20 +262,20 @@ def push_to_try(git_repo_path, branch):
         "testing/web-platform/tests/cookies",
     ]
     results_url = None
-    git = GitCommand(os.path.abspath(git_repo_path))
     # TODO only push to try on mac if necessary
     try_message = ("try: -b do -p linux,linux64 -u web-platform-tests-1,web-platform-tests-e10s-1 "
                    "-t none --artifact --try-test-paths ")
     try_message += "".join(["web-platform-tests:" + t for t in affected_tests])
-    git.cmd(b'checkout', branch)
-    git.cmd(b'commit', b'--allow-empty', b'-m', try_message)
+    git_work.git(b'checkout', branch)
+    git_work.git(b'commit', b'--allow-empty', b'-m', try_message)
     try:
-        output = git.get(b'push', b'try', stderr=subprocess.STDOUT)
-        rev_match = rev_re.search(output)
+        status, stdout, stderr = git_work.git(b'push', b'try', with_extended_output=True)
+        # Not sure if this should be stdout or stderr
+        rev_match = rev_re.search(stdout)
         results_url = ("https://treeherder.mozilla.org/#/"
                        "jobs?repo=try&revision=") + rev_match.group('rev')
     finally:
-        git.cmd(b'reset', b'HEAD~')
+        git_work.git.cmd(b'reset', b'HEAD~')
     # TODO also return task_group_id
     return results_url
 

@@ -1,7 +1,6 @@
 -e git+https://github.com/gitpython-developers/GitPython.git#egg=gitpython
 mercurial==4.2.2
 -e ../pylib/mozautomation
--e ../vcssync
 PyGithub==1.35
 SQLAlchemy==1.1.11
 bugsy==0.10.1
