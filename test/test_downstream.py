@@ -106,3 +106,104 @@ def test_wpt_to_gecko_commits(config, session, git_wpt, git_gecko, pr_content, b
     for c in new_commits:
         assert len(c.stats.files) == 1
         assert "testing/web-platform/tests/README" in c.stats.files
+
+
+def test_get_affected_tests():
+    output = (
+        "XMLHttpRequest/access-control-basic-allow-access-control-origin-"
+        "header-data-url.htm"
+        "\ttestharness\n"
+        "XMLHttpRequest/access-control-basic-allow-preflight-cache-timeout.htm"
+        "\ttestharness\n"
+        "css-backgrounds/background-clip-color-repaint.html"
+        "\treftest\n"
+        "webdriver/tests/contexts/maximize_window.py"
+        "\twdspec\n"
+        "webdriver/tests/contexts/resizing_and_positioning.py"
+        "\twdspec\n"
+        "webdriver/tests/contexts/positioning.py"
+        "\twdspec\n"
+    )
+    wpt = Mock()
+    wpt.tests_affected = Mock(return_value=output)
+    with patch("sync.downstream.WPT", return_value=wpt):
+        tests = downstream.get_affected_tests("some/path", "some_revision")
+        assert len(tests) == 3
+        assert len(tests["testharness"]) == 2
+        assert len(tests["wdspec"]) == 3
+        assert len(tests["reftest"]) == 1
+
+
+def test_get_affect_tests_empty():
+    wpt = Mock()
+    wpt.tests_affected = Mock(return_value=None)
+    with patch("sync.downstream.WPT", return_value=wpt):
+        assert len(downstream.get_affected_tests("some/path")) == 0
+
+
+def test_construct_try_message_when_no_affected_tests():
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u web-platform-tests-1"
+        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
+        "--artifact")
+    assert downstream.construct_try_message({}) == expected
+
+
+def test_construct_try_message_testharness_invalid():
+    tests_affected = {
+        "invalid_type": ["path1"],
+        "testharness": ["testharnesspath1", "testharnesspath2"]
+    }
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
+        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
+        "--artifact --try-test-paths web-platform-tests:path1,"
+        "web-platform-tests:testharnesspath1,"
+        "web-platform-tests:testharnesspath2"
+    )
+    assert downstream.construct_try_message(tests_affected) == expected
+
+
+def test_construct_try_message_wdspec_invalid():
+    tests_affected = {
+        "invalid_type": ["path1"],
+        "wdspec": ["wdspecpath1"],
+        "invalid_empty": [],
+        "also_invalid": ["path2"],
+    }
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
+        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10],"
+        "web-platform-tests-wdspec -t none "
+        "--artifact --try-test-paths web-platform-tests:path1,"
+        "web-platform-tests:path2,web-platform-tests-wdspec:wdspecpath1"
+    )
+    assert downstream.construct_try_message(tests_affected) == expected
+
+
+def test_construct_try_message_just_reftest():
+    tests_affected = {
+        "reftest": ["reftestpath1"],
+    }
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u "
+        "web-platform-tests-reftests "
+        "-t none --artifact --try-test-paths "
+        "web-platform-tests-reftests:reftestpath1"
+    )
+    assert downstream.construct_try_message(tests_affected) == expected
+
+
+def test_construct_try_message_wdspec_reftest():
+    tests_affected = {
+        "reftest": ["reftestpath1"],
+        "wdspec": ["wdspecpath1"],
+    }
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u "
+        "web-platform-tests-wdspec,web-platform-tests-reftests "
+        "-t none --artifact --try-test-paths "
+        "web-platform-tests-wdspec:wdspecpath1,"
+        "web-platform-tests-reftests:reftestpath1"
+    )
+    assert downstream.construct_try_message(tests_affected) == expected

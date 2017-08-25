@@ -227,30 +227,48 @@ def get_affected_tests(path_to_wpt, revish=None):
 
 
 def construct_try_message(tests_by_type):
+    test_data = {
+        "test_jobs": [],
+        "prefixed_paths": [],
+    }
     # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none --artifact
     try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
-                   "-t none --artifact --try-test-paths {prefixed_paths}")
+                   "-t none --artifact")
     test_type_suite = {
         "testharness": "web-platform-tests",
         "reftest": "web-platform-tests-reftests",
         "wdspec": "web-platform-tests-wdspec",
     }
     platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]"
-    test_data = {
-        "test_jobs": [],
-        "prefixed_paths": [],
-    }
     # TODO? support files, harness changes -- don't want to update metadata
-    for test_type, paths in tests_by_type.iteritems():
-        suite = test_type_suite[test_type]
-        if len(paths):
+    tests_by_suite = defaultdict(list)
+    if len(tests_by_type) > 0:
+        try_message +=  " --try-test-paths {prefixed_paths}"
+        for test_type in tests_by_type.iterkeys():
+            suite = test_type_suite.get(test_type)
+            if suite:
+                tests_by_suite[test_type_suite[test_type]].extend(
+                    tests_by_type[test_type])
+            elif tests_by_type[test_type]:
+                logger.warning(
+                    """Unrecognized test type {}.
+                    Will attempt to run the following tests as testharness tests:
+                    {}""".format(test_type, tests_by_type[test_type]))
+                tests_by_suite["web-platform-tests"].extend(
+                    tests_by_type[test_type])
+    else:
+        # run first chunk of the wpt job if no tests are affected
+        test_data["test_jobs"].append("web-platform-tests-1" + platform_suffix)
+
+    for suite, paths in tests_by_suite.iteritems():
+        if paths:
             machines = platform_suffix if suite == "web-platform-tests" else ""
             test_data["test_jobs"].append(suite + machines)
-            test_data["test_jobs"].append(suite + "-e10s" + machines)
         for p in paths:
             test_data["prefixed_paths"].append(suite + ":" + p)
     test_data["test_jobs"] = ",".join(test_data["test_jobs"])
-    test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
+    if test_data["prefixed_paths"]:
+        test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
     return try_message.format(**test_data)
 
 
