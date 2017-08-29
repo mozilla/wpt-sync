@@ -58,6 +58,7 @@ class Landing(Base):
     last_landed_commit = Column(String(40))
     worktree = Column(String)
 
+
 class Repository(Base):
     __tablename__ = 'repository'
 
@@ -90,7 +91,7 @@ class GeckoCommit(Base):
 
 
 class WptCommit(Base):
-    """Commits to gecko repositories"""
+    """Commits to wpt repository"""
     __tablename__ = 'wpt_commit'
 
     id = Column(Integer, primary_key=True)
@@ -124,7 +125,8 @@ class TryPush(Base):
     __tablename__ = 'try_push'
 
     id = Column(Integer, primary_key=True)
-    rev = Column(String(40), unique=True) # Or link to Commit?
+    # hg rev on try
+    rev = Column(String(40), unique=True)
     complete = Column(Boolean, default=False)
 
     sync_id = Column(Integer, ForeignKey('sync.id'))

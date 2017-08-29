@@ -134,22 +134,42 @@ def test_get_affected_tests():
         assert len(tests["reftest"]) == 1
 
 
-def test_get_affect_tests_empty():
+def test_get_affected_tests_empty():
     wpt = Mock()
     wpt.tests_affected = Mock(return_value=None)
     with patch("sync.downstream.WPT", return_value=wpt):
         assert len(downstream.get_affected_tests("some/path")) == 0
 
 
-def test_construct_try_message_when_no_affected_tests():
+def test_try_message_when_no_affected_tests():
     expected = (
         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests-1"
         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
         "--artifact")
-    assert downstream.construct_try_message({}) == expected
+    assert downstream.try_message({}) == expected
 
 
-def test_construct_try_message_testharness_invalid():
+def test_try_message_no_affected_tests_rebuild():
+    rebuild = 10
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u web-platform-tests-1"
+        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
+        "--artifact --rebuild {}".format(rebuild))
+    assert downstream.try_message({}, rebuild=rebuild) == expected
+
+
+def test_try_message_all_rebuild():
+    rebuild = 10
+    expected = (
+        "try: -b do -p win32,win64,linux64,linux -u "
+        "web-platform-tests-reftests,web-platform-tests-wdspec,"
+        "web-platform-tests"
+        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] "
+        "-t none --artifact --rebuild {}".format(rebuild))
+    assert downstream.try_message(rebuild=rebuild) == expected
+
+
+def test_try_message_testharness_invalid():
     tests_affected = {
         "invalid_type": ["path1"],
         "testharness": ["testharnesspath1", "testharnesspath2"]
@@ -161,10 +181,10 @@ def test_construct_try_message_testharness_invalid():
         "web-platform-tests:testharnesspath1,"
         "web-platform-tests:testharnesspath2"
     )
-    assert downstream.construct_try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected) == expected
 
 
-def test_construct_try_message_wdspec_invalid():
+def test_try_message_wdspec_invalid():
     tests_affected = {
         "invalid_type": ["path1"],
         "wdspec": ["wdspecpath1"],
@@ -178,10 +198,10 @@ def test_construct_try_message_wdspec_invalid():
         "--artifact --try-test-paths web-platform-tests:path1,"
         "web-platform-tests:path2,web-platform-tests-wdspec:wdspecpath1"
     )
-    assert downstream.construct_try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected) == expected
 
 
-def test_construct_try_message_just_reftest():
+def test_try_message_just_reftest():
     tests_affected = {
         "reftest": ["reftestpath1"],
     }
@@ -191,10 +211,10 @@ def test_construct_try_message_just_reftest():
         "-t none --artifact --try-test-paths "
         "web-platform-tests-reftests:reftestpath1"
     )
-    assert downstream.construct_try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected) == expected
 
 
-def test_construct_try_message_wdspec_reftest():
+def test_try_message_wdspec_reftest():
     tests_affected = {
         "reftest": ["reftestpath1"],
         "wdspec": ["wdspecpath1"],
@@ -206,4 +226,4 @@ def test_construct_try_message_wdspec_reftest():
         "web-platform-tests-wdspec:wdspecpath1,"
         "web-platform-tests-reftests:reftestpath1"
     )
-    assert downstream.construct_try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected) == expected
