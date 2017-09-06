@@ -18,7 +18,7 @@ class GitHub(object):
         self._repo = None
 
     def load_pull(self, data):
-        pr = self.gh.create_from_raw_data(github.PullRequest, data)
+        pr = self.gh.create_from_raw_data(github.PullRequest.PullRequest, data)
         self.pr_cache[pr.number] = pr
 
     @property

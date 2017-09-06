@@ -1,3 +1,68 @@
+# Setup
+
+## Dev environment
+
+Setting up a development environment
+requires [Docker](https://www.docker.com/)
+and [Docker Compose](https://docs.docker.com/compose/install/). To
+create the environment run:
+
+```
+docker-compose build
+```
+
+This may take a long time if it needs to do a fresh clone of the gecko
+repository.
+
+To start the services run
+
+```
+docker-compose start
+```
+
+If there is a problem, logs can be viewed using
+
+```
+docker-compose logs [container name]
+```
+
+To run a container interactively e.g. to run tests run:
+
+```
+docker-compose run <container_name> bash
+```
+
+e.g.
+
+```
+docker-compose run sync bash
+```
+
+### Permssions
+
+Inside the Docker container we run as the wptsync user. This user
+requires write permissions to directories `repos`, `work`, `logs` and
+`data`. The easiest way to do this is to get the uid
+using
+
+```
+docker-compose run sync id -u
+```
+
+and then for each path, run
+
+```
+sudo chown -R <uid> <path>
+```
+
+### Upstream
+
+For testing purposes the upstream mozilla-inbound repository is set to
+a local directory mounted under `/home/wpt/sync/` in the
+container. The `docker-compose.yml` file must be edited to mount a
+clone of mozilla-inbound at this path from the local filesystem.
+
+
 # Implementation strategy
 
 ## Downstreaming

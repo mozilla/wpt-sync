@@ -12,6 +12,7 @@ root = os.path.abspath(
 
 
 def read_ini(path):
+    print "Loading config from path %s" % path
     parser = RawConfigParser()
     # make option names case sensitive
     parser.optionxform = str

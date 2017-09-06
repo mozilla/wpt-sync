@@ -1,8 +1,28 @@
 version: '3'
 services:
   sync:
+    user: wptsync
     build: .
     volumes:
-     - .:/wpt-sync
+     - .:/home/wptsync/wpt-sync
+     - /home/james/develop/gecko:/home/wptsync/gecko
+     - /home/james/develop/gecko-hg:/home/wptsync/gecko-hg
     environment:
      - PYTHONPATH=/wpt-sync
+    command: python -m sync.listen
+    depends_on:
+      - celery
+  rabbitmq:
+    image: rabbitmq
+    ports:
+      - 5672:5672
+  celery:
+    user: wptsync
+    build: .
+    volumes:
+     - .:/home/wptsync/wpt-sync
+     - /home/james/develop/gecko:/home/wptsync/gecko
+     - /home/james/develop/gecko-hg:/home/wptsync/gecko-hg
+    command: celery worker --app sync.worker -B
+    depends_on:
+      - rabbitmq

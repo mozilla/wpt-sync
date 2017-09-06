@@ -8,6 +8,7 @@ import log
 import model
 import push
 import repos
+import settings
 import upstream
 from model import Landing, PullRequest, Sync, SyncDirection
 
@@ -15,6 +16,7 @@ from model import Landing, PullRequest, Sync, SyncDirection
 logger = log.get_logger("handlers")
 
 
+@settings.configure
 def setup(config):
     model.configure(config)
     session = model.session()
@@ -45,7 +47,7 @@ def log_exceptions(f):
 
 
 def get_sync(session, pr_id):
-    return session.query(Sync).filter(Sync.pr == pr_id).first()
+    return session.query(Sync).filter(Sync.pr_id == pr_id).first()
 
 
 class Handler(object):
@@ -56,31 +58,7 @@ class Handler(object):
         raise NotImplementedError
 
 
-class GitHubHandler(Handler):
-    def __call__(self, body):
-        routing_key = body['_meta']['routing_key']
-        if not routing_key.startswith("w3c/"):
-            return
-
-        logger.debug('Look, an event:' + body['event'])
-        logger.debug('from:' + body['_meta']['routing_key'])
-
-        dispatch_event = {
-            "pull_request": handle_pr,
-            "status": handle_status,
-            "push": handle_push,
-        }
-
-        handler = dispatch_event.get(body['event'])
-        if handler:
-            session, git_gecko, git_wpt, gh_wpt, bz = setup(self.config)
-            return handler(self.config, session, git_gecko, git_wpt, gh_wpt, bz, body)
-        # TODO: other events to check if we can merge a PR
-        # because of some update
-
-
-def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
-    event = body['payload']
+def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     pr_id = event['number']
     sync = get_sync(session, pr_id)
 
@@ -117,9 +95,7 @@ def pr_for_commit(git_wpt, rev):
     return pr_id
 
 
-def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
-    event = body["payload"]
-
+def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     if event["context"] == "upstream/gecko":
         # Never handle changes to our own status
         return
@@ -157,29 +133,40 @@ def handler_pr_approved():
     pass
 
 
-def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
-    event = body["payload"]
-    if event["ref"] != "refs/heads/master":
-        return
-
+def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     last_push_commit = push.get_last_push(session)
     if last_push_commit is None:
+        logger.info("No last push cocmmit set; using previous HEAD %s" % event["before"])
         landing, _ = model.get_or_create(session, Landing)
         landing.last_push_commit = event["before"]
 
     push.wpt_push(session, git_wpt, gh_wpt)
 
 
-class CommitHandler(Handler):
+class GitHubHandler(Handler):
+    dispatch_event = {
+        "pull_request": handle_pr,
+        "status": handle_status,
+        "push": handle_push,
+    }
+
+    def __call__(self, body):
+        handler = self.dispatch_event[body["event"]]
+        if handler:
+            session, git_gecko, git_wpt, gh_wpt, bz = setup()
+            return handler(self.config, session, git_gecko, git_wpt, gh_wpt, bz, body["payload"])
+        # TODO: other events to check if we can merge a PR
+        # because of some update
+
+
+class PushHandler(Handler):
     def __init__(self, config):
         self.config = config
-
         self.integration_repos = {}
         for repo_name, url in config["sync"]["integration"].iteritems():
             url_parts = urlparse.urlparse(url)
             url = urlparse.urlunparse(("https",) + url_parts[1:])
             self.integration_repos[url] = repo_name
-
         self.landing_repo = config["sync"]["landing"]
 
     def __call__(self, body):
@@ -187,7 +174,7 @@ class CommitHandler(Handler):
         repo_url = data["repo_url"]
         logger.debug("Commit landed in repo %s" % repo_url)
         if repo_url in self.integration_repos or repo_url == self.landing_repo:
-            session, git_gecko, git_wpt, gh_wpt, bz = setup(self.config)
+            session, git_gecko, git_wpt, gh_wpt, bz = setup()
             if repo_url in self.integration_repos:
                 repo_name = self.integration_repos[repo_url]
                 upstream.integration_commit(self.config, session, git_gecko, git_wpt, gh_wpt,
@@ -199,5 +186,3 @@ class CommitHandler(Handler):
 class TaskHandler(Handler):
     def __call__(self, body):
         logger.debug("Taskcluster task group finished %s" % body)
-
-

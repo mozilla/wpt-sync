@@ -1,6 +1,7 @@
 import os
 from git import Repo
 
+import settings
 
 class GitSettings(object):
     name = None
@@ -25,6 +26,12 @@ class GitSettings(object):
         else:
             repo = Repo(self.root)
 
+        if self.cinnabar:
+            repo.cinnabar = Cinnabar(repo)
+
+        return repo
+
+    def configure(self):
         for name, url in self.remotes:
             try:
                 remote = repo.remote(name=name)
@@ -32,7 +39,6 @@ class GitSettings(object):
                 remote = repo.create_remote(name, url)
             else:
                 current_urls = list(remote.urls)
-                print name, current_urls, url
                 if len(current_urls) > 1:
                     for old_url in current_urls[1:]:
                         remote.delete_url(old_url)
@@ -44,9 +50,7 @@ class GitSettings(object):
 
         if self.cinnabar:
             repo.git.config("fetch.prune", "true")
-            repo.cinnabar = Cinnabar(repo)
 
-        return repo
 
 
 class Gecko(GitSettings):
@@ -85,9 +89,11 @@ class Cinnabar(object):
         self.git.cinnabar("fsck")
 
 
-def configure():
+@settings.configure
+def configure(config):
     for settings in [Gecko, WebPlatformTests]:
         repo = settings(config).repo()
+        repo.configure()
         for remote in repo.remotes:
             remote.fetch()
 

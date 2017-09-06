@@ -116,7 +116,7 @@ class PullRequest(Base):
 
     @classmethod
     def update_from_github(cls, session, data):
-        instance, _ = session.get_or_create(session, cls, id=data["number"])
+        instance, _ = get_or_create(session, cls, id=data["number"])
         instance.title = data["title"]
         instance.merged = data["merged"]
 

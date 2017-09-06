@@ -2,24 +2,37 @@
 FROM ubuntu
 
 RUN apt-get update && \
-    apt-get install -y libcurl3 git python python-pip python-requests && \
-    git config --global user.name wpt-sync && \
-    git config --global user.email wpt-sync@lists.mozilla.com
+    apt-get install -y libcurl3 git python python-pip python-requests
 
+RUN useradd -ms /bin/bash wptsync
 
-WORKDIR /git-cinnabar
+USER wptsync
 
-RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout 0.4.0
+RUN mkdir /home/wptsync/git-cinnabar
 
-ENV PATH=/git-cinnabar:$PATH
+WORKDIR /home/wptsync/git-cinnabar
+
+RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout release
+
+ENV PATH=/home/wptsync/git-cinnabar:$PATH
 
 RUN git cinnabar download
 
-# Set the working directory to /app
-WORKDIR /wpt-sync
+RUN mkdir /home/wptsync/wpt-sync
+
+WORKDIR /home/wptsync/wpt-sync
+
+RUN git config --global user.name wpt-sync && \
+    git config --global user.email wpt-sync@lists.mozilla.com
 
 # Copy the current directory contents into the container at /app
-ADD . /wpt-sync
+ADD . /home/wptsync/wpt-sync
 
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
+RUN pip install "ipython<6"
+# TODO: make this part of a setup script
+# RUN python sync/repos.py
+# RUN python sync/model.py
+
+ENV PATH=/home/wptsync/.local/bin:$PATH

@@ -6,9 +6,9 @@ import socket
 import urlparse
 
 import kombu
-from mozvcssync import pulse
 
 import handlers
+import tasks
 
 here = os.path.dirname(__file__)
 
@@ -166,17 +166,69 @@ def run_pulse_listener(config):
                             exchanges=exchanges)
 
     consumer.add_callback(config['pulse']['github']['exchange'],
-                          handlers.GitHubHandler(config))
+                          GitHubFilter(config))
     consumer.add_callback(config['pulse']['hgmo']['exchange'],
-                          handlers.CommitHandler(config))
+                          PushFilter(config))
     consumer.add_callback(config['pulse']['taskcluster']['exchange'],
-                          handlers.TaskHandler(config))
+                          TaskFilter(config))
 
     try:
         with consumer:
             consumer.listen_forever()
     except KeyboardInterrupt:
         pass
+
+
+class Filter(object):
+    name = None
+    task = tasks.handle
+
+    def __init__(self, config):
+        self.config = config
+
+    def __call__(self, body):
+        if self.accept(body):
+            self.task.apply_async((self.name, body))
+
+    def accept(self, body):
+        raise NotImplementedError
+
+
+class GitHubFilter(Filter):
+    name = "github"
+    event_filters = {item: lambda x: True for item in handlers.GitHubHandler.dispatch_event.keys()}
+    event_filters["status"] = lambda x: x["payload"]["context"] != "upstream/gecko"
+    event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
+
+    def accept(self, body):
+        return (body['_meta']['routing_key'].startswith("w3c/") and
+                body["event"] in self.event_filters
+                and self.event_filters[body["event"]](body))
+
+
+class PushFilter(Filter):
+    name = "push"
+
+    def __init__(self, config):
+        self.config = config
+
+        self.integration_repos = {}
+        for repo_name, url in config["sync"]["integration"].iteritems():
+            url_parts = urlparse.urlparse(url)
+            url = urlparse.urlunparse(("https",) + url_parts[1:])
+            self.integration_repos[url] = repo_name
+        self.landing_repo = config["sync"]["landing"]
+
+    def accept(self, body):
+        repo_url = body["payload"]["data"]["repo_url"]
+        return repo_url in self.integration_repos or repo_url == self.landing_repo
+
+
+class TaskFilter(Filter):
+    name = "task"
+
+    def accept(self, body):
+        return False
 
 
 @settings.configure
