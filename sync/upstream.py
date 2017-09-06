@@ -263,9 +263,10 @@ def create_pr(config, gh_wpt, bz, sync, msg):
 
 
 def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
+    base_commit = session.query(model.Landing).one().last_landed_commit or "origin/master"
     git_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
-                                            str(sync.bug), "origin/master")
-    git_work.index.reset("origin/master", hard=True)
+                                            str(sync.bug), base_commit)
+    git_work.index.reset(base_commit, hard=True)
 
     for commit in sync.gecko_commits:
         success = move_commit(config, git_gecko, git_work, bz, sync, commit)
@@ -275,6 +276,13 @@ def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
 
     if not sync.wpt_branch:
         sync.wpt_branch = "gecko_%s_%s" % (branch_name, uuid.uuid4())
+
+    try:
+        git_work.git.rebase("origin/master")
+    except git.GitCommandError:
+        logger.error("Rebasing onto upstream master failed")
+        # Don't worry about this here; we need to detect PRs that become
+        # unmergable anyway
 
     # TODO: maybe if there's >1 commit use the bug title in the PR title
     msg = git_work.commit("HEAD").message
