@@ -26,6 +26,7 @@ from .model import (
     Repository,
     Sync,
     SyncDirection,
+    TryPush,
 )
 from .projectutil import Mach, WPT
 from .worktree import ensure_worktree
@@ -120,7 +121,7 @@ def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
     elif event["state"] == "passed":
         # TODO if we don't already have a try push for this sync...
         try_url = push_to_try(config, session, git_gecko, sync,
-                    affected_tests=get_affected_tests(sync.wpt_worktree))
+                              affected_tests=get_affected_tests(sync.wpt_worktree))
         bz.comment(sync.bug,
                    "Pushed to try. Results: {}".format(try_url))
         # TODO set a status on the PR
@@ -321,7 +322,10 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
             results_url = ("https://treeherder.mozilla.org/#/"
                            "jobs?repo=try&revision=") + try_rev
             with session_scope(session):
-                try_push = model.TryPush(rev=try_rev)
+                try_push = model.TryPush(
+                    rev=try_rev,
+                    kind=model.TryKind.stability if stability else model.TryKind.initial
+                )
                 sync.try_pushes.append(try_push)
                 session.add(try_push)
         if status != 0:
@@ -329,13 +333,41 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
             # TODO retry? eventually flag for manual fix?
     finally:
         gecko_work.git.reset('HEAD~')
-    # TODO also return task_group_id
     return results_url
 
 
-def on_taskgroupresolved():
-    pass
-    # try_revision_or_taskgroup_id
+def update_taskgroup(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
+    # TODO, use bz, remove unused params
+    if not (body.get("origin")
+            and body["origin"].get("revision")
+            and body.get("taskId")):
+        logger.debug("Oh no, this payload doesn't have the format we expect!"
+                     "Need 'revision' and 'taskId'. Got:\n{}\n".format(body))
+        return
+
+    try_push = session.query(TryPush).filter(
+        TryPush.rev == body["origin"]["revision"]).first()
+    if not try_push:
+        # this is not one of our decision tasks
+        return
+    with session_scope(session):
+        try_push.taskgroup_id = body["taskId"]
+
+    if body.get("result") != "success":
+        # TODO manual intervention, retry?
+        logger.debug("Try push Decision Task for PR {} "
+                     "did not succeed:\n{}\n".format(try_push.sync.pr_id, body))
+        with session_scope(session):
+            try_push.complete = True
+            try_push.result = model.TryResult.infra
+
+
+def on_taskgroup_resolved(config, session, git_gecko, git_wpt, gh_wpt, bz, taskgroup_id):
+    try_push = session.query(TryPush).filter(
+        TryPush.taskgroup_id == taskgroup_id).first()
+    if not try_push:
+        # this is not one of our try_pushes
+        return
     # what kind of push is it: initial? stability? other?
     # check if the test jobs ran, infra bustage, not "mostly green": set manual_intervention flag
     # fetch logs

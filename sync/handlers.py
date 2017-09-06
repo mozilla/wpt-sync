@@ -76,7 +76,7 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
         # This is a PR we created, so ignore it for now
         pass
     elif sync.direction == SyncDirection.downstream:
-        if event["action"] == closed:
+        if event["action"] == "closed":
             # TODO - close the related bug, cancel try runs, etc.
             pass
         # TODO It's a PR we already started to downstream, so update as appropriate
@@ -128,7 +128,7 @@ def handle_pr_merge():
     pass
 
 
-def handler_pr_approved():
+def handle_pr_approved():
     # prepare to land downstream
     pass
 
@@ -183,6 +183,14 @@ class PushHandler(Handler):
                 upstream.landing_commit(self.config, session, git_gecko, git_wpt, gh_wpt, bz)
 
 
-class TaskHandler(Handler):
+class JobsHandler(Handler):
     def __call__(self, body):
-        logger.debug("Taskcluster task group finished %s" % body)
+        display = body.get("display")
+        if not (display and isinstance(display, dict) and
+                display.get("jobName") == "Gecko Decision Task"):
+            return
+        if body.get("state") == "completed":
+            session, git_gecko, git_wpt, gh_wpt, bz = setup(self.config)
+            return downstream.update_taskgroup(
+                self.config, session, git_gecko, git_wpt, gh_wpt, bz, body)
+

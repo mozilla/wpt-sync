@@ -156,7 +156,10 @@ def run_pulse_listener(config):
                   config['pulse']['hgmo']['routing_key']),
                  (config['pulse']['taskcluster']['queue'],
                   config['pulse']['taskcluster']['exchange'],
-                  config['pulse']['taskcluster']['routing_key']),]
+                  config['pulse']['taskcluster']['routing_key']),
+                 (config['pulse']['treeherder']['queue'],
+                  config['pulse']['treeherder']['exchange'],
+                  config['pulse']['treeherder']['routing_key']), ]
 
     consumer = get_consumer(userid=config['pulse']['username'],
                             password=config['pulse']['password'],
@@ -171,6 +174,12 @@ def run_pulse_listener(config):
                           PushFilter(config))
     consumer.add_callback(config['pulse']['taskcluster']['exchange'],
                           TaskFilter(config))
+
+    #TODO convert these into *Filters
+    #consumer.add_callback(config['pulse']['taskcluster']['exchange'],
+    #                      handlers.TaskGroupHandler(config))
+    consumer.add_callback(config['pulse']['treeherder']['exchange'],
+                          handlers.JobsHandler(config))
 
     try:
         with consumer:

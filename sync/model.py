@@ -21,9 +21,9 @@ class SyncDirection(enum.Enum):
 
 class TryKind(enum.Enum):
     # First narrow try push has been sent
-    first_try_run = 1
+    initial = 1
     # Stability try push has been sent
-    stability_try_run = 2
+    stability = 2
 
 
 class TryResult(enum.Enum):
@@ -146,6 +146,7 @@ class TryPush(Base):
     result = Column(Enum(TryResult))
     kind = Column(Enum(TryKind), nullable=False)
     sync_id = Column(Integer, ForeignKey('sync.id'))
+    sync = relationship("Sync")
 
 
 def configure(config):
