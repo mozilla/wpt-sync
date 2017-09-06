@@ -3,6 +3,7 @@ _venv
 \#*
 *~
 repos
+try_logs
 logs
 work
 .\#*
