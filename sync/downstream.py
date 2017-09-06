@@ -29,6 +29,9 @@ from .model import (
     TryPush,
 )
 from .projectutil import Mach, WPT
+from .taskcluster import (
+    download_logs, filter_suite, filter_completed, get_tasks_in_group
+)
 from .worktree import ensure_worktree
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
@@ -369,11 +372,28 @@ def on_taskgroup_resolved(config, session, git_gecko, git_wpt, gh_wpt, bz, taskg
         # this is not one of our try_pushes
         return
     # what kind of push is it: initial? stability? other?
-    # check if the test jobs ran, infra bustage, not "mostly green": set manual_intervention flag
-    # fetch logs
-    # given logs, run mach wpt-update to in gecko_work to update meta_data, commit
+    # if any builds failed or wpt tasks went unscheduled, mark for manual intervention
+    # check if the test jobs ran, infra bustage, not "mostly green": set manual_intervention
+    #  flag
+    tasks = get_tasks_in_group(try_push.taskgroup_id)
+    wpt_tasks = filter_suite(tasks, "web-platform-tests")
+    wpt_completed = filter_completed(wpt_tasks)
+    log_files = download_logs(wpt_completed, config["paths"]["try_logs"])
+    update_metadata(config, session, git_gecko, try_push.sync, log_files)
     # push to try again
 
+
+def update_metadata(config, session, git_gecko, sync, log_files):
+    gecko_work, gecko_branch = ensure_worktree(
+        config, session, git_gecko, "gecko", sync,
+        "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
+    # git clean?
+    mach = Mach(gecko_work.working_dir)
+    mach.wpt_update(*log_files)
+    if gecko_work.is_dirty:
+        gecko_work.git.add("testing/web-platform/meta")
+        gecko_work.git.commit(message="[wpt-sync] downstream {}: update metadata".format(
+            gecko_work.active_branch.name))
 
 
 @settings.configure

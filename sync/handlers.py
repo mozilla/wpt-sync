@@ -71,7 +71,7 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
         # TODO: maybe want to create a new sync here irrespective of the event
         # type because we missed some events.
         if event["action"] == "opened":
-            downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+            downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, event)
     elif sync.direction == SyncDirection.upstream:
         # This is a PR we created, so ignore it for now
         pass
@@ -194,3 +194,11 @@ class JobsHandler(Handler):
             return downstream.update_taskgroup(
                 self.config, session, git_gecko, git_wpt, gh_wpt, bz, body)
 
+
+class TaskGroupHandler(Handler):
+    def __call__(self, body):
+        group_id = body.get("taskGroupId")
+        if group_id:
+            session, git_gecko, git_wpt, gh_wpt, bz = setup(self.config)
+            return downstream.on_taskgroup_resolved(
+                self.config, session, git_gecko, git_wpt, gh_wpt, bz, group_id)
