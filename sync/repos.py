@@ -22,6 +22,7 @@ class GitSettings(object):
     def repo(self):
         if not os.path.exists(self.root):
             os.makedirs(self.root)
+            self.configure()
             repo = Repo.init(self.root, bare=True)
         else:
             repo = Repo(self.root)
@@ -32,6 +33,7 @@ class GitSettings(object):
         return repo
 
     def configure(self):
+        repo = self.repo()
         for name, url in self.remotes:
             try:
                 remote = repo.remote(name=name)
@@ -93,7 +95,6 @@ class Cinnabar(object):
 def configure(config):
     for settings in [Gecko, WebPlatformTests]:
         repo = settings(config).repo()
-        repo.configure()
         for remote in repo.remotes:
             remote.fetch()
 
