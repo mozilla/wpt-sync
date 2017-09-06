@@ -137,7 +137,9 @@ def git_wpt_upstream(config, session, initial_repo_content, pr_content):
 
 @pytest.fixture(scope="function")
 def git_gecko(config, session, hg_gecko_upstream):
-    git_gecko = repos.Gecko(config).repo()
+    git_gecko = repos.Gecko(config)
+    git_gecko.configure()
+    git_gecko = git_gecko.repo()
     git_gecko.remotes.mozilla.fetch()
     repo, _ = model.get_or_create(session, model.Repository, name="central")
     repo.last_processed_commit_id = (
@@ -147,7 +149,9 @@ def git_gecko(config, session, hg_gecko_upstream):
 
 @pytest.fixture(scope="function")
 def git_wpt(config, git_wpt_upstream):
-    return repos.WebPlatformTests(config).repo()
+    git_wpt = repos.WebPlatformTests(config)
+    git_wpt.configure()
+    return git_wpt.repo()
 
 
 @pytest.fixture(scope="function")
