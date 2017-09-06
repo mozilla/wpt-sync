@@ -144,10 +144,8 @@ def create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
                                            outstanding_syncs, None, bug, [commit])
                 if not success:
                     return False
-        elif not pr.sync:
-            # TODO: Need to ensure that we start the downstreaming process here
-            break
         else:
+            assert pr.sync
             success = update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
                                        commits[-1].rev, pr.title, outstanding_syncs, pr.sync,
                                        pr.sync.bug, commits)
@@ -156,9 +154,6 @@ def create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
 
             if pr.sync.direction == SyncDirection.upstream:
                 pr.sync.imported = True
-            elif pr.sync.direction == SyncDirection.downstream:
-                # TODO: check if we have updated metadata
-                pass
     return True
 
 
@@ -222,9 +217,8 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
 
     for pr, commits in commits_prs:
         if pr and not pr.sync:
+            # TODO: schedule a downstream sync for this pr
             break
-        if pr.sync.direction == SyncDirection.upstream:
-            pr.sync.imported = True
         landable_commits.append((pr, commits))
         new_landed_commit = commits[-1].rev
 
