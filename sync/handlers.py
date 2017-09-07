@@ -114,7 +114,7 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     pr_id = pr_for_commit(git_wpt, rev)
 
     if not pr_id:
-        if not is_ancestor(rev, "origin/master"):
+        if not is_ancestor(git_wpt, rev, "origin/master"):
             logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
         return
     else:
