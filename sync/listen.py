@@ -172,14 +172,10 @@ def run_pulse_listener(config):
                           GitHubFilter(config))
     consumer.add_callback(config['pulse']['hgmo']['exchange'],
                           PushFilter(config))
-    consumer.add_callback(config['pulse']['taskcluster']['exchange'],
-                          TaskFilter(config))
-
-    #TODO convert these into *Filters
-    #consumer.add_callback(config['pulse']['taskcluster']['exchange'],
-    #                      handlers.TaskGroupHandler(config))
     consumer.add_callback(config['pulse']['treeherder']['exchange'],
-                          handlers.JobsHandler(config))
+                          TaskFilter(config))
+    consumer.add_callback(config['pulse']['taskcluster']['exchange'],
+                          TaskGroupFilter(config))
 
     try:
         with consumer:
@@ -233,11 +229,19 @@ class PushFilter(Filter):
         return repo_url in self.integration_repos or repo_url == self.landing_repo
 
 
+class TaskGroupFilter(Filter):
+    name = "taskgroup"
+
+    def accept(self, body):
+        return body.get("taskGroupId")
+
+
 class TaskFilter(Filter):
     name = "task"
 
     def accept(self, body):
-        return False
+        return (body["display"]["jobName"] == "Gecko Decision Task" and
+                body["state"] == "completed")
 
 
 @settings.configure

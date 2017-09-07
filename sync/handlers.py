@@ -194,22 +194,29 @@ class PushHandler(Handler):
                 upstream.landing_commit(self.config, session, git_gecko, git_wpt, gh_wpt, bz)
 
 
-class JobsHandler(Handler):
+class TaskHandler(Handler):
     def __call__(self, body):
-        display = body.get("display")
-        if not (display and isinstance(display, dict) and
-                display.get("jobName") == "Gecko Decision Task"):
-            return
-        if body.get("state") == "completed":
-            session, git_gecko, git_wpt, gh_wpt, bz = setup(self.config)
-            return downstream.update_taskgroup(
-                self.config, session, git_gecko, git_wpt, gh_wpt, bz, body)
+        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+        return downstream.update_taskgroup(
+            self.config,
+            session,
+            git_gecko,
+            git_wpt,
+            gh_wpt,
+            bz,
+            body
+        )
 
 
 class TaskGroupHandler(Handler):
     def __call__(self, body):
-        group_id = body.get("taskGroupId")
-        if group_id:
-            session, git_gecko, git_wpt, gh_wpt, bz = setup(self.config)
-            return downstream.on_taskgroup_resolved(
-                self.config, session, git_gecko, git_wpt, gh_wpt, bz, group_id)
+        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+        return downstream.on_taskgroup_resolved(
+            self.config,
+            session,
+            git_gecko,
+            git_wpt,
+            gh_wpt,
+            bz,
+            body["taskGroupId"]
+        )
