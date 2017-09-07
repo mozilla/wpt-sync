@@ -1,6 +1,8 @@
 import traceback
 import urlparse
 
+import git
+
 import bug
 import downstream
 import gh
@@ -95,6 +97,14 @@ def pr_for_commit(git_wpt, rev):
     return pr_id
 
 
+def is_ancestor(git_obj, rev, branch):
+    try:
+        git_obj.git.merge_base(rev, branch, is_ancestor=True)
+    except git.GitCommandError:
+        return False
+    return True
+
+
 def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     if event["context"] == "upstream/gecko":
         # Never handle changes to our own status
@@ -104,7 +114,8 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     pr_id = pr_for_commit(git_wpt, rev)
 
     if not pr_id:
-        logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
+        if not is_ancestor(rev, "origin/master"):
+            logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
         return
     else:
         logger.info("Got status for commit %s from PR %s" % (rev, pr_id))
