@@ -142,7 +142,8 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
             continue
 
         sync = (session.query(Sync)
-                .options(joinedload(Sync.pr, Sync.gecko_commits))
+                .options(joinedload(Sync.pr),
+                         joinedload(Sync.gecko_commits))
                 .filter(Sync.bug == bug)).first()
 
         if sync and sync.direction == SyncDirection.downstream:
