@@ -218,5 +218,10 @@ class TaskGroupHandler(Handler):
             git_wpt,
             gh_wpt,
             bz,
-            body["taskGroupId"]
-        )
+            body["taskGroupId"])
+
+
+class LandingHandler(Handler):
+    def __call__(self):
+        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+        return push.land_to_gecko(self.config, session, git_wpt, git_wpt, gh_wpt, bz)
