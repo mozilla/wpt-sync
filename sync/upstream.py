@@ -144,10 +144,15 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
         sync = (session.query(Sync)
                 .join(PullRequest)
                 .options(joinedload(Sync.gecko_commits))
-                .filter(Sync.bug == bug,
-                        PullRequest.merged.is_(False))).first()
+                .filter(Sync.bug == bug)).first()
 
-        if sync is None:
+        if sync and sync.direction == SyncDirection.downstream:
+            # This is from downstreaming, so skip the commits
+            continue
+
+        if sync is None or sync.pr_merged:
+            # This is either something we haven't seen before or something that
+            # we have previously merged, but that got additional commits
             sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name),
                         direction=SyncDirection.upstream)
             session.add(sync)
