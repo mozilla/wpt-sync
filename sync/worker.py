@@ -7,6 +7,11 @@ beat_schedule = {
     'attempt-landing': {
         "task": "sync.tasks.land",
         "schedule": crontab(hour=10, minute=30),
+    },
+    # Try to cleanup once an hour
+    'cleanup': {
+        "task": "sync.tasks.cleanup",
+        "schedule": 3600,
     }
 }
 

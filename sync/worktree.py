@@ -1,11 +1,12 @@
 import os
 import shutil
 import traceback
+import datetime
 
 import git
 
 import log
-from model import Sync
+from model import Landing, Sync
 
 logger = log.get_logger("worktree")
 
@@ -111,3 +112,49 @@ def worktree_attr(project):
 def query_worktree(session, project, value):
     column = worktree_attr(project)
     return session.query(Sync).filter(getattr(Sync, column) == value).first()
+
+
+def cleanup(config, session):
+    work_base = os.path.join(config["root"], config["sync"]["worktrees"])
+
+    current_trees = {}
+
+    for project in ["gecko", "web-platform-tests"]:
+        project_path = os.path.join(work_base, project)
+        for worktree_name in os.listdir(project_path):
+            if not os.path.isdir(path):
+                continue
+
+            worktree_path = os.path.join(project_path, worktree_name)
+
+            rel_path = os.path.relpath(worktree_path, work_base)
+            sync = query_worktree(session, project, rel_path)
+            landing = session.query(Landing).filter(Landing.worktree == rel_path)
+
+            if landing is not None:
+                continue
+
+            if sync is None:
+                # This is an orpaned worktree
+                logger.info("Removing orphan worktree %s" % worktree_path)
+                shutil.rmtree(worktree_path)
+            elif (sync.direction == SyncDirection.downstream and sync.imported or
+                  sync.direction == SyncDirection.upstream and sync.merged):
+                # Sync is finished so clean up
+                logger.info("Removing worktree for completed sync %s" % worktree_path)
+                shutil.rmtree(worktree_path)
+            else:
+                current_trees[worktree_path] = sync
+
+    now = datetime.datetime.now()
+    for worktree_path, sync in current_trees.iteritems():
+        path = os.path.join(work_base, worktree_path)
+        if sync.modified < now - datetime.timedelta(days=7):
+            # Sync hasn't been touched in a week
+            if (datetime.datetime.fromtimestamp(os.stat(worktree_path).st_mtime) <
+                now - datetime.timedelta(days=2)):
+                # And worktree hasn't been touched for two days
+                logger.info("Removing worktree without recent activity %s" % worktree_path)
+                shutil.rmtree(worktree_path)
+
+    # TODO: Add a hard cutoff of the number of allowed worktrees

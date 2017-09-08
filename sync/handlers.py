@@ -201,3 +201,8 @@ class TaskGroupHandler(Handler):
 class LandingHandler(Handler):
     def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz):
         return push.land_to_gecko(self.config, session, git_wpt, git_wpt, gh_wpt, bz)
+
+
+class CleanupHandler(Handler):
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz):
+        return worktree.cleanup(self.config, session)

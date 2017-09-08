@@ -73,3 +73,12 @@ def land(config):
     session, git_gecko, git_wpt, gh_wpt, bz = setup()
     with session_scope(session):
         handlers.LandingHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
+
+
+@worker.task
+@try_task
+@configure
+def cleanup(config):
+    session, git_gecko, git_wpt, gh_wpt, bz = setup()
+    with session_scope(session):
+        handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
