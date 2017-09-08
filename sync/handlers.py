@@ -3,35 +3,16 @@ import urlparse
 
 import git
 
-import bug
 import downstream
-import gh
 import log
 import model
 import push
-import repos
-import settings
 import upstream
+import worktree
 from model import Landing, PullRequest, Sync, SyncDirection
 
 
 logger = log.get_logger("handlers")
-
-
-@settings.configure
-def setup(config):
-    model.configure(config)
-    session = model.session()
-
-    git_gecko = repos.Gecko(config).repo()
-    git_wpt = repos.WebPlatformTests(config).repo()
-
-    gh_wpt = gh.GitHub(config["web-platform-tests"]["github"]["token"],
-                       config["web-platform-tests"]["repo"]["url"])
-
-    bz = bug.MockBugzilla(config)
-
-    return session, git_gecko, git_wpt, gh_wpt, bz
 
 
 def log_exceptions(f):
@@ -56,7 +37,7 @@ class Handler(object):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, body):
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
         raise NotImplementedError
 
 
@@ -161,10 +142,9 @@ class GitHubHandler(Handler):
         "push": handle_push,
     }
 
-    def __call__(self, body):
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
         handler = self.dispatch_event[body["event"]]
         if handler:
-            session, git_gecko, git_wpt, gh_wpt, bz = setup()
             return handler(self.config, session, git_gecko, git_wpt, gh_wpt, bz, body["payload"])
         # TODO: other events to check if we can merge a PR
         # because of some update
@@ -180,12 +160,11 @@ class PushHandler(Handler):
             self.integration_repos[url] = repo_name
         self.landing_repo = config["sync"]["landing"]
 
-    def __call__(self, body):
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
         data = body["payload"]["data"]
         repo_url = data["repo_url"]
         logger.debug("Commit landed in repo %s" % repo_url)
         if repo_url in self.integration_repos or repo_url == self.landing_repo:
-            session, git_gecko, git_wpt, gh_wpt, bz = setup()
             if repo_url in self.integration_repos:
                 repo_name = self.integration_repos[repo_url]
                 upstream.integration_commit(self.config, session, git_gecko, git_wpt, gh_wpt,
@@ -195,8 +174,7 @@ class PushHandler(Handler):
 
 
 class TaskHandler(Handler):
-    def __call__(self, body):
-        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
         return downstream.update_taskgroup(
             self.config,
             session,
@@ -209,8 +187,7 @@ class TaskHandler(Handler):
 
 
 class TaskGroupHandler(Handler):
-    def __call__(self, body):
-        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
         return downstream.on_taskgroup_resolved(
             self.config,
             session,
@@ -222,6 +199,5 @@ class TaskGroupHandler(Handler):
 
 
 class LandingHandler(Handler):
-    def __call__(self):
-        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz):
         return push.land_to_gecko(self.config, session, git_wpt, git_wpt, gh_wpt, bz)

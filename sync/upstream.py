@@ -516,11 +516,10 @@ def integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_nam
 
     # This blind rollback-on-exception approach means that the db is
     # likely to get out of sync with external data stores
-    with session_scope(session):
-        syncs = syncs_for_push(config, session, git_gecko, git_wpt,
-                               repository, first_commit)
+    syncs = syncs_for_push(config, session, git_gecko, git_wpt,
+                           repository, first_commit)
 
-        update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
+    update_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
 
 
 def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz):
@@ -543,12 +542,11 @@ def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz):
     commits = git_gecko.iter_commits(config["gecko"]["refs"]["central"])
     repository.last_processed_commit_id = commits.next().hexsha
 
-    with session_scope(session):
-        syncs = syncs_for_push(config, session, git_gecko, git_wpt,
-                               repository, last_sync_commit)
-        for sync, _ in syncs:
-            sync.repository = repository
-        land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
+    syncs = syncs_for_push(config, session, git_gecko, git_wpt,
+                           repository, last_sync_commit)
+    for sync, _ in syncs:
+        sync.repository = repository
+    land_syncs(config, session, git_gecko, git_wpt, gh_wpt, bz, syncs)
 
 
 def status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync, context, status, url):
