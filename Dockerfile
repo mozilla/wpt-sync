@@ -12,7 +12,7 @@ RUN mkdir /home/wptsync/git-cinnabar
 
 WORKDIR /home/wptsync/git-cinnabar
 
-RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout release
+RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout 0.4.0
 
 ENV PATH=/home/wptsync/git-cinnabar:$PATH
 
@@ -30,6 +30,7 @@ ADD . /home/wptsync/wpt-sync
 
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
+RUN pip install -e .
 RUN pip install "ipython<6"
 # TODO: make this part of a setup script
 # RUN python sync/repos.py

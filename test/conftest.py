@@ -12,6 +12,8 @@ from sync import settings
 
 here = os.path.dirname(os.path.abspath(__file__))
 
+root = os.path.join(here, "testdata")
+
 
 # TODO: Probably don't need all of these to be function scoped
 def cleanup(config):
@@ -26,7 +28,7 @@ def cleanup(config):
 @pytest.fixture(scope="function")
 def config():
     global bug, gh, model, repos, worktree
-    settings.root = here
+    settings.root = root
     ini_sync = settings.read_ini(os.path.abspath(os.path.join(here, "test.ini")))
     ini_credentials = None
     config = settings.load_files(ini_sync, ini_credentials)
