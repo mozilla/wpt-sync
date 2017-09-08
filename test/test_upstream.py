@@ -15,6 +15,8 @@ def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, gi
     hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
     upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
 
+    session.commit()
+
     syncs = list(session.query(model.Sync))
     assert len(syncs) == 1
 
@@ -55,6 +57,8 @@ def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wp
 
     upstream.landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz)
 
+    session.commit()
+
     syncs = list(session.query(model.Sync))
     assert len(syncs) == 1
     sync = syncs[0]
@@ -78,6 +82,8 @@ def test_create_pr_backout_landing(config, session, hg_gecko_upstream, git_gecko
     hg_gecko_upstream.backout("-r", "tip", "-m", "Backed out changeset %s (Bug 1111)" % head_rev[:12])
 
     upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+
+    session.commit()
 
     syncs = list(session.query(model.Sync))
     assert len(syncs) == 1
