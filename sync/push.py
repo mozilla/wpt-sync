@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload
 
 import log
 from model import (Landing,
+                   LandingStatus,
                    PullRequest,
                    Repository,
                    Sync,
@@ -19,28 +20,19 @@ from worktree import ensure_worktree
 logger = log.get_logger(__name__)
 
 
-def get_last_push(session):
-    landing, _ = get_or_create(session, Landing)
-    return landing.last_push_commit
-
-
-def wpt_push(session, git_wpt, gh_wpt):
+def wpt_push(session, git_wpt, gh_wpt, commits):
     # TODO: check ordering here
-
-    last_push_commit = get_last_push(session)
-
     git_wpt.remotes.origin.fetch()
-    for commit in git_wpt.iter_commits("%s..origin/master" % last_push_commit, reverse=True):
+    for commit in commits:
         store_commit(session, gh_wpt, commit)
-    landing, _ = get_or_create(session, Landing)
-    landing.last_push_commit = git_wpt.commit("origin/master").hexsha
 
 
-def store_commit(session, gh_wpt, commit):
-    wpt_commit, _ = get_or_create(session, WptCommit, rev=commit.hexsha)
+def store_commit(session, gh_wpt, commit_sha):
+    wpt_commit, _ = get_or_create(session, WptCommit, rev=commit_sha)
     if not wpt_commit.pr_id:
+        # TODO: we can probably do this in the caller, once per PR.
         # TODO: rate limit these requests
-        pr_id = gh_wpt.pr_for_commit(commit.hexsha)
+        pr_id = gh_wpt.pr_for_commit(commit_sha)
         if pr_id is not None:
             pr, _ = get_or_create(session, PullRequest, id=pr_id)
             wpt_commit.pr = pr
@@ -130,6 +122,14 @@ def update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt, git_work_geck
 
 def create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko, bug,
                    landable_commits, outstanding_syncs):
+    """Create commits in a Gecko worktree corresponding to the commits in wpt
+    we create a single commit per upstream PR, so that it can be linked to the
+    bug used to track downstreaming of that PR.
+
+    :param landable_commits:
+    :param List outstanding_syncs: List of patches committed to mozilla central or
+                                   inbound that must be reapplied in order to land this commit."""
+
     for pr, commits in landable_commits:
         # For PRs that are not the result of out own sync, check if
         # we have updated metadta
@@ -180,24 +180,30 @@ def push_to_inbound(config, bz, git_gecko, git_work_gecko, bug):
     return True, False
 
 
-def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
-    git_wpt.remotes.origin.fetch()
-    landing, _ = get_or_create(session, Landing)
+def get_batch_sync_point(config, git_gecko):
+    """Read the last sync point from the batch sync process from mozilla-central"""
+    mozilla_data = git_gecko.git.show("%s:testing/web-platform/meta/mozilla-sync" %
+                                      config["gecko"]["refs"]["central"])
+    keys = {key: value for line in mozilla_data.split("\n")
+            for key, value in line.split(": ", 1)}
+    return keys["upstream"]
 
-    if landing.worktree:
-        logger.error("Existing attempt to land commits is in progress; aborting")
-        return
 
-    last_landed = landing.last_landed_commit
-    if not last_landed:
-        logger.error("Tried to process a push, but no previous sync point found")
-        return
+def load_commits(session, git_wpt, prev_commit, new_commit):
+    """Load the commits between two PRs into the database, along with their associated PRs
 
-    unlanded = git_wpt.iter_commits("%s..origin/master" % last_landed, reverse=True)
+    :param WptCommit prev_commit: The base commit
+    :param WptCommit new_commit: The new head commit
+    :return: List of tuples (Upstream PR, [Commits])
+    :rtype: List
+    """
+
+    unlanded = git_wpt.iter_commits("%s..%s" % (prev_commit.rev, new_commit.rev), reverse=True)
 
     commits_prs = []
     current_pr = None
     for commit in unlanded:
+        # TODO: put this outside the loop so we can do a single db access
         wpt_commit = (session.query(WptCommit)
                       .options(joinedload("pr"))
                       .filter(WptCommit.rev == commit.hexsha).first())
@@ -208,14 +214,55 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
             commits_prs.append((current_pr, []))
         commits_prs[-1][1].append(wpt_commit)
 
-    if not commits_prs:
+    return commits_prs
+
+
+def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, commit_rev):
+    in_progress = Landing.current(session)
+    if in_progress:
+        assert in_progress.head_commit is not None
+        if commit_rev != in_progress.head_commit.rev:
+            logger.error("Existing attempt to land commits is in progress; aborting")
+            return
+
+    if commit_rev is None:
+        git_wpt.remotes.origin.fetch()
+        commit_rev = git_wpt.commit("origin/master").hexsha
+
+    logger.info("Syncing to commit %s" % commit_rev)
+
+    commit, _ = get_or_create(session, WptCommit, rev=commit_rev)
+
+    if not in_progress:
+        landing = Landing(head_commit=commit)
+        session.add(landing)
+    else:
+        landing = in_progress
+
+    prev_landing = Landing.previous(session)
+    if prev_landing is None:
+        prev_commit = get_or_create(session, WptCommit, get_batch_sync_point(git_wpt))
+    else:
+        prev_commit = prev_landing.head_commit
+
+    pr_commits = load_commits(session, git_wpt, prev_commit, landing.head_commit)
+
+    if not pr_commits:
+        # No new commits, so return without doing anything
+        session.rollback()
         return
+
+    # TODO: Clean this up
+    landing.status = LandingStatus.have_commits
+    session.commit()
+
+    # END OF STEP 1
 
     landable_commits = []
 
     new_landed_commit = None
 
-    for pr, commits in commits_prs:
+    for pr, commits in pr_commits:
         if pr and not pr.sync:
             # TODO: schedule a downstream sync for this pr
             break
@@ -227,7 +274,7 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
         return
 
     git_work_wpt, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests",
-                                                None, "landing", last_landed)
+                                                None, "landing", prev_landing.head_commit.rev)
     git_work_gecko, branch_name = ensure_worktree(config, session, git_gecko, "gecko", None,
                                                   "landing", config["gecko"]["refs"]["mozilla-inbound"])
 
@@ -247,8 +294,13 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
                  "Testing",
                  "web-platform-tests")
     # TODO: set dependent bugs
+
+    # END OF STEP 2
+
     create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko, bug,
                    landable_commits, outstanding_syncs)
+
+    # END OF STEP 3
 
     # Need to deal with upstream changing under us; this approach of just fetch and try to rebase is
     # pretty crude
@@ -261,7 +313,9 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
         return
 
     landing.worktree = None
-    landing.last_landed_commit = new_landed_commit
+    landing.status = LandingStatus.complete
+
+    # END OF STEP 4
 
     # TODO: move this somewhere more sensible
     # Clean up worktrees

@@ -126,13 +126,7 @@ def handle_pr_approved():
 
 
 def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
-    last_push_commit = push.get_last_push(session)
-    if last_push_commit is None:
-        logger.info("No last push cocmmit set; using previous HEAD %s" % event["before"])
-        landing, _ = model.get_or_create(session, Landing)
-        landing.last_push_commit = event["before"]
-
-    push.wpt_push(session, git_wpt, gh_wpt)
+    push.wpt_push(session, git_wpt, gh_wpt, [item["sha"] for item in event["commits"]])
 
 
 class GitHubHandler(Handler):

@@ -268,7 +268,11 @@ def create_pr(config, gh_wpt, bz, sync, msg):
 
 
 def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
-    base_commit = session.query(model.Landing).one().last_landed_commit or "origin/master"
+    last_landing = model.Landing.previous(session)
+    if last_landing:
+        base_commit = last_landing.head_commit.rev
+    else:
+        base_commit = "origin/master"
     git_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
                                             str(sync.bug), base_commit)
     git_work.index.reset(base_commit, hard=True)
@@ -512,10 +516,9 @@ def integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_nam
 
     update_gecko(git_gecko, repository)
 
+    #TODO: use the actual commit and the merge-base of that commit with central
     first_commit = config["gecko"]["refs"]["central"]
 
-    # This blind rollback-on-exception approach means that the db is
-    # likely to get out of sync with external data stores
     syncs = syncs_for_push(config, session, git_gecko, git_wpt,
                            repository, first_commit)
 

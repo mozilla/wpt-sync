@@ -23,35 +23,33 @@ def upstream_commit(session, git_wpt_upstream, gh_wpt):
 
 
 def test_push_register_commit(session, git_wpt_upstream, git_wpt, gh_wpt):
-    landing, _ = model.get_or_create(session, model.Landing)
-    orig_last_landed = landing.last_landed_commit
+    prev_landing = model.Landing.previous(session)
+
+    assert prev_landing
 
     commit = upstream_commit(session, git_wpt_upstream, gh_wpt)
-    push.wpt_push(session, git_wpt, gh_wpt)
+    push.wpt_push(session, git_wpt, gh_wpt, [commit.hexsha])
 
     # This errors unless we added the commit
     wpt_commit = session.query(model.WptCommit).filter(model.WptCommit.rev == commit.hexsha).one()
     assert wpt_commit.pr.id == 1
-    landing, _ = model.get_or_create(session, model.Landing)
+    landing = model.Landing.previous(session)
 
-    assert landing.last_push_commit == commit.hexsha
-    assert landing.last_landed_commit == orig_last_landed
+    assert landing.head_commit.rev == prev_landing.head_commit.rev
 
 
 def test_push_land_local(config, session, git_wpt_upstream, git_gecko, git_wpt, gh_wpt, bz,
                          upstream_wpt_commit, local_gecko_commit, mock_mach):
-    landing, _ = model.get_or_create(session, model.Landing)
-    orig_push = landing.last_push_commit
-
     # Create an upstream commit and an equivalent local gecko commit
     commit = upstream_wpt_commit()
+    print "Made upstream commit %s" % commit.hexsha
     local_gecko_commit(sync_direction=model.SyncDirection.downstream)
 
-    push.wpt_push(session, git_wpt, gh_wpt)
-    push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz)
+    push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
 
-    landing, _ = model.get_or_create(session, model.Landing)
-    assert landing.last_landed_commit == commit.hexsha
+    landing = model.Landing.previous(session)
+    assert landing.status == model.LandingStatus.complete
+    assert landing.head_commit.rev == commit.hexsha
     new_commit = git_gecko.commit(config["gecko"]["refs"]["mozilla-inbound"])
 
     assert new_commit.message.startswith("1234 - [wpt-sync] Example change, a=testonly")

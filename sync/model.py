@@ -32,6 +32,14 @@ class TryResult(enum.Enum):
     orange = 3
 
 
+class LandingStatus(enum.Enum):
+    initial = 0
+    have_commits = 1
+    have_bug = 2
+    applied_commits = 3
+    complete = 4
+
+
 class Sync(Base):
     __tablename__ = 'sync'
 
@@ -68,9 +76,32 @@ class Landing(Base):
     __tablename__ = "landing"
 
     id = Column(Integer, primary_key=True)
-    last_push_commit = Column(String(40)) # Commit sha for which we last processed upstream metad
-    last_landed_commit = Column(String(40))
+    head_commit_id = Column(Integer, ForeignKey('wpt_commit.id'), nullable=False)
     worktree = Column(String)
+    bug = Column(String)
+
+    status = Column(Enum(LandingStatus), default=LandingStatus.initial, nullable=False)
+
+    head_commit = relationship("WptCommit", primaryjoin="Landing.head_commit_id==WptCommit.id",
+                               foreign_keys=head_commit_id)
+    wpt_commits = relationship("WptCommit", primaryjoin="Landing.id==WptCommit.landing_id")
+
+    modified = Column(DateTime(timezone=True), onupdate=func.now())
+
+    @classmethod
+    def current(cls, session):
+        landings = session.query(cls).filter(cls.status != LandingStatus.complete).all()
+        assert len(landings) <= 1
+        if len(landings) == 0:
+            return None
+        return landings[0]
+
+    @classmethod
+    def previous(cls, session):
+        return (session.query(cls)
+                .filter(cls.status == LandingStatus.complete)
+                .order_by(cls.id.desc())
+                .first())
 
 
 class Repository(Base):
@@ -113,6 +144,11 @@ class WptCommit(Base):
 
     pr_id = Column(Integer, ForeignKey('pull_request.id'))
     pr = relationship("PullRequest")
+
+    landing_id = Column(Integer, ForeignKey(Landing.id))
+    landing = relationship("Landing",
+                           back_populates="wpt_commits",
+                           foreign_keys=landing_id)
 
 
 class PullRequest(Base):

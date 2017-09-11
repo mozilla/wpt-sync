@@ -130,9 +130,8 @@ def git_wpt_upstream(config, session, initial_repo_content, pr_content):
             git_upstream.index.commit("Commit {}".format(count))
     git_upstream.heads.master.checkout()
 
-    landing, _ = model.get_or_create(session, model.Landing)
-    landing.last_push_commit = head.hexsha
-    landing.last_landed_commit = head.hexsha
+    head_commit, _ = model.get_or_create(session, model.WptCommit, rev=head.hexsha)
+    session.add(model.Landing(head_commit=head_commit, status=model.LandingStatus.complete))
 
     return git_upstream
 
