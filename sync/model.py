@@ -33,7 +33,7 @@ class TryResult(enum.Enum):
 
 
 class UpstreamSyncStatus(enum.Enum):
-    intial = 0
+    initial = 0
     commits_applied = 1
     have_pr = 2
     status_passed = 3
@@ -42,7 +42,7 @@ class UpstreamSyncStatus(enum.Enum):
 
 
 class DownstreamSyncStatus(enum.Enum):
-    intial = 0
+    initial = 0
     commits_applied = 1
     have_pr = 2
     status_passed = 3
