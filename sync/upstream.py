@@ -24,8 +24,7 @@ from model import (Sync,
                    UpstreamSyncStatus,
                    GeckoCommit,
                    PullRequest,
-                   Repository,
-                   session_scope)
+                   Repository)
 from worktree import ensure_worktree, remove_worktrees
 
 logger = log.get_logger("upstream")

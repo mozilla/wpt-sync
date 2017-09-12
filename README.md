@@ -38,7 +38,7 @@ e.g.
 docker-compose run sync bash
 ```
 
-### Permssions
+### Permissions
 
 Inside the Docker container we run as the wptsync user. This user
 requires write permissions to directories `repos`, `work`, `logs` and

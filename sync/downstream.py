@@ -21,7 +21,6 @@ from . import (
 )
 
 from .model import (
-    session_scope,
     DownstreamSync,
     PullRequest,
     Repository,
@@ -39,6 +38,7 @@ logger = log.get_logger("downstream")
 
 
 def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
+    """ Start a new downstream sync """
     pr_id = body['payload']['pull_request']['number']
     pr_data = body["payload"]["pull_request"]
     bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr_data["title"]),
@@ -46,13 +46,12 @@ def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
                  product="Testing",
                  component="web-platform-tests")
 
-    with session_scope(session):
-        pr = PullRequest(id=pr_id)
-        session.add(pr)
-        sync = DownstreamSync(pr=pr,
-                              repository=Repository.by_name(session, "web-platform-tests"),
-                              bug=bug)
-        session.add(sync)
+    pr = PullRequest(id=pr_id)
+    session.add(pr)
+    sync = DownstreamSync(pr=pr,
+                          repository=Repository.by_name(session, "web-platform-tests"),
+                          bug=bug)
+    session.add(sync)
 
 
 def commit_manifest_update(gecko_work):
@@ -132,37 +131,40 @@ def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
 
 
 def update_sync(config, session, git_gecko, git_wpt, sync, bz):
-    with session_scope(session):
-        try:
-            wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
-        except git.GitCommandError as e:
-            logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr_id, e))
-            bz.comment(sync.bug,
-                       "Downstreaming from web-platform-tests failed because obtaining "
-                       "PR {} failed:\n{}".format(sync.pr_id, e))
-            return False
+    try:
+        wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
+    except git.GitCommandError as e:
+        logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr_id, e))
+        bz.comment(sync.bug,
+                   "Downstreaming from web-platform-tests failed because obtaining "
+                   "PR {} failed:\n{}".format(sync.pr_id, e))
+        return False
 
-        files_changed = get_files_changed(wpt_work.working_dir)
+    files_changed = get_files_changed(wpt_work.working_dir)
 
-        logger.info("Fetching mozilla-unified")
-        git_gecko.git.fetch("mozilla")
-        logger.info("Fetch done")
-        gecko_work, gecko_branch = ensure_worktree(
-            config, session, git_gecko, "gecko", sync,
-            "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
-        gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
-        success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
-        if not success:
-            return
-        commit_manifest_update(gecko_work)
+    logger.info("Fetching mozilla-unified")
+    git_gecko.git.fetch("mozilla")
+    logger.info("Fetch done")
+    gecko_work, gecko_branch = ensure_worktree(
+        config, session, git_gecko, "gecko", sync,
+        "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
+    gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
+    success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
+    if not success:
+        return
+    commit_manifest_update(gecko_work)
 
-        # Getting the component now doesn't really work well because a PR that only adds files
-        # won't have a component before we move the commits. But we would really like to start
-        # a bug for logging now, so get a component here and change it if needed after we have
-        # put all the new commits onto the gecko tree.
-        new_component = choose_bug_component(config, gecko_work, files_changed,
-                                             default=("Testing", "web-platform-tests"))
-        bz.set_component(sync.bug, *new_component)
+    # Getting the component now doesn't really work well because a PR that
+    # only adds files won't have a component before we move the commits.
+    # But we would really like to start a bug for logging now, so get a
+    # component here and change it if needed after we have put all the new
+    # commits onto the gecko tree.
+    new_component = choose_bug_component(config, gecko_work, files_changed,
+                                         default=("Testing", "web-platform-tests"))
+    bz.set_component(sync.bug, *new_component)
+    #for push in sync.try_pushes:
+    #    push.stale = True
+    #    # TODO cancel previous try pushes?
 
 
 def get_pr(config, session, git_wpt, sync):
@@ -324,13 +326,12 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
             try_rev = rev_match.group('rev')
             results_url = ("https://treeherder.mozilla.org/#/"
                            "jobs?repo=try&revision=") + try_rev
-            with session_scope(session):
-                try_push = model.TryPush(
-                    rev=try_rev,
-                    kind=model.TryKind.stability if stability else model.TryKind.initial
-                )
-                sync.try_pushes.append(try_push)
-                session.add(try_push)
+            try_push = model.TryPush(
+                rev=try_rev,
+                kind=model.TryKind.stability if stability else model.TryKind.initial
+            )
+            sync.try_pushes.append(try_push)
+            session.add(try_push)
         if status != 0:
             logger.debug("Failed to push to try.")
             # TODO retry? eventually flag for manual fix?
@@ -353,16 +354,15 @@ def update_taskgroup(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
     if not try_push:
         # this is not one of our decision tasks
         return
-    with session_scope(session):
-        try_push.taskgroup_id = body["taskId"]
+
+    try_push.taskgroup_id = body["taskId"]
 
     if body.get("result") != "success":
         # TODO manual intervention, retry?
         logger.debug("Try push Decision Task for PR {} "
                      "did not succeed:\n{}\n".format(try_push.sync.pr_id, body))
-        with session_scope(session):
-            try_push.complete = True
-            try_push.result = model.TryResult.infra
+        try_push.complete = True
+        try_push.result = model.TryResult.infra
 
 
 def on_taskgroup_resolved(config, session, git_gecko, git_wpt, gh_wpt, bz, taskgroup_id):
