@@ -6,7 +6,7 @@ import datetime
 import git
 
 import log
-from model import Landing, LandingStatus, Sync, SyncDirection
+from model import Landing, LandingStatus, SyncSubclass, UpstreamSync, DownstreamSync
 
 logger = log.get_logger("worktree")
 
@@ -111,7 +111,7 @@ def worktree_attr(project):
 
 def query_worktree(session, project, value):
     column = worktree_attr(project)
-    return session.query(Sync).filter(getattr(Sync, column) == value).first()
+    return session.query(SyncSubclass).filter(getattr(SyncSubclass, column) == value).first()
 
 
 def cleanup(config, session):
@@ -136,8 +136,8 @@ def cleanup(config, session):
                 logger.info("Removing orphan worktree %s" % worktree_path)
                 shutil.rmtree(worktree_path)
             elif ((sync is not None and
-                   (sync.direction == SyncDirection.downstream and sync.imported or
-                    sync.direction == SyncDirection.upstream and sync.merged)) or
+                   (isinstance(sync, DownstreamSync) and sync.imported or
+                    isinstance(sync, UpstreamSync) and sync.merged)) or
                   (landing is not None and landing.status == LandingStatus.complete)):
                 # Sync is finished so clean up
                 logger.info("Removing worktree for completed process %s" % worktree_path)

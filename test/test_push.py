@@ -15,10 +15,9 @@ def upstream_commit(session, git_wpt_upstream, gh_wpt):
     pr.title = "Example PR"
 
     model.get_or_create(session,
-                        model.Sync,
+                        model.DownstreamSync,
                         bug=1234,
-                        pr_id=1,
-                        direction=model.SyncDirection.downstream)
+                        pr_id=1)
     return commit
 
 
@@ -43,7 +42,7 @@ def test_push_land_local(config, session, git_wpt_upstream, git_gecko, git_wpt, 
     # Create an upstream commit and an equivalent local gecko commit
     commit = upstream_wpt_commit()
     print "Made upstream commit %s" % commit.hexsha
-    local_gecko_commit(sync_direction=model.SyncDirection.downstream)
+    local_gecko_commit(cls=model.DownstreamSync)
 
     push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
 

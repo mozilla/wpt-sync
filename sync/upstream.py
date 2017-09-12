@@ -17,7 +17,15 @@ from sqlalchemy.orm import joinedload
 import log
 import model
 import settings
-from model import Sync, SyncDirection, GeckoCommit, PullRequest, Repository, session_scope
+from model import (Sync,
+                   UpstreamSync,
+                   DownstreamSync,
+                   SyncSubclass,
+                   UpstreamSyncStatus,
+                   GeckoCommit,
+                   PullRequest,
+                   Repository,
+                   session_scope)
 from worktree import ensure_worktree, remove_worktrees
 
 logger = log.get_logger("upstream")
@@ -79,7 +87,7 @@ def is_empty(commit, path):
 
 def syncs_from_commits(session, git_gecko, commit_shas):
     hg_revs = [git_gecko.cinnabar.git2hg(git_rev) for git_rev in commit_shas]
-    return session.query(Sync).join(GeckoCommit).filter(GeckoCommit.rev.in_(hg_revs))
+    return session.query(UpstreamSync).join(GeckoCommit).filter(GeckoCommit.rev.in_(hg_revs))
 
 
 def update_for_backouts(session, git_gecko, revs_by_backout):
@@ -115,7 +123,7 @@ def abort_sync(config, gh_wpt, bz, sync):
         gh_wpt.close_pull(sync.pr_id)
         bz.comment(sync.bug, "Closed web-platform-tests PR due to backout")
 
-    sync.closed = True
+    sync.status = UpstreamSyncStatus.aborted
 
 
 def group_by_bug(git_gecko, commits):
@@ -141,20 +149,20 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
             logger.error("No commits for bug %s when trying to update" % bug)
             continue
 
-        sync = (session.query(Sync)
-                .options(joinedload(Sync.pr),
-                         joinedload(Sync.gecko_commits))
+        sync = (session.query(SyncSubclass)
+                .options(joinedload(SyncSubclass.pr),
+                         joinedload(SyncSubclass.UpstreamSync.gecko_commits))
                 .filter(Sync.bug == bug)).first()
 
-        if sync and sync.direction == SyncDirection.downstream:
+        if sync and isinstance(sync, DownstreamSync):
             # This is from downstreaming, so skip the commits
             continue
 
         if sync is None or sync.pr.merged:
             # This is either something we haven't seen before or something that
             # we have previously merged, but that got additional commits
-            sync = Sync(bug=bug, repository=Repository.by_name(session, repo_name),
-                        direction=SyncDirection.upstream)
+            sync = UpstreamSync(bug=bug,
+                                repository=Repository.by_name(session, repo_name))
             session.add(sync)
 
         if not sync.gecko_commits:
@@ -478,7 +486,7 @@ def syncs_for_push(config, session, git_gecko, git_wpt, repository, first_commit
 def remove_missing_commits(config, session, git_gecko, repository):
     """Remove any commits from the database that are no longer in the source
     repository"""
-    commits = session.query(GeckoCommit).join(Sync).filter(Sync.repository == repository)
+    commits = session.query(GeckoCommit).join(UpstreamSync).filter(UpstreamSync.repository == repository)
     upstream = config["gecko"]["refs"][repository.name]
     syncs = set()
 

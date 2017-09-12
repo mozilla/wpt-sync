@@ -20,7 +20,7 @@ def test_new_wpt_pr(config, session, git_gecko, git_wpt, bz):
     pulls = list(session.query(model.PullRequest))
     assert len(pulls) == 1
     assert pulls[0].id == pr_id
-    syncs = list(session.query(model.Sync))
+    syncs = list(session.query(model.DownstreamSync))
     assert len(syncs) == 1
     assert syncs[0].pr_id == pr_id
     assert "Summary: [wpt-sync] PR {}".format(pr_id) in bz.output.getvalue()
@@ -41,7 +41,7 @@ def test_status_changed(config, session, git_gecko, git_wpt, bz):
         "state": "pending",
         "context": "continuous-integration/travis-ci/pr",
     }
-    sync = Mock(spec=model.Sync)
+    sync = Mock(spec=model.DownstreamSync)
     with patch('sync.downstream.update_sync') as update_sync:
         # The first time we receive a status for a new rev, is_worktree_tip is False
         with patch('sync.downstream.is_worktree_tip', side_effect=[False, True]):
@@ -65,7 +65,7 @@ def test_status_changed(config, session, git_gecko, git_wpt, bz):
 
 
 def test_get_pr(config, session, git_wpt):
-    sync = Mock(spec=model.Sync)
+    sync = Mock(spec=model.DownstreamSync)
     sync.pr_id = 0
     sync.wpt_worktree = None
     wpt_work, branch_name = downstream.get_pr(config, session, git_wpt, sync)
@@ -78,7 +78,7 @@ def test_get_pr(config, session, git_wpt):
 def test_wpt_to_gecko_commits(config, session, git_wpt, git_gecko, pr_content, bz):
     git_wpt.git.fetch("origin", "master", no_tags=True)
     git_gecko.git.fetch("mozilla")
-    sync = Mock(spec=model.Sync)
+    sync = Mock(spec=model.DownstreamSync)
     sync.wpt_worktree = None
     sync.gecko_worktree = None
     wpt_work, branch_name = worktree.ensure_worktree(

@@ -11,6 +11,8 @@ from model import (Landing,
                    Repository,
                    Sync,
                    SyncDirection,
+                   UpstreamSync,
+                   UpstreamSyncStatus,
                    WptCommit,
                    get_or_create)
 from projectutil import Mach
@@ -58,13 +60,12 @@ Automatic update from web-platform-tests containing commits:
 
 
 def get_outstanding_syncs(session):
-    return (session.query(Sync)
+    return (session.query(UpstreamSync)
             .join(Repository)
-            .filter(Sync.direction == SyncDirection.upstream,
-                    Repository.name != "autoland",
-                    Sync.imported.is_(False),
-                    Sync.closed.is_(False))
-            .order_by(Sync.id.asc()))
+            .filter(Repository.name != "autoland",
+                    ~UpstreamSync.status.in_((UpstreamSyncStatus.merged,
+                                              UpstreamSyncStatus.aborted)))
+            .order_by(UpstreamSync.id.asc()))
 
 
 def reapply_local_commits(session, bz, git_gecko, git_work_gecko, syncs):
@@ -152,7 +153,7 @@ def create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
             if not success:
                 return False
 
-            if pr.sync.direction == SyncDirection.upstream:
+            if pr.sync.direction == "upstream":
                 pr.sync.imported = True
     return True
 

@@ -17,11 +17,10 @@ def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, gi
 
     session.commit()
 
-    syncs = list(session.query(model.Sync))
+    syncs = list(session.query(model.UpstreamSync))
     assert len(syncs) == 1
 
     sync = syncs[0]
-    assert sync.direction == model.SyncDirection.upstream
     assert sync.repository.name == "mozilla-inbound"
     assert sync.bug == 1111
     assert len(sync.gecko_commits) == 1
@@ -59,7 +58,7 @@ def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wp
 
     session.commit()
 
-    syncs = list(session.query(model.Sync))
+    syncs = list(session.query(model.UpstreamSync))
     assert len(syncs) == 1
     sync = syncs[0]
     assert sync.repository.name == "central"
@@ -85,7 +84,7 @@ def test_create_pr_backout_landing(config, session, hg_gecko_upstream, git_gecko
 
     session.commit()
 
-    syncs = list(session.query(model.Sync))
+    syncs = list(session.query(model.UpstreamSync))
     assert len(syncs) == 1
     sync = syncs[0]
     assert len(sync.gecko_commits) == 0

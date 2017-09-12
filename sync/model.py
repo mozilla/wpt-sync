@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker, with_polymorphic
 
 import settings
 
@@ -32,6 +32,24 @@ class TryResult(enum.Enum):
     orange = 3
 
 
+class UpstreamSyncStatus(enum.Enum):
+    intial = 0
+    commits_applied = 1
+    have_pr = 2
+    status_passed = 3
+    merged = 4
+    aborted = 5
+
+
+class DownstreamSyncStatus(enum.Enum):
+    intial = 0
+    commits_applied = 1
+    have_pr = 2
+    status_passed = 3
+    merged = 4
+    aborted = 5
+
+
 class LandingStatus(enum.Enum):
     initial = 0
     have_commits = 1
@@ -40,36 +58,67 @@ class LandingStatus(enum.Enum):
     complete = 4
 
 
-class Sync(Base):
-    __tablename__ = 'sync'
+class PullRequest(Base):
+    """Upstream Pull Requests"""
+    __tablename__ = 'pull_request'
 
     id = Column(Integer, primary_key=True)
-    bug = Column(Integer)
+
+    # If the upstream PR has been merged
+    merged = Column(Boolean, default=False)
+
+    title = Column(String)  # TODO: fill this in
+    commits = relationship("WptCommit")
+    sync = relationship("Sync", back_populates="pr", uselist=False)
+
+    @classmethod
+    def update_from_github(cls, session, data):
+        instance, _ = get_or_create(session, cls, id=data["number"])
+        instance.title = data["title"]
+        instance.merged = data["merged"]
+
+
+class WptCommit(Base):
+    """Commits to wpt repository"""
+    __tablename__ = 'wpt_commit'
+
+    id = Column(Integer, primary_key=True)
+    rev = Column(String(40), unique=True)
+
     pr_id = Column(Integer, ForeignKey('pull_request.id'))
-    gecko_worktree = Column(String, unique=True)
-    wpt_worktree = Column(String, unique=True)
-    repository_id = Column(Integer, ForeignKey('repository.id'))
-    source_id = Column(Integer, ForeignKey('branch.id'))
-    # Only two allowed values 'upstream' and 'downstream'. Maybe should
-    # use a different representation here
-    direction = Column(Enum(SyncDirection), nullable=False)
-    imported = Column(Boolean, default=False)
+    pr = relationship("PullRequest")
 
-    modified = Column(DateTime(timezone=True), onupdate=func.now())
+    landing_id = Column(Integer, ForeignKey("landing.id"))
+    landing = relationship("Landing",
+                           back_populates="wpt_commits",
+                           foreign_keys=landing_id)
 
-    closed = Column(Boolean, default=False)
 
-    # Upstreaming only
-    wpt_branch = Column(String, unique=True)
+class TryPush(Base):
+    __tablename__ = 'try_push'
 
-    pr = relationship("PullRequest", back_populates="sync", uselist=False)
-    repository = relationship("Repository", uselist=False)
-    source = relationship("Branch")
-    gecko_commits = relationship("GeckoCommit")
+    id = Column(Integer, primary_key=True)
+    # hg rev on try
+    rev = Column(String(40), unique=True)
+    taskgroup_id = Column(String(22), unique=True)
+    complete = Column(Boolean, default=False)
+    result = Column(Enum(TryResult))
+    kind = Column(Enum(TryKind), nullable=False)
+    sync_id = Column(Integer, ForeignKey('sync.id'))
+    sync = relationship("DownstreamSync")
 
-    # Only for downstreaming
-    try_pushes = relationship("TryPush")
-    metadata_ready = Column(Boolean, default=False)
+
+class Repository(Base):
+    __tablename__ = 'repository'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True)
+
+    last_processed_commit_id = Column(Integer, ForeignKey('gecko_commit.id'))
+
+    @classmethod
+    def by_name(cls, session, name):
+        return get(session, cls, name=name)
 
 
 class Landing(Base):
@@ -104,26 +153,6 @@ class Landing(Base):
                 .first())
 
 
-class Repository(Base):
-    __tablename__ = 'repository'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
-
-    last_processed_commit_id = Column(Integer, ForeignKey('gecko_commit.id'))
-
-    @classmethod
-    def by_name(cls, session, name):
-        return get(session, cls, name=name)
-
-
-class Branch(Base):
-    __tablename__ = 'branch'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
-
-
 class GeckoCommit(Base):
     """Commits to gecko repositories"""
     __tablename__ = 'gecko_commit'
@@ -132,57 +161,71 @@ class GeckoCommit(Base):
     rev = Column(String(40), unique=True)
 
     sync_id = Column(Integer, ForeignKey('sync.id'))
-    sync = relationship("Sync")
+    sync = relationship("UpstreamSync")
 
 
-class WptCommit(Base):
-    """Commits to wpt repository"""
-    __tablename__ = 'wpt_commit'
+class Sync(Base):
+    __tablename__ = 'sync'
 
     id = Column(Integer, primary_key=True)
-    rev = Column(String(40), unique=True)
-
+    bug = Column(Integer)
     pr_id = Column(Integer, ForeignKey('pull_request.id'))
-    pr = relationship("PullRequest")
+    modified = Column(DateTime(timezone=True), onupdate=func.now())
+    gecko_worktree = Column(String, unique=True)
+    wpt_worktree = Column(String, unique=True)
+    repository_id = Column(Integer, ForeignKey('repository.id'))
 
-    landing_id = Column(Integer, ForeignKey(Landing.id))
-    landing = relationship("Landing",
-                           back_populates="wpt_commits",
-                           foreign_keys=landing_id)
+    # Only two allowed values 'upstream' and 'downstream'. Maybe should
+    # use a different representation here
+    direction = Column(String(10), nullable=False)
+
+    pr = relationship("PullRequest", back_populates="sync", uselist=False)
+    repository = relationship("Repository", uselist=False)
+
+    __mapper_args__ = {
+        'polymorphic_identity':'sync',
+        'polymorphic_on':direction
+    }
 
 
-class PullRequest(Base):
-    """Upstream Pull Requests"""
-    __tablename__ = 'pull_request'
+class DownstreamSync(Sync):
+    __tablename__ = 'sync_downstream'
+
+    id = Column(Integer, ForeignKey('sync.id'), primary_key=True)
+
+    status = Column(Enum(DownstreamSyncStatus))
+    try_pushes = relationship("TryPush")
+    metadata_ready = Column(Boolean, default=False)
+
+    __mapper_args__ = {
+        'polymorphic_identity':'sync_downstream',
+    }
+
+
+class UpstreamSync(Sync):
+    __tablename__ = 'sync_upstream'
+
+    id = Column(Integer, ForeignKey('sync.id'), primary_key=True)
+
+    status = Column(Enum(UpstreamSyncStatus))
+    wpt_branch = Column(String, unique=True)
+    gecko_commits = relationship("GeckoCommit")
+
+    __mapper_args__ = {
+        'polymorphic_identity':'sync_upstream',
+    }
+
+    # Upstreaming only
+
+
+SyncSubclass = with_polymorphic(Sync, [DownstreamSync, UpstreamSync])
+
+
+class Branch(Base):
+    __tablename__ = 'branch'
 
     id = Column(Integer, primary_key=True)
-
-    # If the upstream PR has been merged
-    merged = Column(Boolean, default=False)
-
-    title = Column(String)  # TODO: fill this in
-    commits = relationship("WptCommit")
-    sync = relationship("Sync", back_populates="pr", uselist=False)
-
-    @classmethod
-    def update_from_github(cls, session, data):
-        instance, _ = get_or_create(session, cls, id=data["number"])
-        instance.title = data["title"]
-        instance.merged = data["merged"]
-
-
-class TryPush(Base):
-    __tablename__ = 'try_push'
-
-    id = Column(Integer, primary_key=True)
-    # hg rev on try
-    rev = Column(String(40), unique=True)
-    taskgroup_id = Column(String(22), unique=True)
-    complete = Column(Boolean, default=False)
-    result = Column(Enum(TryResult))
-    kind = Column(Enum(TryKind), nullable=False)
-    sync_id = Column(Integer, ForeignKey('sync.id'))
-    sync = relationship("Sync")
+    name = Column(String, unique=True)
 
 
 def configure(config):

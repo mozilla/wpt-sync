@@ -22,10 +22,10 @@ from . import (
 
 from .model import (
     session_scope,
+    DownstreamSync,
     PullRequest,
     Repository,
     Sync,
-    SyncDirection,
     TryPush,
 )
 from .projectutil import Mach, WPT
@@ -49,9 +49,9 @@ def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
     with session_scope(session):
         pr = PullRequest(id=pr_id)
         session.add(pr)
-        sync = Sync(direction=SyncDirection.downstream, pr=pr,
-                    repository=Repository.by_name(session, "web-platform-tests"),
-                    bug=bug)
+        sync = DownstreamSync(pr=pr,
+                              repository=Repository.by_name(session, "web-platform-tests"),
+                              bug=bug)
         session.add(sync)
 
 
@@ -419,7 +419,7 @@ def main(config):
         pr_id = body["payload"]["pull_request"]["number"]
         # new pr opened
         new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
-        sync = session.query(model.Sync).filter(Sync.pr_id == pr_id).first()
+        sync = session.query(DownstreamSync).filter(DownstreamSync.pr_id == pr_id).first()
         status_event = {
             "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
             "state": "pending",
