@@ -203,12 +203,13 @@ def upstream_wpt_commit(session, git_wpt_upstream, gh_wpt, pull_request):
 @pytest.fixture
 def local_gecko_commit(config, session, git_gecko, pull_request):
     def inner(test_changes=None, meta_changes=None, pr_id=1, cls=None,
-              bug=1234, title="Example changes"):
+              bug=1234, title="Example changes", metadata_ready=False):
         if cls:
             sync = cls()
             session.add(sync)
             sync.pr = pull_request(pr_id=pr_id)
             sync.bug = bug
+            sync.metadata_ready = metadata_ready
         else:
             sync = None
 

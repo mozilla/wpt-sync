@@ -267,6 +267,8 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, commit_rev):
         if pr and not pr.sync:
             # TODO: schedule a downstream sync for this pr
             break
+        if pr.sync.direction == SyncDirection.downstream and not pr.sync.metadata_ready:
+            break
         landable_commits.append((pr, commits))
         new_landed_commit = commits[-1].rev
 
@@ -277,7 +279,8 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, commit_rev):
     git_work_wpt, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests",
                                                 None, "landing", prev_landing.head_commit.rev)
     git_work_gecko, branch_name = ensure_worktree(config, session, git_gecko, "gecko", None,
-                                                  "landing", config["gecko"]["refs"]["mozilla-inbound"])
+                                                  "landing",
+                                                  config["gecko"]["refs"]["mozilla-inbound"])
 
     landing.worktree = git_work_gecko.working_dir
 

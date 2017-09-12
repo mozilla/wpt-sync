@@ -106,6 +106,8 @@ class TryPush(Base):
     kind = Column(Enum(TryKind), nullable=False)
     sync_id = Column(Integer, ForeignKey('sync.id'))
     sync = relationship("DownstreamSync")
+    # PR has been updated sync try push started
+    stale = Column(Boolean, default=False)
 
 
 class Repository(Base):
@@ -174,17 +176,18 @@ class Sync(Base):
     gecko_worktree = Column(String, unique=True)
     wpt_worktree = Column(String, unique=True)
     repository_id = Column(Integer, ForeignKey('repository.id'))
+    human_needed = Column(Boolean, default=False)
 
     # Only two allowed values 'upstream' and 'downstream'. Maybe should
     # use a different representation here
-    direction = Column(String(10), nullable=False)
+    direction = Column(Enum(SyncDirection), nullable=False)
 
     pr = relationship("PullRequest", back_populates="sync", uselist=False)
     repository = relationship("Repository", uselist=False)
 
     __mapper_args__ = {
-        'polymorphic_identity':'sync',
-        'polymorphic_on':direction
+        'polymorphic_identity': 'sync',
+        'polymorphic_on': direction
     }
 
 
@@ -198,7 +201,7 @@ class DownstreamSync(Sync):
     metadata_ready = Column(Boolean, default=False)
 
     __mapper_args__ = {
-        'polymorphic_identity':'sync_downstream',
+        'polymorphic_identity': SyncDirection.downstream,
     }
 
 
@@ -212,7 +215,7 @@ class UpstreamSync(Sync):
     gecko_commits = relationship("GeckoCommit")
 
     __mapper_args__ = {
-        'polymorphic_identity':'sync_upstream',
+        'polymorphic_identity': SyncDirection.upstream,
     }
 
     # Upstreaming only
@@ -226,7 +229,6 @@ class Branch(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
-
 
 def configure(config):
     global engine

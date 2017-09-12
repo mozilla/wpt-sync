@@ -172,10 +172,6 @@ class TaskHandler(Handler):
         return downstream.update_taskgroup(
             self.config,
             session,
-            git_gecko,
-            git_wpt,
-            gh_wpt,
-            bz,
             body
         )
 
@@ -186,8 +182,6 @@ class TaskGroupHandler(Handler):
             self.config,
             session,
             git_gecko,
-            git_wpt,
-            gh_wpt,
             bz,
             body["taskGroupId"])
 

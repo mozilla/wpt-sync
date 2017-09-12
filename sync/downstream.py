@@ -60,8 +60,7 @@ def commit_manifest_update(gecko_work):
     mach.wpt_manifest_update()
     if gecko_work.is_dirty:
         gecko_work.git.add("testing/web-platform/meta")
-        gecko_work.git.commit(message="[wpt-sync] downstream {}: update manifest".format(
-            gecko_work.active_branch.name))
+        gecko_work.git.commit(amend=True, no_edit=True)
 
 
 def get_files_changed(project_path):
@@ -114,14 +113,21 @@ def is_worktree_tip(repo, worktree_path, rev):
 
 def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
     if event["context"] != "continuous-integration/travis-ci/pr":
-        logger.info("Ignoring status for context {}".format(event["context"]))
+        logger.debug("Ignoring status for context {}.".format(event["context"]))
         return
+    # TODO agree what sync.status values represent
+    # if sync.status == model.DownstreamSyncStatus.merged:
+    #     logger.debug("Ignoring status for PR {} because it's already "
+    #                  "been imported.".format(sync.pr_id))
+    #     return
     if event["state"] == "pending":
+        # PR is mergeable
         if not is_worktree_tip(git_wpt, sync.wpt_worktree, event["sha"]):
             update_sync(config, session, git_gecko, git_wpt, sync, bz)
-            # TODO address any existing try pushes for this sync
     elif event["state"] == "passed":
-        # TODO if we don't already have a try push for this sync...
+        if len(sync.try_pushes) > 0 and not sync.try_pushes[-1].stale:
+            # we've already made a try push for this version of the PR
+            return
         try_url = push_to_try(config, session, git_gecko, sync,
                               affected_tests=get_affected_tests(sync.wpt_worktree))
         bz.comment(sync.bug,
@@ -307,6 +313,7 @@ def try_message(tests_by_type=None, rebuild=0):
 
 def push_to_try(config, session, git_gecko, sync, affected_tests=None,
                 stability=False):
+    # TODO check if try is closed, retry
     gecko_work, gecko_branch = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
@@ -340,8 +347,7 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
     return results_url
 
 
-def update_taskgroup(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
-    # TODO, use bz, remove unused params
+def update_taskgroup(config, session, body):
     if not (body.get("origin")
             and body["origin"].get("revision")
             and body.get("taskId")):
@@ -365,25 +371,39 @@ def update_taskgroup(config, session, git_gecko, git_wpt, gh_wpt, bz, body):
         try_push.result = model.TryResult.infra
 
 
-def on_taskgroup_resolved(config, session, git_gecko, git_wpt, gh_wpt, bz, taskgroup_id):
+def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
     try_push = session.query(TryPush).filter(
         TryPush.taskgroup_id == taskgroup_id).first()
     if not try_push:
         # this is not one of our try_pushes
         return
-    # what kind of push is it: initial? stability? other?
-    # if any builds failed or wpt tasks went unscheduled, mark for manual intervention
-    # check if the test jobs ran, infra bustage, not "mostly green": set manual_intervention
-    #  flag
+    try_push.complete = True
     tasks = get_tasks_in_group(try_push.taskgroup_id)
     wpt_tasks = filter_suite(tasks, "web-platform-tests")
     wpt_completed = filter_completed(wpt_tasks)
+    if len(wpt_tasks) != len(wpt_completed):
+        # TODO check for unscheduled versus failed versus exception
+        logger.debug("The tests didn't all run; perhaps a build failed?")
+        # TODO retry? manual intervention?
+        return
     log_files = download_logs(wpt_completed, config["paths"]["try_logs"])
-    update_metadata(config, session, git_gecko, try_push.sync, log_files)
-    # push to try again
+    if try_push.kind == model.TryKind.initial:
+        update_metadata(config, session, git_gecko, try_push.sync, log_files)
+        # TODO check if tonnes of tests are failing -- don't want to update the
+        # expectation data in that case
+        # TODO decide whether to do another narrow push on mac
+        try_url = push_to_try(config, session, git_gecko, try_push.sync,
+                              stability=True)
+        bz.comment(try_push.sync.bug,
+                   "Pushed to try (stability). Results: {}".format(try_url))
+    elif try_push.kind == model.TryKind.stability:
+        # TODO disable obviously unstable tests after stability push
+        # TODO notify relevant people about test expectation changes, stability
+        try_push.sync.metadata_ready = True
+        return
 
 
-def update_metadata(config, session, git_gecko, sync, log_files):
+def update_metadata(config, session, git_gecko, sync, log_files, amend=False):
     gecko_work, gecko_branch = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
@@ -393,7 +413,7 @@ def update_metadata(config, session, git_gecko, sync, log_files):
     if gecko_work.is_dirty:
         gecko_work.git.add("testing/web-platform/meta")
         gecko_work.git.commit(message="[wpt-sync] downstream {}: update metadata".format(
-            gecko_work.active_branch.name))
+            gecko_work.active_branch.name), amend=amend)
 
 
 @settings.configure

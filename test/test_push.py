@@ -42,7 +42,7 @@ def test_push_land_local(config, session, git_wpt_upstream, git_gecko, git_wpt, 
     # Create an upstream commit and an equivalent local gecko commit
     commit = upstream_wpt_commit()
     print "Made upstream commit %s" % commit.hexsha
-    local_gecko_commit(cls=model.DownstreamSync)
+    local_gecko_commit(cls=model.DownstreamSync, metadata_ready=True)
 
     push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
 
@@ -55,3 +55,21 @@ def test_push_land_local(config, session, git_wpt_upstream, git_gecko, git_wpt, 
     assert new_commit.stats.files.keys() == ["testing/web-platform/tests/README"]
     assert len(mock_mach) == 1
     assert mock_mach[0]["args"] == ("wpt-manifest-update",)
+
+
+def test_push_land_local_not_ready(config, session, git_wpt_upstream, git_gecko,
+                                   git_wpt, gh_wpt, bz, upstream_wpt_commit,
+                                   local_gecko_commit, mock_mach):
+    # Create an upstream commit and an equivalent local gecko commit
+    commit = upstream_wpt_commit()
+    print "Made upstream commit %s" % commit.hexsha
+    local_gecko_commit(cls=model.DownstreamSync, metadata_ready=False)
+
+    push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
+
+    # The new commit should not be landed yet
+    landing = model.Landing.previous(session)
+    assert landing.head_commit.rev != commit.hexsha
+    current_landing = model.Landing.current(session)
+    assert current_landing.head_commit.rev == commit.hexsha
+    assert current_landing.status == model.LandingStatus.have_commits

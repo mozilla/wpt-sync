@@ -41,7 +41,9 @@ def test_status_changed(config, session, git_gecko, git_wpt, bz):
         "state": "pending",
         "context": "continuous-integration/travis-ci/pr",
     }
-    sync = Mock(spec=model.DownstreamSync)
+    pr, _ = model.get_or_create(session, model.PullRequest, id=1)
+    sync = model.DownstreamSync(pr=pr, bug=2)
+    session.add(sync)
     with patch('sync.downstream.update_sync') as update_sync:
         # The first time we receive a status for a new rev, is_worktree_tip is False
         with patch('sync.downstream.is_worktree_tip', side_effect=[False, True]):

@@ -20,7 +20,8 @@ def get_handlers(config):
         handler_map = {
             "github": handlers.GitHubHandler(config),
             "push": handlers.PushHandler(config),
-            "task": handlers.TaskGroupHandler(config)
+            "task": handlers.TaskHandler(config),
+            "taskgroup": handlers.TaskGroupHandler(config),
         }
     return handler_map
 
