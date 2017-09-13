@@ -37,7 +37,7 @@ class UpstreamSyncStatus(enum.Enum):
     commits_applied = 1
     have_pr = 2
     status_passed = 3
-    merged = 4
+    complete = 4
     aborted = 5
 
 
@@ -46,7 +46,7 @@ class DownstreamSyncStatus(enum.Enum):
     commits_applied = 1
     have_pr = 2
     status_passed = 3
-    merged = 4
+    complete = 4
     aborted = 5
 
 
@@ -127,7 +127,7 @@ class Landing(Base):
     __tablename__ = "landing"
 
     id = Column(Integer, primary_key=True)
-    head_commit_id = Column(Integer, ForeignKey('wpt_commit.id'), nullable=False)
+    head_commit_id = Column(Integer, ForeignKey('wpt_commit.id'))
     worktree = Column(String)
     bug = Column(String)
 
@@ -137,7 +137,7 @@ class Landing(Base):
                                foreign_keys=head_commit_id)
     wpt_commits = relationship("WptCommit", primaryjoin="Landing.id==WptCommit.landing_id")
 
-    modified = Column(DateTime(timezone=True), onupdate=func.now())
+    modified = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
     @classmethod
     def current(cls, session):
@@ -201,7 +201,7 @@ class DownstreamSync(Sync):
     metadata_ready = Column(Boolean, default=False)
 
     __mapper_args__ = {
-        'polymorphic_identity': SyncDirection.downstream,
+        'polymorphic_identity': SyncDirection.downstream
     }
 
 
@@ -215,7 +215,7 @@ class UpstreamSync(Sync):
     gecko_commits = relationship("GeckoCommit")
 
     __mapper_args__ = {
-        'polymorphic_identity': SyncDirection.upstream,
+        'polymorphic_identity': SyncDirection.upstream
     }
 
     # Upstreaming only

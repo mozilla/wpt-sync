@@ -1,4 +1,5 @@
 import os
+import sys
 
 from sync import model, push
 
@@ -37,14 +38,15 @@ def test_push_register_commit(session, git_wpt_upstream, git_wpt, gh_wpt):
     assert landing.head_commit.rev == prev_landing.head_commit.rev
 
 
-def test_push_land_local(config, session, git_wpt_upstream, git_gecko, git_wpt, gh_wpt, bz,
-                         upstream_wpt_commit, local_gecko_commit, mock_mach):
+def test_push_land_local_simple(config, session, git_wpt_upstream, git_gecko, git_wpt, gh_wpt, bz,
+                                upstream_wpt_commit, local_gecko_commit, mock_mach):
     # Create an upstream commit and an equivalent local gecko commit
     commit = upstream_wpt_commit()
     print "Made upstream commit %s" % commit.hexsha
     local_gecko_commit(cls=model.DownstreamSync, metadata_ready=True)
 
-    push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
+    success = push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
+    assert success
 
     landing = model.Landing.previous(session)
     assert landing.status == model.LandingStatus.complete
@@ -63,13 +65,14 @@ def test_push_land_local_not_ready(config, session, git_wpt_upstream, git_gecko,
     # Create an upstream commit and an equivalent local gecko commit
     commit = upstream_wpt_commit()
     print "Made upstream commit %s" % commit.hexsha
+    initial_landing = model.Landing.previous(session)
     local_gecko_commit(cls=model.DownstreamSync, metadata_ready=False)
 
-    push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
+    success = push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, None)
+    assert not success
 
-    # The new commit should not be landed yet
+    # The new commit should not be landed, and since there was nothing to land
+    # the landing object should be removed.
     landing = model.Landing.previous(session)
-    assert landing.head_commit.rev != commit.hexsha
-    current_landing = model.Landing.current(session)
-    assert current_landing.head_commit.rev == commit.hexsha
-    assert current_landing.status == model.LandingStatus.have_commits
+    assert landing == initial_landing
+    assert landing.head_commit.rev == initial_landing.head_commit.rev
