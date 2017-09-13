@@ -1,0 +1,4 @@
+pytest
+mock
+ipython<6
+flake8

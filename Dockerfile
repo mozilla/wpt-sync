@@ -30,8 +30,8 @@ ADD . /home/wptsync/wpt-sync
 
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
+RUN pip install -r requirements-dev.txt
 RUN pip install -e .
-RUN pip install "ipython<6"
 # TODO: make this part of a setup script
 # RUN python sync/repos.py
 # RUN python sync/model.py
