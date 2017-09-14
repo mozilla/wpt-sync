@@ -83,7 +83,7 @@ def test_wpt_to_gecko_commits(config, session, git_wpt, git_gecko, pr_content, b
     sync = Mock(spec=model.DownstreamSync)
     sync.wpt_worktree = None
     sync.gecko_worktree = None
-    wpt_work, branch_name = worktree.ensure_worktree(
+    wpt_work, branch_name, _ = worktree.ensure_worktree(
         config, session, git_wpt, "web-platform-tests", sync,
         "test", "origin/master")
     # add some commits to wpt_work
@@ -95,7 +95,7 @@ def test_wpt_to_gecko_commits(config, session, git_wpt, git_gecko, pr_content, b
             f.write(content)
         wpt_work.git.add(path)
         wpt_work.git.commit("-m", "Commit {}".format(count))
-    gecko_work, gecko_branch = worktree.ensure_worktree(
+    gecko_work, gecko_branch, _ = worktree.ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "test", config["gecko"]["refs"]["central"])
     central = gecko_work.head.commit.hexsha

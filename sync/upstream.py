@@ -280,8 +280,8 @@ def update_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, sync):
         base_commit = last_landing.head_commit.rev
     else:
         base_commit = "origin/master"
-    git_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
-                                            str(sync.bug), base_commit)
+    git_work, branch_name, _ = ensure_worktree(config, session, git_wpt, "web-platform-tests", sync,
+                                               str(sync.bug), base_commit)
     git_work.index.reset(base_commit, hard=True)
 
     for commit in sync.gecko_commits:

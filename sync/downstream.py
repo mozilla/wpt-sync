@@ -151,7 +151,7 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
     logger.info("Fetching mozilla-unified")
     git_gecko.git.fetch("mozilla")
     logger.info("Fetch done")
-    gecko_work, gecko_branch = ensure_worktree(
+    gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
     gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
@@ -177,8 +177,8 @@ def get_pr(config, session, git_wpt, sync):
     logger.info("Fetching web-platform-tests origin/master")
     git_wpt.git.fetch("origin", "master", no_tags=True)
     logger.info("Fetch done")
-    wpt_work, branch_name = ensure_worktree(config, session, git_wpt, "web-platform-tests",
-                                            sync, "PR_" + str(sync.pr_id), "origin/master")
+    wpt_work, branch_name, _ = ensure_worktree(config, session, git_wpt, "web-platform-tests",
+                                               sync, "PR_" + str(sync.pr_id), "origin/master")
     wpt_work.index.reset("origin/master", hard=True)
     wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr_id, sync.pr_id),
                        no_tags=True)
@@ -314,7 +314,7 @@ def try_message(tests_by_type=None, rebuild=0):
 def push_to_try(config, session, git_gecko, sync, affected_tests=None,
                 stability=False):
     # TODO check if try is closed, retry
-    gecko_work, gecko_branch = ensure_worktree(
+    gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
     results_url = None
@@ -404,7 +404,7 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
 
 
 def update_metadata(config, session, git_gecko, sync, log_files, amend=False):
-    gecko_work, gecko_branch = ensure_worktree(
+    gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
     # git clean?

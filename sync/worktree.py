@@ -76,11 +76,13 @@ def ensure_worktree(config, session, repo, project, sync, prefix, base):
         repo.git.worktree("add", "-b", branch_name,
                           os.path.abspath(worktree_path),
                           base)
+        created = True
     else:
         branch_name = os.path.split(worktree_path)[1]
+        created = False
     git_work = git.Repo(worktree_path)
 
-    return git_work, branch_name
+    return git_work, branch_name, created
 
 
 def remove_worktrees(config, sync):

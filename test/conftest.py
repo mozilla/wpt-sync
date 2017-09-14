@@ -213,9 +213,9 @@ def local_gecko_commit(config, session, git_gecko, pull_request):
         else:
             sync = None
 
-        git_work, branch_name = worktree.ensure_worktree(config, session, git_gecko,
-                                                         "gecko", sync, "test",
-                                                         config["gecko"]["refs"]["mozilla-inbound"])
+        git_work, branch_name, _ = worktree.ensure_worktree(config, session, git_gecko,
+                                                            "gecko", sync, "test",
+                                                            config["gecko"]["refs"]["mozilla-inbound"])
         for path in create_file_data(test_changes, git_work.working_dir, config["gecko"]["path"]["wpt"]):
             git_work.git.add(path)
         git_work.git.commit(message=title)
