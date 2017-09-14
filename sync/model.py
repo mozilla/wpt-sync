@@ -2,7 +2,7 @@ import enum
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
-from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Table
 from sqlalchemy.sql import func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker, with_polymorphic
@@ -54,8 +54,10 @@ class LandingStatus(enum.Enum):
     initial = 0
     have_commits = 1
     have_bug = 2
-    applied_commits = 3
-    complete = 4
+    have_syncs = 3
+    have_worktree = 4
+    applied_commits = 5
+    complete = 6
 
 
 class PullRequest(Base):
@@ -122,6 +124,11 @@ class Repository(Base):
     def by_name(cls, session, name):
         return get(session, cls, name=name)
 
+landing_syncs_applied = Table('landing_syncs_applied', Base.metadata,
+    Column('landing_id', Integer, ForeignKey('landing.id')),
+    Column('sync_upstream_id', Integer, ForeignKey('sync_upstream.id'))
+)
+
 
 class Landing(Base):
     __tablename__ = "landing"
@@ -138,6 +145,8 @@ class Landing(Base):
     wpt_commits = relationship("WptCommit", primaryjoin="Landing.id==WptCommit.landing_id")
 
     modified = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
+    syncs_applied = relationship("UpstreamSync", secondary=landing_syncs_applied)
 
     @classmethod
     def current(cls, session):
@@ -219,6 +228,15 @@ class UpstreamSync(Sync):
     }
 
     # Upstreaming only
+
+    @classmethod
+    def unlanded(cls, session, exclude_repos=["autoland"]):
+        return (session.query(cls)
+                .join(Repository)
+                .filter(~Repository.name.in_(exclude_repos),
+                        ~UpstreamSync.status.in_((UpstreamSyncStatus.complete,
+                                                  UpstreamSyncStatus.aborted)))
+                .order_by(UpstreamSync.id.asc()))
 
 
 SyncSubclass = with_polymorphic(Sync, [DownstreamSync, UpstreamSync])

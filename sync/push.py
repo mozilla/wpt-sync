@@ -317,25 +317,41 @@ def get_landable_commits(config, session, git_gecko, git_wpt, gh_wpt, bz, commit
         return landable_commits
 
 
-@step()
+@step(status_arg="landing",
+      set_status=LandingStatus.have_worktree)
 def setup_worktrees(config, session, git_wpt, git_gecko, landing, prev_landing):
-    git_work_wpt, _ = ensure_worktree(config,
-                                      session,
-                                      git_wpt,
-                                      "web-platform-tests",
-                                      None,
-                                      "landing",
-                                      prev_landing.head_commit.rev)
-    git_work_gecko, _ = ensure_worktree(config,
-                                        session,
-                                        git_gecko,
-                                        "gecko",
-                                        None,
-                                        "landing",
-                                        config["gecko"]["refs"]["mozilla-inbound"])
+    if landing.status.value >= LandingStatus.have_worktree.value:
+        wpt_base = landing.wpt_worktree.rsplit("/", 1)[1]
+        gecko_base = landing.gecko_worktree.rsplit("/", 1)[1]
+    else:
+        wpt_base = prev_landing.head_commit.rev
+        gecko_base = config["gecko"]["refs"]["mozilla-inbound"]
+
+    git_work_wpt, _, created = ensure_worktree(config,
+                                               session,
+                                               git_wpt,
+                                               "web-platform-tests",
+                                               None,
+                                               "landing",
+                                               wpt_base)
+    git_work_gecko, _, created = ensure_worktree(config,
+                                                 session,
+                                                 git_gecko,
+                                                 "gecko",
+                                                 None,
+                                                 "landing",
+                                                 gecko_base)
 
     landing.wpt_worktree = git_work_wpt.working_dir
     landing.gecko_worktree = git_work_gecko.working_dir
+
+    if not created and landing.status.value <= landing.status.have_worktree:
+        # If we need to start the landing again e.g. due to more
+        # upstream syncs, we might already have a worktree, but it
+        # might have the wrong thing checked out. So explicitly
+        # reset it here.
+        git_work_wpt.head.reset(wpt_base, working_tree=True)
+        git_work_gecko.head.reset(gecko_base, working_tree=True)
 
     return git_work_wpt, git_work_gecko
 
@@ -343,52 +359,59 @@ def setup_worktrees(config, session, git_wpt, git_gecko, landing, prev_landing):
 @step(status_arg="landing",
       skip_if=lambda x: x.status.value >= LandingStatus.have_bug.value,
       set_status=LandingStatus.have_bug)
-def create_bug(config, session, bz, landing, landable_commits, outstanding_syncs):
+def create_bug(config, session, bz, landing, landable_commits):
     last_landed_commit = landable_commits[-1][1][-1]
     bug_msg = ""
 
-    if outstanding_syncs:
-        for sync in outstanding_syncs:
-            bug_msg += "Reapplying unlanded commits from bugs:\n%s" % "\n".join(
-                "%s (Pull Request %s - %s)" % (sync.bug, sync.pr_id, sync.pr.title))
+    for sync in landing.syncs_applied:
+        bug_msg += "Reapplying unlanded commits from bugs:\n%s" % "\n".join(
+            "%s (Pull Request %s - %s)" % (sync.bug, sync.pr_id, sync.pr.title))
 
+    if not landing.bug:
+        # We might already have a bug if we had to start again with different syncs
         bug = bz.new("Update web-platform-tests to %s" % last_landed_commit,
                      bug_msg,
                      "Testing",
                      "web-platform-tests")
         landing.bug = bug
+    else:
+        bug_msg = "Landing was restarted due to changes in gecko trees.\n%s" % bug_msg
+        bz.comment(landing.bug, bug_msg)
 
 
 @step()
-def get_outstanding_syncs(config, session):
-    return (session.query(UpstreamSync)
-            .join(Repository)
-            .filter(Repository.name != "autoland",
-                    ~UpstreamSync.status.in_((UpstreamSyncStatus.complete,
-                                              UpstreamSyncStatus.aborted)))
-            .order_by(UpstreamSync.id.asc()))
+def get_outstanding_syncs(config, session, landing):
+    syncs = UpstreamSync.unlanded(session)
+    if (landing.status.value < LandingStatus.have_syncs.value or
+        (landing.status.value >= LandingStatus.have_syncs.value and
+         syncs != landing.syncs_applied)):
+        # We are either running this for the first time, or we
+        # are running again but got different syncs to apply this time
+        # so need to re-do all the following steps
+        landing.status = LandingStatus.have_syncs
+        landing.syncs_applied = syncs.all()
 
 
 @step(status_arg="landing",
       skip_if=lambda x: x.status.value >= LandingStatus.applied_commits.value,
       set_status=LandingStatus.applied_commits)
 def create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
-                   landing, landable_commits, outstanding_syncs):
+                   landing, landable_commits):
     """Create commits in a Gecko worktree corresponding to the commits in wpt
     we create a single commit per upstream PR, so that it can be linked to the
     bug used to track downstreaming of that PR.
 
     :param landable_commits:
-    :param List outstanding_syncs: List of patches committed to mozilla central or
-                                   inbound that must be reapplied in order to land this commit."""
+    """
 
     for pr, commits in landable_commits:
         move_pr_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
-                        landing, outstanding_syncs, pr, commits)
+                        landing, pr, commits)
+
 
 @step()
 def move_pr_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
-                    landing, outstanding_syncs, pr, commits):
+                    landing, pr, commits):
 
     # If we already applied these commits to the landing, abort
     if commits[0].landing:
@@ -405,11 +428,11 @@ def move_pr_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko
         for commit in commits:
             update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt,
                              git_work_gecko, commits[-1].rev, pr.title,
-                             outstanding_syncs, None, landing.bug, [commit])
+                             landing.syncs_applied, None, landing.bug, [commit])
     else:
         assert pr.sync
         update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
-                         commits[-1].rev, pr.title, outstanding_syncs, pr.sync,
+                         commits[-1].rev, pr.title, landing.syncs_applied, pr.sync,
                          pr.sync.bug, commits)
     for commit in commits:
         commit.landing = landing
@@ -448,17 +471,15 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz, commit_rev):
                                             git_wpt, gh_wpt, bz, commit_rev,
                                             landing, prev_landing, pr_commits)
 
-    # TODO: consider linking these to the landings so we can tell if this changes when we
-    # re-start this code
-    outstanding_syncs = get_outstanding_syncs(config, session)
+    get_outstanding_syncs(config, session, landing)
 
-    create_bug(config, session, bz, landing, landable_commits, outstanding_syncs)
+    create_bug(config, session, bz, landing, landable_commits)
 
     git_work_wpt, git_work_gecko = setup_worktrees(config, session, git_wpt, git_gecko,
                                                    landing, prev_landing)
 
     create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko, landing,
-                   landable_commits, outstanding_syncs)
+                   landable_commits)
 
     push_commits(config, session, bz, git_gecko, git_work_gecko, landing)
 
