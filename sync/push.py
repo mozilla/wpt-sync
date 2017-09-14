@@ -151,11 +151,9 @@ def reapply_local_commits(session, bz, git_gecko, git_work_gecko, syncs):
                 bz.comment(sync.bug,
                            "Landing wpt failed because reapplying commit %s from bug %s failed "
                            "from rev %s failed:\n%s" % (sync.rev, sync.rev, e))
-                return False, None
+                raise AbortError
 
     git_work_gecko.git.commit(amend=True, no_edit=True)
-
-    return True, syncs
 
 
 def metadata_commit(config, git_gecko, sync):
@@ -385,22 +383,36 @@ def create_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
                                    inbound that must be reapplied in order to land this commit."""
 
     for pr, commits in landable_commits:
-        # For PRs that are not the result of out own sync, check if
-        # we have updated metadta
-        if not pr:
-            # This is a set of commits that landed directly on master. Gonna assume this doesn't
-            # affect test metadata for now
-            logger.warning("Commits %s landed directly on master and have no associated "
-                           "metadata updates" % ",".join(commits))
-            for commit in commits:
-                update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt,
-                                 git_work_gecko, commits[-1].rev, pr.title,
-                                 outstanding_syncs, None, landing.bug, [commit])
-        else:
-            assert pr.sync
-            update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
-                             commits[-1].rev, pr.title, outstanding_syncs, pr.sync,
-                             pr.sync.bug, commits)
+        move_pr_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
+                        landing, outstanding_syncs, pr, commits)
+
+@step()
+def move_pr_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
+                    landing, outstanding_syncs, pr, commits):
+
+    # If we already applied these commits to the landing, abort
+    if commits[0].landing:
+        assert all(item.landing == landing for item in commits)
+        return
+
+    # For PRs that are not the result of out own sync, check if
+    # we have updated metadta
+    if not pr:
+        # This is a set of commits that landed directly on master. Gonna assume this doesn't
+        # affect test metadata for now
+        logger.warning("Commits %s landed directly on master and have no associated "
+                       "metadata updates" % ",".join(commits))
+        for commit in commits:
+            update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt,
+                             git_work_gecko, commits[-1].rev, pr.title,
+                             outstanding_syncs, None, landing.bug, [commit])
+    else:
+        assert pr.sync
+        update_gecko_wpt(config, session, bz, git_gecko, git_work_wpt, git_work_gecko,
+                         commits[-1].rev, pr.title, outstanding_syncs, pr.sync,
+                         pr.sync.bug, commits)
+    for commit in commits:
+        commit.landing = landing
 
 
 @step(status_arg="landing",
