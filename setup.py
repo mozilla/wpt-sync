@@ -1,10 +1,7 @@
 from setuptools import setup, find_packages
 
-console_scripts = [
-]
-
 setup(
-    name='wpt-sync',
+    name='sync',
     version='0.1',
     description='Synchronize changes between gecko and web-platform-tests',
     url='https://web-platform-tests.org',
@@ -18,7 +15,9 @@ setup(
     ],
     packages=find_packages(),
     entry_points={
-        'console_scripts': console_scripts,
+       "console_scripts": [
+           "wptsync = sync.command:main"
+       ]
     },
     install_requires=[
     ],
