@@ -62,7 +62,7 @@ def get_tasks_in_group(group_id):
 def download_logs(tasks, destination, retry=5):
     if not os.path.exists(destination):
         os.makedirs(destination)
-    url = ARTIFACTS_BASE + "{task}/{run}/public/logs/live_backing.log"
+    url = ARTIFACTS_BASE + "{task}/{run}/public/test_info//wpt_raw.log"
     log_files = []
     for task in tasks:
         status = task.get("status", {})
