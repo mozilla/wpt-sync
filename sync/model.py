@@ -242,12 +242,6 @@ class UpstreamSync(Sync):
 SyncSubclass = with_polymorphic(Sync, [DownstreamSync, UpstreamSync])
 
 
-class Branch(Base):
-    __tablename__ = 'branch'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
-
 def configure(config):
     global engine
     if engine is not None:
