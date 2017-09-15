@@ -218,3 +218,12 @@ clone of mozilla-inbound at this path from the local filesystem.
 * GitHub is down
   - Retry tasks. This blocks many things, so just retrying everything
     should be fine. Maybe pause if we think this is happening?
+  - We might miss many events related to PRs and merges. Once GH is back up 
+    and we periodically land upstream changes, look at all new commits on 
+    master since last landing and start new syncs for them as needed.
+* Bugzilla is down
+  - Retry? For in-progress syncs, maybe we can accumulate a backlog
+    of bug comments that need to be posted. For new downstreaming syncs, we don't want to start the sync process without creating a bug first, so just retry.
+* Trees are closed. 
+  - Retry.
+
