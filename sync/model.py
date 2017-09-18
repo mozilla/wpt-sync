@@ -186,7 +186,11 @@ class DownstreamSync(Sync):
 
     status = Column(Enum(Status), default=Status.active, nullable=False)
     try_pushes = relationship("TryPush")
+    metadata_commit_id = Column(Integer, ForeignKey("gecko_commit.id"))
+
     metadata_ready = Column(Boolean, default=False)
+
+    metadata_commit = relationship("GeckoCommit")
 
     __mapper_args__ = {
         'polymorphic_identity': SyncDirection.downstream

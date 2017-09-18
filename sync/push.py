@@ -72,22 +72,10 @@ def reapply_local_commits(session, bz, git_gecko, git_work_gecko, syncs):
     git_work_gecko.git.commit(amend=True, no_edit=True)
 
 
-def metadata_commit(config, git_gecko, sync):
-    branch = sync.gecko_worktree.rsplit("/", 1)[1]
-    branch_head = git_gecko.commit(branch)
-
-    # Check if all the changed files are metadata files;
-    # if so we have a metadata update, otherwise we don't
-    files_changed = branch_head.stats.files.iterkeys()
-    if all(os.path.dirname(item) == config["gecko"]["path"]["meta"]
-           for item in files_changed):
-        return branch_head.hexsha
-
-
 def add_metadata(config, git_gecko, git_work_gecko, sync):
-    metadata_rev = metadata_commit(config, git_gecko, sync)
-    if metadata_rev:
-        git_work_gecko.git.cherry_pick(metadata_rev)
+    if sync.metadata_commit:
+        git_work_gecko.git.cherry_pick(
+            git_gecko.cinnabar.hg2git(sync.metadata_commit))
 
 
 def manifest_update(git_work_gecko):

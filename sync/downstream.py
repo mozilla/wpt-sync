@@ -22,10 +22,11 @@ from . import (
 
 from .model import (
     DownstreamSync,
+    GeckoCommit,
     PullRequest,
     Repository,
-    Sync,
     TryPush,
+    get_or_create
 )
 from .projectutil import Mach, WPT
 from .taskcluster import (
@@ -159,6 +160,7 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
     if not success:
         return
     commit_manifest_update(gecko_work)
+    move_metadata(config, session, git_gecko, wpt_work, gecko_work, sync)
 
     # Getting the component now doesn't really work well because a PR that
     # only adds files won't have a component before we move the commits.
@@ -191,6 +193,7 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
     assert wpt_work.active_branch.name == os.path.basename(sync.wpt_worktree)
     assert gecko_work.active_branch.name == os.path.basename(sync.gecko_worktree)
 
+    # TODO - What about PRs that aren't based on master
     for c in wpt_work.iter_commits("origin/master..", reverse=True):
         try:
             patch = wpt_work.git.show(c, pretty="email") + "\n"
@@ -221,6 +224,29 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
                        "from {} failed:\n{}".format(c.hexsha, e))
             return False
     return True
+
+
+def move_metadata(config, session, git_gecko, wpt_work, gecko_work, sync):
+    master = wpt_work.commit("origin/master")
+    diff_blobs = master.diff(wpt_work.head.commit)
+    metadata_base = config["gecko"]["path"]["meta"]
+    have_renames = False
+    for item in diff_blobs:
+        if item.rename_from:
+            old_meta_path = os.path.join(metadata_base,
+                                         item.rename_from + ".ini")
+            if os.path.exists(os.path.join(gecko_work.working_dir,
+                                           old_meta_path)):
+                have_renames = True
+                new_meta_path = os.path.join(metadata_base,
+                                             item.rename_to + ".ini")
+                gecko_work.index.move(old_meta_path, new_meta_path)
+
+    if have_renames:
+        commit = gecko_work.commit(message="[wpt-sync] downstream {}: update metadata".format(
+            gecko_work.active_branch.name))
+        sync.metadata_commit = get_or_create(session, GeckoCommit,
+                                             rev=git_gecko.cinnabar.git2hg(commit.hexsha))
 
 
 def get_affected_tests(path_to_wpt, revish=None):
@@ -403,7 +429,7 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
         return
 
 
-def update_metadata(config, session, git_gecko, sync, log_files, amend=False):
+def update_metadata(config, session, git_gecko, sync, log_files):
     gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
@@ -412,8 +438,14 @@ def update_metadata(config, session, git_gecko, sync, log_files, amend=False):
     mach.wpt_update(*log_files)
     if gecko_work.is_dirty:
         gecko_work.git.add("testing/web-platform/meta")
-        gecko_work.git.commit(message="[wpt-sync] downstream {}: update metadata".format(
-            gecko_work.active_branch.name), amend=amend)
+        if sync.metadata_commit and gecko_work.head.commit.hexsha == sync.metadata_commit.rev:
+            gecko_work.git.commit(amend=True)
+        else:
+            gecko_work.git.commit(message="[wpt-sync] downstream {}: update metadata".format(
+                gecko_work.active_branch.name))
+            sync.metadata_commit = get_or_create(session, GeckoCommit,
+                                                 rev=git_gecko.cinnabar.git2hg(
+                                                     gecko_work.head.commit.hexsha))
 
 
 @settings.configure
