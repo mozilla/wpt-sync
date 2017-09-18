@@ -6,7 +6,7 @@ import datetime
 import git
 
 import log
-from model import Landing, LandingStatus, SyncSubclass, UpstreamSync, DownstreamSync
+from model import Landing, Status, SyncSubclass, UpstreamSync, DownstreamSync
 
 logger = log.get_logger("worktree")
 
@@ -140,7 +140,7 @@ def cleanup(config, session):
             elif ((sync is not None and
                    (isinstance(sync, DownstreamSync) and sync.imported or
                     isinstance(sync, UpstreamSync) and sync.merged)) or
-                  (landing is not None and landing.status == LandingStatus.complete)):
+                  (landing is not None and landing.status == Status.complete)):
                 # Sync is finished so clean up
                 logger.info("Removing worktree for completed process %s" % worktree_path)
                 shutil.rmtree(worktree_path)

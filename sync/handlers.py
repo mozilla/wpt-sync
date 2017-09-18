@@ -1,16 +1,13 @@
 import traceback
 import urlparse
 
-import git
-
 import downstream
 import log
-import model
 import push
 import upstream
 import worktree
-from model import Landing, PullRequest, Sync, SyncDirection
-
+from model import PullRequest, Sync, SyncDirection
+from gitutils import is_ancestor
 
 logger = log.get_logger("handlers")
 
@@ -76,14 +73,6 @@ def pr_for_commit(git_wpt, rev):
             pr_id = int(item.rsplit("/", 1)[1])
             break
     return pr_id
-
-
-def is_ancestor(git_obj, rev, branch):
-    try:
-        git_obj.git.merge_base(rev, branch, is_ancestor=True)
-    except git.GitCommandError:
-        return False
-    return True
 
 
 def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
@@ -157,14 +146,17 @@ class PushHandler(Handler):
     def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
         data = body["payload"]["data"]
         repo_url = data["repo_url"]
+        # Not sure if it's everey possible to get multiple heads here in a way that
+        # matters for us
+        rev = data["heads"][0]
         logger.debug("Commit landed in repo %s" % repo_url)
         if repo_url in self.integration_repos or repo_url == self.landing_repo:
             if repo_url in self.integration_repos:
                 repo_name = self.integration_repos[repo_url]
                 upstream.integration_commit(self.config, session, git_gecko, git_wpt, gh_wpt,
-                                            bz, repo_name)
+                                            bz, rev, repo_name)
             elif repo_url == self.landing_repo:
-                upstream.landing_commit(self.config, session, git_gecko, git_wpt, gh_wpt, bz)
+                upstream.landing_commit(self.config, session, git_gecko, git_wpt, gh_wpt, bz, rev)
 
 
 class TaskHandler(Handler):

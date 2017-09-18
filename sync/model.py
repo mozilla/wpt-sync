@@ -32,32 +32,10 @@ class TryResult(enum.Enum):
     orange = 3
 
 
-class UpstreamSyncStatus(enum.Enum):
-    initial = 0
-    commits_applied = 1
-    have_pr = 2
-    status_passed = 3
-    complete = 4
-    aborted = 5
-
-
-class DownstreamSyncStatus(enum.Enum):
-    initial = 0
-    commits_applied = 1
-    have_pr = 2
-    status_passed = 3
-    complete = 4
-    aborted = 5
-
-
-class LandingStatus(enum.Enum):
-    initial = 0
-    have_commits = 1
-    have_bug = 2
-    have_syncs = 3
-    have_worktree = 4
-    applied_commits = 5
-    complete = 6
+class Status(enum.Enum):
+    aborted = -1
+    active = 0
+    complete = 1
 
 
 class PullRequest(Base):
@@ -134,11 +112,12 @@ class Landing(Base):
     __tablename__ = "landing"
 
     id = Column(Integer, primary_key=True)
-    head_commit_id = Column(Integer, ForeignKey('wpt_commit.id'))
-    worktree = Column(String)
+    head_commit_id = Column(Integer, ForeignKey('wpt_commit.id'), nullable=False)
+    wpt_worktree = Column(String)
+    gecko_worktree = Column(String)
     bug = Column(String)
 
-    status = Column(Enum(LandingStatus), default=LandingStatus.initial, nullable=False)
+    status = Column(Enum(Status), default=Status.active, nullable=False)
 
     head_commit = relationship("WptCommit", primaryjoin="Landing.head_commit_id==WptCommit.id",
                                foreign_keys=head_commit_id)
@@ -146,11 +125,14 @@ class Landing(Base):
 
     modified = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
-    syncs_applied = relationship("UpstreamSync", secondary=landing_syncs_applied)
+    syncs_reapplied = relationship("UpstreamSync", secondary=landing_syncs_applied)
+
+    # Pure status columns
+    commits_applied = Column(Boolean, default=False)
 
     @classmethod
     def current(cls, session):
-        landings = session.query(cls).filter(cls.status != LandingStatus.complete).all()
+        landings = session.query(cls).filter(cls.status != Status.complete).all()
         assert len(landings) <= 1
         if len(landings) == 0:
             return None
@@ -159,7 +141,7 @@ class Landing(Base):
     @classmethod
     def previous(cls, session):
         return (session.query(cls)
-                .filter(cls.status == LandingStatus.complete)
+                .filter(cls.status == Status.complete)
                 .order_by(cls.id.desc())
                 .first())
 
@@ -185,10 +167,7 @@ class Sync(Base):
     gecko_worktree = Column(String, unique=True)
     wpt_worktree = Column(String, unique=True)
     repository_id = Column(Integer, ForeignKey('repository.id'))
-    human_needed = Column(Boolean, default=False)
 
-    # Only two allowed values 'upstream' and 'downstream'. Maybe should
-    # use a different representation here
     direction = Column(Enum(SyncDirection), nullable=False)
 
     pr = relationship("PullRequest", back_populates="sync", uselist=False)
@@ -205,7 +184,7 @@ class DownstreamSync(Sync):
 
     id = Column(Integer, ForeignKey('sync.id'), primary_key=True)
 
-    status = Column(Enum(DownstreamSyncStatus))
+    status = Column(Enum(Status), default=Status.active, nullable=False)
     try_pushes = relationship("TryPush")
     metadata_ready = Column(Boolean, default=False)
 
@@ -219,9 +198,17 @@ class UpstreamSync(Sync):
 
     id = Column(Integer, ForeignKey('sync.id'), primary_key=True)
 
-    status = Column(Enum(UpstreamSyncStatus))
+    status = Column(Enum(Status), default=Status.active, nullable=False)
     wpt_branch = Column(String, unique=True)
     gecko_commits = relationship("GeckoCommit")
+
+    # Status fields
+    commits_applied = Column(Boolean, default=False)
+
+    # Error conditions
+    error_apply_failed = Column(Boolean, default=False)
+    error_status_failed = Column(Boolean, default=False)
+    error_unmergable = Column(Boolean, default=False)
 
     __mapper_args__ = {
         'polymorphic_identity': SyncDirection.upstream
@@ -234,8 +221,8 @@ class UpstreamSync(Sync):
         return (session.query(cls)
                 .join(Repository)
                 .filter(~Repository.name.in_(exclude_repos),
-                        ~UpstreamSync.status.in_((UpstreamSyncStatus.complete,
-                                                  UpstreamSyncStatus.aborted)))
+                        ~UpstreamSync.status.in_((Status.complete,
+                                                  Status.aborted)))
                 .order_by(UpstreamSync.id.asc()))
 
 
@@ -261,8 +248,8 @@ def drop():
     Base.metadata.drop_all(engine)
 
 
-def session():
-    return Session()
+def session(**kwargs):
+    return Session(**kwargs)
 
 
 def get(session, model, **kwargs):

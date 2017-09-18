@@ -131,7 +131,7 @@ def git_wpt_upstream(config, session, initial_repo_content, pr_content):
     git_upstream.heads.master.checkout()
 
     head_commit, _ = model.get_or_create(session, model.WptCommit, rev=head.hexsha)
-    session.add(model.Landing(head_commit=head_commit, status=model.LandingStatus.complete))
+    session.add(model.Landing(head_commit=head_commit, status=model.Status.complete))
 
     return git_upstream
 
@@ -229,7 +229,7 @@ def local_gecko_commit(config, session, git_gecko, pull_request):
 
 
 @pytest.fixture
-def pull_request(session):
+def pull_request(session, gh_wpt):
     def inner(pr_id, title=None, commits=None):
         pr, created = model.get_or_create(session,
                                           model.PullRequest,
@@ -238,6 +238,8 @@ def pull_request(session):
             pr.title = title if title is not None else "Example PR"
             if commits is not None:
                 pr.commits = commits
+            head = commits[0].rev if commits else None
+            gh_wpt.create_pull(title, "Example pr", None, head)
         else:
             assert title is None and commits is None
         return pr

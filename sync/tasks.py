@@ -29,7 +29,7 @@ def get_handlers(config):
 @configure
 def setup(config):
     model.configure(config)
-    session = model.session()
+    session = model.session(expire_on_commit=False)
 
     git_gecko = repos.Gecko(config).repo()
     git_wpt = repos.WebPlatformTests(config).repo()
@@ -61,8 +61,7 @@ def handle(task, body):
     if task in handlers:
         logger.info("Running task %s" % task)
         session, git_gecko, git_wpt, gh_wpt, bz = setup()
-        with session_scope(session):
-            handlers[task](session, git_gecko, git_wpt, gh_wpt, bz, body)
+        handlers[task](session, git_gecko, git_wpt, gh_wpt, bz, body)
     else:
         logger.error("No handler for %s" % task)
 
@@ -72,8 +71,7 @@ def handle(task, body):
 @configure
 def land(config):
     session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    with session_scope(session):
-        handlers.LandingHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
+    handlers.LandingHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
 
 
 @worker.task
@@ -81,5 +79,4 @@ def land(config):
 @configure
 def cleanup(config):
     session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    with session_scope(session):
-        handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz, None)
+    handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz, None)

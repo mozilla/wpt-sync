@@ -13,7 +13,9 @@ def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, gi
     hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
     # This updates the bookmark for mozilla/inbound only
     hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
-    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
+                                hg_gecko_upstream.log("-l1", "--template={node}"),
+                                "mozilla-inbound")
 
     session.commit()
 
@@ -44,7 +46,9 @@ def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wp
     hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
     # This updates the bookmark for mozilla/inbound only
     hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
-    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
+                                hg_gecko_upstream.log("-l1", "--template={node}"),
+                                "mozilla-inbound")
 
 
     # Generate an empty merge commit between central and inbound
@@ -54,7 +58,8 @@ def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wp
     hg_gecko_upstream.revert("-a", "-r", "mozilla/inbound")
     hg_gecko_upstream.commit("-m", "Merge mozilla/inbound to mozilla/central")
 
-    upstream.landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz)
+    upstream.landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
+                            hg_gecko_upstream.log("-l1", "--template={node}"))
 
     session.commit()
 
@@ -73,14 +78,18 @@ def test_create_pr_backout_landing(config, session, hg_gecko_upstream, git_gecko
 
     hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
     # This updates the bookmark for mozilla/inbound only
-    hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
-    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+    commit = hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
+    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
+                                hg_gecko_upstream.log("-l1", "--template={node}"),
+                                "mozilla-inbound")
 
     head_rev = hg_gecko_upstream.log("-l1", "--template={node}").strip()
 
     hg_gecko_upstream.backout("-r", "tip", "-m", "Backed out changeset %s (Bug 1111)" % head_rev[:12])
 
-    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, "mozilla-inbound")
+    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
+                                hg_gecko_upstream.log("-l1", "--template={node}"),
+                                "mozilla-inbound")
 
     session.commit()
 
