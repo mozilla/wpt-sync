@@ -79,4 +79,4 @@ def land(config):
 @configure
 def cleanup(config):
     session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz, None)
+    handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)

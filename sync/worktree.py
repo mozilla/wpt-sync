@@ -117,7 +117,7 @@ def query_worktree(session, project, value):
 
 
 def cleanup(config, session):
-    work_base = os.path.join(config["root"], config["sync"]["worktrees"])
+    work_base = os.path.join(config["root"], config["paths"]["worktrees"])
 
     current_trees = {}
 
