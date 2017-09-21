@@ -274,3 +274,22 @@ def mock_wpt():
                     "kwargs": kwargs})
     projectutil.WPT.get = get
     return log
+
+
+@pytest.fixture
+def directory(request, config):
+    created = []
+
+    def make_dir(rel_path):
+        path = os.path.join(config["root"], rel_path)
+        os.makedirs(path)
+        created.append(path)
+        return path
+
+    def fin():
+        for path in created:
+            shutil.rmtree(path)
+
+    request.addfinalizer(fin)
+
+    return make_dir

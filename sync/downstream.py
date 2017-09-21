@@ -15,9 +15,10 @@ from collections import defaultdict
 import git
 
 from . import (
-    settings,
+    bugcomponents,
     log,
-    model
+    model,
+    settings,
 )
 
 from .model import (
@@ -161,6 +162,7 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
         return
     commit_manifest_update(gecko_work)
     move_metadata(config, session, git_gecko, wpt_work, gecko_work, sync)
+    update_bug_components(config, session, gecko_work)
 
     # Getting the component now doesn't really work well because a PR that
     # only adds files won't have a component before we move the commits.
@@ -247,6 +249,23 @@ def move_metadata(config, session, git_gecko, wpt_work, gecko_work, sync):
             gecko_work.active_branch.name))
         sync.metadata_commit = get_or_create(session, GeckoCommit,
                                              rev=git_gecko.cinnabar.git2hg(commit.hexsha))
+
+
+def update_bug_components(config, session, gecko_work):
+    mozbuild_path = os.path.join(gecko_work.working_dir,
+                                 config["gecko"]["path"]["wpt"],
+                                 os.pardir,
+                                 "moz.build")
+    if not os.path.exists(mozbuild_path):
+        logger.warning("moz.build file not found, skipping update")
+
+    new_data = bugcomponents.update(mozbuild_path)
+    with open(mozbuild_path, "w") as f:
+        f.write(new_data)
+
+    if gecko_work.is_dirty:
+        gecko_work.git.add(os.path.relpath(mozbuild_path, gecko_work.working_dir))
+        gecko_work.commit(amend=True, no_edit=True)
 
 
 def get_affected_tests(path_to_wpt, revish=None):
