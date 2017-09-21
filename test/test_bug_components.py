@@ -6,7 +6,7 @@ def test_remove(config, directory):
     wpt_root = directory(config["gecko"]["path"]["wpt"])
 
     # Create some sample files
-    for path in ["../1.html", "a/1.html", "b/1.html", "c/d/1.html"]:
+    for path in ["../1.html", "../3.html", "a/1.html", "b/1.html", "c/d/1.html"]:
         path = os.path.join(wpt_root, path)
         try:
             os.makedirs(os.path.dirname(path))
@@ -18,6 +18,9 @@ def test_remove(config, directory):
     moz_build_path = os.path.join(wpt_root,
                                   os.pardir,
                                   "moz.build")
+
+    moves = {"tests/e/1.html": "tests/b/1.html",
+             "2.html": "3.html"}
 
     initial = """
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
@@ -31,9 +34,6 @@ WEB_PLATFORM_TESTS_MANIFESTS += [
 with Files("tests/a/**"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 
-with Files("tests/b/**"):
-    BUG_COMPONENT = ("Testing", "web-platform-tests")
-
 with Files("tests/c/**"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 
@@ -43,7 +43,13 @@ with Files("tests/c/e/**"):
 with Files("tests/f/**"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 
+with Files("tests/e/**"):
+    BUG_COMPONENT = ("Testing", "web-platform-tests")
+
 with Files("1*"):
+    BUG_COMPONENT = ("Testing", "web-platform-tests")
+
+with Files("2.html"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 """
 
@@ -59,17 +65,21 @@ WEB_PLATFORM_TESTS_MANIFESTS += [
 with Files("tests/a/**"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 
-with Files("tests/b/**"):
-    BUG_COMPONENT = ("Testing", "web-platform-tests")
-
 with Files("tests/c/**"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 
+with Files("tests/b/**"):
+    BUG_COMPONENT = ("Testing", "web-platform-tests")
+
 with Files("1*"):
+    BUG_COMPONENT = ("Testing", "web-platform-tests")
+
+with Files("3.html"):
     BUG_COMPONENT = ("Testing", "web-platform-tests")
 """
 
     with open(moz_build_path, "w") as f:
         f.write(initial)
 
-    assert bugcomponents.remove_obsolete(moz_build_path) == expected
+    actual = bugcomponents.remove_obsolete(moz_build_path, moves)
+    assert actual == expected

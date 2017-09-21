@@ -71,39 +71,6 @@ def get_files_changed(project_path):
     return set(output.split("\n"))
 
 
-def choose_bug_component(config, git_gecko, files_changed, default):
-    if not files_changed:
-        return default
-
-    path_prefix = config["gecko"]["path"]["wpt"]
-    paths = [os.path.join(path_prefix, item) for item in files_changed]
-
-    mach = Mach(git_gecko.working_dir)
-    output = mach.file_info("bugzilla-component", *paths)
-
-    components = defaultdict(int)
-    current = None
-    for line in output.split("\n"):
-        if line.startswith(" "):
-            assert current is not None
-            components[current] += 1
-        else:
-            current = line.strip()
-
-    if not components:
-        return default
-
-    components = sorted(components.items(), key=lambda x: -x[1])
-    component = components[0][0]
-    if component == "UNKNOWN" and len(components) > 1:
-        component = components[1][0]
-
-    if component == "UNKNOWN":
-        return default
-
-    return component.split(" :: ")
-
-
 def is_worktree_tip(repo, worktree_path, rev):
     if not worktree_path:
         return False
@@ -161,16 +128,18 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
     if not success:
         return
     commit_manifest_update(gecko_work)
-    move_metadata(config, session, git_gecko, wpt_work, gecko_work, sync)
-    update_bug_components(config, session, gecko_work)
+
+    renames = get_renames(config, session, wpt_work)
+    move_metadata(config, session, git_gecko, gecko_work, sync, renames)
+    update_bug_components(config, session, gecko_work, renames)
 
     # Getting the component now doesn't really work well because a PR that
     # only adds files won't have a component before we move the commits.
     # But we would really like to start a bug for logging now, so get a
     # component here and change it if needed after we have put all the new
     # commits onto the gecko tree.
-    new_component = choose_bug_component(config, gecko_work, files_changed,
-                                         default=("Testing", "web-platform-tests"))
+    new_component = bugcomponents.get(config, gecko_work, files_changed,
+                                      default=("Testing", "web-platform-tests"))
     bz.set_component(sync.bug, *new_component)
     #for push in sync.try_pushes:
     #    push.stale = True
@@ -228,38 +197,52 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
     return True
 
 
-def move_metadata(config, session, git_gecko, wpt_work, gecko_work, sync):
+def get_renames(config, session, wpt_work):
+    renames = {}
     master = wpt_work.commit("origin/master")
     diff_blobs = master.diff(wpt_work.head.commit)
-    metadata_base = config["gecko"]["path"]["meta"]
-    have_renames = False
     for item in diff_blobs:
         if item.rename_from:
-            old_meta_path = os.path.join(metadata_base,
-                                         item.rename_from + ".ini")
-            if os.path.exists(os.path.join(gecko_work.working_dir,
-                                           old_meta_path)):
-                have_renames = True
-                new_meta_path = os.path.join(metadata_base,
-                                             item.rename_to + ".ini")
-                gecko_work.index.move(old_meta_path, new_meta_path)
+            renames[item.rename_from] = renames[item.rename_to]
+    return renames
 
-    if have_renames:
+
+def move_metadata(config, session, git_gecko, gecko_work, sync, renames):
+    metadata_base = config["gecko"]["path"]["meta"]
+    for old_path, new_path in renames.iteritems():
+        old_meta_path = os.path.join(metadata_base,
+                                     old_path + ".ini")
+        if os.path.exists(os.path.join(gecko_work.working_dir,
+                                       old_meta_path)):
+            new_meta_path = os.path.join(metadata_base,
+                                         new_path + ".ini")
+            gecko_work.index.move(old_meta_path, new_meta_path)
+
+    if renames:
         commit = gecko_work.commit(message="[wpt-sync] downstream {}: update metadata".format(
             gecko_work.active_branch.name))
         sync.metadata_commit = get_or_create(session, GeckoCommit,
                                              rev=git_gecko.cinnabar.git2hg(commit.hexsha))
 
 
-def update_bug_components(config, session, gecko_work):
+def update_bug_components(config, session, gecko_work, renames):
     mozbuild_path = os.path.join(gecko_work.working_dir,
                                  config["gecko"]["path"]["wpt"],
                                  os.pardir,
                                  "moz.build")
+
+    tests_base = os.path.split(config["gecko"]["path"]["wpt"])[1]
+
+    def tests_rel_path(path):
+        return os.path.join(tests_base, path)
+
+    mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
+                            for old, new in renames.iteritems()}
+
     if not os.path.exists(mozbuild_path):
         logger.warning("moz.build file not found, skipping update")
 
-    new_data = bugcomponents.update(mozbuild_path)
+    new_data = bugcomponents.update(mozbuild_path, moves=mozbuild_rel_renames)
     with open(mozbuild_path, "w") as f:
         f.write(new_data)
 
