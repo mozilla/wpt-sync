@@ -29,6 +29,7 @@ from .model import (
     TryPush,
     get_or_create
 )
+from .pipeline import pipeline, step
 from .projectutil import Mach, WPT
 from .taskcluster import (
     download_logs, filter_suite, filter_completed, get_tasks_in_group
@@ -80,6 +81,7 @@ def is_worktree_tip(repo, worktree_path, rev):
     return False
 
 
+@pipeline
 def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
     if event["context"] != "continuous-integration/travis-ci/pr":
         logger.debug("Ignoring status for context {}.".format(event["context"]))
@@ -339,18 +341,25 @@ def try_message(tests_by_type=None, rebuild=0):
     return try_message.format(**test_data)
 
 
-def push_to_try(config, session, git_gecko, sync, affected_tests=None,
-                stability=False):
+@step()
+def prepare_try_commit(config, session, git_gecko, sync, affected_tests=None, stability=False):
     # TODO check if try is closed, retry
     gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
-    results_url = None
+    if gecko_work.head.commit.message.startswith("try:"):
+        return gecko_work
     if not stability and affected_tests is None:
         affected_tests = {}
     # TODO only push to try on mac if necessary
     message = try_message(affected_tests, rebuild=10 if stability else 0)
     gecko_work.git.commit('-m', message, allow_empty=True)
+    return gecko_work, message
+
+
+@step()
+def try_push(config, session, gecko_work, sync, message, stability=False):
+    results_url = None
     try:
         logger.info("Pushing to try with message:\n{}".format(message))
         status, stdout, stderr = gecko_work.git.push('try', with_extended_output=True)
@@ -372,6 +381,16 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
             # TODO retry? eventually flag for manual fix?
     finally:
         gecko_work.git.reset('HEAD~')
+
+    return results_url
+
+
+def push_to_try(config, session, git_gecko, sync, affected_tests=None,
+                stability=False):
+    gecko_work, message = prepare_try_commit(config, session, git_gecko, sync, affected_tests,
+                                    stability)
+    results_url = try_push(config, session, gecko_work, message)
+    # End of step
     return results_url
 
 
