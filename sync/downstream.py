@@ -270,7 +270,7 @@ def get_affected_tests(path_to_wpt, revish=None):
     return tests_by_type
 
 
-def try_message(tests_by_type=None, rebuild=0):
+def try_message(tests_by_type=None, rebuild=0, base=None):
     """Build a try message
 
     Args:
@@ -279,6 +279,7 @@ def try_message(tests_by_type=None, rebuild=0):
                        first chunk of web-platform-tests.
                        If dict is None, schedule all wpt test jobs.
         rebuild: Number of times to repeat each test, max 20
+        base: base directory for tests
 
     Returns:
         str: try message
@@ -332,6 +333,9 @@ def try_message(tests_by_type=None, rebuild=0):
         if paths:
             test_data["test_jobs"].append(suite + platform_filter(suite))
         for p in paths:
+            if base is not None and not p.startswith(base):
+                # try server expects paths relative to m-c root dir
+                p = os.path.join(base, p)
             test_data["prefixed_paths"].append(suite + ":" + p)
     test_data["test_jobs"] = ",".join(test_data["test_jobs"])
     if test_data["prefixed_paths"]:
@@ -349,7 +353,9 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
     if not stability and affected_tests is None:
         affected_tests = {}
     # TODO only push to try on mac if necessary
-    message = try_message(affected_tests, rebuild=10 if stability else 0)
+    message = try_message(base=config["gecko"]["path"]["wpt"],
+                          tests_by_type=affected_tests,
+                          rebuild=10 if stability else 0)
     gecko_work.git.commit('-m', message, allow_empty=True)
     try:
         logger.info("Pushing to try with message:\n{}".format(message))

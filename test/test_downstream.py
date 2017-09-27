@@ -172,24 +172,28 @@ def test_try_message_all_rebuild():
 
 
 def test_try_message_testharness_invalid():
+    base = "foo"
     tests_affected = {
         "invalid_type": ["path1"],
-        "testharness": ["testharnesspath1", "testharnesspath2"]
+        "testharness": ["testharnesspath1", "testharnesspath2",
+                        os.path.join(base, "path3")]
     }
     expected = (
         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
-        "--artifact --try-test-paths web-platform-tests:path1,"
-        "web-platform-tests:testharnesspath1,"
-        "web-platform-tests:testharnesspath2"
+        "--artifact --try-test-paths web-platform-tests:{base}/path1,"
+        "web-platform-tests:{base}/testharnesspath1,"
+        "web-platform-tests:{base}/testharnesspath2,"
+        "web-platform-tests:{base}/path3".format(base=base)
     )
-    assert downstream.try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected, base=base) == expected
 
 
 def test_try_message_wdspec_invalid():
+    base = "foo"
     tests_affected = {
-        "invalid_type": ["path1"],
-        "wdspec": ["wdspecpath1"],
+        "invalid_type": [os.path.join(base, "path1")],
+        "wdspec": [os.path.join(base, "wdspecpath1")],
         "invalid_empty": [],
         "also_invalid": ["path2"],
     }
@@ -197,13 +201,15 @@ def test_try_message_wdspec_invalid():
         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10],"
         "web-platform-tests-wdspec -t none "
-        "--artifact --try-test-paths web-platform-tests:path1,"
-        "web-platform-tests:path2,web-platform-tests-wdspec:wdspecpath1"
+        "--artifact --try-test-paths web-platform-tests:{base}/path1,"
+        "web-platform-tests:{base}/path2,"
+        "web-platform-tests-wdspec:{base}/wdspecpath1".format(base=base)
     )
-    assert downstream.try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected, base=base) == expected
 
 
 def test_try_message_just_reftest():
+    base = "foo"
     tests_affected = {
         "reftest": ["reftestpath1"],
     }
@@ -211,12 +217,13 @@ def test_try_message_just_reftest():
         "try: -b do -p win32,win64,linux64,linux -u "
         "web-platform-tests-reftests "
         "-t none --artifact --try-test-paths "
-        "web-platform-tests-reftests:reftestpath1"
+        "web-platform-tests-reftests:{base}/reftestpath1".format(base=base)
     )
-    assert downstream.try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected, base=base) == expected
 
 
 def test_try_message_wdspec_reftest():
+    base = "foo"
     tests_affected = {
         "reftest": ["reftestpath1"],
         "wdspec": ["wdspecpath1"],
@@ -225,7 +232,7 @@ def test_try_message_wdspec_reftest():
         "try: -b do -p win32,win64,linux64,linux -u "
         "web-platform-tests-wdspec,web-platform-tests-reftests "
         "-t none --artifact --try-test-paths "
-        "web-platform-tests-wdspec:wdspecpath1,"
-        "web-platform-tests-reftests:reftestpath1"
+        "web-platform-tests-wdspec:{base}/wdspecpath1,"
+        "web-platform-tests-reftests:{base}/reftestpath1".format(base=base)
     )
-    assert downstream.try_message(tests_affected) == expected
+    assert downstream.try_message(tests_affected, base=base) == expected
