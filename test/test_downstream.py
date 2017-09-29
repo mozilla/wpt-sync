@@ -236,3 +236,71 @@ def test_try_message_wdspec_reftest():
         "web-platform-tests-reftests:{base}/reftestpath1".format(base=base)
     )
     assert downstream.try_message(tests_affected, base=base) == expected
+
+
+def test_update_taskgroup_not_our_rev(session):
+    config = None
+    body = {
+        "origin": {"revision": "a" * 40},
+        "taskId": "c" * 22,
+    }
+    try_push = model.TryPush(rev="b" * 40, kind=model.TryKind.initial)
+    session.add(try_push)
+    downstream.update_taskgroup(config, session, body)
+    assert try_push.taskgroup_id is None
+
+
+def test_update_taskgroup(session):
+    config = None
+    rev = "a" * 40
+    task_id = "c" * 22
+    body = {
+        "origin": {"revision": rev},
+        "taskId": task_id,
+        "result": "success",
+    }
+    try_push = model.TryPush(rev=rev, kind=model.TryKind.initial)
+    session.add(try_push)
+    downstream.update_taskgroup(config, session, body)
+    assert try_push.taskgroup_id == task_id
+    assert try_push.complete == False
+    assert try_push.result is None
+
+
+def test_update_taskgroup_no_success_decision_task(session):
+    config = None
+    rev = "a" * 40
+    task_id = "c" * 22
+    body = {
+        "origin": {"revision": rev},
+        "taskId": task_id,
+    }
+    sync = model.DownstreamSync()
+    session.add(sync)
+    try_push = model.TryPush(rev=rev, kind=model.TryKind.initial)
+    sync.try_pushes.append(try_push)
+    session.add(try_push)
+    downstream.update_taskgroup(config, session, body)
+    assert try_push.taskgroup_id == task_id
+    assert try_push.complete == True
+    assert try_push.result == model.TryResult.infra
+
+
+def test_update_taskgroup_failed_decision_task(session):
+    config = None
+    rev = "a" * 40
+    task_id = "c" * 22
+    body = {
+        "origin": {"revision": rev},
+        "taskId": task_id,
+        "result": "anything",
+    }
+    sync = model.DownstreamSync()
+    session.add(sync)
+    try_push = model.TryPush(rev=rev, kind=model.TryKind.initial)
+    sync.try_pushes.append(try_push)
+    session.add(try_push)
+    downstream.update_taskgroup(config, session, body)
+    assert try_push.taskgroup_id == task_id
+    assert try_push.complete == True
+    assert try_push.result == model.TryResult.infra
