@@ -8,6 +8,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import re
+import requests
 import subprocess
 import traceback
 from collections import defaultdict
@@ -345,7 +346,10 @@ def try_message(tests_by_type=None, rebuild=0, base=None):
 
 def push_to_try(config, session, git_gecko, sync, affected_tests=None,
                 stability=False):
-    # TODO check if try is closed, retry
+    if not is_open("try"):
+        # TODO retry
+        logger.info("try is closed")
+        return
     gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
         "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
@@ -454,6 +458,22 @@ def update_metadata(config, session, git_gecko, sync, log_files):
             sync.metadata_commit = get_or_create(session, GeckoCommit,
                                                  rev=git_gecko.cinnabar.git2hg(
                                                      gecko_work.head.commit.hexsha))
+
+
+def get_tree_status(project):
+    try:
+        r = requests.get("https://treestatus.mozilla-releng.net/trees2")
+        r.raise_for_status()
+        tree_status = r.json().get("result", [])
+        for s in tree_status:
+            if s["tree"] == project:
+                return s["status"]
+    except Exception as e:
+        logger.warning(traceback.format_exc(e))
+
+
+def is_open(project):
+    return "open" == get_tree_status(project)
 
 
 @settings.configure
