@@ -190,7 +190,8 @@ class DownstreamSync(Sync):
 
     metadata_ready = Column(Boolean, default=False)
 
-    metadata_commit = relationship("GeckoCommit")
+    # git hexsha
+    metadata_commit = Column(String(40), unique=True)
 
     __mapper_args__ = {
         'polymorphic_identity': SyncDirection.downstream

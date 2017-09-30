@@ -59,6 +59,13 @@ def get_tasks_in_group(group_id):
     return tasks
 
 
+def get_wpt_tasks(taskgroup_id):
+    tasks = get_tasks_in_group(taskgroup_id)
+    wpt_tasks = filter_suite(tasks, "web-platform-tests")
+    wpt_completed = filter_completed(wpt_tasks)
+    return wpt_completed, wpt_tasks
+
+
 def download_logs(tasks, destination, retry=5):
     if not os.path.exists(destination):
         os.makedirs(destination)

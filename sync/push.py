@@ -74,8 +74,7 @@ def reapply_local_commits(session, bz, git_gecko, git_work_gecko, syncs):
 
 def add_metadata(config, git_gecko, git_work_gecko, sync):
     if sync.metadata_commit:
-        git_work_gecko.git.cherry_pick(
-            git_gecko.cinnabar.hg2git(sync.metadata_commit))
+        git_work_gecko.git.cherry_pick(sync.metadata_commit)
 
 
 def manifest_update(git_work_gecko):
@@ -341,7 +340,7 @@ def move_pr_commits(config, session, bz, git_gecko, git_work_wpt, git_work_gecko
 def push_commits(config, session, bz, git_gecko, git_work_gecko, landing):
     # Need to deal with upstream changing under us; this approach of just fetch and try to rebase is
     # pretty crude
-    # TODO: check treestatus
+    # TODO: check treestatus: see downstream.is_open
     while not push_to_inbound(config, bz, git_gecko, git_work_gecko, landing.bug):
         # Retry whilst we try to rebase onto latest inbound
         pass

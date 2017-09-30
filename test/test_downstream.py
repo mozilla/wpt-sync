@@ -1,6 +1,9 @@
 import os
 
 from mock import Mock, patch
+import pytest
+
+from file import create_file_data
 
 from sync import downstream, model, worktree
 
@@ -22,7 +25,7 @@ def test_new_wpt_pr(config, session, git_gecko, git_wpt, bz):
     assert pulls[0].id == pr_id
     syncs = list(session.query(model.DownstreamSync))
     assert len(syncs) == 1
-    assert syncs[0].pr_id == pr_id
+    assert syncs[0].pr.id == pr_id
     assert "Summary: [wpt-sync] PR {}".format(pr_id) in bz.output.getvalue()
 
 
@@ -68,12 +71,12 @@ def test_status_changed(config, session, git_gecko, git_wpt, bz):
 
 def test_get_pr(config, session, git_wpt):
     sync = Mock(spec=model.DownstreamSync)
-    sync.pr_id = 0
+    sync.pr.id = 0
     sync.wpt_worktree = None
     wpt_work, branch_name = downstream.get_pr(config, session, git_wpt, sync)
-    assert branch_name == "PR_" + str(sync.pr_id)
+    assert branch_name == "PR_" + str(sync.pr.id)
     assert sync.wpt_worktree == wpt_work.working_dir
-    assert "remotes/origin/pull/{}/head".format(sync.pr_id) in wpt_work.git.branch(all=True)
+    assert "remotes/origin/pull/{}/head".format(sync.pr.id) in wpt_work.git.branch(all=True)
     assert wpt_work.active_branch.name == branch_name
 
 
@@ -275,8 +278,11 @@ def test_update_taskgroup_no_success_decision_task(session):
         "origin": {"revision": rev},
         "taskId": task_id,
     }
-    sync = model.DownstreamSync()
+    pr = model.PullRequest(id=1)
+    session.add(pr)
+    sync = model.DownstreamSync(pr=pr)
     session.add(sync)
+
     try_push = model.TryPush(rev=rev, kind=model.TryKind.initial)
     sync.try_pushes.append(try_push)
     session.add(try_push)
@@ -295,7 +301,9 @@ def test_update_taskgroup_failed_decision_task(session):
         "taskId": task_id,
         "result": "anything",
     }
-    sync = model.DownstreamSync()
+    pr = model.PullRequest(id=1)
+    session.add(pr)
+    sync = model.DownstreamSync(pr=pr)
     session.add(sync)
     try_push = model.TryPush(rev=rev, kind=model.TryKind.initial)
     sync.try_pushes.append(try_push)
@@ -304,3 +312,84 @@ def test_update_taskgroup_failed_decision_task(session):
     assert try_push.taskgroup_id == task_id
     assert try_push.complete == True
     assert try_push.result == model.TryResult.infra
+
+
+def test_taskgroup_resolved_not_ours(config, session):
+    task_id = "a" * 22
+    try_push = model.TryPush(rev="b" * 40, kind=model.TryKind.initial)
+    session.add(try_push)
+    downstream.on_taskgroup_resolved(config, session, None, None, task_id)
+    assert try_push.complete == False
+
+
+def test_taskgroup_resolved_initial_empty(config, session):
+    task_id = "a" * 22
+    try_push = model.TryPush(rev="b" * 40, kind=model.TryKind.initial, taskgroup_id=task_id)
+    session.add(try_push)
+    with patch('sync.downstream.taskcluster.get_wpt_tasks',
+               return_value=([], [])) as get_wpt_tasks:
+        downstream.on_taskgroup_resolved(config, session, None, None, task_id)
+        get_wpt_tasks.assert_called_once()
+        assert try_push.complete == True
+        assert try_push.result == model.TryResult.infra
+
+
+def test_taskgroup_resolved_initial_not_all_completed(config, session):
+    task_id = "a" * 22
+    try_push = model.TryPush(rev="b" * 40, kind=model.TryKind.initial, taskgroup_id=task_id)
+    session.add(try_push)
+    complete = []
+    all_tasks = [0]
+    with patch('sync.downstream.taskcluster.get_wpt_tasks',
+               return_value=(complete, all_tasks)) as get_wpt_tasks:
+        downstream.on_taskgroup_resolved(config, session, None, None, task_id)
+        get_wpt_tasks.assert_called_once()
+        assert try_push.complete == True
+        assert try_push.result == model.TryResult.infra
+
+
+@pytest.mark.parametrize("kind", [model.TryKind.stability, model.TryKind.initial])
+def test_update_metadata_no_commit(config, session, git_gecko, kind):
+    log_files = ["a", "b", "c"]
+    disabled = ""
+    pr = model.PullRequest(id=1)
+    session.add(pr)
+    sync = model.DownstreamSync(pr=pr)
+    session.add(sync)
+    with patch('sync.downstream.Mach') as mach:
+        # provide dummy metadata update results
+        wpt_update = Mock(return_value=disabled)
+        mach.return_value = Mock(wpt_update=wpt_update)
+        result = downstream.update_metadata(config, session, git_gecko, kind, sync, log_files)
+    assert sync.metadata_ready == (kind == model.TryKind.stability)
+    assert sync.metadata_commit is None
+    assert result == disabled
+
+
+@pytest.mark.parametrize("kind", [model.TryKind.stability, model.TryKind.initial])
+def test_update_metadata(config, session, git_gecko, kind):
+    log_files = ["a", "b", "c"]
+    disabled = "blah" if kind == model.TryKind.stability else ""
+    branch = "PR_1"
+    meta = config["gecko"]["path"]["meta"]
+    pr = model.PullRequest(id=1)
+    session.add(pr)
+    sync = model.DownstreamSync(pr=pr)
+    session.add(sync)
+    worktree_path = worktree.get_worktree_path(config, session, git_gecko, "gecko", branch)
+
+    def side_effect(*args):
+        create_file_data({"README": "Example change\n"}, worktree_path, meta)
+        return disabled
+
+    with patch('sync.downstream.Mach') as mach:
+        wpt_update = Mock(side_effect=side_effect)
+        mach.return_value = Mock(wpt_update=wpt_update)
+        result = downstream.update_metadata(config, session, git_gecko,
+                                            kind, sync, log_files)
+    assert sync.metadata_ready == (kind == model.TryKind.stability)
+    commit = git_gecko.commit(branch)
+    assert sync.metadata_commit == commit.hexsha
+    assert commit.stats.files.keys() == [os.path.join(meta, "README")]
+    assert commit.summary == "[wpt-sync] downstream {}: update metadata".format(branch)
+    assert result == disabled

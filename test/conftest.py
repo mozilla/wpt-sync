@@ -8,6 +8,8 @@ from cStringIO import StringIO
 import git
 import pytest
 
+from file import create_file_data
+
 from sync import settings
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -79,19 +81,22 @@ class hg(object):
 def hg_gecko_upstream(config, initial_repo_content):
     repo_dir = os.path.join(config["root"], config["sync"]["landing"])
     sync_dir = os.path.join(repo_dir, config["gecko"]["path"]["wpt"])
+    meta_dir = os.path.join(repo_dir, config["gecko"]["path"]["meta"])
 
     os.makedirs(repo_dir)
     os.makedirs(sync_dir)
+    os.makedirs(meta_dir)
 
     hg_gecko = hg(repo_dir)
 
     hg_gecko.init()
 
-    for path, content in initial_repo_content:
-        file_path = os.path.join(sync_dir, path)
-        with open(file_path, "w") as f:
-            f.write(content)
-        hg_gecko.add(os.path.relpath(file_path, repo_dir))
+    for wpt_dir in [sync_dir, meta_dir]:
+        for path, content in initial_repo_content:
+            file_path = os.path.join(wpt_dir, path)
+            with open(file_path, "w") as f:
+                f.write(content)
+            hg_gecko.add(os.path.relpath(file_path, repo_dir))
 
     hg_gecko.commit("-m", "Initial commit")
     hg_gecko.bookmark("mozilla/central")
@@ -167,19 +172,6 @@ def gh_wpt():
     gh_wpt = gh.MockGitHub()
     gh_wpt.output = StringIO()
     return gh_wpt
-
-
-def create_file_data(file_data, repo_workdir, prefix=""):
-    paths = []
-    if file_data is None:
-        file_data = {"README": "Example change\n"}
-    for rel_path, contents in file_data.iteritems():
-        repo_path = os.path.join(prefix, rel_path)
-        path = os.path.join(repo_workdir, repo_path)
-        paths.append(repo_path)
-        with open(path, "w") as f:
-            f.write(contents)
-    return paths
 
 
 @pytest.fixture

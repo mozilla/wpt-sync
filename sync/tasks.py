@@ -31,9 +31,12 @@ def setup(config):
     model.configure(config)
     session = model.session(expire_on_commit=False)
 
-    git_gecko = repos.Gecko(config).repo()
-    git_wpt = repos.WebPlatformTests(config).repo()
-
+    gecko_repo = repos.Gecko(config)
+    gecko_repo.configure()
+    git_gecko = gecko_repo.repo()
+    wpt_repo = repos.WebPlatformTests(config)
+    wpt_repo.configure()
+    git_wpt = wpt_repo.repo()
     gh_wpt = gh.GitHub(config["web-platform-tests"]["github"]["token"],
                        config["web-platform-tests"]["repo"]["url"])
 

@@ -627,8 +627,8 @@ def status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync, contex
 
 @settings.configure
 def main(config):
-    import handlers
-    session, git_gecko, git_wpt, gh_wpt, bz = handlers.setup(config)
+    from tasks import setup
+    session, git_gecko, git_wpt, gh_wpt, bz = setup()
     try:
         repo_name = sys.argv[1]
         if repo_name in ("mozilla-inbound", "autoland"):

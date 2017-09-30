@@ -20,6 +20,7 @@ from . import (
     log,
     model,
     settings,
+    taskcluster,
 )
 
 from .model import (
@@ -31,9 +32,6 @@ from .model import (
     get_or_create
 )
 from .projectutil import Mach, WPT
-from .taskcluster import (
-    download_logs, filter_suite, filter_completed, get_tasks_in_group
-)
 from .worktree import ensure_worktree
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
@@ -61,7 +59,7 @@ def commit_manifest_update(gecko_work):
     gecko_work.git.reset("HEAD", hard=True)
     mach = Mach(gecko_work.working_dir)
     mach.wpt_manifest_update()
-    if gecko_work.is_dirty:
+    if gecko_work.is_dirty():
         gecko_work.git.add("testing/web-platform/meta")
         gecko_work.git.commit(amend=True, no_edit=True)
 
@@ -88,7 +86,7 @@ def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
     # TODO agree what sync.status values represent
     # if sync.status == model.DownstreamSyncStatus.merged:
     #     logger.debug("Ignoring status for PR {} because it's already "
-    #                  "been imported.".format(sync.pr_id))
+    #                  "been imported.".format(sync.pr.id))
     #     return
     if event["state"] == "pending":
         # PR is mergeable
@@ -110,10 +108,11 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
     try:
         wpt_work, wpt_branch = get_pr(config, session, git_wpt, sync)
     except git.GitCommandError as e:
-        logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr_id, e))
+        logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr.id, e))
         bz.comment(sync.bug,
                    "Downstreaming from web-platform-tests failed because obtaining "
-                   "PR {} failed:\n{}".format(sync.pr_id, e))
+                   "PR {} failed:\n{}".format(sync.pr.id, e))
+        # TODO set error message, set sync state to aborted?
         return False
 
     files_changed = get_files_changed(wpt_work.working_dir)
@@ -123,7 +122,7 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
     logger.info("Fetch done")
     gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
-        "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
+        "PR_" + str(sync.pr.id), config["gecko"]["refs"]["central"])
     gecko_work.index.reset(config["gecko"]["refs"]["central"], hard=True)
     success = wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
     if not success:
@@ -142,9 +141,9 @@ def update_sync(config, session, git_gecko, git_wpt, sync, bz):
     new_component = bugcomponents.get(config, gecko_work, files_changed,
                                       default=("Testing", "web-platform-tests"))
     bz.set_component(sync.bug, *new_component)
-    #for push in sync.try_pushes:
-    #    push.stale = True
-    #    # TODO cancel previous try pushes?
+    for push in sync.try_pushes:
+       push.stale = True
+       # TODO cancel previous try pushes?
 
 
 def get_pr(config, session, git_wpt, sync):
@@ -152,11 +151,11 @@ def get_pr(config, session, git_wpt, sync):
     git_wpt.git.fetch("origin", "master", no_tags=True)
     logger.info("Fetch done")
     wpt_work, branch_name, _ = ensure_worktree(config, session, git_wpt, "web-platform-tests",
-                                               sync, "PR_" + str(sync.pr_id), "origin/master")
+                                               sync, "PR_" + str(sync.pr.id), "origin/master")
     wpt_work.index.reset("origin/master", hard=True)
-    wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr_id, sync.pr_id),
+    wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr.id, sync.pr.id),
                        no_tags=True)
-    wpt_work.git.merge("heads/pull_{}".format(sync.pr_id))
+    wpt_work.git.merge("heads/pull_{}".format(sync.pr.id))
     return wpt_work, branch_name
 
 
@@ -194,6 +193,7 @@ def wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz):
             bz.comment(sync.bug,
                        "Downstreaming from web-platform-tests failed because applying patch "
                        "from {} failed:\n{}".format(c.hexsha, e))
+            # TODO set error, sync status aborted, prevent previous steps from continuing
             return False
     return True
 
@@ -222,8 +222,7 @@ def move_metadata(config, session, git_gecko, gecko_work, sync, renames):
     if renames:
         commit = gecko_work.commit(message="[wpt-sync] downstream {}: update metadata".format(
             gecko_work.active_branch.name))
-        sync.metadata_commit = get_or_create(session, GeckoCommit,
-                                             rev=git_gecko.cinnabar.git2hg(commit.hexsha))
+        sync.metadata_commit = commit.hexsha
 
 
 def update_bug_components(config, session, gecko_work, renames):
@@ -243,11 +242,11 @@ def update_bug_components(config, session, gecko_work, renames):
     if not os.path.exists(mozbuild_path):
         logger.warning("moz.build file not found, skipping update")
 
-    new_data = bugcomponents.update(mozbuild_path, moves=mozbuild_rel_renames)
+    new_data = bugcomponents.remove_obsolete(mozbuild_path, moves=mozbuild_rel_renames)
     with open(mozbuild_path, "w") as f:
         f.write(new_data)
 
-    if gecko_work.is_dirty:
+    if gecko_work.is_dirty():
         gecko_work.git.add(os.path.relpath(mozbuild_path, gecko_work.working_dir))
         gecko_work.commit(amend=True, no_edit=True)
 
@@ -352,7 +351,7 @@ def push_to_try(config, session, git_gecko, sync, affected_tests=None,
         return
     gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
-        "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
+        "PR_" + str(sync.pr.id), config["gecko"]["refs"]["central"])
     results_url = None
     if not stability and affected_tests is None:
         affected_tests = {}
@@ -402,9 +401,9 @@ def update_taskgroup(config, session, body):
     try_push.taskgroup_id = body["taskId"]
 
     if body.get("result") != "success":
-        # TODO manual intervention, retry?
+        # TODO manual intervention, schedule sync-retry?
         logger.debug("Try push Decision Task for PR {} "
-                     "did not succeed:\n{}\n".format(try_push.sync.pr_id, body))
+                     "did not succeed:\n{}\n".format(try_push.sync.pr.id, body))
         try_push.complete = True
         try_push.result = model.TryResult.infra
 
@@ -416,17 +415,26 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
         # this is not one of our try_pushes
         return
     try_push.complete = True
-    tasks = get_tasks_in_group(try_push.taskgroup_id)
-    wpt_tasks = filter_suite(tasks, "web-platform-tests")
-    wpt_completed = filter_completed(wpt_tasks)
-    if len(wpt_tasks) != len(wpt_completed):
-        # TODO check for unscheduled versus failed versus exception
-        logger.debug("The tests didn't all run; perhaps a build failed?")
+    wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(taskgroup_id)
+    if not len(wpt_tasks):
+        logger.debug("No wpt tests found. Check decision task {}".format(taskgroup_id))
+        try_push.result = model.TryResult.infra
         # TODO retry? manual intervention?
         return
-    log_files = download_logs(wpt_completed, config["paths"]["try_logs"])
+    if len(wpt_tasks) > len(wpt_completed):
+        # TODO check for unscheduled versus failed versus exception
+        logger.debug("The tests didn't all run; perhaps a build failed?")
+        try_push.result = model.TryResult.infra
+        # TODO retry? manual intervention?
+        return
+    log_files = taskcluster.download_logs(wpt_completed, config["paths"]["try_logs"])
+    disabled = update_metadata(config, session, git_gecko, try_push.sync,
+                               try_push.kind, log_files)
+    update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled)
+
+
+def update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled):
     if try_push.kind == model.TryKind.initial:
-        update_metadata(config, session, git_gecko, try_push.sync, log_files)
         # TODO check if tonnes of tests are failing -- don't want to update the
         # expectation data in that case
         # TODO decide whether to do another narrow push on mac
@@ -435,29 +443,37 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
         bz.comment(try_push.sync.bug,
                    "Pushed to try (stability). Results: {}".format(try_url))
     elif try_push.kind == model.TryKind.stability:
-        # TODO disable obviously unstable tests after stability push
+        if disabled:
+            logger.debug("The following tests were disabled:\n{}".format(disabled))
         # TODO notify relevant people about test expectation changes, stability
-        try_push.sync.metadata_ready = True
-        return
+        bz.comment(try_push.sync.bug, ("The following tests were disabled "
+                                       "based on stability try push: {}".format(disabled)))
 
 
-def update_metadata(config, session, git_gecko, sync, log_files):
+def update_metadata(config, session, git_gecko, kind, sync, log_files):
+    meta_path = config["gecko"]["path"]["meta"]
     gecko_work, gecko_branch, _ = ensure_worktree(
         config, session, git_gecko, "gecko", sync,
-        "PR_" + str(sync.pr_id), config["gecko"]["refs"]["central"])
+        "PR_" + str(sync.pr.id), config["gecko"]["refs"]["central"])
     # git clean?
+    args = log_files
+    if kind == model.TryKind.stability:
+        log_files.extend(["--stability", "wpt-sync Bug {}".format(sync.bug)])
     mach = Mach(gecko_work.working_dir)
-    mach.wpt_update(*log_files)
-    if gecko_work.is_dirty:
-        gecko_work.git.add("testing/web-platform/meta")
-        if sync.metadata_commit and gecko_work.head.commit.hexsha == sync.metadata_commit.rev:
-            gecko_work.git.commit(amend=True)
+    logger.debug("Updating metadata")
+    # TODO filter the output to only include list of disabled tests
+    disabled = mach.wpt_update(*args)
+    if gecko_work.is_dirty(untracked_files=True, path=meta_path):
+        gecko_work.git.add(meta_path)
+        if sync.metadata_commit and gecko_work.head.commit.hexsha == sync.metadata_commit:
+            gecko_work.git.commit(amend=True, no_edit=True)
         else:
             gecko_work.git.commit(message="[wpt-sync] downstream {}: update metadata".format(
                 gecko_work.active_branch.name))
-            sync.metadata_commit = get_or_create(session, GeckoCommit,
-                                                 rev=git_gecko.cinnabar.git2hg(
-                                                     gecko_work.head.commit.hexsha))
+        sync.metadata_commit = gecko_work.head.commit.hexsha
+    if kind == model.TryKind.stability:
+        sync.metadata_ready = True
+    return disabled
 
 
 def get_tree_status(project):
@@ -478,45 +494,70 @@ def is_open(project):
 
 @settings.configure
 def main(config):
-    from . import handlers
-    session, git_gecko, git_wpt, gh_wpt, bz = handlers.setup(config)
-    model.drop()
+    from .tasks import setup
+    session, git_gecko, git_wpt, gh_wpt, bz = setup()
     try:
-        model.create()
-        wpt_repository, _ = model.get_or_create(session, model.Repository,
-            name="web-platform-tests")
-        gecko_repository, _ = model.get_or_create(session, model.Repository,
-            name="gecko")
-        body = {
-            "payload": {
-                "pull_request": {
-                    "number": 11,
-                    "title": "Test PR",
-                    "body": "blah blah body"
-                },
-            },
-        }
-        pr_id = body["payload"]["pull_request"]["number"]
-        # new pr opened
-        new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
-        sync = session.query(DownstreamSync).filter(DownstreamSync.pr_id == pr_id).first()
-        status_event = {
-            "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
-            "state": "pending",
-            "context": "continuous-integration/travis-ci/pr",
-        }
-        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
-        status_event = {
-           "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
-           "state": "passed",
-           "context": "continuous-integration/travis-ci/pr",
-        }
-        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
+        temp_test_wptupdate(config, session, git_gecko, git_wpt, gh_wpt, bz)
     except Exception:
         traceback.print_exc()
         import pdb
         pdb.post_mortem()
 
+
+def temp_test_wptupdate(config, session, git_gecko, git_wpt, gh_wpt, bz):
+    prefix = os.path.abspath(os.path.join(config["paths"]["try_logs"], "wdspec_logs"))
+    log_files = [
+        prefix + "/" + "wpt_raw_debug_fail_1.log",
+        prefix + "/" + "wpt_raw_opt_fail_2.log",
+        prefix + "/" + "wpt_raw_debug_fail_2.log",
+        prefix + "/" + "wpt_raw_opt_fail_3.log",
+        prefix + "/" + "wpt_raw_debug_fail_3.log",
+        prefix + "/" + "wpt_raw_opt_pass_1.log",
+        prefix + "/" + "wpt_raw_debug_fail_4.log",
+        prefix + "/" + "wpt_raw_opt_pass_2.log",
+        prefix + "/" + "wpt_raw_opt_fail_1.log",
+        prefix + "/" + "wpt_raw_opt_pass_3.log",
+    ]
+    failing_log_files = log_files[:3]
+    model.create()
+    with model.session_scope(session):
+        wpt_repository, _ = model.get_or_create(session, model.Repository,
+            name="web-platform-tests")
+        gecko_repository, _ = model.get_or_create(session, model.Repository,
+            name="gecko")
+    body = {
+        "payload": {
+            "pull_request": {
+                "number": 12,
+                "title": "Test PR",
+                "body": "blah blah body"
+            },
+        },
+    }
+    pr_id = body["payload"]["pull_request"]["number"]
+    # new pr opened
+    with model.session_scope(session):
+        new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+    sync = session.query(DownstreamSync).filter(DownstreamSync.pr_id == pr_id).first()
+    status_event = {
+        "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
+        "state": "pending",
+        "context": "continuous-integration/travis-ci/pr",
+    }
+    with model.session_scope(session):
+        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
+    status_event = {
+       "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
+       "state": "passed",
+       "context": "continuous-integration/travis-ci/pr",
+    }
+    with model.session_scope(session):
+        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
+
+    with model.session_scope(session):
+        update_metadata(config, session, git_gecko, model.TryKind.initial,  sync,failing_log_files)
+        #update_metadata(config, session, git_gecko, model.TryKind.stability, sync, log_files)
+    model.drop()
 
 if __name__ == '__main__':
     main()
