@@ -15,10 +15,18 @@ setup(
     ],
     packages=find_packages(),
     entry_points={
-       "console_scripts": [
-           "wptsync = sync.command:main"
+       'console_scripts': [
+           'wptsync = sync.command:main'
        ]
     },
     install_requires=[
+        'bugsy>=0.10.1',
+        'celery>=4.1',
+        'enum34>=1.1.6',
+        'GitPython>=2.1.7',
+        'PyGithub>=1.35',
+        'Mercurial>=4.2',
+        'requests>=2.18',
+        'SQLAlchemy>=1.1.11',
     ],
 )

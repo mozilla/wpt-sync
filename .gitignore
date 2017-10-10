@@ -9,3 +9,11 @@ work
 .\#*
 *.pyc
 sync.db
+data
+test/testdata
+*.db-journal
+dist
+build
+.cache
+celerybeat-schedule
+*.egg-info
