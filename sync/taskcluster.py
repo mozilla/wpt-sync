@@ -82,13 +82,17 @@ def download_logs(tasks, destination, retry=5):
             log_name = "live_backing-{task}_{run}.log".format(**params)
             success = False
             logger.debug("Trying to download {}".format(log_url))
+            log_path = os.path.abspath(os.path.join(destination, log_name))
+            if os.path.exists(log_path):
+                continue
             while not success and retry > 0:
                 try:
                     r = requests.get(log_url, stream=True)
-                    log_path = os.path.abspath(os.path.join(destination, log_name))
-                    with open(log_path, 'wb') as f:
+                    tmp_path = log_path + ".tmp"
+                    with open(tmp_path, 'wb') as f:
                         r.raw.decode_content = True
                         shutil.copyfileobj(r.raw, f)
+                    os.rename(tmp_path, log_path)
                     success = True
                     log_files.append(log_path)
                 except Exception as e:

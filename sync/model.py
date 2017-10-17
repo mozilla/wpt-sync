@@ -89,6 +89,16 @@ class TryPush(Base):
     # PR has been updated sync try push started
     stale = Column(Boolean, default=False)
 
+    @classmethod
+    def by_rev(cls, session, rev):
+        return session.query(cls).filter(
+            TryPush.rev == rev).first()
+
+    @classmethod
+    def by_taskgroup(cls, session, taskgroup_id):
+        return session.query(cls).filter(
+            TryPush.taskgroup_id == taskgroup_id).first()
+
 
 class Repository(Base):
     __tablename__ = 'repository'
@@ -193,9 +203,19 @@ class DownstreamSync(Sync):
     # git hexsha
     metadata_commit = Column(String(40), unique=True)
 
+    # Error conditions
+    error_apply_failed = Column(Boolean, default=False)
+    error_status_failed = Column(Boolean, default=False)
+    error_unmergable = Column(Boolean, default=False)
+
     __mapper_args__ = {
         'polymorphic_identity': SyncDirection.downstream
     }
+
+    def clear_errors(self):
+        self.error_apply_failed = False
+        self.error_status_failed = False
+        self.error_unmergable = False
 
 
 class UpstreamSync(Sync):
@@ -229,6 +249,9 @@ class UpstreamSync(Sync):
                         ~UpstreamSync.status.in_((Status.complete,
                                                   Status.aborted)))
                 .order_by(UpstreamSync.id.asc()))
+
+    def clear_errors(self):
+        self.error_apply_failed = False
 
 
 SyncSubclass = with_polymorphic(Sync, [DownstreamSync, UpstreamSync])

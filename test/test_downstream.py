@@ -73,7 +73,7 @@ def test_get_pr(config, session, git_wpt):
     sync = Mock(spec=model.DownstreamSync)
     sync.pr.id = 0
     sync.wpt_worktree = None
-    wpt_work, branch_name = downstream.get_pr(config, session, git_wpt, sync)
+    wpt_work, branch_name = downstream.get_sync_pr(config, session, git_wpt, None, sync)
     assert branch_name == "PR_" + str(sync.pr.id)
     assert sync.wpt_worktree == wpt_work.working_dir
     assert "remotes/origin/pull/{}/head".format(sync.pr.id) in wpt_work.git.branch(all=True)
@@ -102,7 +102,7 @@ def test_wpt_to_gecko_commits(config, session, git_wpt, git_gecko, pr_content, b
         config, session, git_gecko, "gecko", sync,
         "test", config["gecko"]["refs"]["central"])
     central = gecko_work.head.commit.hexsha
-    downstream.wpt_to_gecko_commits(config, wpt_work, gecko_work, sync, bz)
+    downstream.wpt_to_gecko_commits(config, session, wpt_work, gecko_work, sync, bz)
     new_commits = [c for c in gecko_work.iter_commits(
         "{}..".format(central), reverse=True)]
     assert len(new_commits) == len(pr_content[0])
