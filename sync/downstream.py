@@ -463,9 +463,17 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
         # this is not one of our try_pushes
         return
 
-    mark_try_push_complete(config, session, try_push)
-    wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(taskgroup_id)
+    wpt_completed, _ = get_wpt_tasks(config, session, try_push, taskgroup_id)
+    get_wpt_tasks(config, session, try_push)
+    log_files = download_logs(config, session, wpt_completed)
+    disabled = update_metadata(config, session, git_gecko, try_push.sync,
+                               try_push.kind, log_files)
+    update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled)
 
+
+@step(state_arg="try_push")
+def get_wpt_tasks(config, session, try_push, taskgroup_id):
+    wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(taskgroup_id)
     err = None
     if not len(wpt_tasks):
         err = "No wpt tests found. Check decision task {}".format(taskgroup_id)
@@ -475,25 +483,11 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
 
     if err:
         logger.debug(err)
-        set_try_push_result(config, session, try_push, model.TryResult.infra)
         # TODO retry? manual intervention?
-        raise AbortError()
-
-    log_files = download_logs(config, session, wpt_completed)
-    disabled = update_metadata(config, session, git_gecko, try_push.sync,
-                               try_push.kind, log_files)
-    update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled)
-
-
-@step()
-def mark_try_push_complete(config, session, try_push):
+        raise AbortError(set_flag=["complete",
+                                   ("result", model.TryResult.infra)])
     try_push.complete = True
-
-
-@step()
-def set_try_push_result(config, session, try_push, result):
-    try_push.complete = True
-    try_push.result = result
+    return wpt_completed, wpt_tasks
 
 
 @step()

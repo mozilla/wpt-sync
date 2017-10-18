@@ -71,8 +71,8 @@ class step(object):
 
     def run(self, config, session, *args, **kwargs):
         logger.debug("Running step %s" % self.inner.__name__)
-        if self.state_arg:
-            state_obj = self.get_state_obj(*args, **kwargs)
+        state_obj = (self.get_state_obj(*args, **kwargs)
+                     if self.state_arg else None)
         if self.skip_if and self.skip_if(state_obj):
             return
 
@@ -86,7 +86,16 @@ class step(object):
                 session.rollback()
                 if e.set_flag:
                     assert state_obj
-                    setattr(state_obj, e.set_flag, True)
+                    if not isinstance(e.set_flag, list):
+                        flags = [e.set_flag]
+                    else:
+                        flags = e.set_flag
+                    for flag in flags:
+                        if isinstance(flag, tuple):
+                            flag, value = flag
+                        else:
+                            value = True
+                        setattr(state_obj, flag, value)
                 if e.cleanup:
                     for item in e.cleanup:
                         session.delete(item)
