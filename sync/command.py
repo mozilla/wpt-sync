@@ -1,8 +1,10 @@
 import argparse
 
+import listen
 import log
 import model
 import push
+import repos
 import settings
 from tasks import setup
 
@@ -19,7 +21,23 @@ def get_parser():
 
     parser_landing = subparsers.add_parser("landing", help="Trigger the landing code")
     parser_landing.set_defaults(func=landing)
+    parser_worker = subparsers.add_parser("init", help="Configure repos and model in "
+                                          "WPTSYNC_ROOT")
+    parser_worker.set_defaults(func=initialize)
+    parser_listen = subparsers.add_parser("listen", help="Start pulse listener")
+    parser_listen.set_defaults(func=start_listener)
     return parser
+
+
+@settings.configure
+def start_listener(config, *args, **kwargs):
+    listen.run_pulse_listener(config)
+
+
+@settings.configure
+def initialize(config, *args, **kwargs):
+    repos.configure(config)
+    model.configure(config)
 
 
 @settings.configure

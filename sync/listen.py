@@ -242,12 +242,3 @@ class TaskFilter(Filter):
     def accept(self, body):
         return (body["display"]["jobName"] == "Gecko Decision Task" and
                 body["state"] == "completed")
-
-
-@settings.configure
-def main(config):
-    run_pulse_listener(config)
-
-
-if __name__ == "__main__":
-    main()

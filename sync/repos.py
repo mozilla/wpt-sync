@@ -2,7 +2,6 @@ import os
 from git import Repo
 
 import log
-import settings
 
 logger = log.get_logger("downstream")
 
@@ -99,7 +98,6 @@ class Cinnabar(object):
         self.git.cinnabar("fsck")
 
 
-@settings.configure
 def configure(config):
     for settings in [Gecko, WebPlatformTests]:
         repo = settings(config)

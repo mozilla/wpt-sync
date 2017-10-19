@@ -1,4 +1,5 @@
 import enum
+import os
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
@@ -261,6 +262,12 @@ def configure(config):
     global engine
     if engine is not None:
         return
+    try:
+        path = config["database"].get("path")
+        if path:
+            os.makedirs(config["database"]["path"])
+    except OSError:
+        pass
     engine = create_engine(config["database"]["url"],
                            echo=config["database"]["echo"])
     Session.configure(bind=engine)
@@ -307,9 +314,3 @@ def session_scope(session):
     except:
         session.rollback()
         raise
-
-
-if __name__ == "__main__":
-    config = settings.load()
-    configure(config)
-    create()

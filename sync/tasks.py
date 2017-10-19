@@ -5,7 +5,7 @@ import log
 import model
 import repos
 from model import session_scope
-from settings import configure
+import settings
 from worker import worker
 
 logger = log.get_logger(__name__)
@@ -13,7 +13,7 @@ logger = log.get_logger(__name__)
 handler_map = None
 
 
-@configure
+@settings.configure
 def get_handlers(config):
     global handler_map
     if handler_map is None:
@@ -26,7 +26,7 @@ def get_handlers(config):
     return handler_map
 
 
-@configure
+@settings.configure
 def setup(config):
     model.configure(config)
     session = model.session(expire_on_commit=False)
@@ -73,7 +73,7 @@ def handle(task, body):
 
 @worker.task
 @try_task
-@configure
+@settings.configure
 def land(config):
     session, git_gecko, git_wpt, gh_wpt, bz = setup()
     handlers.LandingHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
@@ -81,7 +81,7 @@ def land(config):
 
 @worker.task
 @try_task
-@configure
+@settings.configure
 def cleanup(config):
     session, git_gecko, git_wpt, gh_wpt, bz = setup()
     handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)

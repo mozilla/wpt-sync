@@ -9,7 +9,7 @@ services:
      - /home/james/develop/gecko-hg:/home/wptsync/gecko-hg
     environment:
      - PYTHONPATH=/wpt-sync
-    command: python -m sync.listen
+    command: wptsync listen
     depends_on:
       - celery
   rabbitmq:

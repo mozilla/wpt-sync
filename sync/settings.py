@@ -1,14 +1,20 @@
+import argparse
 import os
 from collections import defaultdict
 from ConfigParser import RawConfigParser
 
+import model
+
 _config = None
 
-root = os.path.abspath(
-    os.path.normpath(
-        os.path.join(
-            os.path.dirname(__file__),
-            os.pardir)))
+if os.environ.get("WPTSYNC_ROOT"):
+    root = os.path.abspath(os.path.normpath(os.environ.get("WPTSYNC_ROOT")))
+else:
+    root = os.path.abspath(
+        os.path.normpath(
+            os.path.join(
+                os.path.dirname(__file__),
+                os.pardir)))
 
 
 def read_ini(path):
@@ -83,5 +89,12 @@ def set_value(config, section, name, value, ini_credentials):
     target[parts[-1]] = value
 
 
+def main():
+    config = load()
+    model.configure(config)
+    model.create()
+    return config
+
+
 if __name__ == "__main__":
-    print load()
+    print main()
