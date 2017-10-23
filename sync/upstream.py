@@ -186,7 +186,7 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
                 #  * The old commits made it to mozilla-central and so aren't in the
                 #    loaded set, so we want to append to the existing PR
 
-                #TODO : check if the commits still exist using
+                # TODO : check if the commits still exist using
                 # git merge-base --is-ancecstor upstream/repo_name rev
 
                 prev_revs = set(prev_commits)
@@ -266,7 +266,8 @@ def create_pr(config, session, git_gecko, gh_wpt, bz, sync):
 
     link = bugzilla_url(sync)
     pr_body = "Upstreamed from %s" % link if link else "Upstreamed from gecko"
-    msg = git_gecko.commit(git_gecko.cinnabar.hg2git(sync.gecko_commits[0].rev)).message.splitlines()[0]
+    msg = git_gecko.commit(
+        git_gecko.cinnabar.hg2git(sync.gecko_commits[0].rev)).message.splitlines()[0]
     pr = gh_wpt.create_pull(title="[Gecko%s] %s" % (" bug %s" % sync.bug if sync.bug else "", msg),
                             body=pr_body,
                             base="master",

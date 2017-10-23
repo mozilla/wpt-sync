@@ -159,6 +159,6 @@ def cleanup(config, session):
                 logger.info("Removing worktree without recent activity %s" % worktree_path)
                 shutil.rmtree(worktree_path)
 
-    # TODO: there is a possible race here if some other process starts using a worktree at the moment
-    # we decide to remove it.
+    # TODO: there is a possible race here if some other process starts using a worktree at the
+    # moment we decide to remove it.
     # TODO: Add a hard cutoff of the number of allowed worktrees
