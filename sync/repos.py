@@ -110,4 +110,10 @@ def configure(config):
 
 
 if __name__ == "__main__":
-    configure()
+    import pdb
+    import traceback
+    try:
+        configure()
+    except Exception:
+        traceback.print_exc()
+        pdb.post_mortem()
