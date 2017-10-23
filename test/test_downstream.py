@@ -19,7 +19,7 @@ def test_new_wpt_pr(config, session, git_gecko, git_wpt, bz):
         },
     }
     pr_id = body["payload"]["pull_request"]["number"]
-    downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+    downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body["payload"])
     pulls = list(session.query(model.PullRequest))
     assert len(pulls) == 1
     assert pulls[0].id == pr_id
