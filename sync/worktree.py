@@ -124,10 +124,9 @@ def cleanup(config, session):
     for project in ["gecko", "web-platform-tests"]:
         project_path = os.path.join(work_base, project)
         for worktree_name in os.listdir(project_path):
-            if not os.path.isdir(path):
-                continue
-
             worktree_path = os.path.join(project_path, worktree_name)
+            if not os.path.isdir(worktree_path):
+                continue
 
             rel_path = os.path.relpath(worktree_path, work_base)
             sync = query_worktree(session, project, rel_path)
@@ -149,7 +148,6 @@ def cleanup(config, session):
 
     now = datetime.datetime.now()
     for worktree_path, (sync, landing) in current_trees.iteritems():
-        path = os.path.join(work_base, worktree_path)
         row = sync if sync else landing
         if row and row.modified < now - datetime.timedelta(days=7):
             # Data hasn't been touched in a week
