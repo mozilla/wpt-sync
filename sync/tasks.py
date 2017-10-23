@@ -48,7 +48,7 @@ def try_task(f):
         try:
             return f(*args, **kwargs)
         except Exception as e:
-            print str(unicode(e).encode("utf8"))
+            logger.error(str(unicode(e).encode("utf8")))
             raise
     inner.__name__ = f.__name__
     inner.__doc__ = f.__doc__
@@ -62,7 +62,11 @@ def handle(task, body):
     if task in handlers:
         logger.info("Running task %s" % task)
         session, git_gecko, git_wpt, gh_wpt, bz = setup()
-        handlers[task](session, git_gecko, git_wpt, gh_wpt, bz, body)
+        try:
+            handlers[task](session, git_gecko, git_wpt, gh_wpt, bz, body)
+        except Exception:
+            logger.error(body)
+            raise
     else:
         logger.error("No handler for %s" % task)
 
