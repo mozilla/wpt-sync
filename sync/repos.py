@@ -1,7 +1,11 @@
 import os
 from git import Repo
 
+import log
 import settings
+
+logger = log.get_logger("downstream")
+
 
 class GitSettings(object):
     name = None
@@ -44,13 +48,18 @@ class GitSettings(object):
                     for old_url in current_urls[1:]:
                         remote.delete_url(old_url)
                 remote.set_url(url, current_urls[0])
-            for key in self.config[self.name]["remote"][name].keys():
-                repo.git.config(
-                    "remote.{}.{}".format(name, key),
-                    self.config[self.name]["remote"][name][key])
 
-        if self.cinnabar:
-            repo.git.config("fetch.prune", "true")
+            with repo.config_writer() as config_writer:
+                for key in self.config[self.name]["remote"][name].keys():
+                    config_writer.set_value(
+                        "remote \"%s\"" %name,
+                        key,
+                        self.config[self.name]["remote"][name][key])
+
+                if self.cinnabar:
+                    config_writer.set_value("fetch",
+                                            "prune",
+                                            "true")
 
 
 
