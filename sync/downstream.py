@@ -39,10 +39,10 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = log.get_logger("downstream")
 
 
-def new_wpt_pr(config, session, git_gecko, git_wpt, bz, body):
+def new_wpt_pr(config, session, git_gecko, git_wpt, bz, payload):
     """ Start a new downstream sync """
-    pr_id = body['payload']['pull_request']['number']
-    pr_data = body["payload"]["pull_request"]
+    pr_id = payload['pull_request']['number']
+    pr_data = payload["pull_request"]
     bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr_data["title"]),
                  comment=pr_data["body"],
                  product="Testing",
@@ -601,7 +601,7 @@ def temp_test_wptupdate(config, session, git_gecko, git_wpt, gh_wpt, bz):
     pr_id = body["payload"]["pull_request"]["number"]
     # new pr opened
     with model.session_scope(session):
-        new_wpt_pr(config, session, git_gecko, git_wpt, bz, body)
+        new_wpt_pr(config, session, git_gecko, git_wpt, bz, body["payload"])
     sync = session.query(DownstreamSync).filter(DownstreamSync.pr_id == pr_id).first()
     status_event = {
         "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
