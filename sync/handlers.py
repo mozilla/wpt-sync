@@ -62,17 +62,24 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
         # TODO It's a PR we already started to downstream, so update as appropriate
 
 
+def refs(git, prefix=None):
+    rv = {}
+    refs = git.git.show_ref().split("\n")
+    for item in refs:
+        sha1, ref = item.split(" ", 1)
+        if prefix and not ref.startswith(prefix):
+            continue
+        rv[sha1] = ref
+    return rv
+
+
 def pr_for_commit(git_wpt, rev):
     #TODO: Work out how to add these to the config when we set up the repo
-    git_wpt.remotes.origin.fetch("+refs/pull/*/head:refs/remotes/origin/pr/*")
-    branches = git_wpt.git.branch("--points-at", rev, all=True)
-    pr_id = None
-    for item in branches.split("\n"):
-        item = item.strip()
-        if item.startswith("remotes/origin/pr/"):
-            pr_id = int(item.rsplit("/", 1)[1])
-            break
-    return pr_id
+    prefix = "refs/remotes/origin/pr/"
+    git_wpt.remotes.origin.fetch("+refs/pull/*/head:%s*" % prefix)
+    pr_refs = refs(git_wpt, prefix)
+    if rev in pr_refs:
+        return pr_refs[rev][len(prefix):]
 
 
 def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
