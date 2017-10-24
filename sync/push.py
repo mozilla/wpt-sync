@@ -64,10 +64,10 @@ def reapply_local_commits(session, bz, git_gecko, git_work_gecko, syncs):
                     git_gecko.cinnabar.hg2git(commit.hexsha, no_commit=True))
             except git.GitCommandError as e:
                 logger.error("Failed to reapply rev %s:\n%s" % (sync.rev, e))
-                bz.comment(sync.bug,
-                           "Landing wpt failed because reapplying commit %s from bug %s failed "
-                           "from rev %s failed:\n%s" % (sync.rev, sync.rev, e))
-                raise AbortError
+                err_msg = "Landing wpt failed because reapplying commit %s from bug %s failed "
+                "from rev %s failed:\n%s" % (sync.rev, sync.rev, e)
+                bz.comment(sync.bug, err_msg)
+                raise AbortError(err_msg)
 
     git_work_gecko.git.commit(amend=True, no_edit=True)
 
@@ -105,15 +105,17 @@ def push_to_inbound(config, bz, git_gecko, git_work_gecko, bug):
     except git.GitCommandError as e:
         changes = git_gecko.remotes.mozilla.fetch()
         if not changes:
-            logger.error("Pushing update to remote failed:\n%s" % e)
-            bz.comment(bug, "Pushing update to remote failed:\n%s" % e)
-            raise AbortError
+            err = "Pushing update to remote failed:\n%s" % e
+            logger.error(err)
+            bz.comment(bug, err)
+            raise AbortError(err)
         try:
             git_work_gecko.git.rebase(config["gecko"]["refs"]["mozilla-inbound"])
         except git.GitCommandError as e:
-            logger.error("Rebase failed:\n%s" % e)
-            bz.comment(bug, "Rebase failed:\n%s" % e)
-            raise AbortError
+            err = "Rebase failed:\n%s" % e
+            logger.error(err)
+            bz.comment(bug, err)
+            raise AbortError(err)
         return False
     return True
 
@@ -179,8 +181,9 @@ def get_landing(config, session, git_gecko, git_wpt, gh_wpt, bz):
     pr_commits = load_commits(session, git_wpt, gh_wpt, prev_commit, commit)
 
     if not pr_commits:
-        logger.info("No commits to land")
-        raise AbortError(cleanup=[landing])
+        err = "No commits to land"
+        logger.info(err)
+        raise AbortError(err, cleanup=[landing])
 
     return landing, prev_landing, pr_commits
 
@@ -199,8 +202,9 @@ def get_landable_commits(config, session, git_gecko, git_wpt, gh_wpt, bz,
         landable_commits.append((pr, commits))
 
     if not landable_commits:
-        logger.info("No new commits are landable")
-        raise AbortError(cleanup=[landing])
+        err = "No new commits are landable"
+        logger.info(err)
+        raise AbortError(err, cleanup=[landing])
 
     landing.head_commit = landable_commits[-1][1][-1]
 

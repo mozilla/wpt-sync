@@ -162,10 +162,10 @@ def wpt_to_gecko_commits(config, session, wpt_work, gecko_work, sync, bz):
                 continue
         except git.GitCommandError as e:
             logger.error("Failed to create patch from {}:\n{}".format(c.hexsha, e))
-            bz.comment(sync.bug,
-                       "Downstreaming from web-platform-tests failed because creating patch "
-                       "from {} failed:\n{}".format(c.hexsha, e))
-            raise AbortError(set_flag="error_apply_failed")
+            err_msg = "Downstreaming from web-platform-tests failed because creating patch "
+            "from {} failed:\n{}".format(c.hexsha, e)
+            bz.comment(sync.bug, err_msg)
+            raise AbortError("Applying commit failed", set_flag="error_apply_failed")
 
         if i < len(existing_commits):
             # TODO: Maybe check the commit messges match here?
@@ -184,9 +184,9 @@ def wpt_to_gecko_commits(config, session, wpt_work, gecko_work, sync, bz):
         except git.GitCommandError as e:
             logger.error("Failed to import patch downstream {}\n\n{}\n\n{}".format(
                 c.hexsha, patch, e))
-            bz.comment(sync.bug,
-                       "Downstreaming from web-platform-tests failed because applying patch "
-                       "from {} failed:\n{}".format(c.hexsha, e))
+            err_msg = "Downstreaming from web-platform-tests failed because applying patch "
+            "from {} failed:\n{}".format(c.hexsha, e)
+            bz.comment(sync.bug, err_msg)
             # TODO set error, sync status aborted, prevent previous steps from continuing
             raise AbortError(set_flag="error_apply_failed")
 
@@ -400,7 +400,7 @@ def try_push(config, session, gecko_work, bz, sync, message, stability=False):
     if not is_open("try"):
         logger.info("try is closed")
         # TODO make this auto-retry
-        raise AbortError()
+        raise AbortError("Try is closed")
 
     try:
         logger.info("Pushing to try with message:\n{}".format(message))
@@ -421,7 +421,7 @@ def try_push(config, session, gecko_work, bz, sync, message, stability=False):
         if status != 0:
             logger.error("Failed to push to try.")
             # TODO retry
-            raise AbortError()
+            raise AbortError("Failed to push to try")
     finally:
         gecko_work.git.reset('HEAD~')
     bz.comment(sync.bug, "Pushed to try. Results: {}".format(results_url))
@@ -484,8 +484,8 @@ def get_wpt_tasks(config, session, try_push, taskgroup_id):
     if err:
         logger.debug(err)
         # TODO retry? manual intervention?
-        raise AbortError(set_flag=["complete",
-                                   ("result", model.TryResult.infra)])
+        raise AbortError(err, set_flag=["complete",
+                                        ("result", model.TryResult.infra)])
     try_push.complete = True
     return wpt_completed, wpt_tasks
 

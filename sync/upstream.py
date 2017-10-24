@@ -579,8 +579,10 @@ def integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, hg_rev, 
             if not isinstance(e, AbortError):
                 logger.warning(traceback.format_exc(e))
             exceptions.append(e)
-    if exceptions:
+    if len(exceptions) > 1:
         raise MultipleExceptions(exceptions)
+    elif len(exceptions) == 1:
+        raise exceptions[0]
 
 
 @pipeline
@@ -604,8 +606,10 @@ def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, hg_rev):
             if not isinstance(e, AbortError):
                 logger.warning(traceback.format_exc(e))
             exceptions.append(e)
-    if exceptions:
+    if len(exceptions) > 1:
         raise MultipleExceptions(exceptions)
+    elif len(exceptions) == 1:
+        raise exceptions[0]
 
 
 @pipeline
