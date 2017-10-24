@@ -14,6 +14,7 @@ from sqlalchemy.orm import joinedload
 import log
 import model
 import settings
+import commit as sync_commit
 from model import (Sync,
                    UpstreamSync,
                    DownstreamSync,
@@ -205,39 +206,30 @@ def update_sync_commits(session, git_gecko, repo_name, commits_by_bug):
 
 def move_commit(config, git_gecko, git_work, bz, sync, commit):
     rev = git_gecko.cinnabar.hg2git(commit.rev)
+    c = sync_commit.Commit(git_gecko, rev)
+
+    metadata = {"gecko-commit": c.canonical_rev}
+
     try:
-        # git show is used here rather than git format-patch because it does
-        # what we want with merge commits i.e. just generates the patch for
-        # the merge resolution, rather than the complete change from one branch
-        # or another.
-        patch = git_gecko.git.show(rev, "--", config["gecko"]["path"]["wpt"],
-                                   pretty="email") + "\n"
-    except git.GitCommandError as e:
-        logger.error("Failed to create patch from rev %s:\n%s" % (rev, e))
+        dest_commit = c.move(git_work,
+                             metadata=metadata,
+                             msg_filter=commit_message_filter,
+                             src_prefix=config["gecko"]["path"]["wpt"])
+    except Exception as e:
         bz.comment(sync.bug,
                    "Upstreaming to web-platform-tests failed because creating patch "
-                   "from rev %s failed:\n%s" % (rev, e))
-        return False
+                   "from rev %s failed:\n%s" % (c.canonical_rev, e))
+        raise
+    return dest_commit
 
-    strip_dirs = len(config["gecko"]["path"]["wpt"].split("/")) + 1
-    try:
-        proc = git_work.git.am("-p%s" % str(strip_dirs), "-",
-                               istream=subprocess.PIPE,
-                               as_process=True)
-        stdout, stderr = proc.communicate(patch)
-        if proc.returncode != 0:
-            raise git.GitCommandError(["am", "-p%s" % strip_dirs, "-"],
-                                      proc.returncode, stderr, stdout)
-    except git.GitCommandError as e:
-        logger.error("Failed to import patch upstream %s:\n\n%s\n\n%s" % (rev, patch, e))
-        bz.comment(sync.bug,
-                   "Upstreaming to web-platform-tests failed because applying patch "
-                   "from rev %s to upstream failed:\n%s" % (rev, e))
-        return False
 
-    commit = git_work.head.commit
-    msg = commit.message
+def bugzilla_url(sync):
+    return ("https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % sync.bug
+            if sync.bug else None)
 
+
+def commit_message_filter(msg):
+    metadata = {}
     m = commitparser.BUG_RE.match(msg)
     if m:
         bug_str = m.group(0)
@@ -245,16 +237,15 @@ def move_commit(config, git_gecko, git_work, bz, sync, commit):
             # Strip the bug prefix
             prefix = re.compile("^%s[^\w\d]*" % bug_str)
             msg = prefix.sub("", msg)
+        metadata["bugzilla-url"] = "https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % bug_str
 
+    reviewers = ", ".join(commitparser.parse_reviewers(msg))
+    if reviewers:
+        metadata["gecko-reviewers"] = reviewers
+    msg = commitparser.replace_reviewers(msg, "")
     msg = commitparser.strip_commit_metadata(msg)
 
-    git_work.git.commit(amend=True, message=msg)
-    return True
-
-
-def bugzilla_url(sync):
-    return ("https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % sync.bug
-            if sync.bug else None)
+    return msg, metadata
 
 
 @step(state_arg="sync",
