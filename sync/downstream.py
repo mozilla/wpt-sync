@@ -464,10 +464,9 @@ def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
         return
 
     wpt_completed, _ = get_wpt_tasks(config, session, try_push, taskgroup_id)
-    get_wpt_tasks(config, session, try_push)
     log_files = download_logs(config, session, wpt_completed)
-    disabled = update_metadata(config, session, git_gecko, try_push.sync,
-                               try_push.kind, log_files)
+    disabled = update_metadata(config, session, git_gecko, try_push.kind,
+                               try_push.sync, log_files)
     update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled)
 
 
@@ -492,7 +491,8 @@ def get_wpt_tasks(config, session, try_push, taskgroup_id):
 
 @step()
 def download_logs(config, session, wpt_completed):
-    return taskcluster.download_logs(wpt_completed, config["paths"]["try_logs"])
+    dest = os.path.join(config["root"], config["paths"]["try_logs"])
+    return taskcluster.download_logs(wpt_completed, dest)
 
 
 @step()
