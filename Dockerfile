@@ -12,7 +12,7 @@ RUN mkdir /home/wptsync/git-cinnabar
 
 WORKDIR /home/wptsync/git-cinnabar
 
-RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout 0.4.0
+RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout master
 
 ENV PATH=/home/wptsync/git-cinnabar:$PATH
 
