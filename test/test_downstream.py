@@ -328,7 +328,7 @@ def test_taskgroup_resolved_initial_empty(config, session):
     session.add(try_push)
     with patch('sync.downstream.taskcluster.get_wpt_tasks',
                return_value=([], [])) as get_wpt_tasks:
-        downstream.on_taskgroup_resolved(config, session, None, None, task_id)
+        assert not downstream.on_taskgroup_resolved(config, session, None, None, task_id)
         get_wpt_tasks.assert_called_once()
         assert try_push.complete == True
         assert try_push.result == model.TryResult.infra
@@ -342,7 +342,7 @@ def test_taskgroup_resolved_initial_not_all_completed(config, session):
     all_tasks = [0]
     with patch('sync.downstream.taskcluster.get_wpt_tasks',
                return_value=(complete, all_tasks)) as get_wpt_tasks:
-        downstream.on_taskgroup_resolved(config, session, None, None, task_id)
+        assert not downstream.on_taskgroup_resolved(config, session, None, None, task_id)
         get_wpt_tasks.assert_called_once()
         assert try_push.complete == True
         assert try_push.result == model.TryResult.infra

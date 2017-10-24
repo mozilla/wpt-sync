@@ -45,8 +45,7 @@ def test_push_land_local_simple(config, session, git_wpt_upstream, git_gecko, gi
     print "Made upstream commit %s" % commit.hexsha
     local_gecko_commit(cls=model.DownstreamSync, metadata_ready=True)
 
-    success = push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz)
-    assert success
+    assert push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz)
 
     landing = model.Landing.previous(session)
     assert landing.status == model.Status.complete
@@ -68,8 +67,7 @@ def test_push_land_local_not_ready(config, session, git_wpt_upstream, git_gecko,
     initial_landing = model.Landing.previous(session)
     local_gecko_commit(cls=model.DownstreamSync, metadata_ready=False)
 
-    success = push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz)
-    assert not success
+    assert not push.land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz)
 
     # The new commit should not be landed, and since there was nothing to land
     # the landing object should be removed.
