@@ -59,7 +59,8 @@ class Commit(object):
             msg = "%s\n%s" % (msg, metadata_str)
         return msg
 
-    def move(self, dest_repo, msg_filter=None, metadata=None, src_prefix=None, dest_prefix=None):
+    def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
+             dest_prefix=None):
         if metadata is None:
             metadata = {}
 
@@ -73,42 +74,54 @@ class Commit(object):
 
         msg = Commit.make_commit_msg(msg, metadata)
 
-        message_path = store(dest_repo, self.canonical_rev + ".message", msg)
+        with Store(dest_repo, self.canonical_rev + ".message", msg) as message_path:
+            show_args = ()
+            if src_prefix:
+                show_args = ("--", src_prefix)
+            try:
+                patch = self.repo.git.show(self.sha1, pretty="email", *show_args) + "\n"
+            except git.GitCommandError as e:
+                raise AbortError(e.message)
 
-        show_args = ()
-        if src_prefix:
-            show_args = ("--", src_prefix)
-        try:
-            patch = self.repo.git.show(self.sha1, pretty="email", *show_args) + "\n"
-        except git.GitCommandError as e:
-            raise AbortError(e.message)
+            if skip_empty and patch.endswith("\n\n\n"):
+                return None
 
-        strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
+            strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
 
-        patch_path = store(dest_repo, self.canonical_rev + ".diff", patch)
+            with Store(dest_repo, self.canonical_rev + ".diff", patch) as patch_path:
 
-        # Without this tests were failing with "Index does not match"
-        dest_repo.git.update_index(refresh=True)
-        try:
-            dest_repo.git.apply(patch_path, index=True, p=strip_dirs)
-        except git.GitCommandError as e:
-            err_msg = """git apply failed
-%s returned status %s
-Patch saved as :%s
-Commit message saved as: %s
- %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
-            raise AbortError(err_msg)
+                # Without this tests were failing with "Index does not match"
+                dest_repo.git.update_index(refresh=True)
+                apply_kwargs = {}
+                if dest_prefix:
+                    apply_kwargs["directory"] = dest_prefix
+                try:
+                    dest_repo.git.apply(patch_path, index=True, p=strip_dirs, **apply_kwargs)
+                except git.GitCommandError as e:
+                    err_msg = """git apply failed
+        %s returned status %s
+        Patch saved as :%s
+        Commit message saved as: %s
+         %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
+                    raise AbortError(err_msg)
 
-        commit = Commit.create(dest_repo, msg, None)
-
-        os.unlink(patch_path)
-        os.unlink(message_path)
-
-        return commit
+                return Commit.create(dest_repo, msg, None)
 
 
-def store(repo, name, data):
-    path = os.path.join(repo.working_dir, name)
-    with open(path, "w") as f:
-        f.write(data)
-    return path
+
+class Store(object):
+    """Create a named file that is deleted if no exception is raised"""
+
+    def __init__(self, repo, name, data):
+        self.path = os.path.join(repo.working_dir, name)
+        self.data = data
+
+    def __enter__(self):
+        with open(self.path, "w") as f:
+            f.write(self.data)
+        self.data = None
+        return self.path
+
+    def __exit__(self, type, value, traceback):
+        if not type:
+            os.unlink(self.path)

@@ -106,8 +106,8 @@ def test_wpt_to_gecko_commits(config, session, git_wpt, git_gecko, pr_content, b
     new_commits = [c for c in gecko_work.iter_commits(
         "{}..".format(central), reverse=True)]
     assert len(new_commits) == len(pr_content[0])
-    assert new_commits[0].message == "Commit 1\n"
-    assert new_commits[1].message == "Commit 2\n"
+    assert new_commits[0].message.splitlines()[0] == "Commit 1"
+    assert new_commits[1].message.splitlines()[0] == "Commit 2"
     for c in new_commits:
         assert len(c.stats.files) == 1
         assert "testing/web-platform/tests/README" in c.stats.files

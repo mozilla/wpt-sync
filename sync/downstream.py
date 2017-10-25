@@ -22,14 +22,13 @@ from . import (
     settings,
     taskcluster,
 )
+from . import commit as sync_commit
 
 from .model import (
     DownstreamSync,
-    GeckoCommit,
     PullRequest,
     Repository,
     TryPush,
-    get_or_create
 )
 from .pipeline import pipeline, step, AbortError
 from .projectutil import Mach, WPT
@@ -155,40 +154,19 @@ def wpt_to_gecko_commits(config, session, wpt_work, gecko_work, sync, bz):
 
     # TODO - What about PRs that aren't based on master
     for i, c in enumerate(wpt_work.iter_commits("origin/master..", reverse=True)):
-        try:
-            patch = wpt_work.git.show(c, pretty="email") + "\n"
-            if patch.endswith("\n\n\n"):
-                # skip empty patch
-                continue
-        except git.GitCommandError as e:
-            logger.error("Failed to create patch from {}:\n{}".format(c.hexsha, e))
-            err_msg = "Downstreaming from web-platform-tests failed because creating patch "
-            "from {} failed:\n{}".format(c.hexsha, e)
-            bz.comment(sync.bug, err_msg)
-            raise AbortError("Applying commit failed", set_flag="error_apply_failed")
-
         if i < len(existing_commits):
             # TODO: Maybe check the commit messges match here?
             logger.info("Skipping already applied patch")
             continue
 
-        try:
-            proc = gecko_work.git.am("--directory=" + config["gecko"]["path"]["wpt"], "-",
-                                     istream=subprocess.PIPE,
-                                     as_process=True)
-            stdout, stderr = proc.communicate(patch)
-            if proc.returncode != 0:
-                raise git.GitCommandError(
-                    ["am", "--directory=" + config["gecko"]["path"]["wpt"], "-"],
-                    proc.returncode, stderr, stdout)
-        except git.GitCommandError as e:
-            logger.error("Failed to import patch downstream {}\n\n{}\n\n{}".format(
-                c.hexsha, patch, e))
-            err_msg = "Downstreaming from web-platform-tests failed because applying patch "
-            "from {} failed:\n{}".format(c.hexsha, e)
-            bz.comment(sync.bug, err_msg)
-            # TODO set error, sync status aborted, prevent previous steps from continuing
-            raise AbortError(set_flag="error_apply_failed")
+        metadata = {
+            "web-platform-tests-pr": sync.pr_id,
+            "web-platform-tests-commit": c.hexsha
+        }
+
+        commit = sync_commit.Commit(wpt_work, c.hexsha)
+        commit.move(gecko_work, dest_prefix=config["gecko"]["path"]["wpt"],
+                    metadata=metadata)
 
 
 @step()
