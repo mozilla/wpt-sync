@@ -1,4 +1,3 @@
-import argparse
 import os
 from collections import defaultdict
 from ConfigParser import RawConfigParser

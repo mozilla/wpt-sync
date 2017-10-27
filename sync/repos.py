@@ -103,8 +103,6 @@ def configure(config):
         repo = settings(config)
         repo.configure()
         repo = repo.repo()
-        for remote in repo.remotes:
-            remote.fetch()
 
 
 if __name__ == "__main__":

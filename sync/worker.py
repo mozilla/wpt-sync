@@ -24,8 +24,5 @@ worker.conf.beat_schedule = beat_schedule
 if __name__ == "__main__":
     config = settings.load()
     worker.conf.update(**config["celery"])
-    gecko_repo = repos.Gecko(config)
-    wpt_repo = repos.WebPlatformTests(config)
-    gecko_repo.configure()
-    wpt_repo.configure()
+    repos.configure(config)
     worker.start()
