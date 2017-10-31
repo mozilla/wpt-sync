@@ -21,10 +21,13 @@ def get_parser():
 
     parser_landing = subparsers.add_parser("landing", help="Trigger the landing code")
     parser_landing.set_defaults(func=landing)
-    parser_worker = subparsers.add_parser("init", help="Configure repos and model in "
+    parser_setup = subparsers.add_parser("init", help="Configure repos and model in "
                                           "WPTSYNC_ROOT")
-    parser_worker.add_argument("--create", action="store_true", help="Recreate the database")
-    parser_worker.set_defaults(func=initialize)
+    parser_setup.add_argument("--create", action="store_true", help="Recreate the database")
+    parser_setup.set_defaults(func=initialize)
+    parser_fetch = subparsers.add_parser("fetch", help="Fetch from repo.")
+    parser_fetch.set_defaults(func=fetch)
+    parser_fetch.add_argument('repo', choices=['gecko', 'web-platform-tests'])
     parser_listen = subparsers.add_parser("listen", help="Start pulse listener")
     parser_listen.set_defaults(func=start_listener)
     return parser
@@ -36,10 +39,18 @@ def start_listener(config, *args, **kwargs):
 
 
 @settings.configure
+def fetch(config, *args, **kwargs):
+    name = kwargs.get("repo")
+    r = repos.wrappers[name](config)
+    r.configure()
+    logger.info("Fetching %s..." % name)
+    r.repo().git.fetch(*r.fetch_args)
+
+
+@settings.configure
 def initialize(config, *args, **kwargs):
-    kwargs.update(args[0])
     repos.configure(config)
-    model.configure(config, recreate=kwargs["create"])
+    model.configure(config, recreate=kwargs.get("create"))
 
 
 @settings.configure
@@ -66,7 +77,7 @@ def landing(config, *args, **kwargs):
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    args.func(vars(args))
+    args.func(**vars(args))
 
 
 if __name__ == "__main__":

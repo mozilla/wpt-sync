@@ -3,7 +3,7 @@ from git import Repo
 
 import log
 
-logger = log.get_logger("downstream")
+logger = log.get_logger("repos")
 
 
 class GitSettings(object):
@@ -51,7 +51,7 @@ class GitSettings(object):
             with repo.config_writer() as config_writer:
                 for key in self.config[self.name]["remote"][name].keys():
                     config_writer.set_value(
-                        "remote \"%s\"" %name,
+                        "remote \"%s\"" % name,
                         key,
                         self.config[self.name]["remote"][name][key])
 
@@ -65,10 +65,12 @@ class GitSettings(object):
 class Gecko(GitSettings):
     name = "gecko"
     cinnabar = True
+    fetch_args = ["mozilla"]
 
 
 class WebPlatformTests(GitSettings):
     name = "web-platform-tests"
+    fetch_args = ["origin", "master", "--no-tags"]
 
 
 class Cinnabar(object):
@@ -99,11 +101,16 @@ class Cinnabar(object):
 
 
 def configure(config):
-    for settings in [Gecko, WebPlatformTests]:
-        repo = settings(config)
+    for repo in [WebPlatformTests, Gecko]:
+        repo = repo(config)
         repo.configure()
-        repo = repo.repo()
+        repo.repo()
 
+
+wrappers = {
+    "gecko": Gecko,
+    "web-platform-tests": WebPlatformTests,
+}
 
 if __name__ == "__main__":
     import pdb
