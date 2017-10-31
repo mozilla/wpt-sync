@@ -3,6 +3,9 @@ import re
 import subprocess
 
 import git
+import settings
+from mozautomation import commitparser
+
 from pipeline import AbortError
 
 
@@ -17,11 +20,52 @@ class ApplyError(Exception):
     pass
 
 
+class GitNotes(object):
+    def __init__(self, commit):
+        self._data = self._read()
+
+    def _read():
+        data = {}
+        try:
+            items = self.commit.repo.git("notes", "show", self.commit.sha1)
+        except git.GitCommandError:
+            return data
+
+        for line in items.splitlines():
+            if line:
+                m = METADATA_RE.match(line)
+                if m:
+                    key, value = m.groups()
+                    data[key] = value
+        return data
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+        if key in self._data:
+            data = "\n".join("%s: %s" % item for item in self._data.iteritems())
+            self.commit.repo.git("notes", "add", "-f", "-m", data)
+        else:
+            self.commit.repo.git("notes", "append", "-m", data)
+
+
 class Commit(object):
     def __init__(self, repo, sha1):
         self.repo = repo
         self.sha1 = sha1
         self.commit = self.repo.commit(self.sha1)
+        self._notes = None
+
+    @property
+    def notes(self):
+        if self._notes is None:
+            self._notes = GitNotes(self)
+        return self._notes
 
     @property
     def canonical_rev(self):
@@ -58,6 +102,12 @@ class Commit(object):
             metadata_str = "\n".join("%s: %s" % item for item in sorted(metadata.items()))
             msg = "%s\n%s" % (msg, metadata_str)
         return msg
+
+    def is_empty(self, path=None):
+        for blob in self.commit.blobs:
+            if path is None or blob.name.startswith(path):
+                return True
+        return False
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
              dest_prefix=None):
@@ -107,6 +157,52 @@ class Commit(object):
 
                 return Commit.create(dest_repo, msg, None)
 
+
+class GeckoCommit(Commit):
+    @property
+    def bug(self):
+        bugs = commitparser.parse_bugs(self.commit.message)
+        if len(bugs) > 1:
+            logger.warning("Got multiple bugs for commit %s: %s" %
+                           (self.canonical_rev,  ", ".join(bugs)))
+        return bugs[0]
+
+    def has_wpt_changes(self):
+        prefix = settings._config["gecko"]["path"]["wpt"]
+        return not self.is_empty(path=prefix)
+
+    @property
+    def is_backout(self):
+        return commitparser.is_backout(self.commit.message)
+
+    def wpt_commits_backed_out(self):
+        commits = []
+        bugs = None
+        if self.is_backout:
+            nodes_bugs = commitparser.parse_backouts(self.commit.message)
+            if nodes_bugs is None:
+                # We think this a backout, but have no idea what it backs out
+                # it's not clear how to handle that case so for now we pretend it isn't
+                # a backout
+                return commits, bugs
+
+            nodes, bugs = nodes_bugs
+            # Assuming that all commits are listed.
+
+            # Add all backouts that affect wpt commits to the list
+            for node in nodes:
+                git_sha = self.repo.cinnabar.hg2git(node)
+                commit = GeckoCommit(self.repo, git_sha)
+                if commit.has_wpt_changes():
+                    commits.append(git_sha)
+        return commits, set(bugs)
+
+
+class WptCommit(Commit):
+    def pr(self, gh_wpt):
+        if "wpt_pr" not in self.notes:
+            self.notes["wpt_pr"] = gh_wpt.pr_for_commit(self.sha)
+        return self.notes["wpt_pr"]
 
 
 class Store(object):

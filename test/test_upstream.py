@@ -2,8 +2,9 @@ import os
 
 import git
 
-from sync import model, upstream
+from sync import model, upstream, pipeline
 
+pipeline.raise_early = True
 
 def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):
     path = os.path.join(hg_gecko_upstream.working_tree, config["gecko"]["path"]["wpt"], "README")
@@ -13,24 +14,17 @@ def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, gi
     hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
     # This updates the bookmark for mozilla/inbound only
     hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
-    upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
-                                hg_gecko_upstream.log("-l1", "--template={node}"),
-                                "mozilla-inbound")
+    upstream.push(config, session, git_gecko, git_wpt, gh_wpt, bz,
+                  "mozilla-inbound",
+                  hg_gecko_upstream.log("-l1", "--template={node}"))
 
-    session.commit()
+    assert git_wpt.branches["gecko_upstream_sync_1111"]
 
-    syncs = list(session.query(model.UpstreamSync))
-    assert len(syncs) == 1
+    sync = upstrea.WptUpstreamSync("1111", git_gecko, git_wpt)
 
-    sync = syncs[0]
-    assert sync.repository.name == "mozilla-inbound"
-    assert sync.bug == 1111
+    assert len(sync.wpt_commits) == 1
     assert len(sync.gecko_commits) == 1
-    assert sync.gecko_commits[0].rev == hg_gecko_upstream.log("-l1", "--template={node}").strip()
-    worktree_path = os.path.join(config["root"], config["paths"]["worktrees"], sync.wpt_worktree)
-    assert os.path.exists(worktree_path)
-    git_work = git.Repo(worktree_path)
-    commit = git_work.iter_commits().next()
+    assert sync.gecko_commits[0].canonical_rev == hg_gecko_upstream.log("-l1", "--template={node}").strip()
 
     assert commit.message.split("\n")[0] == "Change README"
     assert "README" in commit.tree

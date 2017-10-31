@@ -3,6 +3,7 @@ from celery.schedules import crontab
 
 import repos
 import settings
+import repos
 
 beat_schedule = {
     'attempt-landing': {
