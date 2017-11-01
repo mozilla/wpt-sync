@@ -17,14 +17,6 @@ import log
 import model
 import settings
 import commit as sync_commit
-from model import (Sync,
-                   UpstreamSync,
-                   DownstreamSync,
-                   SyncSubclass,
-                   Status,
-                   GeckoCommit,
-                   PullRequest,
-                   Repository)
 from gitutils import is_ancestor, pr_for_commit
 from pipeline import pipeline, step, AbortError, MultipleExceptions
 from worktree import ensure_worktree, remove_worktrees
@@ -306,15 +298,6 @@ def load_syncs(git_gecko, git_wpt, status="open"):
             if status and data[1] == status:
                 rv.append(WptUpstreamSync.for_branch(git_gecko, git_wpt, branch.name))
     return rv
-
-
-def syncs_from_commits(syncs, commit_shas):
-    rv = []
-    for sync in sync:
-        for commit in sync.wpt_commits:
-            if commit.metadata["gecko-commit"] in commit_shas:
-                rv.append(sync)
-    return sync
 
 
 def commit_message_filter(msg):

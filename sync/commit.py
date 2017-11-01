@@ -55,10 +55,10 @@ class GitNotes(object):
 
 
 class Commit(object):
-    def __init__(self, repo, sha1):
+    def __init__(self, repo, commit):
         self.repo = repo
-        self.sha1 = sha1
         self.commit = self.repo.commit(self.sha1)
+        self.sha1 = elf.commit.hexsha
         self._notes = None
 
     @property

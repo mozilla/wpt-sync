@@ -16,6 +16,7 @@ from collections import defaultdict
 import git
 
 from . import (
+    base,
     bugcomponents,
     log,
     model,
@@ -39,7 +40,59 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = log.get_logger("downstream")
 
 
-def new_wpt_pr(config, session, git_gecko, git_wpt, bz, pr_data):
+class WptDownstreamSync(base.WptSyncProcess):
+    """A downstream sync is represented by the following data:
+
+    * gecko_downstream_sync_[bug]_[status] in the gecko repository, pointing at the
+    commits on central.
+    * gecko_downstream_sync_[bug]_[status] in the wpt repository pointing at the
+    last sync position. Any difference between this and the remotes/origin/pr/[pr_id]
+    branch indicates commits that we haven't yet downstreamed
+    * 
+    """
+    branch_prefix = "gecko_downstream_sync"
+
+    statues = ("open", "merged", "landed")
+
+    def new(cls, git_gecko, git_wpt, pr_id, title, pr_body):
+        # TODO: add PR link to the comment
+        bug = cls.bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, title),
+                         comment=pr_body,
+                         product="Testing",
+                         component="web-platform-tests")
+        git_wpt.create_head(self.branch_prefix + bug, commit="origin/pr/%s" % pr_id)
+
+
+    @staticmethod
+    def has_metadata(commit):
+        bug_url = commit.metadata.get("bugzilla-url")
+        if not bug_url:
+            return False
+        if not is_bugzilla_url(bug_url):
+            return False
+        if "gecko-commit" not in commit.metadata:
+            return False
+        return True
+
+    @classmethod
+    def for_branch(cls, git_gecko, git_wpt, branch):
+        data = cls.parse_branch(branch)
+        assert data is not None
+        bug, status = data
+
+        return cls(git_gecko, git_wpt, bug, status)
+
+    @classmethod
+    def for_bug(cls, git_gecko, git_wpt, bug):
+        branch_prefix = "_".join(self.branch_prefix, bug)
+        for branch in git_gecko.branches:
+            if branch.name.startswith(branch_prefix):
+                # TODO: Prefer open bugs if there are more than one
+                return cls.for_branch(git_gecko, git_gecko, branch.name)
+
+
+
+def new_wpt_pr(config, session, git_gecko, git_wpt, bz, payload):
     """ Start a new downstream sync """
     pr_id = pr_data['number']
     bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr_data["title"]),
