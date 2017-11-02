@@ -29,6 +29,7 @@ from .model import (
     PullRequest,
     Repository,
     TryPush,
+    get_or_create
 )
 from .pipeline import pipeline, step, AbortError
 from .projectutil import Mach, WPT
@@ -38,21 +39,18 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = log.get_logger("downstream")
 
 
-def new_wpt_pr(config, session, git_gecko, git_wpt, bz, payload):
+def new_wpt_pr(config, session, git_gecko, git_wpt, bz, pr_data):
     """ Start a new downstream sync """
-    pr_id = payload['pull_request']['number']
-    pr_data = payload["pull_request"]
+    pr_id = pr_data['number']
     bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr_data["title"]),
                  comment=pr_data["body"],
                  product="Testing",
                  component="web-platform-tests")
 
-    pr = PullRequest(id=pr_id)
-    session.add(pr)
-    sync = DownstreamSync(pr=pr,
-                          repository=Repository.by_name(session, "web-platform-tests"),
-                          bug=bug)
-    session.add(sync)
+    get_or_create(session, PullRequest, id=pr_id)
+    return get_or_create(session, DownstreamSync, pr_id=pr_id,
+                         defaults={"repository": Repository.by_name(session, "web-platform-tests"),
+                                   "bug": bug})[0]
 
 
 def get_files_changed(project_path):
@@ -71,7 +69,7 @@ def is_worktree_tip(repo, worktree_path, rev):
 
 
 @pipeline
-def status_changed(config, session, bz, git_gecko, git_wpt, sync, event):
+def status_changed(config, session, git_gecko, git_wpt, bz, sync, event):
     if event["context"] != "continuous-integration/travis-ci/pr":
         logger.debug("Ignoring status for context {}.".format(event["context"]))
         return

@@ -123,6 +123,8 @@ def cleanup(config, session):
 
     for project in ["gecko", "web-platform-tests"]:
         project_path = os.path.join(work_base, project)
+        if not os.path.exists(project_path):
+            continue
         for worktree_name in os.listdir(project_path):
             worktree_path = os.path.join(project_path, worktree_name)
             if not os.path.isdir(worktree_path):

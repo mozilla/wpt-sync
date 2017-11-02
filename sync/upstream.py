@@ -503,14 +503,12 @@ def update_repositories(config, session, git_gecko, git_wpt, repo_name, hg_rev):
     repository, _ = model.get_or_create(session, model.Repository, name=repo_name)
 
     logger.info("Fetching mozilla-unified")
-    # Not using the built in fetch() function since that tries to parse the output
-    # and sometimes fails
-    git_gecko.git.fetch("mozilla")
+    git_gecko.remotes.mozilla.fetch()
     logger.info("Fetch done")
 
     if repository.name == "autoland":
         logger.info("Fetch autoland")
-        git_gecko.git.fetch("autoland")
+        git_gecko.remotes.autoland.fetch()
         logger.info("Fetch done")
 
     git_wpt.git.fetch("origin")
@@ -604,7 +602,7 @@ def landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, hg_rev):
 
 
 @pipeline
-def status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync, context, status, url):
+def status_changed(config, session, git_gecko, git_wpt, gh_wpt, bz, sync, context, status, url):
     if status == "pending":
         # Never change anything for pending
         return

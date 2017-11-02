@@ -51,7 +51,7 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
         # TODO: maybe want to create a new sync here irrespective of the event
         # type because we missed some events.
         if event["action"] == "opened":
-            downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, event)
+            downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, event["payload"])
     elif sync.direction == SyncDirection.upstream:
         # This is a PR we created, so ignore it for now
         pass
@@ -92,6 +92,7 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
 
     if not pr_id:
         if not is_ancestor(git_wpt, rev, "origin/master"):
+            logger.debug(event)
             logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
         return
     else:
@@ -101,11 +102,12 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
 
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
-        # TODO: Handle this case
-        logger.error("Got a status update for PR %i which is unknown to us" % pr_id)
+        logger.info("Got a status update for PR %s which is unknown to us" % pr_id)
+        pr_data = gh_wpt.get_pull(pr_id)
+        sync = downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, pr_data.raw_data)
 
     if sync.direction == SyncDirection.upstream:
-        upstream.status_changed(config, session, bz, git_gecko, git_wpt, gh_wpt, sync,
+        upstream.status_changed(config, session, git_gecko, git_wpt, gh_wpt, bz, sync,
                                 event["context"], event["status"], event["url"])
     elif sync.direction == SyncDirection.downstream:
         downstream.status_changed(config, session, git_gecko, git_wpt, bz, sync, event)
@@ -122,7 +124,7 @@ def handle_pr_approved():
 
 
 def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
-    push.wpt_push(session, git_wpt, gh_wpt, [item["sha"] for item in event["commits"]])
+    push.wpt_push(session, git_wpt, gh_wpt, [item["id"] for item in event["commits"]])
 
 
 class GitHubHandler(Handler):

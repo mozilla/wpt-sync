@@ -111,7 +111,7 @@ class Repository(Base):
 
     @classmethod
     def by_name(cls, session, name):
-        return get(session, cls, name=name)
+        return get_or_create(session, cls, name=name)[0]
 
 landing_syncs_applied = Table('landing_syncs_applied', Base.metadata,
     Column('landing_id', Integer, ForeignKey('landing.id')),
@@ -258,19 +258,22 @@ class UpstreamSync(Sync):
 SyncSubclass = with_polymorphic(Sync, [DownstreamSync, UpstreamSync])
 
 
-def configure(config):
+def configure(config, recreate=False):
     global engine
     if engine is not None:
         return
     try:
         path = config["database"].get("path")
-        if path:
+        if not os.path.exists(path):
             os.makedirs(config["database"]["path"])
     except OSError:
         pass
     engine = create_engine(config["database"]["url"],
                            echo=config["database"]["echo"])
+    if recreate:
+        create()
     Session.configure(bind=engine)
+
 
 
 def create():

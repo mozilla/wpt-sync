@@ -23,6 +23,7 @@ def get_parser():
     parser_landing.set_defaults(func=landing)
     parser_worker = subparsers.add_parser("init", help="Configure repos and model in "
                                           "WPTSYNC_ROOT")
+    parser_worker.add_argument("--create", action="store_true", help="Recreate the database")
     parser_worker.set_defaults(func=initialize)
     parser_listen = subparsers.add_parser("listen", help="Start pulse listener")
     parser_listen.set_defaults(func=start_listener)
@@ -36,8 +37,9 @@ def start_listener(config, *args, **kwargs):
 
 @settings.configure
 def initialize(config, *args, **kwargs):
+    kwargs.update(args[0])
     repos.configure(config)
-    model.configure(config)
+    model.configure(config, recreate=kwargs["create"])
 
 
 @settings.configure

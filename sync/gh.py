@@ -29,7 +29,7 @@ class GitHub(object):
 
     def get_pull(self, id):
         if id not in self.pr_cache:
-            self.pr_cache[id] = self.repo.get_pull(id)
+            self.pr_cache[id] = self.repo.get_pull(int(id))
         return self.pr_cache[id]
 
     def create_pull(self, title, body, base, head):
@@ -107,7 +107,7 @@ class GitHub(object):
 
     def pr_for_commit(self, sha):
         owner, repo = self.repo_name.split("/")
-        prs = self.github.search_issues(query="is:pr owner:%s repo:%s %s" % (owner, repo, sha))
+        prs = list(self.gh.search_issues(query="is:pr repo:%s/%s %s" % (owner, repo, sha)))
         if len(prs) == 0:
             return
 
