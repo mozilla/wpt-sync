@@ -127,7 +127,7 @@ class WptSyncProcess(object):
         return branch_name
 
     @classmethod
-    def commit_branches(cls, repo, status="*"):
+    def commit_branches(cls, repo, status="*", **attrs):
         branch_filter = "sync/%s/%s/*" % (cls.sync_type,
                                           status)
         sync_branches = repo.for_each_ref("--format", "%(objectname) %(refname:short)",
@@ -136,6 +136,11 @@ class WptSyncProcess(object):
         commit_branches = {}
         for line in sync_branches.split("\n"):
             commit, branch = line.split(" ", 1)
+            if attrs:
+                data = cls.parse_branch(branch)
+                for key, value in attrs.iteritems():
+                    if key not in data or data[key] != value:
+                        continue
             commit_branches[commit] = branch
         return commit_branches
 
@@ -170,6 +175,10 @@ class WptSyncProcess(object):
     @gecko_head.setter
     def gecko_head(self, value):
         self.git_wpt.create_head(self.branch_name, ref=value, force=True)
+        worktree = self._worktrees.get("gecko")
+        if worktree:
+            worktree.head.reset(self.branch_name, working_tree=True)
+        self._gecko_commits = None
 
     @property
     def wpt_head(self):
@@ -178,6 +187,10 @@ class WptSyncProcess(object):
     @wpt_head.setter
     def wpt_head(self, value):
         self.git_wpt.create_head(self.branch_name, ref=value, force=True)
+        worktree = self._worktrees.get("web-platform-tests")
+        if worktree:
+            worktree.head.reset(self.branch_name, working_tree=True)
+        self._wpt_commits = None
 
     def _repo_head(self, repo, commit_cls=sync_commit.Commit):
         if self.branch_name not in repo.branches:
@@ -185,10 +198,10 @@ class WptSyncProcess(object):
         return commit_cls(repo, repo.Commit(self.branch_name).hexsha)
 
     @classmethod
-    def load(cls, git_gecko, git_wpt, status="open"):
+    def load(cls, git_gecko, git_wpt, status="open", **attrs):
         # TODO: this should allow the repo to be set
         rv =  []
-        for branch in cls.commit_branches(git_gecko, status=status).itervalues():
+        for branch in cls.commit_branches(git_gecko, status=status, **attrs).itervalues():
             rv.append(cls(git_gecko, git_wpt, status))
         return rv
 
@@ -208,6 +221,7 @@ class WptSyncProcess(object):
                                         os.path.abspath(worktree_path),
                                         self.branch_name)
             self._worktrees[repo] = worktree
+        assert self._worktrees[repo].active_branch == self.branch_name
         return self._worktrees[repo]
 
     def wpt_worktree(self):
@@ -260,7 +274,8 @@ class WptSyncProcess(object):
                                                    sync_commit.WptCommit,
                                                    self.wpt_base(),
                                                    self.wpt_head,
-                                                   self.validate_wpt_commit)
+                                                   self.validate_wpt_commit,
+                                                   reverse=True)
         return self._wpt_commits
 
     def gecko_commits(self):
@@ -271,5 +286,6 @@ class WptSyncProcess(object):
                                                      sync_commit.GeckoCommit,
                                                      self.gecko_base(),
                                                      self.gecko_head,
-                                                     self.validate_gecko_commit)
+                                                     self.validate_gecko_commit,
+                                                     reverse=True)
         return self._gecko_commits

@@ -22,6 +22,7 @@ from . import (
     model,
     settings,
     taskcluster,
+    tree
 )
 from . import commit as sync_commit
 
@@ -41,102 +42,215 @@ logger = log.get_logger("downstream")
 
 
 class WptDownstreamSync(base.WptSyncProcess):
-    """A downstream sync is represented by the following data:
-
-    * gecko_downstream_sync_[bug]_[status] in the gecko repository, pointing at the
-    commits on central.
-    * gecko_downstream_sync_[bug]_[status] in the wpt repository pointing at the
-    last sync position. Any difference between this and the remotes/origin/pr/[pr_id]
-    branch indicates commits that we haven't yet downstreamed
-    * 
-    """
-    branch_prefix = "gecko_downstream_sync"
+    sync_type = "downstream"
 
     statues = ("open", "merged", "landed")
 
-    def new(cls, git_gecko, git_wpt, pr_id, title, pr_body):
+    def create_bug(self, title, body):
         # TODO: add PR link to the comment
-        bug = cls.bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, title),
-                         comment=pr_body,
-                         product="Testing",
-                         component="web-platform-tests")
-        git_wpt.create_head(self.branch_prefix + bug, commit="origin/pr/%s" % pr_id)
+        bug = self.bz.new(summary="[wpt-sync] PR {} - {}".format(self.pr, title),
+                          comment=pr_body,
+                          product="Testing",
+                          component="web-platform-tests")
+        self.bug = bug
+        return self.bug
 
+    @classmethod
+    def for_pr(cls, git_gecko, git_wpt, pr_id):
+        items = cls.load(git_gecko, git_wpt, pr=pr_id)
+        if len(items) > 1:
+            raise ValueError("Got multiple syncs for PR")
+        return items[0] if items else None
 
-    @staticmethod
-    def has_metadata(commit):
-        bug_url = commit.metadata.get("bugzilla-url")
-        if not bug_url:
+    def files_changed(self):
+        # TODO: Would be nice to do this from mach with a gecko worktree
+        git_work = self.wpt_worktree()
+        wpt = WPT(git_work.working_dir)
+        return set(wpt.files_changed().split("\n"))
+
+    def commit_manifest_update(self):
+        gecko_work = self.gecko_worktree()
+        mach = Mach(gecko_work.working_dir)
+        mach.wpt_manifest_update()
+        if gecko_work.is_dirty():
+            gecko_work.index.add("testing/web-platform/meta/MANIFEST.json")
+            metadata = {
+                "wpt-pr": self.pr,
+                "wpt-type": "manifest"
+            }
+            msg = sync_commit.make_commit_msg("Update wpt manifest", metadata)
+            gecko_work.index.commit(message=msg)
+
+    @property
+    def metadata_commit(self):
+        if self.gecko_commits[-1].metadata["wpt-type"] == "metadata":
+            return self.gecko_commits[-1]
+
+    def ensure_metadata_commit(self):
+        if self.metadata_commit:
+            return self.metadata_commit
+
+        assert all(item.metadata.get("wpt-type") != "metadata" for item in self.gecko_commits)
+        git_work = self.gecko_worktree()
+        metadata = {
+            "wpt-pr": self.pr,
+            "wpt-type": "metadata"
+        }
+        msg = sync_commit.make_commit_msg("Bug %s - Update wpt metadata for PR %s, a=testonly" %
+                                          (self.bug, self.pr), metadata)
+        commit = git_work.index.commit(msg, allow_empty=True)
+        return sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
+
+    def set_bug_component(self, files_changed):
+        new_component = bugcomponents.get(self.config,
+                                          self.gecko_worktree(),
+                                          files_changed,
+                                          default=("Testing", "web-platform-tests"))
+        self.bz.set_component(self.bug, *new_component)
+
+    def renames(self):
+        renames = {}
+        diff_blobs = self.wpt_head.commit.diff(self.wpt_base.commit)
+        for item in diff_blobs:
+            if item.rename_from:
+                renames[item.rename_from] = renames[item.rename_to]
+        return renames
+
+    def move_metadata(self, renames):
+        if not renames:
+            return
+
+        self.ensure_metadata_commit()
+
+        gecko_work = self.gecko_worktree()
+        metadata_base = self.config["gecko"]["path"]["meta"]
+        for old_path, new_path in renames.iteritems():
+            old_meta_path = os.path.join(metadata_base,
+                                         old_path + ".ini")
+            if os.path.exists(os.path.join(gecko_work.working_dir,
+                                           old_meta_path)):
+                new_meta_path = os.path.join(metadata_base,
+                                             new_path + ".ini")
+                gecko_work.index.move(old_meta_path, new_meta_path)
+
+        self._commit_metadata()
+
+    def update_bug_components(self, renames):
+        if not renames:
+            return
+
+        self.ensure_metadata_commit()
+
+        gecko_work = self.gecko_worktree()
+        mozbuild_path = os.path.join(gecko_work.working_dir,
+                                     self.config["gecko"]["path"]["wpt"],
+                                     os.pardir,
+                                     "moz.build")
+
+        tests_base = os.path.split(self.config["gecko"]["path"]["wpt"])[1]
+
+        def tests_rel_path(path):
+            return os.path.join(tests_base, path)
+
+        mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
+                                for old, new in renames.iteritems()}
+
+        if not os.path.exists(mozbuild_path):
+            logger.warning("moz.build file not found, skipping update")
+
+        new_data = bugcomponents.remove_obsolete(mozbuild_path, moves=mozbuild_rel_renames)
+        with open(mozbuild_path, "w") as f:
+            f.write(new_data)
+
+        self._commit_metadata()
+
+    def _commit_metadata(self):
+        assert self.metadata_commit
+        gecko_work = self.gecko_worktree()
+        if gecko_work.is_dirty():
+            gecko_work.git.commit(amend=True, no_edit=True)
+
+    def update_sync(self):
+        self.wpt_head = "origin/pr/%s" % self.pr
+        commits_changed = self.wpt_to_gecko_commits()
+
+        if not commits_changed:
+            return
+
+        self.commit_manifest_update()
+
+        renames = self.renames
+        self.move_metadata(renames)
+        self.update_bug_components(renames)
+
+        files_changed = self.files_changed()
+        self.set_bug_component(files_changed)
+
+        update_try_pushes(config, session, sync)
+
+    def wpt_to_gecko_commits(self):
+        """Create a patch based on wpt branch, apply it to corresponding gecko branch"""
+        existing_gecko_commits = [commit for commit in self.commits
+                                  if commit.metadata.get("wpt-commit")]
+
+        retain_commits = []
+        if existing_gecko_commits:
+            for gecko_commit, wpt_commit in zip(existing_gecko_commits, self.wpt_commits):
+                if gecko_commit.metadata["wpt-commit"] == wpt_commit.sha1:
+                    retain_commits.append(gecko_commit)
+                else:
+                    break
+
+            if len(retain_commits) < len(existing_gecko_commits):
+                self.gecko_head = retain_commits[-1].sha1
+
+        append_commits = self.wpt_commits[len(retain_commits):]
+        if not append_commits:
             return False
-        if not is_bugzilla_url(bug_url):
-            return False
-        if "gecko-commit" not in commit.metadata:
-            return False
+
+        for commit in append_commits:
+            metadata = {
+                "wpt-pr": self.pr,
+                "wpt-commit": commit.sha1
+            }
+            commit.move(self.gecko_worktree(),
+                        dest_prefix=self.config["gecko"]["path"]["wpt"],
+                        metadata=metadata)
+
         return True
 
-    @classmethod
-    def for_branch(cls, git_gecko, git_wpt, branch):
-        data = cls.parse_branch(branch)
-        assert data is not None
-        bug, status = data
 
-        return cls(git_gecko, git_wpt, bug, status)
-
-    @classmethod
-    def for_bug(cls, git_gecko, git_wpt, bug):
-        branch_prefix = "_".join(self.branch_prefix, bug)
-        for branch in git_gecko.branches:
-            if branch.name.startswith(branch_prefix):
-                # TODO: Prefer open bugs if there are more than one
-                return cls.for_branch(git_gecko, git_gecko, branch.name)
+    def try_pushes(self):
+        pass
 
 
-
-def new_wpt_pr(config, session, git_gecko, git_wpt, bz, payload):
+# Entry point
+def new_wpt_pr(git_gecko, git_wpt, payload):
     """ Start a new downstream sync """
-    pr_id = pr_data['number']
-    bug = bz.new(summary="[wpt-sync] PR {} - {}".format(pr_id, pr_data["title"]),
-                 comment=pr_data["body"],
-                 product="Testing",
-                 component="web-platform-tests")
+    git_wpt.remotes.origin.fetch()
+    pr_data = payload['pull_request']
+    pr_id = pr_data["number"]
+    sync = WptDownstreamSync.new(git_gecko, git_wpt, pr=pr_id,
+                                 gecko_start_point=WptDownstreamSync.gecko_integration_branch(),
+                                 wpt_start_point="origin/pr/%s" % pr_id)
 
-    get_or_create(session, PullRequest, id=pr_id)
-    return get_or_create(session, DownstreamSync, pr_id=pr_id,
-                         defaults={"repository": Repository.by_name(session, "web-platform-tests"),
-                                   "bug": bug})[0]
-
-
-def get_files_changed(project_path):
-    wpt = WPT(project_path)
-    output = wpt.files_changed()
-    return set(output.split("\n"))
+    sync.create_bug(pr_data["title"], pr_data["body"])
+    # Now wait for the status to change before we take any actions
 
 
-def is_worktree_tip(repo, worktree_path, rev):
-    if not worktree_path:
-        return False
-    branch_name = os.path.basename(worktree_path)
-    if branch_name in repo.heads:
-        return repo.heads[branch_name].commit.hexsha == rev
-    return False
-
-
-@pipeline
-def status_changed(config, session, git_gecko, git_wpt, bz, sync, event):
-    if event["context"] != "continuous-integration/travis-ci/pr":
+# Entry point
+def status_changed(git_gecko, git_wpt, context, state):
+    # TODO: seems like ignoring status that isn't our own would make more sense
+    if context != "continuous-integration/travis-ci/pr":
         logger.debug("Ignoring status for context {}.".format(event["context"]))
         return
-    # TODO agree what sync.status values represent
-    # if sync.status == model.DownstreamSyncStatus.merged:
-    #     logger.debug("Ignoring status for PR {} because it's already "
-    #                  "been imported.".format(sync.pr.id))
-    #     return
-    if event["state"] == "pending":
-        # PR is mergeable
-        if not is_worktree_tip(git_wpt, sync.wpt_worktree, event["sha"]):
-            update_sync(config, session, git_gecko, git_wpt, sync, bz)
-    elif event["state"] == "success":
-        logger.info("Got passing upstream status for PR %s" % sync.pr_id)
+
+    if state == "pending":
+        # We got new commits that we missed
+        if not sync.wpt_head.sha1 == event["sha"]:
+            git_wpt.remotes.origin.fetch()
+            sync.update_commits()
+    elif state == "passed":
         if len(sync.try_pushes) > 0 and not sync.try_pushes[-1].stale:
             # we've already made a try push for this version of the PR
             logger.debug("We have an existing try push for this PR")
@@ -147,19 +261,13 @@ def status_changed(config, session, git_gecko, git_wpt, bz, sync, event):
         # TODO: check only for status of Firefox job(s)
 
 
-def update_sync(config, session, git_gecko, git_wpt, sync, bz):
-    wpt_work, wpt_branch = get_sync_pr(config, session, git_wpt, bz, sync)
-    files_changed = get_files_changed(wpt_work.working_dir)
-    gecko_work = get_sync_worktree(config, session, git_gecko, sync)
-    wpt_to_gecko_commits(config, session, wpt_work, gecko_work, sync, bz)
-    commit_manifest_update(config, session, gecko_work)
-
-    renames = get_renames(config, session, wpt_work)
-    move_metadata(config, session, git_gecko, gecko_work, sync, renames)
-    update_bug_components(config, session, gecko_work, renames)
-
-    set_bug_component(config, session, bz, gecko_work, sync, files_changed)
-    update_try_pushes(config, session, sync)
+def is_worktree_tip(repo, worktree_path, rev):
+    if not worktree_path:
+        return False
+    branch_name = os.path.basename(worktree_path)
+    if branch_name in repo.heads:
+        return repo.heads[branch_name].commit.hexsha == rev
+    return False
 
 
 @step()
@@ -182,121 +290,6 @@ def get_sync_pr(config, session, git_wpt, bz, sync):
         # TODO set error message, set sync state to aborted?
         raise
     return wpt_work, branch_name
-
-
-@step()
-def get_sync_worktree(config, session, git_gecko, sync):
-    logger.info("Fetching mozilla-unified")
-    git_gecko.git.fetch("mozilla")
-    logger.info("Fetch done")
-    gecko_work, gecko_branch, _ = ensure_worktree(
-        config, session, git_gecko, "gecko", sync,
-        "PR_" + str(sync.pr.id), config["gecko"]["refs"]["central"])
-    return gecko_work
-
-
-@step()
-def wpt_to_gecko_commits(config, session, wpt_work, gecko_work, sync, bz):
-    """Create a patch based on wpt branch, apply it to corresponding gecko branch"""
-    assert wpt_work.active_branch.name == os.path.basename(sync.wpt_worktree)
-    assert gecko_work.active_branch.name == os.path.basename(sync.gecko_worktree)
-
-    # Get a list of existing commits so we can skip these when we stop and resume
-    existing_commits = list(
-        gecko_work.iter_commits("%s.." % config["gecko"]["refs"]["central"], reverse=True))
-
-    # TODO - What about PRs that aren't based on master
-    for i, c in enumerate(wpt_work.iter_commits("origin/master..", reverse=True)):
-        if i < len(existing_commits):
-            # TODO: Maybe check the commit messges match here?
-            logger.info("Skipping already applied patch")
-            continue
-
-        metadata = {
-            "web-platform-tests-pr": sync.pr_id,
-            "web-platform-tests-commit": c.hexsha
-        }
-
-        commit = sync_commit.Commit(wpt_work, c.hexsha)
-        commit.move(gecko_work, dest_prefix=config["gecko"]["path"]["wpt"],
-                    metadata=metadata)
-
-
-@step()
-def get_renames(config, session, wpt_work):
-    renames = {}
-    master = wpt_work.commit("origin/master")
-    diff_blobs = master.diff(wpt_work.head.commit)
-    for item in diff_blobs:
-        if item.rename_from:
-            renames[item.rename_from] = renames[item.rename_to]
-    return renames
-
-
-@step()
-def commit_manifest_update(config, session, gecko_work):
-    gecko_work.git.reset("HEAD", hard=True)
-    mach = Mach(gecko_work.working_dir)
-    mach.wpt_manifest_update()
-    if gecko_work.is_dirty():
-        gecko_work.git.add("testing/web-platform/meta")
-        gecko_work.git.commit(amend=True, no_edit=True)
-
-
-def move_metadata(config, session, git_gecko, gecko_work, sync, renames):
-    metadata_base = config["gecko"]["path"]["meta"]
-    for old_path, new_path in renames.iteritems():
-        old_meta_path = os.path.join(metadata_base,
-                                     old_path + ".ini")
-        if os.path.exists(os.path.join(gecko_work.working_dir,
-                                       old_meta_path)):
-            new_meta_path = os.path.join(metadata_base,
-                                         new_path + ".ini")
-            gecko_work.index.move(old_meta_path, new_meta_path)
-
-    if renames:
-        commit = gecko_work.commit(message="[wpt-sync] downstream {}: update metadata".format(
-            gecko_work.active_branch.name))
-        sync.metadata_commit = commit.hexsha
-
-
-@step()
-def update_bug_components(config, session, gecko_work, renames):
-    mozbuild_path = os.path.join(gecko_work.working_dir,
-                                 config["gecko"]["path"]["wpt"],
-                                 os.pardir,
-                                 "moz.build")
-
-    tests_base = os.path.split(config["gecko"]["path"]["wpt"])[1]
-
-    def tests_rel_path(path):
-        return os.path.join(tests_base, path)
-
-    mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
-                            for old, new in renames.iteritems()}
-
-    if not os.path.exists(mozbuild_path):
-        logger.warning("moz.build file not found, skipping update")
-
-    new_data = bugcomponents.remove_obsolete(mozbuild_path, moves=mozbuild_rel_renames)
-    with open(mozbuild_path, "w") as f:
-        f.write(new_data)
-
-    if gecko_work.is_dirty():
-        gecko_work.git.add(os.path.relpath(mozbuild_path, gecko_work.working_dir))
-        gecko_work.commit(amend=True, no_edit=True)
-
-
-@step()
-def set_bug_component(config, session, bz, gecko_work, sync, files_changed):
-    # Getting the component now doesn't really work well because a PR that
-    # only adds files won't have a component before we move the commits.
-    # But we would really like to start a bug for logging now, so get a
-    # component here and change it if needed after we have put all the new
-    # commits onto the gecko tree.
-    new_component = bugcomponents.get(config, gecko_work, files_changed,
-                                      default=("Testing", "web-platform-tests"))
-    bz.set_component(sync.bug, *new_component)
 
 
 @step()
@@ -428,7 +421,7 @@ def try_commit(config, session, git_gecko, sync, affected_tests=None,
 
 @step()
 def try_push(config, session, gecko_work, bz, sync, message, stability=False):
-    if not is_open("try"):
+    if not tree.is_open("try"):
         logger.info("try is closed")
         # TODO make this auto-retry
         raise AbortError("Try is closed")
@@ -570,21 +563,6 @@ def update_try_push(config, session, git_gecko, try_push, bz, log_files, disable
         bz.comment(try_push.sync.bug, ("The following tests were disabled "
                                        "based on stability try push: {}".format(disabled)))
 
-
-def get_tree_status(project):
-    try:
-        r = requests.get("https://treestatus.mozilla-releng.net/trees2")
-        r.raise_for_status()
-        tree_status = r.json().get("result", [])
-        for s in tree_status:
-            if s["tree"] == project:
-                return s["status"]
-    except Exception as e:
-        logger.warning(traceback.format_exc(e))
-
-
-def is_open(project):
-    return "open" == get_tree_status(project)
 
 
 @settings.configure
