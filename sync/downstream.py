@@ -219,9 +219,12 @@ class WptDownstreamSync(base.WptSyncProcess):
 
         return True
 
+    def try_pushes(self, status="active"):
+        return TryPush.load(git_gecko, pr=self.pr, status=status)
 
-    def try_pushes(self):
-        pass
+    def try_push(self, stability=False):
+
+
 
 
 # Entry point
@@ -261,37 +264,6 @@ def status_changed(git_gecko, git_wpt, context, state):
         # TODO: check only for status of Firefox job(s)
 
 
-def is_worktree_tip(repo, worktree_path, rev):
-    if not worktree_path:
-        return False
-    branch_name = os.path.basename(worktree_path)
-    if branch_name in repo.heads:
-        return repo.heads[branch_name].commit.hexsha == rev
-    return False
-
-
-@step()
-def get_sync_pr(config, session, git_wpt, bz, sync):
-    try:
-        logger.info("Fetching web-platform-tests origin/master")
-        git_wpt.git.fetch("origin", "master", no_tags=True)
-        logger.info("Fetch done")
-        wpt_work, branch_name, _ = ensure_worktree(config, session, git_wpt, "web-platform-tests",
-                                                   sync, "PR_" + str(sync.pr.id), "origin/master")
-        wpt_work.index.reset("origin/master", hard=True)
-        wpt_work.git.fetch("origin", "pull/{}/head:heads/pull_{}".format(sync.pr.id, sync.pr.id),
-                           no_tags=True)
-        wpt_work.git.merge("heads/pull_{}".format(sync.pr.id))
-    except git.GitCommandError as e:
-        logger.error("Failed to obtain web-platform-tests PR {}:\n{}".format(sync.pr.id, e))
-        bz.comment(sync.bug,
-                   "Downstreaming from web-platform-tests failed because obtaining "
-                   "PR {} failed:\n{}".format(sync.pr.id, e))
-        # TODO set error message, set sync state to aborted?
-        raise
-    return wpt_work, branch_name
-
-
 @step()
 def update_try_pushes(config, session, sync):
     for push in sync.try_pushes:
@@ -318,138 +290,212 @@ def get_affected_tests(path_to_wpt, revish=None):
     return tests_by_type
 
 
-def try_message(tests_by_type=None, rebuild=0, base=None):
-    """Build a try message
+class TryPush(base.VcsRefObject):
+    """A try push is represented by a an annotated tag with a path like
 
-    Args:
-        tests_by_type: dict of test paths grouped by wpt test type.
-                       If dict is empty, no tests are affected so schedule just
-                       first chunk of web-platform-tests.
-                       If dict is None, schedule all wpt test jobs.
-        rebuild: Number of times to repeat each test, max 20
-        base: base directory for tests
+    sync/try/<pr_id>/<status>/<id>
 
-    Returns:
-        str: try message
+    Where id is a number to indicate the Nth try push for this PR.
     """
-    test_data = {
-        "test_jobs": [],
-        "prefixed_paths": []
-    }
-    # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u
-    # web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]
-    #  -t none --artifact
-    try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
-                   "-t none --artifact")
-    if rebuild:
-        try_message += " --rebuild {}".format(rebuild)
-    test_type_suite = {
-        "testharness": "web-platform-tests",
-        "reftest": "web-platform-tests-reftests",
-        "wdspec": "web-platform-tests-wdspec",
-    }
-    platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]"
 
-    def platform_filter(suite):
-        return platform_suffix if suite == "web-platform-tests" else ""
+    ref_type = "tags"
+    ref_format = ["type", "pr_id", "status". "revision"]
 
-    if tests_by_type is None:
-        test_data["test_jobs"] = ",".join(
-            [suite + platform_filter(suite) for suite in test_type_suite.itervalues()])
+    statuses = ("active", "complete")
+
+    def __init__(self, git_gecko, ref):
+        self.git_gecko = git_gecko
+        base.VcsRefObject.__init__([git_gecko], ref)
+
+    @property
+    def status(self):
+        return self.parse_ref(self.ref).get("status")
+
+    @status.setter
+    def status(self, value):
+        self._set_ref_data(status=value)
+
+    @property
+    def pr(self):
+        return self.parse_ref(self.ref).get("pr")
+
+    @classmethod
+    def load(cls, git_gecko, pr="*", status="open", revision="*"):
+        rv = []
+        for ref in cls.commit_refs(git_gecko, {"type": "try",
+                                               "pr_id": pr,
+                                               "status": status,
+                                               "revision": id}, None).itervalues():
+            rv.append(cls(git_gecko, ref))
+        return id
+
+    @classmethod
+    def construct_tag(cls, pr_id, try_rev, status="active"):
+        return cls.construct_ref({"type": "try", "pr_id": sync.pr,
+                                  "status": status, "revision": try_rev})
+
+    @classmethod
+    def new(cls, git_gecko, commit, pr_id, try_rev, message="{}", status="active"):
+        tag_name = self.construct_ref({"type": "try", "pr_id": pr_id,
+                                       "status": status, "revision": try_rev})
+
+        return base.VcsRefObject.new([git_gecko], tag_name,
+                                     [git_gecko.head.commit], message=message)
+
+    @property
+    def taskgroup_id(self):
+        raise NotImplementedError
+
+    @taskgroup_id.setter
+    def taskgroup_id(self, value):
+        raise NotImplementedError
+
+    @classmethod
+    def create(cls, sync):
+        if not tree.is_open("try"):
+            logger.info("try is closed")
+            # TODO make this auto-retry
+            raise AbortError("Try is closed")
+
+        git_work = sync.gecko_worktree()
+
+        with TryCommit(git_work, message_func) as c:
+            try_rev = cc.push()
+
+        rv = cls.new(git_gecko, git_work.head.commit, sync.pr, try_rev):
+
+        bz.comment(sync.bug, "Pushed to try. Results: "
+                   "https://treeherder.mozilla.org/#/jobs?repo=try&revision={}".format(try_rev))
+
+        return rv
+
+    @staticmethod
+    def try_message(tests_by_type=None, rebuild=0, base=None):
+        """Build a try message
+
+        Args:
+            tests_by_type: dict of test paths grouped by wpt test type.
+                           If dict is empty, no tests are affected so schedule just
+                           first chunk of web-platform-tests.
+                           If dict is None, schedule all wpt test jobs.
+            rebuild: Number of times to repeat each test, max 20
+            base: base directory for tests
+
+        Returns:
+            str: try message
+        """
+        test_data = {
+            "test_jobs": [],
+            "prefixed_paths": []
+        }
+        # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u
+        # web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]
+        #  -t none --artifact
+        try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
+                       "-t none --artifact")
+        if rebuild:
+            try_message += " --rebuild {}".format(rebuild)
+        test_type_suite = {
+            "testharness": "web-platform-tests",
+            "reftest": "web-platform-tests-reftests",
+            "wdspec": "web-platform-tests-wdspec",
+        }
+        platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]"
+
+        def platform_filter(suite):
+            return platform_suffix if suite == "web-platform-tests" else ""
+
+        if tests_by_type is None:
+            test_data["test_jobs"] = ",".join(
+                [suite + platform_filter(suite) for suite in test_type_suite.itervalues()])
+            return try_message.format(**test_data)
+
+        tests_by_suite = defaultdict(list)
+        if len(tests_by_type) > 0:
+            try_message += " --try-test-paths {prefixed_paths}"
+            for test_type in tests_by_type.iterkeys():
+                suite = test_type_suite.get(test_type)
+                if suite:
+                    tests_by_suite[test_type_suite[test_type]].extend(
+                        tests_by_type[test_type])
+                elif tests_by_type[test_type]:
+                    logger.warning(
+                        """Unrecognized test type {}.
+                        Will attempt to run the following tests as testharness tests:
+                        {}""".format(test_type, tests_by_type[test_type]))
+                    tests_by_suite["web-platform-tests"].extend(
+                        tests_by_type[test_type])
+        else:
+            # run first chunk of the wpt job if no tests are affected
+            test_data["test_jobs"].append("web-platform-tests-1" + platform_suffix)
+
+        for suite, paths in tests_by_suite.iteritems():
+            if paths:
+                test_data["test_jobs"].append(suite + platform_filter(suite))
+            for p in paths:
+                if base is not None and not p.startswith(base):
+                    # try server expects paths relative to m-c root dir
+                    p = os.path.join(base, p)
+                test_data["prefixed_paths"].append(suite + ":" + p)
+        test_data["test_jobs"] = ",".join(test_data["test_jobs"])
+        if test_data["prefixed_paths"]:
+            test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
         return try_message.format(**test_data)
 
-    tests_by_suite = defaultdict(list)
-    if len(tests_by_type) > 0:
-        try_message += " --try-test-paths {prefixed_paths}"
-        for test_type in tests_by_type.iterkeys():
-            suite = test_type_suite.get(test_type)
-            if suite:
-                tests_by_suite[test_type_suite[test_type]].extend(
-                    tests_by_type[test_type])
-            elif tests_by_type[test_type]:
-                logger.warning(
-                    """Unrecognized test type {}.
-                    Will attempt to run the following tests as testharness tests:
-                    {}""".format(test_type, tests_by_type[test_type]))
-                tests_by_suite["web-platform-tests"].extend(
-                    tests_by_type[test_type])
-    else:
-        # run first chunk of the wpt job if no tests are affected
-        test_data["test_jobs"].append("web-platform-tests-1" + platform_suffix)
+    def get_wpt_tasks(self):
+        wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+        err = None
+        if not len(wpt_tasks):
+            err = "No wpt tests found. Check decision task {}".format(taskgroup_id)
+        if len(wpt_tasks) > len(wpt_completed):
+            # TODO check for unscheduled versus failed versus exception
+            err = "The tests didn't all run; perhaps a build failed?"
 
-    for suite, paths in tests_by_suite.iteritems():
-        if paths:
-            test_data["test_jobs"].append(suite + platform_filter(suite))
-        for p in paths:
-            if base is not None and not p.startswith(base):
-                # try server expects paths relative to m-c root dir
-                p = os.path.join(base, p)
-            test_data["prefixed_paths"].append(suite + ":" + p)
-    test_data["test_jobs"] = ",".join(test_data["test_jobs"])
-    if test_data["prefixed_paths"]:
-        test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
-    return try_message.format(**test_data)
+        if err:
+            logger.debug(err)
+            # TODO retry? manual intervention?
+            raise AbortError(err, set_flag=["complete",
+                                            ("result", model.TryResult.infra)])
+        self.status = "complete"
+        return wpt_completed, wpt_tasks
+
+    def download_logs(self, wpt_completed):
+        dest = os.path.join(self.config["root"], self.config["paths"]["try_logs"])
+        return taskcluster.download_logs(self.tasks_completed, dest)
 
 
-def push_to_try(config, session, git_gecko, bz, sync, affected_tests=None,
-                stability=False):
-    gecko_work, message = try_commit(config, session, git_gecko, sync, affected_tests,
-                                     stability)
-    try_push(config, session, gecko_work, bz, sync, message, stability)
+class TryCommit(object):
+    def __init__(self, worktree, message_func=None, worktree_func=None):
+        self.worktree = worktree
+        self.message_func = message_func
+        self.worktree_func = worktree_func
+        self.try_rev = None
 
+    def __enter__(self):
+        if self.worktree_func is not None:
+            self.worktree_func(self.worktree)
+        message = self.message_func(self.worktree)
+        self.worktree.index.commit(message=message)
+        self.try_rev = self.worktree.head.commit.hexsha
 
-@step()
-def try_commit(config, session, git_gecko, sync, affected_tests=None,
-               stability=False):
-    gecko_work, gecko_branch, _ = ensure_worktree(
-        config, session, git_gecko, "gecko", sync,
-        "PR_" + str(sync.pr.id), config["gecko"]["refs"]["central"])
+    def __exit__(self, *args, **kwargs):
+        assert self.worktree.head.commit.hexsha == self.try_rev
 
-    if gecko_work.head.commit.message.startswith("try:"):
-        return gecko_work, gecko_work.head.commit.message
-
-    if not stability and affected_tests is None:
-        affected_tests = {}
-
-    # TODO only push to try on mac if necessary
-    message = try_message(base=config["gecko"]["path"]["wpt"],
-                          tests_by_type=affected_tests,
-                          rebuild=10 if stability else 0)
-    gecko_work.git.commit('-m', message, allow_empty=True)
-    return gecko_work, message
-
-
-@step()
-def try_push(config, session, gecko_work, bz, sync, message, stability=False):
-    if not tree.is_open("try"):
-        logger.info("try is closed")
-        # TODO make this auto-retry
-        raise AbortError("Try is closed")
-
-    try:
-        logger.info("Pushing to try with message:\n{}".format(message))
+    def push(self):
+        self.setup_files()
+        logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
         status, stdout, stderr = gecko_work.git.push('try', with_extended_output=True)
         rev_match = rev_re.search(stderr)
         if not rev_match:
             logger.debug("No revision found in string:\n\n{}\n".format(stderr))
         else:
             try_rev = rev_match.group('rev')
-            results_url = ("https://treeherder.mozilla.org/#/"
-                           "jobs?repo=try&revision=") + try_rev
-            try_push = model.TryPush(
-                rev=try_rev,
-                kind=model.TryKind.stability if stability else model.TryKind.initial
-            )
-            sync.try_pushes.append(try_push)
-            session.add(try_push)
         if status != 0:
             logger.error("Failed to push to try.")
             # TODO retry
             raise AbortError("Failed to push to try")
-    finally:
-        gecko_work.git.reset('HEAD~')
-    bz.comment(sync.bug, "Pushed to try. Results: {}".format(results_url))
-
+        assert try_rev == git_gecko.cinnabar.hg2git(git_gecko.head.commit.hexsha)
+        return try_rev
 
 @pipeline
 def update_taskgroup(config, session, body):
@@ -565,72 +611,3 @@ def update_try_push(config, session, git_gecko, try_push, bz, log_files, disable
 
 
 
-@settings.configure
-def main(config):
-    from .tasks import setup
-    session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    try:
-        temp_test_wptupdate(config, session, git_gecko, git_wpt, gh_wpt, bz)
-    except Exception:
-        traceback.print_exc()
-        import pdb
-        pdb.post_mortem()
-
-
-def temp_test_wptupdate(config, session, git_gecko, git_wpt, gh_wpt, bz):
-    prefix = os.path.abspath(os.path.join(config["paths"]["try_logs"], "wdspec_logs"))
-    log_files = [
-        prefix + "/" + "wpt_raw_debug_fail_1.log",
-        prefix + "/" + "wpt_raw_opt_fail_2.log",
-        prefix + "/" + "wpt_raw_debug_fail_2.log",
-        prefix + "/" + "wpt_raw_opt_fail_3.log",
-        prefix + "/" + "wpt_raw_debug_fail_3.log",
-        prefix + "/" + "wpt_raw_opt_pass_1.log",
-        prefix + "/" + "wpt_raw_debug_fail_4.log",
-        prefix + "/" + "wpt_raw_opt_pass_2.log",
-        prefix + "/" + "wpt_raw_opt_fail_1.log",
-        prefix + "/" + "wpt_raw_opt_pass_3.log",
-    ]
-    failing_log_files = log_files[:3]
-    model.create()
-    with model.session_scope(session):
-        wpt_repository, _ = model.get_or_create(session, model.Repository,
-            name="web-platform-tests")
-        gecko_repository, _ = model.get_or_create(session, model.Repository,
-            name="gecko")
-    body = {
-        "payload": {
-            "pull_request": {
-                "number": 12,
-                "title": "Test PR",
-                "body": "blah blah body"
-            },
-        },
-    }
-    pr_id = body["payload"]["pull_request"]["number"]
-    # new pr opened
-    with model.session_scope(session):
-        new_wpt_pr(config, session, git_gecko, git_wpt, bz, body["payload"])
-    sync = session.query(DownstreamSync).filter(DownstreamSync.pr_id == pr_id).first()
-    status_event = {
-        "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
-        "state": "pending",
-        "context": "continuous-integration/travis-ci/pr",
-    }
-    with model.session_scope(session):
-        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
-    status_event = {
-       "sha": "409018c0a562e1b47d97b53428bb7650f763720d",
-       "state": "passed",
-       "context": "continuous-integration/travis-ci/pr",
-    }
-    with model.session_scope(session):
-        status_changed(config, session, bz, git_gecko, git_wpt, sync, status_event)
-
-    with model.session_scope(session):
-        update_metadata(config, session, git_gecko, model.TryKind.initial,  sync,failing_log_files)
-        #update_metadata(config, session, git_gecko, model.TryKind.stability, sync, log_files)
-    model.drop()
-
-if __name__ == '__main__':
-    main()

@@ -7,7 +7,97 @@ import commit as sync_commit
 invalid_re = re.compile(".*[-_]")
 
 
-class WptSyncProcess(object):
+class VcsRefObject(object):
+    ref_type = "heads"
+    ref_format = ["type", "status", "details"]
+
+    def __init__(self, repos, ref):
+        if len(repos) < 1:
+            raise ValueError
+        self.repos = repos
+        self._ref = ref
+
+    @classmethod
+    def new(cls, repos, ref, commits, message=None):
+        assert cls.parse_ref(ref)
+
+        rv = cls(ref, repos)
+        for repo, target in zip(repos, commits):
+            if target:
+                if cls.ref_type == "heads":
+                    repo.create_head(ref)
+                elif cls.ref_type == "tags":
+                    repo.create_tag(ref, message=message)
+
+        return rv
+
+    @classmethod
+    def parse_ref(cls, name):
+        prefix = "refs/%s/" % cls.ref_type
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+        parts = name.split("/")
+        if not len(parts) == len(cls.ref_format) + 1:
+            return None
+        if not parts[0] == "sync":
+            return None
+
+        rv = {}
+        for part, value in zip(cls.ref_format, parts[1:]):
+            rv[part] = value
+
+        return rv
+
+    @classmethod
+    def construct_ref(cls, *args):
+        assert len(args) == len(cls.ref_format)
+        return "sync/%s" % "/".join(args)
+
+    @property
+    def ref(self):
+        return self._ref
+
+    def _set_ref_data(self, **kwargs):
+        current_ref_name = self._ref
+        data = self.parse_ref(current_ref_name)
+        updated = any(key not in data or data[key] != value
+                      for key, value in kwargs.iteritems())
+
+        for key, value in data.iteritems():
+            if invalid_re.match(key):
+                raise ValueError(key)
+
+            if invalid_re.match(value):
+                raise ValueError(value)
+
+        if updated:
+            data.update(kwargs)
+            new_ref_name = self.construct_ref(**data)
+
+            for repo in self.repos:
+                ref = repo.refs.get(current_ref_name)
+                if ref:
+                    ref.rename(new_ref_name)
+            self._ref = new_ref_name
+        return ref
+
+    @classmethod
+    def commit_refs(cls, repo, filter_data, filter_func):
+        parts = [filter_data.get(key, "*") for key in cls.ref_format]
+        branch_filter = "sync/%s" % "/".join(parts)
+        sync_branches = repo.for_each_ref("--format", "%(objectname) %(refname:short)",
+                                          branch_filter)
+
+        commit_branches = {}
+        for line in sync_branches.split("\n"):
+            commit, branch = line.split(" ", 1)
+            if filter_func and not filter_func(branch):
+                continue
+            commit_branches[commit] = branch
+        return commit_branches
+
+
+class WptSyncProcess(VcsRefObject):
     """Base class representing one of the sync processes.
 
     All the data for each process is stored in the Git trees.
@@ -34,9 +124,9 @@ class WptSyncProcess(object):
     bz = None
 
     def __init__(self, git_gecko, git_wpt, branch_name):
+        VcsRefObject.__init__([git_gecko, git_wpt], branch_name)
         self.git_gecko = git_gecko
         self.git_wpt = git_wpt
-        self._branch_name = branch_name
 
         self._wpt_commits = None
         self._gecko_commits = None
@@ -45,104 +135,55 @@ class WptSyncProcess(object):
 
     @property
     def branch_name(self):
-        return self._branch_name
+        return self._ref
 
     @property
     def bug(self):
-        return self.parse_branch(self._branch_name).get("bug")
+        return self.parse_branch(self._ref).get("bug")
 
     @bug.setter
     def bug(self, value):
-        self._set_branch_data(bug=value)
+        self._set_ref_data(bug=value)
 
     @property
     def pr(self):
-        return self.parse_branch(self._branch_name).get("pr")
+        return self.parse_branch(self._ref).get("pr")
 
     @pr.setter
     def pr(self, value):
-        self._set_branch_data(pr=value)
+        self._set_ref_data(pr=value)
 
     @property
     def status(self):
-        return self.parse_branch(self.branch_name).get("pr")
+        return self.parse_branch(self._ref).get("status")
 
     @status.setter
     def status(self, value):
-        self._set_branch_data(status=value)
+        self._set_ref_data(status=value)
 
     @classmethod
     def parse_branch(cls, name):
-        if name.startswith("refs/heads/"):
-            name = name[len("refs/heads"):]
-        parts = name.split("/")
-        if not len(parts) == 4:
+        data = cls.parse_ref(name)
+        if data is None:
+            return
+        if not data.pop("type") == cls.sync_type:
             return None
-        if not parts[0] == "sync":
-            return None
-        if not parts[1] == cls.sync_type:
-            return None
-        status = parts[2]
-        if status not in cls.statuses:
-            raise ValueError("Invalid status %s" % status)
-        data = parts[3]
-        rv = {key: value for item in data.split("_") for (key, value) in item.split("-")}
-        if "status" in rv:
+        if data["status"] not in cls.statuses:
+            raise ValueError("Invalid status %s" % data["status"])
+        details_data = data.pop("details")
+        details = {key: value for item in details_data.split("_")
+                   for (key, value) in item.split("-")}
+        if any(item in details for item in data.iterkeys()):
             raise ValueError
-        rv["status"] = status
-        return rv
+        data.update(details)
+        return data
 
     @classmethod
-    def _construct_branch_name(cls, status, data):
+    def construct_branch_name(cls, status, data):
         if status not in cls.statuses:
             raise ValueError("Invalid status %s" % status)
         data_str = "_".join("%s-%s" % (key, value) for key, value in sorted(data.items()))
-        return "sync/%s/%s/%s" % (cls.sync_type,
-                                  status,
-                                  data_str)
-
-    def _set_branch_data(self, **kwargs):
-        current_branch_name = self._branch_name
-        data = self.parse_branch(current_branch_name)
-        updated = any(key not in data or data[key] != value
-                      for key, value in kwargs.iteritems())
-
-        for key, value in data.iteritems():
-            if invalid_re.match(key):
-                raise ValueError(key)
-
-            if invalid_re.match(value):
-                raise ValueError(value)
-
-        if updated:
-            data.update(kwargs)
-            status = data.pop("status")
-            branch_name = self._construct_branch_name(status, **data)
-
-            for repo in [self.git_gecko, self.git_wpt]:
-                branch = repo.branches.get(current_branch_name)
-                if branch:
-                    branch.rename(branch_name)
-            self._branch_name = branch_name
-        return branch_name
-
-    @classmethod
-    def commit_branches(cls, repo, status="*", **attrs):
-        branch_filter = "sync/%s/%s/*" % (cls.sync_type,
-                                          status)
-        sync_branches = repo.for_each_ref("--format", "%(objectname) %(refname:short)",
-                                          branch_filter)
-
-        commit_branches = {}
-        for line in sync_branches.split("\n"):
-            commit, branch = line.split(" ", 1)
-            if attrs:
-                data = cls.parse_branch(branch)
-                for key, value in attrs.iteritems():
-                    if key not in data or data[key] != value:
-                        continue
-            commit_branches[commit] = branch
-        return commit_branches
+        return cls.construct_ref(cls.sync_type, status, data_str)
 
     @classmethod
     def new(cls, git_gecko, git_wpt, bug=None, pr=None,
@@ -158,15 +199,11 @@ class WptSyncProcess(object):
             data["bug"] = bug
         if pr is not None:
             data["pr"] = pr
-        branch_name = cls._construct_branch_name(status, data)
+        branch_name = cls.construct_branch_name(status, data)
 
-        if gecko_start_point is not None:
-            git_gecko.create_head(branch_name, commit=gecko_start_point)
-
-        if wpt_start_point is not None:
-            git_wpt.create_head(branch_name, commit=gecko_start_point)
-
-        return cls()
+        return VcsRefObject.new([git_gecko, git_wpt],
+                                branch_name,
+                                [gecko_start_point, wpt_start_point])
 
     @property
     def gecko_head(self):
@@ -200,9 +237,19 @@ class WptSyncProcess(object):
     @classmethod
     def load(cls, git_gecko, git_wpt, status="open", **attrs):
         # TODO: this should allow the repo to be set
-        rv =  []
-        for branch in cls.commit_branches(git_gecko, status=status, **attrs).itervalues():
-            rv.append(cls(git_gecko, git_wpt, status))
+        def attr_filter(ref):
+            data = cls.parse_branch(ref)
+            for key, value in attrs.iteritems():
+                if key not in data or data[key] != value:
+                    continue
+
+        filter_func = attr_filter if attrs else None
+
+        rv = []
+        for ref in cls.commit_refs(git_gecko, {"type": cls.sync_type,
+                                               "status": status,
+                                               "details": "*"}, filter_func).itervalues():
+            rv.append(cls(git_gecko, git_wpt, ref))
         return rv
 
     def _worktree(self, repo):
