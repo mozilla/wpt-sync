@@ -130,9 +130,14 @@ def cleanup(config, session):
             if not os.path.isdir(worktree_path):
                 continue
 
+            worktree_attr = {"web-platform-tests": "wpt_worktree",
+                             "gecko": "gecko_worktree}"}[project]
+
             rel_path = os.path.relpath(worktree_path, work_base)
             sync = query_worktree(session, project, rel_path)
-            landing = session.query(Landing).filter(Landing.worktree == rel_path)
+            landing = (session.query(Landing)
+                       .filter(getattr(Landing, worktree_attr) == rel_path)
+                       .first())
 
             if sync is None and landing is None:
                 # This is an orpaned worktree

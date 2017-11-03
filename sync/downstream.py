@@ -82,9 +82,11 @@ def status_changed(config, session, git_gecko, git_wpt, bz, sync, event):
         # PR is mergeable
         if not is_worktree_tip(git_wpt, sync.wpt_worktree, event["sha"]):
             update_sync(config, session, git_gecko, git_wpt, sync, bz)
-    elif event["state"] == "passed":
+    elif event["state"] == "success":
+        logger.info("Got passing upstream status for PR %s" % sync.pr_id)
         if len(sync.try_pushes) > 0 and not sync.try_pushes[-1].stale:
             # we've already made a try push for this version of the PR
+            logger.debug("We have an existing try push for this PR")
             return
         push_to_try(config, session, git_gecko, bz, sync,
                     affected_tests=get_affected_tests(sync.wpt_worktree))
