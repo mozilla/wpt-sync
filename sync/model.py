@@ -258,22 +258,22 @@ class UpstreamSync(Sync):
 SyncSubclass = with_polymorphic(Sync, [DownstreamSync, UpstreamSync])
 
 
-def configure(config, recreate=False):
+def configure(config, recreate=False, in_memory=False):
     global engine
     if engine is not None:
         return
-    try:
-        path = config["database"].get("path")
-        if not os.path.exists(path):
-            os.makedirs(config["database"]["path"])
-    except OSError:
-        pass
+    if not in_memory:
+        try:
+            path = config["database"].get("path")
+            if not os.path.exists(path):
+                os.makedirs(config["database"]["path"])
+        except OSError:
+            pass
     engine = create_engine(config["database"]["url"],
                            echo=config["database"]["echo"])
     if recreate:
         create()
     Session.configure(bind=engine)
-
 
 
 def create():

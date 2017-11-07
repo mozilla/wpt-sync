@@ -1,7 +1,6 @@
 import os
 import shutil
 import subprocess
-import sys
 import types
 from cStringIO import StringIO
 
@@ -45,8 +44,7 @@ config()
 
 @pytest.fixture(scope="function")
 def session(config):
-    model.configure(config)
-    model.create()
+    model.configure(config, in_memory=True, recreate=True)
     yield model.session()
     model.drop()
 
@@ -98,7 +96,7 @@ def hg_gecko_upstream(config, initial_repo_content):
                 f.write(content)
             hg_gecko.add(os.path.relpath(file_path, repo_dir))
 
-    hg_gecko.commit("-m", "Initial commit")
+    hg_gecko.commit("-m", "Initial commit", "--user", "foo")
     hg_gecko.bookmark("mozilla/central")
     hg_gecko.bookmark("mozilla/autoland")
     hg_gecko.bookmark("mozilla/inbound")
