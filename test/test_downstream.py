@@ -9,24 +9,19 @@ from sync import downstream, model, worktree
 
 
 def test_new_wpt_pr(config, session, git_gecko, git_wpt, bz):
-    body = {
-        "payload": {
-            "pull_request": {
-                "number": 9,
-                "title": "Test PR",
-                "body": "PR body"
-            },
-        },
+    pr = {
+        "number": 9,
+        "title": "Test PR",
+        "body": "PR body"
     }
-    pr_id = body["payload"]["pull_request"]["number"]
-    downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, body["payload"])
+    downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, pr)
     pulls = list(session.query(model.PullRequest))
     assert len(pulls) == 1
-    assert pulls[0].id == pr_id
+    assert pulls[0].id == pr["number"]
     syncs = list(session.query(model.DownstreamSync))
     assert len(syncs) == 1
-    assert syncs[0].pr.id == pr_id
-    assert "Summary: [wpt-sync] PR {}".format(pr_id) in bz.output.getvalue()
+    assert syncs[0].pr.id == pr["number"]
+    assert "Summary: [wpt-sync] PR {}".format(pr["number"]) in bz.output.getvalue()
 
 
 def test_is_worktree_tip(git_wpt_upstream):
