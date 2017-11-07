@@ -20,8 +20,8 @@ idna==2.6 \
     --hash=sha256:8c7309c718f94b3a625cb648ace320157ad16ff131ae0af362c9f21b80ef6ec4
 kombu==4.1.0 \
     --hash=sha256:01f0da9fe222a2183345004243d1518c0fbe5875955f1b24842f2d9c65709ade
-Mercurial==4.2.2 \
-    --hash=sha256:b20132dec5ae6d27ee43a133144069895befe09f7e454bfa9e39950a185f0afe
+Mercurial==4.3 \
+    --hash=sha256:ebf11176e9b5354ec7a1bde6c5382c914d10c397410531faf89f8b5124a7cb65
 PyGithub==1.35 \
     --hash=sha256:fea1c5adedb0b2c641422efa7d22ad1af1b538a499faf25da14c0bb57e2cfefe
 PyJWT==1.5.3 \

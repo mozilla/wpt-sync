@@ -28,10 +28,10 @@ RUN git config --global user.name wpt-sync && \
 # Copy the current directory contents into the container at /app
 ADD . /home/wptsync/wpt-sync
 
-# Install any needed packages specified in requirements.txt
-RUN pip install -r requirements.txt
-RUN pip install -r requirements-dev.txt
-RUN pip install -e .
+RUN pip install -r prod-requirements.txt --no-deps
+RUN pip install -r requirements-dev.txt --no-deps
+RUN pip install -r requirements-mozautomation.txt --no-deps
+RUN pip install -e . --no-deps
 # TODO: make this part of a setup script
 # RUN python sync/repos.py
 # RUN python sync/model.py
