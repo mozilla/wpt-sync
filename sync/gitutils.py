@@ -1,4 +1,23 @@
 import git
+import log
+
+
+logger = log.get_logger(__name__)
+
+
+def update_repositories(git_gecko, git_wpt, repository_name=None):
+    logger.info("Fetching mozilla-unified")
+    # Not using the built in fetch() function since that tries to parse the output
+    # and sometimes fails
+    git_gecko.git.fetch("mozilla")
+    logger.info("Fetch done")
+
+    if repository_name == "autoland":
+        logger.info("Fetch autoland")
+        git_gecko.git.fetch("autoland")
+        logger.info("Fetch done")
+
+    git_wpt.git.fetch("origin")
 
 
 def is_ancestor(git_obj, rev, branch):

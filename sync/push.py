@@ -8,8 +8,13 @@ import commit as sync_commit
 import downstream
 import log
 import upstream
+from env import Environment
+from gitutils import update_repositories
 from projectutil import Mach
 from pipeline import AbortError
+
+
+env = Environment()
 
 logger = log.get_logger(__name__)
 
@@ -43,104 +48,53 @@ class SyncPoint(object):
 
 class WptSyncLanding(base.WptSyncProcess):
     sync_type = "landing"
+    obj_id = "bug"
     statuses = ("open", "merged")
 
+    @classmethod
+    def new(cls, git_gecko, git_wpt, wpt_head, bug=None):
+        # There is some chance here we create a bug but never create the branch.
+        # Probably need something to clean up orphan bugs
+
+        # The gecko branch is a new one based on master
+        gecko_base = cls.gecko_integration_branch
+        gecko_head = cls.gecko_integration_branch
+
+        wpt_base = cls.wpt_base(git_gecko)
+
+        if bug is None:
+            bug = env.bz.new("Update web-platform-tests to %s" % wpt_head,
+                             "",
+                             "Testing",
+                             "web-platform-tests")
+
+        return base.WptSyncProcess.new(git_gecko, git_wpt, bug=bug,
+                                       gecko_base, gecko_head,
+                                       wpt_base=wpt_base, wpt_head=wpt_head)
+
     def check_finished(self):
-        return git_gecko.is_ancestor(self.gecko_integration_branch(),
-                                     self.branch_name)
+        return self.git_gecko.is_ancestor(self.gecko_integration_branch,
+                                          self.branch_name)
 
     def finish(self):
         self.status = "merged"
 
-    @classmethod
-    def new(cls, git_gecko, git_wpt):
-        # There is some chance here we create a bug but never create the branch.
-        # Probably need something to clean up orphan bugs
-        return WptSyncProcess.new(git_gecko, git_wpt, bug=0,
-                                  gecko_start_point=cls.gecko_integration_branch())
-
-    @property
-    def wpt_base(self):
-        """Read the last sync point from the batch sync process"""
-        mozilla_data = self.git_gecko.git.show("%s:testing/web-platform/meta/mozilla-sync" %
-                                               self.gecko_integration_branch())
-        return sync_commit.WptCommit(self.git_wpt,
-                                     SyncPoint.loads(mozilla_data)["upstream"])
-
-    @property
-    def prev_gecko_sync_point(self):
-        # Look for the previous point that was a sync landing
-        sync_branches = self.commit_branches(self.git_gecko)
-        for commit in self.git_gecko.iter_commits(self.gecko_integration_branch):
-            if commit.hexsha in sync_branches:
-                return commit.hexsha
-
-    def _unlanded_wpt_commits_by_pr(self):
-        target = self.wpt_head or "origin/master"
-        commits_by_pr = []
-        for commit in self._load_commits(self.git_wpt,
-                                       sync_commit.WptCommit,
-                                       self.wpt_base,
-                                       target,
-                                       reverse=True):
-            pr = commit.pr()
-            if not commits_by_pr and commits_by_pr[-1][0] == pr:
-                commits_by_pr.append((pr, []))
-            commits_by_pr[-1][1].append(commit)
-        return commits_by_pr
-
-    def landable_commits(self):
-        pr_commits = self._unlanded_wpt_commits_by_pr()
-        landable_commits = []
-        for pr, commits in pr_commits:
-            last = False
-            if not pr:
-                # Assume this was some trivial fixup:
-                continue
-            # Only check the first commit since later ones could be added upstream in the PR
-            if upstream.WptUpstreamSync.has_metadata(commits[0]):
-                sync = upstream.WptUpstreamSync.for_bug(commits[0].metadata["bugzilla-url"])
-            else:
-                sync = downstream.WptDownstreamSync.for_pr(pr)
-                if not sync:
-                    # TODO: schedule a downstream sync for this pr
-                    last = True
-                if not sync.ready():
-                    last = True
-                if last:
-                    logger.info("Not landing commits after %s" % commits)
-            landable_commits.append((pr, sync, commits))
-
-        if not landable_commits:
-            logger.info("No new commits are landable")
-            return
-
-        self.wpt_head = landable_commits[-1][-1].sha1
-
-        logger.info("Landing up to commit %s" % self.wpt_head.sha1)
-
-        return landable_commits
-
-    def create_bug(self):
-        bug = self.bz.new("Update web-platform-tests to %s" % self.wpt_head,
-                          "",
-                          "Testing",
-                          "web-platform-tests")
-        self.bug = bug
-
     def unlanded_syncs(self):
-        # TODO: move this first part into upstream somewhere
-        rv = []
-        sync_branches = upstream.WptUpstreamSync.branches(self.git_gecko)
-        for commit in self.git_gecko.iter_commits("%s..%s" % (
-                self.git_gecko.cinnabar.hg2git(self.prev_gecko_sync_point),
-                self.branch_name)):
-            if commit.hexsha in sync_branches:
-                sync = upstream.WptUpstreamSync.load(self.git_gecko, self.git_wpt,
-                                                     sync_branches[commit.hexsha])
-                if sync:
-                    rv.append(sync)
-        return sync
+        syncs = (set(upstream.WptUpstreamSync.load_all(self.git_gecko, self.git_wpt,
+                                                       status="open")) +
+                 set(upstream.WptUpstreamSync.load_all(self.git_gecko, self.git_wpt,
+                                                       status="merged")))
+        merged_by_bug = {item.bug: item for item in merged_syncs}
+
+        for commit in self.git_wpt.iter_commits("%s..%s" % (self.wpt_head.sha1, "origin/master"),
+                                                reverse=True):
+            commit = sync_commit.WptCommit(self.git_wpt, commit.sha1)
+            bug = commit.metadata.get("bugzilla_url")
+            if bug:
+                bug_id = bug.rspilt("=", 1)[1]
+                if bug_id in merged_by_bug:
+                    syncs.remove(merged_by_bug[bug_id])
+        return syncs
 
     def add_pr(self, pr_id, wpt_commits):
         if len(wpt_commits > 1):
@@ -148,12 +102,8 @@ class WptSyncLanding(base.WptSyncProcess):
 
         target_rev = wpt_commits[-1].sha1
 
-        git_work_wpt = self.wpt_worktree()
-        git_work_gecko = self.gecko_worktree()
-
-        for item in self.gecko_commits:
-            if item.metadata.get("wpt-pr") == pr_id:
-                return item, False
+        git_work_wpt = self.wpt_worktree.get()
+        git_work_gecko = self.gecko_worktree.get()
 
         metadata = {
             "wpt-pr": pr_id,
@@ -163,7 +113,7 @@ class WptSyncLanding(base.WptSyncProcess):
         dest_path = os.path.join(git_work_gecko.working_dir,
                                  self.config["gecko"]["path"]["wpt"])
 
-        pr = self.gh_wpt.get_pull(pr_id)
+        pr = env.gh_wpt.get_pull(pr_id)
 
         git_work_gecko.checkout(target_rev)
         shutil.rmtree(dest_path)
@@ -182,19 +132,31 @@ class WptSyncLanding(base.WptSyncProcess):
         gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
         self._gecko_commits.append(commit)
 
-        return gecko_commit, True
+        return gecko_commit
 
-    def reapply_local_commits(self, syncs):
+    def unlanded_sync_commits(self, unlanded_syncs):
+        commits = []
+        for sync in unlanded_syncs:
+            commits.extend(item.sha1 for item in sync.gecko_commits)
+        # Exclude commits only on autoland
+        commits = set(item for item in commits if
+                      self.git_gecko.is_ancestor(commit.sha1,
+                                                 self.gecko_integration_branch))
+        ordered_commits = []
+        for item in self.git_gecko.iter_commits(self.gecko_integration_branch,
+                                                paths=env.config["gecko"]["path"]["wpt"]):
+            if item.hexsha in commits:
+                ordered_commits.append(item.hexsha)
+        return reverse(ordered_commits)
+
+    def reapply_local_commits(self, commits):
         landing_commit = self.gecko_commits[-1]
         if "reapplied-commits" in landing_commit.metadata:
             return
         git_work_gecko = self.gecko_worktree()
-        commits = []
-        for sync in syncs:
-            for commit in reversed(sync.gecko_commits):
-                commits.append(commit)
+
         try:
-            git_work_gecko.git.cherry_pick(no_commit=True, *[commit.sha1 for commit in commits])
+            git_work_gecko.git.cherry_pick(no_commit=True, *commits)
         except git.GitCommandError as e:
             logger.error("Failed to reapply rev %s:\n%s" % (sync.rev, e))
             err_msg = "Landing wpt failed because reapplying commit %s from bug %s failed "
@@ -228,21 +190,31 @@ class WptSyncLanding(base.WptSyncProcess):
 
     def apply_prs(self, landable_commits):
         unlanded_syncs = self.unlanded_syncs()
+        unlanded_gecko_commits = self.unlanded_sync_commits(unlanded_syncs)
+
+        prs_applied = set()
+        # Check if this was previously applied
+        for item in self.gecko_commits:
+            pr_id = item.metadata.get("wpt-pr")
+            if pr_id is not None:
+                prs_applied.add(pr_id)
+
         for pr, sync, commits in landable_commits:
-            self.add_pr(pr, commits)
+            if pr not in prs_applied:
+                self.add_pr(pr, commits)
             if unlanded_syncs:
-                self.reapply_local_commits(unlanded_syncs)
+                self.reapply_local_commits(unlanded_gecko_commits)
             self.manifest_update()
             if isinstance(sync, downstream.WptDownstreamSync):
                 self.add_metadata(pr, sync)
 
     def update_sync_point(self):
         sync_point = SyncPoint()
-        new_sha1 = self.wpt_head.sha1
+        new_sha1 = self.wpt_commits.head.sha1
         if sync_point["upstream"] == new_sha1:
             return
         sync_point["upstream"] = new_sha1
-        with open(os.path.join(self.gecko_worktree().working_dir,
+        with open(os.path.join(self.gecko_worktree.get().working_dir,
                                "testing/web-platform/meta/mozilla-sync"), "w") as f:
             sync_point.dump(f)
         self.gecko_worktree.index.add("testing/web-platform/meta/mozilla-sync")
@@ -268,7 +240,7 @@ def push(landing):
                 landing.bz.comment(landing.bug, err)
                 raise AbortError(err)
             try:
-                landing.gecko_worktree().git.rebase(landing.integration_branch)
+                landing.gecko_rebase(landing.integration_branch)
             except git.GitCommandError as e:
                 err = "Rebase failed:\n%s" % e
                 logger.error(err)
@@ -278,21 +250,70 @@ def push(landing):
     landing.finish()
 
 
-def wpt_push(session, git_wpt, commits):
+def wpt_base(git_gecko, git_wpt):
+    """Read the last sync point from the batch sync process"""
+    mozilla_data = git_gecko.git.show("%s:testing/web-platform/meta/mozilla-sync" %
+                                      WptSyncLanding.gecko_integration_branch)
+    return sync_commit.WptCommit(git_wpt, SyncPoint.loads(mozilla_data)["upstream"])
+
+
+def unlanded_wpt_commits_by_pr(git_gecko, git_wpt):
+    revish = "%s..%s" % (wpt_base(git_gecko, git_wpt), "origin/master")
+
+    commits_by_pr = []
+    for commit in git_wpt.iter_commits(revish,
+                                       reverse=True):
+        commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
+        pr = commit.pr()
+        if commits_by_pr and commits_by_pr[-1][0] != pr:
+            commits_by_pr.append((pr, []))
+        commits_by_pr[-1][1].append(commit)
+    return commits_by_pr
+
+
+def landable_commits(git_gecko, git_wpt):
+    pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt)
+    landable_commits = []
+    for pr, commits in pr_commits:
+        last = False
+        if not pr:
+            # Assume this was some trivial fixup:
+            continue
+        # Only check the first commit since later ones could be added upstream in the PR
+        if upstream.WptUpstreamSync.has_metadata(commits[0]):
+            sync = upstream.WptUpstreamSync.for_bug(commits[0].metadata["bugzilla-url"])
+        else:
+            sync = downstream.WptDownstreamSync.for_pr(pr)
+            if not sync:
+                # TODO: schedule a downstream sync for this pr
+                last = True
+            if not sync.status == "ready":
+                last = True
+            if last:
+                break
+        landable_commits.append((pr, sync, commits))
+
+    if not landable_commits:
+        logger.info("No new commits are landable")
+        return None
+
+    wpt_head = landable_commits[-1][2][-1].sha1
+    logger.info("Landing up to commit %s" % wpt_head)
+
+    return wpt_head, landable_commits
+
+
+# Entry point
+def wpt_push(git_wpt, commits):
     git_wpt.remotes.origin.fetch()
     for commit in commits:
         # This causes the PR to be recorded as a note
-        wpt_commit.WptCommit(git_wpt, commit).pr(gh_wpt)
+        sync_commit.WptCommit(git_wpt, commit).pr(gh_wpt)
 
 
-def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
-    WptSyncLanding.git_gecko = git_gecko
-    WptSyncLanding.git_wpt = git_wpt
-    WptSyncLanding.gh_wpt = gh_wpt
-    WptSyncLanding.bz = bz
-
-    git_wpt.remote.origin.fetch()
-    git_gecko.remote.mozilla.fetch()
+# Entry point
+def land_to_gecko(git_gecko, git_wpt, gh_wpt):
+    update_repositories(git_gecko, git_wpt)
 
     landings = WptSyncLanding.load(git_gecko, git_wpt)
     if len(landings) > 1:
@@ -300,18 +321,11 @@ def land_to_gecko(config, session, git_gecko, git_wpt, gh_wpt, bz):
     landing = landings[0]
 
     if landing is None:
-        landing = WptSyncLanding.new(git_gecko, git_wpt)
-
-    if landing.wpt_head is None:
-        landing.reset_gecko()
-        landable_commits = landing.landable_commits()
-        if landable_commits is None:
-            # We don't need to delete the landing or anything, because we can just
-            # reuse the branch later
+        landable = find_landable_commit(git_gecko, git_wpt)
+        if landable is None:
             return
-
-    if landing.bug == 0:
-        landing.create_bug()
+        landable_commits, wpt_head = landable
+        landing = WptSyncLanding.new(git_gecko, git_wpt, wpt_head)
 
     landing.apply_prs(landable_commits)
     # TODO: Try push here

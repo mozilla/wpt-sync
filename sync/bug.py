@@ -5,8 +5,12 @@ import sys
 class Bugzilla(object):
     def __init__(self, config):
         self.bug_cache = {}
-        self.bugzilla = bugsy.Bugsy(bugzilla_url=config["bugzilla"]["url"],
+        self.bz_url = config["bugzilla"]["url"]
+        self.bugzilla = bugsy.Bugsy(bugzilla_url=self.bz_url,
                                     api_key=config["bugzilla"]["apikey"])
+
+    def bug_url(self, bug_id):
+        "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
 
     def _get_bug(self, bug_id):
         if bug_id not in self.bug_cache:

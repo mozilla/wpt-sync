@@ -6,8 +6,11 @@ import git
 import settings
 from mozautomation import commitparser
 
+from env import Environment
 from pipeline import AbortError
 
+
+env = Environment()
 
 METADATA_RE = re.compile("([^\:]*): (.*)")
 
@@ -56,9 +59,15 @@ class GitNotes(object):
 
 class Commit(object):
     def __init__(self, repo, commit):
+        if isinstance(commit, Commit):
+            _commit = commit.commit
+        elif isinstance(commit, git.Commit):
+            _commit = commit
+        else:
+            _commit = self.repo.commit(_commit)
         self.repo = repo
-        self.commit = self.repo.commit(self.sha1)
-        self.sha1 = elf.commit.hexsha
+        self.commit = _commit
+        self.sha1 = self.commit.hexsha
         self._notes = None
 
     @property
@@ -199,9 +208,9 @@ class GeckoCommit(Commit):
 
 
 class WptCommit(Commit):
-    def pr(self, gh_wpt):
+    def pr(self):
         if "wpt_pr" not in self.notes:
-            self.notes["wpt_pr"] = gh_wpt.pr_for_commit(self.sha)
+            self.notes["wpt_pr"] = env.gh_wpt.pr_for_commit(self.sha)
         return self.notes["wpt_pr"]
 
 

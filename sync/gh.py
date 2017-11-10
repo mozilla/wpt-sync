@@ -17,6 +17,11 @@ class GitHub(object):
         self.pr_cache = {}
         self._repo = None
 
+    def pr_url(self, pr_id):
+        return ("%s/pull/%s" %
+                (env.config["web-platform-tests"]["repo"]["url"],
+                 pr_id))
+
     def load_pull(self, data):
         pr = self.gh.create_from_raw_data(github.PullRequest.PullRequest, data)
         self.pr_cache[pr.number] = pr
@@ -186,6 +191,18 @@ class MockGitHub(GitHub):
         if pr:
             self._log("Got status for PR %s " % pr_id)
             return pr["_commits"][0]["_statuses"]
+
+    def pull_state(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if not pr:
+            raise ValueError
+        return pr["state"]
+
+    def reopen_pull(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if not pr:
+            raise ValueError
+        pr["state"] = "open"
 
     def close_pull(self, pr_id):
         pr = self.get_pull(pr_id)

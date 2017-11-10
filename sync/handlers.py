@@ -87,10 +87,11 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
         sync = downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, pr_data.raw_data)
 
     if sync.direction == SyncDirection.upstream:
-        upstream.status_changed(config, session, git_gecko, git_wpt, gh_wpt, bz, sync,
-                                event["context"], event["status"], event["url"])
+        upstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["status"],
+                                event["url"], event["sha"])
     elif sync.direction == SyncDirection.downstream:
-        downstream.status_changed(config, session, git_gecko, git_wpt, bz, sync, event)
+        downstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["status"],
+                                  event["url"], event["sha"])
 
 
 def handle_pr_merge():
@@ -150,11 +151,16 @@ class PushHandler(Handler):
 
 class TaskHandler(Handler):
     def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
-        return downstream.update_taskgroup(
-            self.config,
-            session,
-            body
-        )
+        if not (body.get("origin")
+                and body["origin"].get("revision")
+                and body.get("taskId")):
+            logger.debug("Oh no, this payload doesn't have the format we expect!"
+                         "Need 'revision' and 'taskId'. Got:\n{}\n".format(body))
+            return
+
+        return downstream.update_taskgroup(body["origin"]["revision"],
+                                           body["taskId"],
+                                           body["result"])
 
 
 class TaskGroupHandler(Handler):

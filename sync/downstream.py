@@ -26,47 +26,61 @@ from . import (
 )
 from . import commit as sync_commit
 
-from .model import (
-    DownstreamSync,
-    PullRequest,
-    Repository,
-    TryPush,
-    get_or_create
-)
-from .pipeline import pipeline, step, AbortError
+from .env import Environment
+from .pipeline import AbortError
 from .projectutil import Mach, WPT
 from .worktree import ensure_worktree
 
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 logger = log.get_logger("downstream")
+env = Environment()
 
 
 class WptDownstreamSync(base.WptSyncProcess):
     sync_type = "downstream"
+    obj_id = "pr"
+    statues = ("open", "ready", "merged")
 
-    statues = ("open", "merged", "landed")
-
-    def create_bug(self, title, body):
+    @classmethod
+    def new(cls, git_gecko, git_wpt, wpt_head, pr_id, pr_title, pr_body):
         # TODO: add PR link to the comment
-        bug = self.bz.new(summary="[wpt-sync] PR {} - {}".format(self.pr, title),
+        sync = WptDownstreamSync.new(git_gecko,
+                                     git_wpt,
+                                     pr=pr_id,
+                                     gecko_base=WptDownstreamSync.gecko_integration_branch,
+                                     gecko_head=WptDownstreamSync.gecko_integration_branch,
+                                     wpt_base=pr_data["base"]["ref"],
+                                     wpt_head="origin/pr/%s" % pr_id)
+        bug = self.bz.new(summary="[wpt-sync] PR %s - %s" % (self.pr, pr_title),
                           comment=pr_body,
                           product="Testing",
                           component="web-platform-tests")
-        self.bug = bug
-        return self.bug
+        sync.bug = bug
+        return sync
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
-        items = cls.load(git_gecko, git_wpt, pr=pr_id)
+        items = cls.load_all(git_gecko, git_wpt, obj_id=pr_id)
         if len(items) > 1:
             raise ValueError("Got multiple syncs for PR")
         return items[0] if items else None
 
+    @property
+    def pr_head(self):
+        return sync_commit.WptCommit(self.git_wpt, "origin/pr/%s" % self.pr_id)
+
+    @property
+    def wpt(self):
+        git_work = self.wpt_worktree.get()
+        return WPT(os.path.join(git_work.working_dir))
+
+    def update_wpt_head(self):
+        if self.wpt_commits.head.sha1 != self.pr_head.sha1:
+            self.wpt_commits.head = self.pr_head
+
     def files_changed(self):
         # TODO: Would be nice to do this from mach with a gecko worktree
-        git_work = self.wpt_worktree()
-        wpt = WPT(git_work.working_dir)
-        return set(wpt.files_changed().split("\n"))
+        return set(self.wpt.files_changed().split("\n"))
 
     def commit_manifest_update(self):
         gecko_work = self.gecko_worktree()
@@ -110,7 +124,7 @@ class WptDownstreamSync(base.WptSyncProcess):
 
     def renames(self):
         renames = {}
-        diff_blobs = self.wpt_head.commit.diff(self.wpt_base.commit)
+        diff_blobs = self.wpt_commits.head.commit.diff(self.wpt_commits.base.commit)
         for item in diff_blobs:
             if item.rename_from:
                 renames[item.rename_from] = renames[item.rename_to]
@@ -170,8 +184,8 @@ class WptDownstreamSync(base.WptSyncProcess):
         if gecko_work.is_dirty():
             gecko_work.git.commit(amend=True, no_edit=True)
 
-    def update_sync(self):
-        self.wpt_head = "origin/pr/%s" % self.pr
+    def update_commits(self):
+        self.update_wpt_head()
         commits_changed = self.wpt_to_gecko_commits()
 
         if not commits_changed:
@@ -186,11 +200,9 @@ class WptDownstreamSync(base.WptSyncProcess):
         files_changed = self.files_changed()
         self.set_bug_component(files_changed)
 
-        update_try_pushes(config, session, sync)
-
     def wpt_to_gecko_commits(self):
         """Create a patch based on wpt branch, apply it to corresponding gecko branch"""
-        existing_gecko_commits = [commit for commit in self.commits
+        existing_gecko_commits = [commit for commit in self.gecko_commits
                                   if commit.metadata.get("wpt-commit")]
 
         retain_commits = []
@@ -219,158 +231,200 @@ class WptDownstreamSync(base.WptSyncProcess):
 
         return True
 
-    def try_pushes(self, status="active"):
-        return TryPush.load(git_gecko, pr=self.pr, status=status)
+    def affected_tests(self, revish=None):
+        # TODO? support files, harness changes -- don't want to update metadata
+        tests_by_type = defaultdict(set)
+        logger.info("Updating MANIFEST.json")
+        self.wpt.manifest()
+        args = ["--show-type", "--new"]
+        if revish:
+            args.append(revish)
+        logger.info("Getting a list of tests affected by changes.")
+        s = self.wpt.tests_affected(*args)
+        if s is not None:
+            for item in s.strip().split("\n"):
+                pair = item.strip().split("\t")
+                assert len(pair) == 2
+                tests_by_type[pair[1]].add(pair[0])
+        return tests_by_type
 
-    def try_push(self, stability=False):
+    def try_push_for_commit(self, sha):
+        try_pushes = TryPush.load_all(self.git_gecko, self.pr, status="*")
+        for try_push in try_pushes:
+            if try_push.wpt_sha == sha:
+                return try_push
+        return None
 
+    @property
+    def latest_try_push(self):
+        try_pushes = TryPush.load_all(self.git_gecko, self.pr, status="*")
+        if try_pushes:
+            return try_pushes[-1]
 
+    def update_metadata(log_files, stability):
+        meta_path = env.config["gecko"]["path"]["meta"]
+        args = log_files
+        if stability:
+            args.extend(["--stability", "wpt-sync Bug %s" % self.bug])
 
+        mach = Mach(gecko_work.working_dir)
+        logger.debug("Updating metadata")
+        # TODO filter the output to only include list of disabled tests
+        disabled = mach.wpt_update(*args)
 
-# Entry point
-def new_wpt_pr(git_gecko, git_wpt, payload):
-    """ Start a new downstream sync """
-    git_wpt.remotes.origin.fetch()
-    pr_data = payload['pull_request']
-    pr_id = pr_data["number"]
-    sync = WptDownstreamSync.new(git_gecko, git_wpt, pr=pr_id,
-                                 gecko_start_point=WptDownstreamSync.gecko_integration_branch(),
-                                 wpt_start_point="origin/pr/%s" % pr_id)
+        if gecko_work.is_dirty(untracked_files=True, path=meta_path):
+            gecko_work.git.add(meta_path)
+            self.ensure_metadata_commit()
 
-    sync.create_bug(pr_data["title"], pr_data["body"])
-    # Now wait for the status to change before we take any actions
-
-
-# Entry point
-def status_changed(git_gecko, git_wpt, context, state):
-    # TODO: seems like ignoring status that isn't our own would make more sense
-    if context != "continuous-integration/travis-ci/pr":
-        logger.debug("Ignoring status for context {}.".format(event["context"]))
-        return
-
-    if state == "pending":
-        # We got new commits that we missed
-        if not sync.wpt_head.sha1 == event["sha"]:
-            git_wpt.remotes.origin.fetch()
-            sync.update_commits()
-    elif state == "passed":
-        if len(sync.try_pushes) > 0 and not sync.try_pushes[-1].stale:
-            # we've already made a try push for this version of the PR
-            logger.debug("We have an existing try push for this PR")
-            return
-        push_to_try(config, session, git_gecko, bz, sync,
-                    affected_tests=get_affected_tests(sync.wpt_worktree))
-        # TODO set a status on the PR
-        # TODO: check only for status of Firefox job(s)
-
-
-@step()
-def update_try_pushes(config, session, sync):
-    for push in sync.try_pushes:
-        push.stale = True
-        # TODO cancel previous try pushes?
+        if stability:
+            self.status = "ready"
+        return disabled
 
 
-def get_affected_tests(path_to_wpt, revish=None):
-    # TODO? support files, harness changes -- don't want to update metadata
-    tests_by_type = defaultdict(set)
-    wpt = WPT(path_to_wpt)
-    logger.info("Updating MANIFEST.json")
-    wpt.manifest()
-    args = ["--show-type", "--new"]
-    if revish:
-        args.append(revish)
-    logger.info("Getting a list of tests affected by changes.")
-    s = wpt.tests_affected(*args)
-    if s is not None:
-        for item in s.strip().split("\n"):
-            pair = item.strip().split("\t")
-            assert len(pair) == 2
-            tests_by_type[pair[1]].add(pair[0])
-    return tests_by_type
-
-
-class TryPush(base.VcsRefObject):
+class TryPush(base.TagRefObject):
     """A try push is represented by a an annotated tag with a path like
 
     sync/try/<pr_id>/<status>/<id>
 
     Where id is a number to indicate the Nth try push for this PR.
     """
-
-    ref_type = "tags"
-    ref_format = ["type", "pr_id", "status". "revision"]
-
-    statuses = ("active", "complete")
-
-    def __init__(self, git_gecko, ref):
-        self.git_gecko = git_gecko
-        base.VcsRefObject.__init__([git_gecko], ref)
-
-    @property
-    def status(self):
-        return self.parse_ref(self.ref).get("status")
-
-    @status.setter
-    def status(self, value):
-        self._set_ref_data(status=value)
+    statuses = ("open", "complete", "infra-fail")
 
     @property
     def pr(self):
-        return self.parse_ref(self.ref).get("pr")
+        return self._process_name.obj_id
 
     @classmethod
-    def load(cls, git_gecko, pr="*", status="open", revision="*"):
-        rv = []
-        for ref in cls.commit_refs(git_gecko, {"type": "try",
-                                               "pr_id": pr,
-                                               "status": status,
-                                               "revision": id}, None).itervalues():
-            rv.append(cls(git_gecko, ref))
-        return id
+    def new(cls, git_gecko, commit, pr_id):
+        existing = self.load_all(git_gecko, cls.sync_type, status="*",
+                                 pr_id, seq_id="*")
+        if not existing:
+            seq_id = "0"
+        else:
+            seq_id = str(int(existing[-1].seq_id) + 1)
+        process_name = base.ProcessName(cls.sync_type, status, obj_id, seq_id)
+        base.TagRefObject.create(git_gecko, str(process_name), commit)
+        return cls(git_gecko, str(process_name), wpt_sync.GeckoCommit)
 
     @classmethod
-    def construct_tag(cls, pr_id, try_rev, status="active"):
-        return cls.construct_ref({"type": "try", "pr_id": sync.pr,
-                                  "status": status, "revision": try_rev})
+    def load_all(cls, git_gecko, pr_id, status="open", seq_id="*"):
+        return base.TagRefObject.load_all(git_gecko, status=status, obj_id=pr_id,
+                                          seq_id=seq_id)
 
     @classmethod
-    def new(cls, git_gecko, commit, pr_id, try_rev, message="{}", status="active"):
-        tag_name = self.construct_ref({"type": "try", "pr_id": pr_id,
-                                       "status": status, "revision": try_rev})
+    def for_commit(cls, git_gecko, sha1, status="open", seq_id="*"):
+        pushes = cls.load_all(cls, git_gecko, "*", status=status)
+        for push in reversed(pushes):
+            if push.try_rev == sha1:
+                return push
 
-        return base.VcsRefObject.new([git_gecko], tag_name,
-                                     [git_gecko.head.commit], message=message)
+    @classmethod
+    def for_taskgroup(cls, taskgroup_id, status="open", seq_id="*"):
+        pushes = cls.load_all(cls, git_gecko, "*", status=status)
+        for push in reversed(pushes):
+            if push.taskgroup_id == taskgroup_id:
+                return push
+
+    @property
+    def try_rev(self):
+        return self.data.get("try-rev")
+
+    @property
+    def wpt_sha(self):
+        return self.data.get("wpt-sha")
 
     @property
     def taskgroup_id(self):
-        raise NotImplementedError
+        return self.data.get("taskgroup-id")
 
     @taskgroup_id.setter
     def taskgroup_id(self, value):
-        raise NotImplementedError
+        self.data["taskgroup-id"] = value
 
     @classmethod
-    def create(cls, sync):
+    def create(cls, git_gecko, sync, stability=False, wpt_sha=None):
         if not tree.is_open("try"):
             logger.info("try is closed")
             # TODO make this auto-retry
             raise AbortError("Try is closed")
 
-        git_work = sync.gecko_worktree()
+        git_work = sync.gecko_worktree.get()
 
-        with TryCommit(git_work, message_func) as c:
-            try_rev = cc.push()
+        rebuild_count = 0 if not stability else 10
+        with TrySyntaxCommit(git_work, sync.affected_tests, rebuild_count) as c:
+            try_rev = c.push()
 
-        rv = cls.new(git_gecko, git_work.head.commit, sync.pr, try_rev):
+        rv = cls.new(git_gecko, git_work.head.commit, sync.pr)
+        if wpt_sha is not None:
+            rv.data["wpt-sha"] = wpt_sha
+        rv.data["try-rev"] = try_rev
+        rv.data["stability"] = staility
 
-        bz.comment(sync.bug, "Pushed to try. Results: "
-                   "https://treeherder.mozilla.org/#/jobs?repo=try&revision={}".format(try_rev))
+        env.bz.comment(sync.bug,
+                       "Pushed to try%s. Results: "
+                       "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" %
+                       (" (stability)" if stability else "", try_rev))
 
         return rv
 
+    def wpt_tasks(self):
+        wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+        err = None
+        if not len(wpt_tasks):
+            err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
+        if len(wpt_tasks) > len(wpt_completed):
+            # TODO check for unscheduled versus failed versus exception
+            err = "The tests didn't all run; perhaps a build failed?"
+
+        if err:
+            logger.debug(err)
+            # TODO retry? manual intervention?
+            self.status = "infra-fail"
+            raise AbortError(err)
+        self.status = "complete"
+        return wpt_completed, wpt_tasks
+
+    def download_logs(self):
+        wpt_completed, wpt_tasks = self.wpt_tasks()
+        dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
+        return taskcluster.download_logs(wpt_completed, dest)
+
+
+class TryCommit(object):
+    def __init__(self, worktree, tests_by_type, rebuild):
+        self.worktree = worktree
+        self.tests_by_type = tests_by_type
+        self.rebuild = rebuild
+
+    def __enter__(self):
+        self.create()
+        self.try_rev = self.worktree.head.commit.hexsha
+
+    def __exit__(self, *args, **kwargs):
+        assert self.worktree.head.commit.hexsha == self.try_rev
+
+    def push(self):
+        logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
+        status, stdout, stderr = self.worktree.git.push('try', with_extended_output=True)
+        rev_match = rev_re.search(stderr)
+        if not rev_match:
+            logger.debug("No revision found in string:\n\n{}\n".format(stderr))
+        else:
+            try_rev = rev_match.group('rev')
+        if status != 0:
+            logger.error("Failed to push to try.")
+            # TODO retry
+            raise AbortError("Failed to push to try")
+        return try_rev
+
+
+class TrySyntaxCommit(TryCommit):
+    def create(self):
+        message = self.try_message(self.tests_by_type, self.rebuild)
+        self.worktree.index.commit(message=message)
+
     @staticmethod
-    def try_message(tests_by_type=None, rebuild=0, base=None):
+    def try_message(tests_by_type=None, rebuild=0):
         """Build a try message
 
         Args:
@@ -442,172 +496,90 @@ class TryPush(base.VcsRefObject):
             test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
         return try_message.format(**test_data)
 
-    def get_wpt_tasks(self):
-        wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
-        err = None
-        if not len(wpt_tasks):
-            err = "No wpt tests found. Check decision task {}".format(taskgroup_id)
-        if len(wpt_tasks) > len(wpt_completed):
-            # TODO check for unscheduled versus failed versus exception
-            err = "The tests didn't all run; perhaps a build failed?"
 
-        if err:
-            logger.debug(err)
-            # TODO retry? manual intervention?
-            raise AbortError(err, set_flag=["complete",
-                                            ("result", model.TryResult.infra)])
-        self.status = "complete"
-        return wpt_completed, wpt_tasks
-
-    def download_logs(self, wpt_completed):
-        dest = os.path.join(self.config["root"], self.config["paths"]["try_logs"])
-        return taskcluster.download_logs(self.tasks_completed, dest)
+# Entry point
+def new_wpt_pr(git_gecko, git_wpt, pr_data):
+    """ Start a new downstream sync """
+    update_repositories()
+    pr_id = pr_data["number"]
+    if WptDownstreamSync.for_pr(pr_id):
+        return
+    wpt_base = pr_data["base"]["ref"]
+    sync = WptDownstreamSync.new(git_gecko,
+                                 git_wpt,
+                                 wpt_base,
+                                 pr_id,
+                                 pr_data["title"],
+                                 pr_title["body"])
+    sync.update_commits()
+    # Now wait for the status to change before we take any actions
 
 
-class TryCommit(object):
-    def __init__(self, worktree, message_func=None, worktree_func=None):
-        self.worktree = worktree
-        self.message_func = message_func
-        self.worktree_func = worktree_func
-        self.try_rev = None
-
-    def __enter__(self):
-        if self.worktree_func is not None:
-            self.worktree_func(self.worktree)
-        message = self.message_func(self.worktree)
-        self.worktree.index.commit(message=message)
-        self.try_rev = self.worktree.head.commit.hexsha
-
-    def __exit__(self, *args, **kwargs):
-        assert self.worktree.head.commit.hexsha == self.try_rev
-
-    def push(self):
-        self.setup_files()
-        logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
-        status, stdout, stderr = gecko_work.git.push('try', with_extended_output=True)
-        rev_match = rev_re.search(stderr)
-        if not rev_match:
-            logger.debug("No revision found in string:\n\n{}\n".format(stderr))
-        else:
-            try_rev = rev_match.group('rev')
-        if status != 0:
-            logger.error("Failed to push to try.")
-            # TODO retry
-            raise AbortError("Failed to push to try")
-        assert try_rev == git_gecko.cinnabar.hg2git(git_gecko.head.commit.hexsha)
-        return try_rev
-
-@pipeline
-def update_taskgroup(config, session, body):
-    if not (body.get("origin")
-            and body["origin"].get("revision")
-            and body.get("taskId")):
-        logger.debug("Oh no, this payload doesn't have the format we expect!"
-                     "Need 'revision' and 'taskId'. Got:\n{}\n".format(body))
+# Entry point
+def status_changed(git_gecko, git_wpt, sync, context, status, head_sha):
+    # TODO: seems like ignoring status that isn't our own would make more sense
+    if context != "continuous-integration/travis-ci/pr":
+        logger.debug("Ignoring status for context %s." % context)
         return
 
-    try_push = TryPush.by_rev(session, body["origin"]["revision"])
+    update_repositories()
+
+    pr_id = pr_for_commit(head_sha)
+    sync = WptDownstreamSync.for_pr(pr_id)
+
+    if status == "pending":
+        # We got new commits that we missed
+        sync.update_commits()
+    elif status == "passed":
+        if sync.try_push_for_commit(head_sha):
+            return
+        sync.update_commits()
+        TryPush.create(git_gecko, sync)
+
+        # TODO set a status on the PR
+        # TODO: check only for status of Firefox job(s)
+
+
+# Entry point
+def update_taskgroup(git_gecko, git_wpt, sha1, task_id, result):
+    try_push = TryPush.for_commit(git_gecko, sha1)
     if not try_push:
         return
 
-    update_try_push_taskgroup(config, session, try_push, body["taskId"],
-                              body.get("result"), body)
-
-
-@step()
-def update_try_push_taskgroup(config, session, try_push, task_id, result, body):
     try_push.taskgroup_id = task_id
 
     if result != "success":
         # TODO manual intervention, schedule sync-retry?
         logger.debug("Try push Decision Task for PR {} "
                      "did not succeed:\n{}\n".format(try_push.sync.pr.id, body))
-        try_push.complete = True
-        try_push.result = model.TryResult.infra
+        try_push.status = "infra-fail"
+        pr_id = try_push.pr_id
+        sync = WptDownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+        if sync and sync.bug:
+            env.bz.comment(try_push.sync.bug,
+                           "Try push failed: decision task returned error")
 
 
-@pipeline
-def on_taskgroup_resolved(config, session, git_gecko, bz, taskgroup_id):
-    try_push = TryPush.by_taskgroup(session, taskgroup_id)
+# Entry point
+def on_taskgroup_resolved(git_gecko, git_wpt, taskgroup_id):
+    try_push = TryPush.by_taskgroup(git_gecko, taskgroup_id)
     if not try_push:
         # this is not one of our try_pushes
         return
 
-    wpt_completed, _ = get_wpt_tasks(config, session, try_push, taskgroup_id)
-    log_files = download_logs(config, session, wpt_completed)
-    disabled = update_metadata(config, session, git_gecko, try_push.kind,
-                               try_push.sync, log_files)
-    update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled)
+    pr_id = try_push.pr_id
+    sync = WptDownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+    log_files = try_push.download_logs()
+    disabled = sync.update_metadata(log_files, stability)
 
-
-@step(state_arg="try_push")
-def get_wpt_tasks(config, session, try_push, taskgroup_id):
-    wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(taskgroup_id)
-    err = None
-    if not len(wpt_tasks):
-        err = "No wpt tests found. Check decision task {}".format(taskgroup_id)
-    if len(wpt_tasks) > len(wpt_completed):
-        # TODO check for unscheduled versus failed versus exception
-        err = "The tests didn't all run; perhaps a build failed?"
-
-    if err:
-        logger.debug(err)
-        # TODO retry? manual intervention?
-        raise AbortError(err, set_flag=["complete",
-                                        ("result", model.TryResult.infra)])
-    try_push.complete = True
-    return wpt_completed, wpt_tasks
-
-
-@step()
-def download_logs(config, session, wpt_completed):
-    dest = os.path.join(config["root"], config["paths"]["try_logs"])
-    return taskcluster.download_logs(wpt_completed, dest)
-
-
-@step()
-def update_metadata(config, session, git_gecko, kind, sync, log_files):
-    meta_path = config["gecko"]["path"]["meta"]
-    gecko_work, gecko_branch, _ = ensure_worktree(
-        config, session, git_gecko, "gecko", sync,
-        "PR_" + str(sync.pr.id), config["gecko"]["refs"]["central"])
-    # git clean?
-    args = log_files
-    if kind == model.TryKind.stability:
-        log_files.extend(["--stability", "wpt-sync Bug {}".format(sync.bug)])
-    mach = Mach(gecko_work.working_dir)
-    logger.debug("Updating metadata")
-    # TODO filter the output to only include list of disabled tests
-    disabled = mach.wpt_update(*args)
-    if gecko_work.is_dirty(untracked_files=True, path=meta_path):
-        gecko_work.git.add(meta_path)
-        if sync.metadata_commit and gecko_work.head.commit.hexsha == sync.metadata_commit:
-            gecko_work.git.commit(amend=True, no_edit=True)
-        else:
-            gecko_work.git.commit(message="[wpt-sync] downstream {}: update metadata".format(
-                gecko_work.active_branch.name))
-        sync.metadata_commit = gecko_work.head.commit.hexsha
-    if kind == model.TryKind.stability:
-        sync.metadata_ready = True
-    return disabled
-
-
-@step()
-def update_try_push(config, session, git_gecko, try_push, bz, log_files, disabled):
-    if try_push.kind == model.TryKind.initial:
+    if not try_push.stability:
         # TODO check if tonnes of tests are failing -- don't want to update the
         # expectation data in that case
         # TODO decide whether to do another narrow push on mac
-        try_url = push_to_try(config, session, git_gecko, try_push.sync,
-                              stability=True)
-        bz.comment(try_push.sync.bug,
-                   "Pushed to try (stability). Results: {}".format(try_url))
-    elif try_push.kind == model.TryKind.stability:
+        TryPush.create(git_gecko, sync, stability=True)
+    else:
         if disabled:
-            logger.debug("The following tests were disabled:\n{}".format(disabled))
-        # TODO notify relevant people about test expectation changes, stability
-        bz.comment(try_push.sync.bug, ("The following tests were disabled "
-                                       "based on stability try push: {}".format(disabled)))
-
-
-
+            logger.debug("The following tests were disabled:\n%s" % disabled)
+            # TODO notify relevant people about test expectation changes, stability
+            env.bz.comment(sync.bug, ("The following tests were disabled "
+                                      "based on stability try push:\n %s". % disabled))

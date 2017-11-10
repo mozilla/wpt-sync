@@ -1,338 +1,451 @@
+import json
 import os
 import re
+import shutil
+import traceback
 
+import git
+
+import log
 import commit as sync_commit
+from env import Environment
 
+env = Environment()
 
 invalid_re = re.compile(".*[-_]")
 
+logger = log.get_logger("base")
 
-class VcsRefObject(object):
-    ref_type = "heads"
-    ref_format = ["type", "status", "details"]
 
-    def __init__(self, repos, ref):
-        if len(repos) < 1:
-            raise ValueError
-        self.repos = repos
-        self._ref = ref
+class ProcessName(object):
+    def __init__(self, obj_type, status, obj_id, seq_id=None):
+        self._obj_type = obj_type
+        self._status = status
+        self._obj_id = obj_id
+        self._seq_id = seq_id
+        self._refs = []
 
-    @classmethod
-    def new(cls, repos, ref, commits, message=None):
-        assert cls.parse_ref(ref)
+    def __str__(self):
+        return self.name(self._obj_type.
+                         self._status,
+                         self._obj_id,
+                         self._seq_id)
 
-        rv = cls(ref, repos)
-        for repo, target in zip(repos, commits):
-            if target:
-                if cls.ref_type == "heads":
-                    repo.create_head(ref)
-                elif cls.ref_type == "tags":
-                    repo.create_tag(ref, message=message)
-
+    @staticmethod
+    def name(obj_type, status, obj_id, seq_id=None):
+        rv = "sync/%s/%s/%s" % (obj_type.
+                                status,
+                                obj_id)
+        if seq_id is not None:
+            rv = "%s/%s" % (rv, seq_id)
         return rv
 
-    @classmethod
-    def parse_ref(cls, name):
-        prefix = "refs/%s/" % cls.ref_type
-        if name.startswith(prefix):
-            name = name[len(prefix):]
-        parts = name.split("/")
-        if not len(parts) == len(cls.ref_format) + 1:
-            return None
-        if not parts[0] == "sync":
-            return None
-
-        rv = {}
-        for part, value in zip(cls.ref_format, parts[1:]):
-            rv[part] = value
-
-        return rv
-
-    @classmethod
-    def construct_ref(cls, *args):
-        assert len(args) == len(cls.ref_format)
-        return "sync/%s" % "/".join(args)
+    def attach_ref(self, ref):
+        # This two-way binding is kind of nasty, but we want the
+        # refs to update every time we update the property here
+        # and that makes it easy to achieve
+        self._refs.append(ref)
+        return self
 
     @property
-    def ref(self):
-        return self._ref
+    def obj_id(self):
+        return self._obj_id
 
-    def _set_ref_data(self, **kwargs):
-        current_ref_name = self._ref
-        data = self.parse_ref(current_ref_name)
-        updated = any(key not in data or data[key] != value
-                      for key, value in kwargs.iteritems())
-
-        for key, value in data.iteritems():
-            if invalid_re.match(key):
-                raise ValueError(key)
-
-            if invalid_re.match(value):
-                raise ValueError(value)
-
-        if updated:
-            data.update(kwargs)
-            new_ref_name = self.construct_ref(**data)
-
-            for repo in self.repos:
-                ref = repo.refs.get(current_ref_name)
-                if ref:
-                    ref.rename(new_ref_name)
-            self._ref = new_ref_name
-        return ref
-
-    @classmethod
-    def commit_refs(cls, repo, filter_data, filter_func):
-        parts = [filter_data.get(key, "*") for key in cls.ref_format]
-        branch_filter = "sync/%s" % "/".join(parts)
-        sync_branches = repo.for_each_ref("--format", "%(objectname) %(refname:short)",
-                                          branch_filter)
-
-        commit_branches = {}
-        for line in sync_branches.split("\n"):
-            commit, branch = line.split(" ", 1)
-            if filter_func and not filter_func(branch):
-                continue
-            commit_branches[commit] = branch
-        return commit_branches
-
-
-class WptSyncProcess(VcsRefObject):
-    """Base class representing one of the sync processes.
-
-    All the data for each process is stored in the Git trees.
-    Each sync process is represented by a pair of refs, one in the gecko tree and
-    one in the wpt tree. These have the form:
-
-    refs/heads/sync/<type>/<status>/<data>
-
-    <type> is a subclass-specific process type
-    <status> is the current status of the sync process e.g. open, landed
-    <data> is additional data relevant to the sync. It will typically include
-           the gecko bug number and the upstream pr id, although these might not
-           both be known from the start, so this data is mutable
-
-    In general, in case of conflict the gecko repo data is considered canonical,
-    and it may always be necessary to reconstruct the wpt repo data.
-    """
-    sync_type = None
-    statuses = ("open")
-
-    # Environment variables that get filled in
-    config = None
-    gh_wpt = None
-    bz = None
-
-    def __init__(self, git_gecko, git_wpt, branch_name):
-        VcsRefObject.__init__([git_gecko, git_wpt], branch_name)
-        self.git_gecko = git_gecko
-        self.git_wpt = git_wpt
-
-        self._wpt_commits = None
-        self._gecko_commits = None
-
-        self._worktrees = {}
-
-    @property
-    def branch_name(self):
-        return self._ref
-
-    @property
-    def bug(self):
-        return self.parse_branch(self._ref).get("bug")
-
-    @bug.setter
-    def bug(self, value):
-        self._set_ref_data(bug=value)
-
-    @property
-    def pr(self):
-        return self.parse_branch(self._ref).get("pr")
-
-    @pr.setter
-    def pr(self, value):
-        self._set_ref_data(pr=value)
+    @obj_id.setter
+    def obj_id(self, value):
+        if self._obj_id != value:
+            self._obj_id = value
+            self._update_refs()
 
     @property
     def status(self):
-        return self.parse_branch(self._ref).get("status")
+        return self._status
 
     @status.setter
     def status(self, value):
-        self._set_ref_data(status=value)
+        if self._status != value:
+            self._status = value
+            self._update_refs()
+
+    def _update_refs(self):
+        for ref_obj in self._refs:
+            ref = ref_obj.ref
+            ref.rename(str(ref))
 
     @classmethod
-    def parse_branch(cls, name):
-        data = cls.parse_ref(name)
-        if data is None:
-            return
-        if not data.pop("type") == cls.sync_type:
+    def from_ref(cls, ref):
+        parts = ref.split("/")
+        if parts[0] == "refs":
+            parts = parts[2:]
+        if parts[0] != "sync":
             return None
-        if data["status"] not in cls.statuses:
-            raise ValueError("Invalid status %s" % data["status"])
-        details_data = data.pop("details")
-        details = {key: value for item in details_data.split("_")
-                   for (key, value) in item.split("-")}
-        if any(item in details for item in data.iterkeys()):
-            raise ValueError
-        data.update(details)
-        return data
+        return cls(*parts)
 
     @classmethod
-    def construct_branch_name(cls, status, data):
-        if status not in cls.statuses:
-            raise ValueError("Invalid status %s" % status)
-        data_str = "_".join("%s-%s" % (key, value) for key, value in sorted(data.items()))
-        return cls.construct_ref(cls.sync_type, status, data_str)
+    def commit_refs(cls, repo, obj_type, status="open", obj_id="*", seq_id=None):
+        branch_filter = "sync/%s/%s/%s" % (obj_type, status, obj_id)
+        if seq_id is not None:
+            branch_filter = "%s/%s" % (branch_filter, seq_id)
+        commits_refs = repo.for_each_ref("--format", "%(objectname) %(refname:short)",
+                                         branch_filter)
+
+        commit_refs = {}
+        for line in commits_refs.split("\n"):
+            commit, ref = line.split(" ", 1)
+            commit_refs[commit] = ref
+        return commit_refs
+
+
+class SyncPointName(object):
+    """Like a process name but for pointers that aren't associated with a
+    specific sync object, but with a general process"""
+    def __init__(self, obj_type, obj_id):
+        self._obj_type = obj_type
+        self._obj_id = obj_id
+        self._refs = []
+
+    def __str__(self):
+        return self.name(self._obj_type.
+                         self._obj_id)
+
+    @staticmethod
+    def name(obj_type, status, obj_id):
+        return "sync/%s/%s" % (obj_type.
+                               obj_id)
+
+
+class VcsRefObject(object):
+    ref_prefix = None
+
+    def __init__(self, repo, process_name, commit_cls=sync_commit.Commit):
+        self.repo = repo
+        self._process_name = process_name.attach_ref(self)
+
+    def __str__(self):
+        return "%s/%s" % (self.ref_prefix, str(self._process_name))
 
     @classmethod
-    def new(cls, git_gecko, git_wpt, bug=None, pr=None,
-            gecko_start_point=None, wpt_start_point=None,
-            status="open"):
-        if bug is None and pr is None:
-            raise ValueError("Must provide a bug number or a PR number")
-        if gecko_start_point is None and wpt_start_point is None:
-            raise ValueError("Must provide an initial commit in some repository")
-
-        data = {}
-        if bug is not None:
-            data["bug"] = bug
-        if pr is not None:
-            data["pr"] = pr
-        branch_name = cls.construct_branch_name(status, data)
-
-        return VcsRefObject.new([git_gecko, git_wpt],
-                                branch_name,
-                                [gecko_start_point, wpt_start_point])
+    def name(cls, obj_type, status, obj_id):
+        return "%s/%s" (cls.ref_prefix,
+                        ProcessName.name(obj_type, status, id))
 
     @property
-    def gecko_head(self):
-        return self._repo_head(self.git_gecko, sync_commit.GeckoCommit)
-
-    @gecko_head.setter
-    def gecko_head(self, value):
-        self.git_wpt.create_head(self.branch_name, ref=value, force=True)
-        worktree = self._worktrees.get("gecko")
-        if worktree:
-            worktree.head.reset(self.branch_name, working_tree=True)
-        self._gecko_commits = None
+    def ref(self):
+        return self.repo.refs.get(str(self))
 
     @property
-    def wpt_head(self):
-        return self._repo_head(self.git_wpt, sync_commit.WptCommit)
-
-    @wpt_head.setter
-    def wpt_head(self, value):
-        self.git_wpt.create_head(self.branch_name, ref=value, force=True)
-        worktree = self._worktrees.get("web-platform-tests")
-        if worktree:
-            worktree.head.reset(self.branch_name, working_tree=True)
-        self._wpt_commits = None
-
-    def _repo_head(self, repo, commit_cls=sync_commit.Commit):
-        if self.branch_name not in repo.branches:
-            return None
-        return commit_cls(repo, repo.Commit(self.branch_name).hexsha)
+    def commit(self):
+        ref = self.ref
+        if ref is not None:
+            commit = self.commit_cls(self.repo, ref.commit)
+        return commit
 
     @classmethod
-    def load(cls, git_gecko, git_wpt, status="open", **attrs):
-        # TODO: this should allow the repo to be set
-        def attr_filter(ref):
-            data = cls.parse_branch(ref)
-            for key, value in attrs.iteritems():
-                if key not in data or data[key] != value:
-                    continue
-
-        filter_func = attr_filter if attrs else None
-
+    def load_all(cls, repo, status="open", obj_id="*", seq_id=None,
+                 commit_cls=sync_commit.Commit):
         rv = []
-        for ref in cls.commit_refs(git_gecko, {"type": cls.sync_type,
-                                               "status": status,
-                                               "details": "*"}, filter_func).itervalues():
-            rv.append(cls(git_gecko, git_wpt, ref))
+        for ref_name in sorted(ProcessName.commit_refs(repo,
+                                                       status=status,
+                                                       obj_id=obj_id,
+                                                       seq_id=None).itervalues()):
+            rv.append(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
         return rv
 
-    def _worktree(self, repo):
-        if self._worktrees.get(repo) is None:
-            git = {"web-platform-tests": self.git_wpt,
-                   "gecko": self.git_gecko}
-            worktree_path = os.path.join(self.config["root"],
-                                         self.config["paths"]["worktrees"],
-                                         repo,
-                                         self.branch_name.rsplit("_", 1)[0])
-            if os.path.exists(worktree_path):
-                worktree = git.Repo(worktree_path)
-                worktree.index.reset(self.branch_name, working_tree=True)
-            else:
-                worktree = git.worktree("add",
-                                        os.path.abspath(worktree_path),
-                                        self.branch_name)
-            self._worktrees[repo] = worktree
-        assert self._worktrees[repo].active_branch == self.branch_name
-        return self._worktrees[repo]
 
-    def wpt_worktree(self):
-        return self._worktree("web-platform-tests")
-
-    def gecko_worktree(self):
-        return self._worktree("gecko")
-
-    def check_finished(self):
-        raise NotImplementedError
+class BranchRefObject(VcsRefObject):
+    ref_prefix = "heads"
 
     @classmethod
-    def gecko_integration_branch(cls):
-        cls.config["refs"]["mozilla-inbound"]
+    def create(cls, repo, ref, commit):
+        repo.create_head(ref, commit)
+
+
+class TagRefObject(VcsRefObject):
+    ref_prefix = "tags"
+
+    def __init__(self, repo, process_name, commit_cls=sync_commit.Commit):
+        VcsRefObject.__init__(repo, process_name, commit_cls=sync_commit.Commit)
+        self._data = None
+
+    @classmethod
+    def create(cls, repo, ref, commit, message="{}"):
+        repo.create_tag(ref, commit, message=message)
 
     @property
-    def gecko_base(self):
-        return sync_commit.GeckoCommit(self.git_gecko,
-                                       self.gecko_integration_branch())
+    def data(self):
+        if self._data is None:
+            self._data = ProcessData(self.ref.tag)
+        return self._data
+
+    def update_message(self, message):
+        assert self.ref is not None
+        commit = self.commit.sha1
+        self.repo.create_tag(str(self), commit, message=message, force=True)
+
+
+class ProcessData(object):
+    def __init__(self, tag_object):
+        self._tag = tag_object
+        self._data = self._load()
+
+    def _load(self):
+        tag = self._tag.ref
+        if tag:
+            data = tag.tag.message
+            return json.loads(data)
+        return {}
+
+    def _save(self):
+        message = json.dumps(self._data)
+        self._tag.update_message(message)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        if key not in self._data or self._data[key] != value:
+            self._data[key] = value
+            self._save()
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+
+class CommitFilter(object):
+    def path_filter(self):
+        return None
+
+    def filter_commit(self, commit):
+        return True
+
+    def filter_commits(self, commits):
+        return commits
+
+
+class CommitRange(object):
+    def __init__(self, repo, process_name, commit_cls, commit_filter=None):
+        self.repo = repo
+        self.base_ref = TagRefObject(repo,
+                                     process_name.sync_type,
+                                     process_name.status,
+                                     process_name.obj_id,
+                                     commit_cls=commit_cls)
+        self.head_ref = BranchRefObject(repo,
+                                        process_name.sync_type,
+                                        process_name.status,
+                                        process_name.obj_id,
+                                        commit_cls=commit_cls)
+        self.commit_cls = commit_cls
+
+        # Cache for the commits in this range
+        self._commits = None
+        self._head_sha = None
 
     @property
-    def wpt_base(self):
-        return sync_commit.WptCommit(self.git_wpt, "origin/master")
+    def base(self):
+        return self.base_ref.commit
 
-    def validate_wpt_commit(self):
-        return True, None
+    @base.setter
+    def base(self, commit):
+        self.head_ref.ref = commit.sha1
 
-    def validate_gecko_commit(self):
-        return True, None
+    @property
+    def head(self):
+        return self.head_ref.commit
 
-    def _load_commits(self, repo, cls, base, head, validate_function=None, reverse=False):
-        rv = []
-        if head is None or base is None:
-            return rv
+    @head.setter
+    def head(self, commit):
+        self.head_ref.ref = commit.sha1
 
-        for commit in repo.iter_commits("%s..%s" % (base.sha1, head.sha1), reverse=reverse):
-            c = cls(repo, commit)
-            valid, err = validate_function(c) if validate_function is not None else (True, None)
-            if valid:
-                rv.append(c)
+    def __getitem__(self, index):
+        return self.commits()[index]
+
+    def __iter__(self):
+        for item in self.commits():
+            yield item
+
+    def __len__(self):
+        return len(self.commits())
+
+    @property
+    def commits(self):
+        if self._head_sha and self.head.sha1 == self._head_sha and self._commits:
+            return self._commits
+        revish = "%s..%s" % (self.base.sha1, self.head.sha1)
+        commits = []
+        for commit in self.repo.iter_commits(revish,
+                                             reverse=True,
+                                             paths=self.commit_filter.path_filter()):
+            if not self.commit_filter.filter_commit(commit):
+                continue
+            commits.append(commit)
+        commits = self.commit_filter.filter_commits(commits)
+        self._commits = commits
+        self._head_sha = self.head.sha1
+        return self._commits
+
+
+class Worktree(object):
+    def __init__(self, repo, process_name):
+        self._worktree = None
+        self.process_name = process_name
+        self.path = os.path.join(env.config["root"],
+                                 env.config["paths"]["worktrees"],
+                                 os.path.basename(repo.working_dir),
+                                 process_name.obj_id)
+
+    def get(self):
+        if self._worktree is None:
+            if os.path.exists(self.path):
+                worktree = git.Repo(self.path)
+                worktree.index.reset(str(self.process_name), working_tree=True)
             else:
-                raise ValueError(err)
-            return rv
+                worktree = self.repo.git.worktree("add",
+                                                  os.path.abspath(self.path),
+                                                  str(self.process_name))
+            self._worktree = worktree
+        assert self._worktree.active_branch == str(self.process_name)
+        return self._worktree
 
-    def wpt_commits(self):
-        """Load the commits between two PRs into the database, along with their associated PRs
-        """
-        if self._wpt_commits is None:
-            self._wpt_commits = self._load_commits(self.git_wpt,
-                                                   sync_commit.WptCommit,
-                                                   self.wpt_base(),
-                                                   self.wpt_head,
-                                                   self.validate_wpt_commit,
-                                                   reverse=True)
-        return self._wpt_commits
+    def delete(self):
+        if os.path.exists(self.path):
+            try:
+                shutil.rmtree(self.path)
+            except Exception:
+                logger.warning("Failed to remove worktree %s:%s" %
+                               (self.path, traceback.format_exc()))
+            else:
+                logger.debug("Removed worktree %s" % (self.path,))
 
-    def gecko_commits(self):
-        """Load the commits between two PRs into the database, along with their associated PRs
-        """
-        if self._gecko_commits is None:
-            self._gecko_commits = self._load_commits(self.git_gecko,
-                                                     sync_commit.GeckoCommit,
-                                                     self.gecko_base(),
-                                                     self.gecko_head,
-                                                     self.validate_gecko_commit,
-                                                     reverse=True)
-        return self._gecko_commits
+
+class SyncProcess(object):
+    sync_type = "*"
+    obj_id = None  # Either "bug" or "pr"
+
+    gecko_integration_branch = env.config["gecko"]["refs"]["inbound"]
+
+    def __init__(self, git_gecko, git_wpt, process_name):
+        self.git_gecko = git_gecko
+        self.git_wpt = git_wpt
+
+        self._process_name = process_name
+
+        self.gecko_commits = CommitRange(git_gecko, self._process_name,
+                                         sync_commit.GeckoCommit,
+                                         commit_filter=self.gecko_commit_filter())
+        self.wpt_commits = CommitRange(git_wpt, self._process_name,
+                                       sync_commit.WptCommit,
+                                       commit_filter=self.wpt_commit_filter())
+
+        self.gecko_worktree = Worktree(git_gecko,
+                                       self._process_name)
+        self.wpt_worktree = Worktree(git_wpt,
+                                     self._process_name)
+
+        self._data = self.gecko_commits.base.data
+
+    def gecko_commit_filter(self):
+        return CommitFilter()
+
+    def wpt_commit_filter(self):
+        return CommitFilter()
+
+    @classmethod
+    def new(cls, git_gecko, git_wpt, gecko_base, gecko_head,
+            wpt_base="origin/master", wpt_head=None,
+            bug=None, pr=None, status="open"):
+        if cls.obj_id == "bug":
+            assert bug is not None
+            obj_id = bug
+        elif cls.obj_id == "pr":
+            assert pr is not None
+            obj_id = pr
+        else:
+            raise ValueError("Invalid cls.obj_id")
+
+        # This is pretty ugly
+        process_name = ProcessName(cls.sync_type, status, obj_id)
+        BranchRefObject.create(git_gecko, str(process_name), gecko_head)
+        TagRefObject.create(git_gecko, str(process_name), gecko_base)
+
+        if wpt_head:
+            BranchRefObject.create(git_wpt, str(process_name), wpt_head)
+        TagRefObject.create(git_wpt, str(process_name), wpt_base)
+
+        rv = cls(git_gecko, git_wpt, process_name)
+        if pr and not rv.pr:
+            rv.pr = pr
+        if bug and not rv.bug:
+            rv.bug = bug
+        return rv
+
+    @classmethod
+    def load(cls, git_gecko, git_wpt, branch_name):
+        parts = ProcessName.parse_ref(branch_name)
+        if not parts:
+            return None
+        return cls(git_gecko, git_wpt, parts[2:])
+
+    @classmethod
+    def commit_refs(cls, repo, status="open", obj_id="*"):
+        return ProcessName.commit_refs(repo,
+                                       cls.sync_type,
+                                       status,
+                                       obj_id)
+
+    @classmethod
+    def load_all(cls, git_gecko, git_wpt, status="open", obj_id="*"):
+        rv = []
+        for branch_name in cls.commit_refs(git_gecko,
+                                           status=status,
+                                           obj_id=obj_id).itervalues():
+            rv.append(cls.load(git_gecko, git_wpt, branch_name))
+        return rv
+
+    @property
+    def branch_name(self):
+        return str(self._process_name)
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def status(self):
+        return self._process_name.status
+
+    @status.setter
+    def status(self, value):
+        self._process_name.status = value
+
+    @property
+    def bug(self):
+        if self.obj_type == "bug":
+            return self.obj_id
+        else:
+            return self.data.get("bug")
+
+    @bug.setter
+    def bug(self, value):
+        if self.obj_id == "bug":
+            raise AttributeError("Can't set attribute")
+        self.data["bug"] = value
+
+    @property
+    def pr(self):
+        if self.obj_type == "pr":
+            return self.obj_id
+        else:
+            return self.data.get("pr")
+
+    @pr.setter
+    def pr(self, value):
+        if self.obj_id == "pr":
+            raise AttributeError("Can't set attribute")
+        self.data["pr"] = value
+
+    def gecko_rebase(self, new_base):
+        new_base = sync_commit.GeckoCommit(self.repo, new_base)
+        git_worktree = self.gecko_worktree.get()
+        git_worktree.git.rebase(new_base.sha1)
+        self.git_commits.base = new_base
