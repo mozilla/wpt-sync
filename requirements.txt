@@ -1,4 +1,4 @@
-git+https://github.com/gitpython-developers/GitPython.git#egg=gitpython
+GitPython>=2.1.7
 mercurial==4.2.2
 PyGithub==1.35
 SQLAlchemy==1.1.11

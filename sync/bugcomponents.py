@@ -6,9 +6,11 @@ from lib2to3 import pygram, pytree, patcomp
 from lib2to3.pgen2 import driver
 
 from . import log
+from env import Environment
 from .projectutil import Mach
 
 logger = log.get_logger(__name__)
+env = Environment()
 
 # Copied from mozpack.path
 re_cache = {}
@@ -116,11 +118,11 @@ def compute_moves(moves, unmatched_patterns):
     return updated_patterns
 
 
-def get(config, git_gecko, files_changed, default):
+def get(git_gecko, files_changed, default):
     if not files_changed:
         return default
 
-    path_prefix = config["gecko"]["path"]["wpt"]
+    path_prefix = env.config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in files_changed]
 
     mach = Mach(git_gecko.working_dir)

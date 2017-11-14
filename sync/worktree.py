@@ -6,7 +6,6 @@ import datetime
 import git
 
 import log
-from model import Landing, Status, SyncSubclass, UpstreamSync, DownstreamSync
 
 logger = log.get_logger("worktree")
 

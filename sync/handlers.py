@@ -6,8 +6,10 @@ import log
 import push
 import upstream
 import worktree
-from model import PullRequest, Sync, SyncDirection
 from gitutils import is_ancestor, pr_for_commit
+from env import Environment
+
+env = Environment()
 
 logger = log.get_logger("handlers")
 
@@ -26,24 +28,36 @@ def log_exceptions(f):
     return inner
 
 
-def get_sync(session, pr_id):
-    return session.query(Sync).filter(Sync.pr_id == pr_id).first()
+def get_pr_sync(git_gecko, git_wpt, pr_id):
+    sync = None
+    sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+    if not sync:
+        sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+    return sync
+
+
+def get_bug_sync(git_gecko, git_wpt, bug_number):
+    sync = None
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_number)
+    if not sync:
+        sync = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number)
+    return sync
 
 
 class Handler(object):
     def __init__(self, config):
         self.config = config
 
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
+    def __call__(self, git_gecko, git_wpt, body):
         raise NotImplementedError
 
 
-def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
-    pr_id = event['number']
-    sync = get_sync(session, pr_id)
+def handle_pr(git_gecko, git_wpt, event):
+    pr_id = event["number"]
 
-    gh_wpt.load_pull(event["pull_request"])
-    PullRequest.update_from_github(session, event["pull_request"])
+    env.gh_wpt.load_pull(event["pull_request"])
+
+    sync = get_pr_sync(git_gecko, git_wpt, pr_id)
 
     if not sync:
         # If we don't know about this sync then it's a new thing that we should
@@ -51,18 +65,12 @@ def handle_pr(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
         # TODO: maybe want to create a new sync here irrespective of the event
         # type because we missed some events.
         if event["action"] == "opened":
-            downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, event["payload"])
-    elif sync.direction == SyncDirection.upstream:
-        # This is a PR we created, so ignore it for now
-        pass
-    elif sync.direction == SyncDirection.downstream:
-        if event["action"] == "closed":
-            # TODO - close the related bug, cancel try runs, etc.
-            pass
-        # TODO It's a PR we already started to downstream, so update as appropriate
+            downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"])
+    else:
+        sync.update_status(event["action"], event["pull_request"]["merged"])
 
 
-def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
+def handle_status(git_gecko, git_wpt, event):
     if event["context"] == "upstream/gecko":
         # Never handle changes to our own status
         return
@@ -78,34 +86,23 @@ def handle_status(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
     else:
         logger.info("Got status for commit %s from PR %s" % (rev, pr_id))
 
-    sync = get_sync(session, pr_id)
+    sync = get_pr_sync(git_gecko, git_wpt, pr_id)
 
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
-        logger.info("Got a status update for PR %s which is unknown to us" % pr_id)
-        pr_data = gh_wpt.get_pull(pr_id)
-        sync = downstream.new_wpt_pr(config, session, git_gecko, git_wpt, bz, pr_data.raw_data)
+        # TODO: Handle this case
+        logger.error("Got a status update for PR %s which is unknown to us" % pr_id)
 
-    if sync.direction == SyncDirection.upstream:
-        upstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["status"],
-                                event["url"], event["sha"])
-    elif sync.direction == SyncDirection.downstream:
-        downstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["status"],
-                                  event["url"], event["sha"])
-
-
-def handle_pr_merge():
-    # prepare to land downstream
-    pass
+    if isinstance(sync, upstream.UpstreamSync):
+        upstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
+                                event["target_url"], event["sha"])
+    elif isinstance(sync, downstream.DownstreamSync):
+        downstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
+                                  event["target_url"], event["sha"])
 
 
-def handle_pr_approved():
-    # prepare to land downstream
-    pass
-
-
-def handle_push(config, session, git_gecko, git_wpt, gh_wpt, bz, event):
-    push.wpt_push(session, git_wpt, gh_wpt, [item["id"] for item in event["commits"]])
+def handle_push(git_gecko, git_wpt, event):
+    push.wpt_push(git_wpt, [item["sha"] for item in event["commits"]])
 
 
 class GitHubHandler(Handler):
@@ -115,10 +112,10 @@ class GitHubHandler(Handler):
         "push": handle_push,
     }
 
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
+    def __call__(self, git_gecko, git_wpt, body):
         handler = self.dispatch_event[body["event"]]
         if handler:
-            return handler(self.config, session, git_gecko, git_wpt, gh_wpt, bz, body["payload"])
+            return handler(git_gecko, git_wpt, body["payload"])
         # TODO: other events to check if we can merge a PR
         # because of some update
 
@@ -133,20 +130,16 @@ class PushHandler(Handler):
             self.integration_repos[url] = repo_name
         self.landing_repo = config["sync"]["landing"]
 
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
+    def __call__(self, git_gecko, git_wpt, body):
         data = body["payload"]["data"]
         repo_url = data["repo_url"]
         # Not sure if it's everey possible to get multiple heads here in a way that
         # matters for us
         rev = data["heads"][0]
         logger.debug("Commit landed in repo %s" % repo_url)
-        if repo_url in self.integration_repos or repo_url == self.landing_repo:
-            if repo_url in self.integration_repos:
-                repo_name = self.integration_repos[repo_url]
-                upstream.integration_commit(self.config, session, git_gecko, git_wpt, gh_wpt,
-                                            bz, rev, repo_name)
-            elif repo_url == self.landing_repo:
-                upstream.landing_commit(self.config, session, git_gecko, git_wpt, gh_wpt, bz, rev)
+        if repo_url in self.repos:
+            repo_name = self.integration_repos[repo_url]
+            upstream.integration_commit(git_gecko, git_wpt, repo_name, rev)
 
 
 class TaskHandler(Handler):

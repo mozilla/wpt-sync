@@ -5,8 +5,7 @@ services:
     build: .
     volumes:
      - .:/home/wptsync/wpt-sync
-     - /home/james/develop/gecko:/home/wptsync/gecko
-     - /home/james/develop/gecko-hg:/home/wptsync/gecko-hg
+     - ./ssh:/home/wptsync/.ssh
     environment:
      - PYTHONPATH=/wpt-sync
     command: wptsync listen

@@ -1,16 +1,16 @@
 import os
 import re
-import subprocess
 
 import git
-import settings
 from mozautomation import commitparser
 
+import log
 from env import Environment
 from pipeline import AbortError
 
 
 env = Environment()
+logger = log.get_logger(__name__)
 
 METADATA_RE = re.compile("([^\:]*): (.*)")
 
@@ -23,23 +23,28 @@ class ApplyError(Exception):
     pass
 
 
+def get_metadata(text):
+    data = {}
+    for line in reversed(text.splitlines()):
+        if line:
+            m = METADATA_RE.match(line)
+            if m:
+                key, value = m.groups()
+                data[key] = value
+    return data
+
+
 class GitNotes(object):
     def __init__(self, commit):
         self._data = self._read()
 
-    def _read():
-        data = {}
+    def _read(self):
         try:
-            items = self.commit.repo.git("notes", "show", self.commit.sha1)
+            text = self.commit.repo.git("notes", "show", self.commit.sha1)
         except git.GitCommandError:
-            return data
+            return {}
+        data = get_metadata(text)
 
-        for line in items.splitlines():
-            if line:
-                m = METADATA_RE.match(line)
-                if m:
-                    key, value = m.groups()
-                    data[key] = value
         return data
 
     def __getitem__(self, key):
@@ -64,11 +69,22 @@ class Commit(object):
         elif isinstance(commit, git.Commit):
             _commit = commit
         else:
-            _commit = self.repo.commit(_commit)
+            _commit = repo.commit(commit)
         self.repo = repo
         self.commit = _commit
         self.sha1 = self.commit.hexsha
         self._notes = None
+
+    def __eq__(self, other):
+        if hasattr(other, "sha1"):
+            return self.sha1 == other.sha1
+        elif hasattr(other, "hexsha"):
+            return self.sha1 == other.hexsha
+        else:
+            return self.sha1 == other
+
+    def __ne__(self, other):
+        return not self == other
 
     @property
     def notes(self):
@@ -88,16 +104,7 @@ class Commit(object):
 
     @property
     def metadata(self):
-        lines = self.msg.split("\n")
-        metadata = {}
-        for line in reversed(lines):
-            if not line.strip():
-                break
-            m = METADATA_RE.match(line)
-            if m:
-                key, value = m.groups()
-                metadata[key] = value
-        return metadata
+        return get_metadata(self.msg)
 
     @classmethod
     def create(cls, repo, msg, metadata):
@@ -174,10 +181,10 @@ class GeckoCommit(Commit):
         if len(bugs) > 1:
             logger.warning("Got multiple bugs for commit %s: %s" %
                            (self.canonical_rev,  ", ".join(bugs)))
-        return bugs[0]
+        return str(bugs[0])
 
     def has_wpt_changes(self):
-        prefix = settings._config["gecko"]["path"]["wpt"]
+        prefix = env.config["gecko"]["path"]["wpt"]
         return not self.is_empty(path=prefix)
 
     @property

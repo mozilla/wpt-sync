@@ -17,12 +17,12 @@ else:
 
 
 def read_ini(path):
-    print "Loading config from path %s" % path
+    print("Loading config from path %s" % path)
     parser = RawConfigParser()
     # make option names case sensitive
     parser.optionxform = str
     loaded = parser.read(path)
-    if not path in loaded:
+    if path not in loaded:
         raise ValueError("Failed to load ini file %s" % path)
     return parser
 
@@ -38,7 +38,8 @@ def load():
 
 
 def load_files(ini_sync, ini_credentials):
-    nested = lambda: defaultdict(nested)
+    def nested():
+        return defaultdict(nested)
 
     config = nested()
     config["root"] = root
@@ -86,14 +87,3 @@ def set_value(config, section, name, value, ini_credentials):
         except ValueError:
             pass
     target[parts[-1]] = value
-
-
-def main():
-    config = load()
-    model.configure(config)
-    model.create()
-    return config
-
-
-if __name__ == "__main__":
-    print main()

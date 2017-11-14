@@ -193,7 +193,8 @@ class Filter(object):
 
     def __call__(self, body):
         if self.accept(body):
-            self.task.apply_async((self.name, body))
+            pass
+            # self.task.apply_async((self.name, body))
 
     def accept(self, body):
         raise NotImplementedError

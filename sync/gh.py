@@ -5,9 +5,10 @@ import sys
 
 import github
 import log
-
+from env import Environment
 
 logger = log.get_logger(__name__)
+env = Environment()
 
 
 class GitHub(object):
@@ -123,6 +124,15 @@ class GitHub(object):
 
         return prs[0]
 
+    def get_pulls(self, minimum_id=None):
+        for item in self.repo.get_pulls():
+            if minimum_id and item["number"] < minimum_id:
+                break
+            yield item
+
+    def get_commits(self, pr_id):
+        return list(self.get_pull(pr_id).commits)
+
 
 class AttrDict(dict):
     def __getattr__(self, name):
@@ -216,7 +226,7 @@ class MockGitHub(GitHub):
         for item in pr._commits[0]._statuses:
             status_by_context[item.context] = item.status
         return (pr.mergeable and
-                all(item== "success" for item in
+                all(item == "success" for item in
                     status_by_context.itervalues()) and
                 pr.approved)
 
@@ -235,3 +245,8 @@ class MockGitHub(GitHub):
 
     def pr_for_commit(self, sha):
         return self.commit_prs.get(sha)
+
+    def get_pulls(self, minimum_id=None):
+        for number in self.prs:
+            if minimum_id and number >= minimum_id:
+                yield self.get_pull(number)

@@ -5,19 +5,19 @@ import log
 logger = log.get_logger(__name__)
 
 
-def update_repositories(git_gecko, git_wpt, repository_name=None):
+def update_repositories(git_gecko, git_wpt, include_autoland=False):
     logger.info("Fetching mozilla-unified")
     # Not using the built in fetch() function since that tries to parse the output
     # and sometimes fails
-    git_gecko.git.fetch("mozilla")
+    git_gecko.remotes.mozilla.fetch()
     logger.info("Fetch done")
 
-    if repository_name == "autoland":
+    if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
         logger.info("Fetch autoland")
-        git_gecko.git.fetch("autoland")
+        git_gecko.remotes.autoland.fetch*()
         logger.info("Fetch done")
 
-    git_wpt.git.fetch("origin")
+    git_wpt.remotes.origin.fetch()
 
 
 def is_ancestor(git_obj, rev, branch):
@@ -40,10 +40,7 @@ def refs(git, prefix=None):
 
 
 def pr_for_commit(git_wpt, rev):
-    #TODO: Work out how to add these to the config when we set up the repo
     prefix = "refs/remotes/origin/pr/"
-    git_wpt.remotes.origin.fetch("+refs/pull/*/head:%s*" % prefix)
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
         return pr_refs[rev][len(prefix):]
-

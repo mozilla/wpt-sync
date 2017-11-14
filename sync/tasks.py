@@ -1,12 +1,12 @@
 import bug
+import env
 import gh
 import handlers
 import log
-import model
 import repos
-from model import session_scope
-import settings
+from settings import configure
 from worker import worker
+
 
 logger = log.get_logger(__name__)
 
@@ -28,9 +28,6 @@ def get_handlers(config):
 
 @settings.configure
 def setup(config):
-    model.configure(config)
-    session = model.session(expire_on_commit=False)
-
     gecko_repo = repos.Gecko(config)
     git_gecko = gecko_repo.repo()
     wpt_repo = repos.WebPlatformTests(config)
@@ -40,7 +37,8 @@ def setup(config):
 
     bz = bug.MockBugzilla(config)
 
-    return session, git_gecko, git_wpt, gh_wpt, bz
+    env.set_env(config, bz, gh_wpt)
+    return git_gecko, git_wpt
 
 
 def try_task(f):
@@ -61,9 +59,9 @@ def handle(task, body):
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
-        session, git_gecko, git_wpt, gh_wpt, bz = setup()
+        git_gecko, git_wpt = setup()
         try:
-            handlers[task](session, git_gecko, git_wpt, gh_wpt, bz, body)
+            handlers[task](git_gecko, git_wpt, body)
         except Exception:
             logger.error(body)
             raise
@@ -75,13 +73,13 @@ def handle(task, body):
 @try_task
 @settings.configure
 def land(config):
-    session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    handlers.LandingHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
+    git_gecko, git_wpt = setup()
+    handlers.LandingHandler(config)(git_gecko, git_wpt)
 
 
 @worker.task
 @try_task
 @settings.configure
 def cleanup(config):
-    session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    handlers.CleanupHandler(config)(session, git_gecko, git_wpt, gh_wpt, bz)
+    git_gecko, git_wpt = setup()
+    handlers.CleanupHandler(config)(git_gecko, git_wpt)

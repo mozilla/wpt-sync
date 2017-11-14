@@ -1,14 +1,11 @@
 import re
-import sys
 import time
 import traceback
 
-import git
 from mozautomation import commitparser
 
 import base
 import log
-import settings
 import commit as sync_commit
 from gitutils import update_repositories
 from pipeline import AbortError
@@ -25,7 +22,7 @@ class BackoutCommitFilter(base.CommitFilter):
         self.seen = set()
 
     def filter_commit(self, commit):
-        if commit.bug == self.bug_id:
+        if commit.bug == self.bug:
             self.seen.add(commit.canonical_rev)
             return True
         elif commit.is_backout:
@@ -39,14 +36,19 @@ class BackoutCommitFilter(base.CommitFilter):
         return remove_complete_backouts(commits)
 
 
-class WptUpstreamSync(base.WptSyncProcess):
+class UpstreamSync(base.SyncProcess):
     sync_type = "upstream"
     obj_id = "bug"
-    statuses = ("open", "merged", "landed")
+    statuses = ("open", "merged", "landed", "closed")
+
+    def __init__(self, *args, **kwargs):
+        super(UpstreamSync, self).__init__(*args, **kwargs)
+
+        self._upstreamed_gecko_commits = None
 
     @classmethod
     def load(cls, git_gecko, git_wpt, branch_name):
-        sync = base.WptSyncProcess.load(cls, git_gecko, git_wpt, branch_name)
+        sync = super(UpstreamSync, cls).load(git_gecko, git_wpt, branch_name)
         sync.update_wpt_refs()
         return sync
 
@@ -64,6 +66,80 @@ class WptUpstreamSync(base.WptSyncProcess):
                 syncs = status_syncs
                 break
         return syncs[0]
+
+    @classmethod
+    def for_pr(cls, git_gecko, git_wpt, pr_id):
+        for status in ["open", "merged", "landed"]:
+            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
+            if len(syncs) == 0:
+                return None
+
+            for sync in syncs:
+                if sync.pr == pr_id:
+                    return sync
+
+    @classmethod
+    def from_pr(cls, git_gecko, git_wpt, pr_id, body):
+        required_keys = ["gecko-commit",
+                         "gecko-integration-branch",
+                         "bugzilla-url"]
+        gecko_commits = []
+        bug = None
+        integration_branch = None
+
+        # First check the pr body, since that doesn't require any extra network traffic
+        if not all(required_keys) in sync_commit.get_metadata(body):
+            return None
+
+        commits = env.gh_wpt.get_commits(pr_id)
+
+        for gh_commit in commits:
+            commit = sync_commit.WptCommit(git_wpt, gh_commit.sha)
+            if all(required_keys) in commit.metadata:
+                gecko_commits.append(git_gecko.cinnabar.hg2git(commit.metadata["gecko-commit"]))
+                commit_bug = env.bz.id_from_url(commit.metadata["bugzilla-url"])
+                if bug is not None and commit_bug != bug:
+                    logger.error("Got multiple bug numbers in URL from commits")
+                    break
+                elif bug is None:
+                    bug = commit_bug
+
+                if (integration_branch is not None and
+                    commit.metadata["integration_branch"] != integration_branch):
+                    logger.warning("Got multiple integration branches from commits")
+                elif integration_branch is None:
+                    integration_branch = commit.metadata["integration_branch"]
+            else:
+                break
+
+        if not gecko_commits:
+            return None
+
+        assert bug
+        gecko_base = git_gecko.rev_parse("%s^" % gecko_commits[0])
+        gecko_head = git_gecko.rev_parse(gecko_commits[-1])
+        wpt_head = commits[-1].sha
+        wpt_base = commits[0].sha
+
+        return cls.new(git_gecko, git_wpt, gecko_base, gecko_head,
+                       wpt_base, wpt_head, bug. pr_id)
+
+    def update_status(self, action, merged=None):
+        """Update the sync status for a PR event on github
+
+        :param action string: Either a PR action or a PR status
+        :param merged boolean: True if the PR merged or False if it didn't
+        """
+        if action == "closed":
+            if not merged:
+                env.bz.comment(self.bug, "Upstream PR was closed without merging")
+                self.status = "closed"
+            else:
+                self.status = "landed"
+                env.bz.comment(self.bug, "Upstream PR merged")
+        elif action == "reopened" or action == "open":
+            status = "merged" if self.gecko_landed() else "open"
+            self.status = status
 
     def gecko_commit_filter(self):
         return BackoutCommitFilter(self.bug)
@@ -87,18 +163,31 @@ class WptUpstreamSync(base.WptSyncProcess):
     def last_sync_point(cls, git_gecko, repository_name):
         name = base.SyncPointName(cls.sync_type,
                                   repository_name)
-        return base.BranchRefObject(git_gecko, name,
-                                    sync_commit.GeckoCommit)
+        return base.BranchRefObject(git_gecko,
+                                    name,
+                                    commit_cls=sync_commit.GeckoCommit)
 
     @property
     def bug(self):
         return self._process_name.obj_id
 
+    @property
+    def pr(self):
+        return self.data.get("pr")
+
+    @pr.setter
+    def pr(self, value):
+        self.data["pr"] = value
+
     def remote_branch(self, create=False):
         local_branch = self.branch_name
-        remote = self.git_wpt.rev_parse("%s@{upstream}" % local_branch,
-                                        abbrev_ref=True,
-                                        with_exceptions=False)
+
+        if local_branch not in self.git_wpt.refs:
+            return None, False
+
+        remote = self.git_wpt.git.rev_parse("%s@{upstream}" % local_branch,
+                                            abbrev_ref=True,
+                                            with_exceptions=False)
         if remote:
             return remote, True
 
@@ -106,47 +195,42 @@ class WptUpstreamSync(base.WptSyncProcess):
             return None, False
 
         count = 0
-        remote_refs = self.git_wpt.remotes("origin").refs
+        remote_refs = self.git_wpt.remotes.origin.refs
         name = local_branch
         while name in remote_refs:
             count += 1
             name = "%s_%s" % (local_branch, count)
-
+        self.git_gecko.refs[local_branch].set_tracking_branch(name)
         return name, False
 
+    @property
     def upstreamed_gecko_commits(self):
         if self._upstreamed_gecko_commits is None:
             self._upstreamed_gecko_commits = [
                 sync_commit.GeckoCommit(self.git_gecko,
-                                        self.git_gecko.cinnbar.hg2git(
+                                        self.git_gecko.cinnabar.hg2git(
                                             wpt_commit.metadata["gecko-commit"]))
                 for wpt_commit in self.wpt_commits]
         return self._upstreamed_gecko_commits
 
     def update_wpt_commits(self):
-        for i, (gecko_commit, upstream_commit) in enumerate(
-                zip(self.gecko_commits, self.upstreamed_gecko_commits)):
-            if upstream_commit.metadata.get("gecko-commit") != gecko_commit.canonical_rev:
+        matching_commits = []
+        for gecko_commit, upstream_commit in zip(self.gecko_commits, self.upstreamed_gecko_commits):
+            if upstream_commit != gecko_commit:
                 break
+            else:
+                matching_commits.append(upstream_commit)
 
-        if i + 1 == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
+        if len(matching_commits) == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
             return False
 
-        if i < len(self.upstreamed_gecko_commits) - 1:
-            self.wpt_commits.head = self.upstreamed_gecko_commits[i]
+        if len(matching_commits) < len(self.upstreamed_gecko_commits):
+            self.wpt_commits.head = matching_commits[-1]
 
-        for commit in self.gecko_commits[i:]:
+        for commit in self.gecko_commits[len(matching_commits):]:
             self.add_commit(commit)
 
         return True
-
-    @property
-    def pr(self):
-        return self.data["pr"]
-
-    @pr.setter
-    def pr(self, value):
-        self.data["pr"] = value
 
     def gecko_landed(self):
         if not len(self.gecko_commits):
@@ -158,18 +242,24 @@ class WptUpstreamSync(base.WptSyncProcess):
                              self.branch)
         return landed[0]
 
-    def commits_missing(self):
-        try:
-            self.git_gecko.rev_parse(commit.metadata["gecko-commit"])
-        except git.exc.BadName:
-            return True
-        return False
+    @property
+    def repository(self):
+        # Need to check central before landing repos
+        repos = ([("central", env.config["gecko"]["refs"]["central"])] +
+                 [(name, ref) for name, ref in env.config["gecko"]["refs"].iteritems()
+                  if name != "central"])
+        for name, ref in repos:
+            if ref not in self.git_gecko.refs:
+                continue
+            if self.git_gecko.is_ancestor(self.gecko_commits.head.sha1, ref):
+                return name
+        raise ValueError("Commit not part of any repository")
 
     def add_commit(self, gecko_commit):
         git_work = self.wpt_worktree.get()
 
         metadata = {"gecko-commit": gecko_commit.canonical_rev,
-                    "gecko-integration-branch": self.repository.name}
+                    "gecko-integration-branch": self.repository}
 
         wpt_commit = gecko_commit.move(git_work,
                                        metadata=metadata,
@@ -195,21 +285,21 @@ class WptUpstreamSync(base.WptSyncProcess):
         self.pr = pr_id
         # TODO: add label to bug
         env.bz.comment(self.bug,
-                        "Created web-platform-tests PR %s for changes under testing/web-platform/tests" %
-                        env.gh_wpt.pr_url(pr_id))
+                       "Created web-platform-tests PR %s for changes under "
+                       "testing/web-platform/tests" %
+                       env.gh_wpt.pr_url(pr_id))
         return pr_id
 
     def push_commits(self):
         remote_branch, _ = self.remote_branch(create=True)
         logger.info("Pushing commits from bug %s to branch %s" % (self.bug, remote_branch))
-        self.git_wpt.remotes["origin"].push("%s:%s" % (self.branch_name, remote_branch),
-                                            force=True,
-                                            set_upstream=True)
+        self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
+                                         force=True)
         landed_status = "success" if self.gecko_landed() else "failure"
         # TODO - Maybe ignore errors setting the status
         env.gh_wpt.set_status(self.pr,
                               landed_status,
-                              target_url=env.bz.bug_url(self.bug),
+                              target_url=env.bz.bugzilla_url(self.bug),
                               description="Landed on mozilla-central",
                               context="upstream/gecko")
 
@@ -413,11 +503,13 @@ def create_syncs(git_gecko, git_wpt, create_endpoints):
                                  "",
                                  "Testing",
                                  "web-platform-tests")
-            sync = WptUpstreamSync.new(git_gecko,
-                                       git_wpt,
-                                       bug=bug,
-                                       gecko_base=endpoint.base,
-                                       gecko_head=endpoint.head)
+            sync = UpstreamSync.new(git_gecko,
+                                    git_wpt,
+                                    bug=bug,
+                                    gecko_base=endpoint.base,
+                                    gecko_head=endpoint.head,
+                                    wpt_base="origin/master",
+                                    wpt_head="origin/master")
             rv.append(sync)
     return rv
 
@@ -433,56 +525,62 @@ def update_sync_heads(syncs_by_bug, heads_by_bug):
 
 # Entry point
 def push(git_gecko, git_wpt, repository_name, rev):
-    update_repositories(git_gecko, git_wpt, repository_name)
+    update_repositories(git_gecko, git_wpt, repository_name == "autoland")
 
     pushed_syncs = set()
     landed_syncs = set()
     failed_syncs = set()
 
-    last_sync_point = WptUpstreamSync.last_sync_point(git_gecko, repository_name)
+    last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
     if last_sync_point.commit is None:
         # If we are just starting, default to the current HEAD
         logger.info("No existing sync point for %s found, using the latest HEAD")
-        last_sync_point.create(rev)
+        last_sync_point.commit = rev
 
-    wpt_syncs = WptUpstreamSync.load_all(git_gecko, git_wpt)
+    wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
 
     syncs_by_bug = {item.bug: item for item in wpt_syncs}
 
-    create_endpoints, update_syncs = updated_syncs_for_push(git_gecko,
-                                                            git_wpt,
-                                                            repository_name,
-                                                            last_sync_point,
-                                                            rev,
-                                                            syncs_by_bug)
+    updated = updated_syncs_for_push(git_gecko,
+                                     git_wpt,
+                                     last_sync_point.commit,
+                                     sync_commit.GeckoCommit(git_gecko, rev),
+                                     syncs_by_bug)
+    if updated is None:
+        return
 
-    to_push = create_syncs(create_endpoints)
+    create_endpoints, update_syncs = updated
+
+    to_push = create_syncs(git_gecko, git_wpt, create_endpoints)
     to_push.extend(update_sync_heads(syncs_by_bug, update_syncs))
 
     for sync in to_push:
-        updated = sync.update_wpt_commits()
-        if updated:
-            try:
-                sync.update_github()
-            except Exception:
-                failed_syncs.add(sync)
-            else:
-                pushed_syncs.add(sync)
+        sync.update_wpt_commits()
+        try:
+            sync.update_github()
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(e)
+            import pdb
+            pdb.post_mortem()
+            failed_syncs.add(sync)
+        else:
+            pushed_syncs.add(sync)
 
     # TODO: check this name
-    if git_wpt.is_ancestor(rev, env.config["gecko"]["refs"]["central"]):
+    if git_gecko.is_ancestor(rev, env.config["gecko"]["refs"]["central"]):
         for sync in wpt_syncs:
             if sync not in failed_syncs:
                 if sync.try_land_pr():
                     landed_syncs.add(sync)
 
-    last_sync_point = rev
+    last_sync_point.commit = rev
 
     return pushed_syncs, landed_syncs, failed_syncs
 
 
 # Entry point
-def status_changed(git_gecko, sync, context, status, url):
+def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     landed = False
     if status == "pending":
         # Never change anything for pending
@@ -499,26 +597,3 @@ def status_changed(git_gecko, sync, context, status, url):
                        "This will block the upstream PR from merging. "
                        "See %s for more information" % (status, context, url))
     return landed
-
-
-@settings.configure
-def main(config):
-    from tasks import setup
-    session, git_gecko, git_wpt, gh_wpt, bz = setup()
-    try:
-        repo_name = sys.argv[1]
-        if repo_name in ("mozilla-inbound", "autoland"):
-            integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz, repo_name)
-        elif repo_name == "central":
-            landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz)
-        else:
-            print >> sys.stderr, "Unrecognised repo %s" % repo_name
-    except Exception:
-        traceback.print_exc()
-        if "--no-debug" not in sys.argv:
-            import pdb
-            pdb.post_mortem()
-
-
-if __name__ == "__main__":
-    main()

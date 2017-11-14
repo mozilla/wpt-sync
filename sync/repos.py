@@ -61,7 +61,6 @@ class GitSettings(object):
                                             "true")
 
 
-
 class Gecko(GitSettings):
     name = "gecko"
     cinnabar = True
@@ -98,45 +97,3 @@ class Cinnabar(object):
 
     def fsck(self):
         self.git.cinnabar("fsck")
-
-
-def update(config, session, git_gecko, git_wpt, repo_name, hg_rev):
-    repository, _ = model.get_or_create(session, model.Repository, name=repo_name)
-
-    logger.info("Fetching mozilla-unified")
-    # Not using the built in fetch() function since that tries to parse the output
-    # and sometimes fails
-    git_gecko.git.fetch("mozilla")
-    logger.info("Fetch done")
-
-    if repository.name == "autoland":
-        logger.info("Fetch autoland")
-        git_gecko.git.fetch("autoland")
-        logger.info("Fetch done")
-
-    git_wpt.git.fetch("origin")
-
-    return repository, git_gecko.cinnabar.hg2git(hg_rev)
-
-
-@settings.configure
-def configure(config):
-    for repo in [WebPlatformTests, Gecko]:
-        repo = repo(config)
-        repo.configure()
-        repo.repo()
-
-
-wrappers = {
-    "gecko": Gecko,
-    "web-platform-tests": WebPlatformTests,
-}
-
-if __name__ == "__main__":
-    import pdb
-    import traceback
-    try:
-        configure()
-    except Exception:
-        traceback.print_exc()
-        pdb.post_mortem()
