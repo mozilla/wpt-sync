@@ -62,6 +62,75 @@ a local directory mounted under `/home/wpt/sync/` in the
 container. The `docker-compose.yml` file must be edited to mount a
 clone of mozilla-inbound at this path from the local filesystem.
 
+# Deployment
+
+The deployment steps are configured in an ansible role in `ansible/roles/wptsync`. The entry point is the playbook `ansible/wptsync-deploy`. It assumes the services are being deployed to a minimal Centos 7 system.
+
+In the near future, we want to [handle credentials differently](http://mozilla-version-control-tools.readthedocs.io/en/latest/vcssync/servo.html#provisioning-a-new-instance) 
+(with ansible vault), but to test the deployment locally you can fill in the ini files in
+`ansible/roles/wptsync/templates/`. Other configuration of interest is in
+`ansible/roles/wptsync/defaults/main.yml`. 
+
+You will also need to specify which host(s) to deploy to in `ansible/hosts`
+under `[wptsync]`
+
+## Running the playbook
+
+If you're working in an __hg clone__ of version-control-tools:
+
+*   Create venv in repo root. This installs ansible, among other things.
+    You may need to temporarily remove 
+    git-cinnabar from your PATH for this to work because of a name clash
+    with "configure".
+
+    ```
+    ./create-deploy-environment
+    ```
+
+*   Activate the venv
+
+    ```
+    source venv/bin/activate
+    ```
+
+
+*   Run the ansible playbook (ansible/wptsync-deploy.yml)
+    ```
+    ./deploy wptsync
+    ```
+
+If you're in a __git clone__ of version-control-tools:
+
+*   Create venv in repo root. 
+    You may need to temporarily remove 
+    git-cinnabar from your PATH for this to work because of a name clash
+    with "configure".
+
+    ```
+    ./create-deploy-environment
+    ```
+
+*   Activate the venv
+    ```
+    source venv/bin/activate
+    ```
+
+* Set the `vct` variable in `ansible/group_vars/all` to be the path to your repo root
+
+* Run `ansible-playbook -i ansible/hosts -f 20 ansible/wptsync-deploy.yml -vvv`
+
+## Checking the services
+
+The ansible playbook starts a few systemd units grouped together under
+`wptsync.target` and `wptcelery.target`, as well as the rabbitmq-server. 
+Some useful commands to examine the services on the host:
+
+* `systemctl stop|start wptsync.target` 
+* `systemctl listunits | grep wpt`
+* `journalctl -u wptsync-pulse-monitor.service`
+* `systemctl status wptsync-celery-beat.service -l`
+
+There are also log files to look at: `/home/wptsync/*.log`
 
 # Implementation strategy
 
