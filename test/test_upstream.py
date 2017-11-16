@@ -6,7 +6,7 @@ from sync import model, upstream, pipeline
 
 pipeline.raise_early = True
 
-def test_create_pr_integration(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):
+def test_create_pr_integration(env, hg_gecko_upstream, git_gecko, git_wpt):
     path = os.path.join(hg_gecko_upstream.working_tree, config["gecko"]["path"]["wpt"], "README")
     with open(path, "w") as f:
         f.write("Example change\n")

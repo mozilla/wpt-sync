@@ -2,7 +2,7 @@
 FROM ubuntu
 
 RUN apt-get update && \
-    apt-get install -y libcurl3 git python python-pip python-requests
+    apt-get install -y libcurl3 git python python-pip python-requests emacs24-nox
 
 RUN useradd -ms /bin/bash wptsync
 

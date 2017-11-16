@@ -9,7 +9,8 @@ import pytest
 
 from file import create_file_data
 
-from sync import settings
+from sync import repos, settings
+from sync.env import Environment, set_env
 
 here = os.path.dirname(os.path.abspath(__file__))
 
@@ -27,26 +28,29 @@ def cleanup(config):
 
 
 @pytest.fixture(scope="function")
-def config():
-    global bug, gh, model, repos, worktree
+def env():
     settings.root = root
     ini_sync = settings.read_ini(os.path.abspath(os.path.join(here, "test.ini")))
     ini_credentials = None
     config = settings.load_files(ini_sync, ini_credentials)
     cleanup(config)
     settings._config = config
-    from sync import bug, gh, model, repos, worktree
-    return config
+
+    from sync import bug, gh
+
+    gh_wpt = gh.MockGitHub()
+    gh_wpt.output = StringIO()
+
+    bz = bug.MockBugzilla(config)
+    bz.output = StringIO()
+
+    set_env(config, bz, gh_wpt)
+
+    return Environment()
+
 
 #Ensure that configuration is loaded
-config()
-
-
-@pytest.fixture(scope="function")
-def session(config):
-    model.configure(config, in_memory=True, recreate=True)
-    yield model.session()
-    model.drop()
+env()
 
 
 @pytest.fixture
@@ -62,6 +66,7 @@ def pr_content():
     ]
     return branches_commits
 
+
 class hg(object):
     def __init__(self, path):
         self.working_tree = path
@@ -76,8 +81,8 @@ class hg(object):
 
 
 @pytest.fixture(scope="function")
-def hg_gecko_upstream(config, initial_repo_content):
-    repo_dir = os.path.join(config["root"], config["sync"]["landing"])
+def hg_gecko_upstream(env, initial_repo_content):
+    repo_dir = os.path.join(env.config["root"], env.config["sync"]["landing"])
     sync_dir = os.path.join(repo_dir, config["gecko"]["path"]["wpt"])
     meta_dir = os.path.join(repo_dir, config["gecko"]["path"]["meta"])
 
@@ -105,8 +110,8 @@ def hg_gecko_upstream(config, initial_repo_content):
 
 
 @pytest.fixture(scope="function")
-def git_wpt_upstream(config, session, initial_repo_content, pr_content):
-    repo_dir = config["web-platform-tests"]["path"]
+def git_wpt_upstream(initial_repo_content, pr_content):
+    repo_dir = env.config["web-platform-tests"]["path"]
     os.makedirs(repo_dir)
 
     git_upstream = git.Repo.init(repo_dir)
@@ -133,36 +138,25 @@ def git_wpt_upstream(config, session, initial_repo_content, pr_content):
             git_upstream.index.commit("Commit {}".format(count))
     git_upstream.heads.master.checkout()
 
-    head_commit, _ = model.get_or_create(session, model.WptCommit, rev=head.hexsha)
-    session.add(model.Landing(head_commit=head_commit, status=model.Status.complete))
-
     return git_upstream
 
 
 @pytest.fixture(scope="function")
-def git_gecko(config, session, hg_gecko_upstream):
-    git_gecko = repos.Gecko(config)
+def git_gecko(env, hg_gecko_upstream):
+    git_gecko = repos.Gecko(env.config)
     git_gecko.configure()
     git_gecko = git_gecko.repo()
     git_gecko.remotes.mozilla.fetch()
-    repo, _ = model.get_or_create(session, model.Repository, name="central")
     repo.last_processed_commit_id = (
-        git_gecko.iter_commits(config["gecko"]["refs"]["central"]).next().hexsha)
+        git_gecko.iter_commits(env.config["gecko"]["refs"]["central"]).next().hexsha)
     return git_gecko
 
 
 @pytest.fixture(scope="function")
-def git_wpt(config, git_wpt_upstream):
-    git_wpt = repos.WebPlatformTests(config)
+def git_wpt(git_wpt_upstream):
+    git_wpt = repos.WebPlatformTests(env.config)
     git_wpt.configure()
     return git_wpt.repo()
-
-
-@pytest.fixture(scope="function")
-def bz(config):
-    bz = bug.MockBugzilla(config)
-    bz.output = StringIO()
-    return bz
 
 
 @pytest.fixture(scope="function")
@@ -173,15 +167,10 @@ def gh_wpt():
 
 
 @pytest.fixture
-def upstream_wpt_commit(session, git_wpt_upstream, gh_wpt, pull_request):
+def upstream_wpt_commit(git_wpt_upstream, gh_wpt, pull_request):
     def inner(title="Example change", file_data=None, pr_id=1):
         git_wpt_upstream.index.add(create_file_data(file_data, git_wpt_upstream.working_dir))
         commit = git_wpt_upstream.index.commit("Example change")
-
-        wpt_commit, _ = model.get_or_create(session,
-                                            model.WptCommit,
-                                            rev=commit.hexsha,
-                                            pr_id=pr_id)
 
         if pr_id is not None:
             gh_wpt.commit_prs[commit.hexsha] = pr_id
@@ -191,39 +180,32 @@ def upstream_wpt_commit(session, git_wpt_upstream, gh_wpt, pull_request):
 
 
 @pytest.fixture
-def local_gecko_commit(config, session, git_gecko, pull_request):
+def local_gecko_commit(env, git_gecko, pull_request):
     def inner(test_changes=None, meta_changes=None, pr_id=1, cls=None,
               bug=1234, title="Example changes", metadata_ready=False):
         if cls:
             sync = cls()
-            session.add(sync)
             sync.pr = pull_request(pr_id=pr_id)
             sync.bug = bug
             sync.metadata_ready = metadata_ready
         else:
             sync = None
 
-        git_work, branch_name, _ = worktree.ensure_worktree(config, session, git_gecko,
-                                                            "gecko", sync, "test",
-                                                            config["gecko"]["refs"]["mozilla-inbound"])
         for path in create_file_data(test_changes, git_work.working_dir, config["gecko"]["path"]["wpt"]):
             git_work.git.add(path)
         git_work.git.commit(message=title)
         if meta_changes is not None:
             git_work.index.add(
                 create_file_data(meta_changes, os.path.join(git_work.working_dir,
-                                                            config["gecko"]["path"]["meta"])))
+                                                            env.config["gecko"]["path"]["meta"])))
             git_work.commit("%s [metadata]" % title)
         return git_work, sync
     return inner
 
 
 @pytest.fixture
-def pull_request(session, gh_wpt):
+def pull_request(gh_wpt):
     def inner(pr_id, title=None, commits=None):
-        pr, created = model.get_or_create(session,
-                                          model.PullRequest,
-                                          id=pr_id)
         if created:
             pr.title = title if title is not None else "Example PR"
             if commits is not None:
@@ -267,11 +249,11 @@ def mock_wpt():
 
 
 @pytest.fixture
-def directory(request, config):
+def directory(request, env):
     created = []
 
     def make_dir(rel_path):
-        path = os.path.join(config["root"], rel_path)
+        path = os.path.join(env.config["root"], rel_path)
         os.makedirs(path)
         created.append(path)
         return path

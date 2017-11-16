@@ -239,20 +239,21 @@ class DownstreamSync(base.SyncProcess):
 
     def affected_tests(self, revish=None):
         # TODO? support files, harness changes -- don't want to update metadata
-        tests_by_type = defaultdict(set)
-        logger.info("Updating MANIFEST.json")
-        self.wpt.manifest()
-        args = ["--show-type", "--new"]
-        if revish:
-            args.append(revish)
-        logger.info("Getting a list of tests affected by changes.")
-        s = self.wpt.tests_affected(*args)
-        if s is not None:
-            for item in s.strip().split("\n"):
-                pair = item.strip().split("\t")
-                assert len(pair) == 2
-                tests_by_type[pair[1]].add(pair[0])
-        return tests_by_type
+        if "affected-tests" not in self.data:
+            tests_by_type = defaultdict(list)
+            logger.info("Updating MANIFEST.json")
+            self.wpt.manifest()
+            args = ["--show-type", "--new"]
+            if revish:
+                args.append(revish)
+            logger.info("Getting a list of tests affected by changes.")
+            s = self.wpt.tests_affected(*args)
+            if s is not None:
+                for item in s.strip().split("\n"):
+                    path, test_type = item.strip().split("\t")
+                    tests_by_type[test_type].append(path)
+            self.data["affected-tests"] = tests_by_type
+        return self.data["affected-tests"]
 
     def try_push_for_commit(self, sha):
         try_pushes = TryPush.load_all(self.git_gecko, self.pr, status="*")
@@ -288,7 +289,7 @@ class DownstreamSync(base.SyncProcess):
         return disabled
 
 
-class TryPush(base.TagRefObject):
+class TryPush(base.ProcessData):
     """A try push is represented by a an annotated tag with a path like
 
     sync/try/<pr_id>/<status>/<id>
@@ -297,28 +298,52 @@ class TryPush(base.TagRefObject):
     """
     statuses = ("open", "complete", "infra-fail")
 
-    @property
-    def pr(self):
-        return self._process_name.obj_id
+    @classmethod
+    def create(cls, git_gecko, sync, stability=False, wpt_sha=None):
+        if not tree.is_open("try"):
+            logger.info("try is closed")
+            # TODO make this auto-retry
+            raise AbortError("Try is closed")
+
+        git_work = sync.gecko_worktree.get()
+
+        rebuild_count = 0 if not stability else 10
+        with TrySyntaxCommit(git_work, sync.affected_tests(), rebuild_count) as c:
+            try_rev = c.push()
+
+        data = {
+            "try-rev": try_rev,
+            "stability": stability,
+            "wpt-sha": wpt_sha
+        }
+        rv = cls._new(git_gecko, git_work.head.commit, sync.pr, data)
+
+        env.bz.comment(sync.bug,
+                       "Pushed to try%s. Results: "
+                       "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" %
+                       (" (stability)" if stability else "", try_rev))
+
+        return rv
 
     @classmethod
-    def new(cls, git_gecko, commit, pr_id):
+    def _new(cls, git_gecko, commit, pr_id, data):
+        # TODO: Move this code to find the next seq id up into ProcessName
         existing = cls.load_all(git_gecko, pr_id, status="*", seq_id="*")
         if not existing:
             seq_id = "0"
         else:
-            seq_id = str(int(existing[-1].seq_id) + 1)
+            seq_id = str(int(existing[-1]._ref._process_name.seq_id) + 1)
         process_name = base.ProcessName("try", "open", pr_id, seq_id)
-        base.TagRefObject.create(git_gecko, str(process_name), commit)
-        return cls(git_gecko, process_name, sync_commit.GeckoCommit)
+        return super(TryPush, cls).create(git_gecko, process_name, data)
 
     @classmethod
     def load_all(cls, git_gecko, pr_id, status="open", seq_id="*"):
-        return base.TagRefObject.load_all(git_gecko,
-                                          obj_type="try",
-                                          status=status,
-                                          obj_id=pr_id,
-                                          seq_id=seq_id)
+        return [cls.load(git_gecko, ref.path)
+                for ref in base.DataRefObject.load_all(git_gecko,
+                                                       obj_type="try",
+                                                       status=status,
+                                                       obj_id=pr_id,
+                                                       seq_id=seq_id)]
 
     @classmethod
     def for_commit(cls, git_gecko, sha1, status="open", seq_id="*"):
@@ -335,46 +360,36 @@ class TryPush(base.TagRefObject):
                 return push
 
     @property
+    def pr(self):
+        return self._ref._process_name.obj_id
+
+    @property
     def try_rev(self):
-        return self.data.get("try-rev")
+        return self.get("try-rev")
 
     @property
     def wpt_sha(self):
-        return self.data.get("wpt-sha")
+        return self.get("wpt-sha")
 
     @property
     def taskgroup_id(self):
-        return self.data.get("taskgroup-id")
+        return self.get("taskgroup-id")
 
     @taskgroup_id.setter
     def taskgroup_id(self, value):
-        self.data["taskgroup-id"] = value
+        self["taskgroup-id"] = value
 
-    @classmethod
-    def create(cls, git_gecko, sync, stability=False, wpt_sha=None):
-        if not tree.is_open("try"):
-            logger.info("try is closed")
-            # TODO make this auto-retry
-            raise AbortError("Try is closed")
+    @property
+    def status(self):
+        return self._ref._process_name.status
 
-        git_work = sync.gecko_worktree.get()
+    @status.setter
+    def status(self, value):
+        self._ref._process_name.status = value
 
-        rebuild_count = 0 if not stability else 10
-        with TrySyntaxCommit(git_work, sync.affected_tests(), rebuild_count) as c:
-            try_rev = c.push()
-
-        rv = cls.new(git_gecko, git_work.head.commit, sync.pr)
-        if wpt_sha is not None:
-            rv.data["wpt-sha"] = wpt_sha
-        rv.data["try-rev"] = try_rev
-        rv.data["stability"] = stability
-
-        env.bz.comment(sync.bug,
-                       "Pushed to try%s. Results: "
-                       "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" %
-                       (" (stability)" if stability else "", try_rev))
-
-        return rv
+    @property
+    def stability(self):
+        return self["stability"]
 
     def wpt_tasks(self):
         wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
@@ -390,7 +405,6 @@ class TryPush(base.TagRefObject):
             # TODO retry? manual intervention?
             self.status = "infra-fail"
             raise AbortError(err)
-        self.status = "complete"
         return wpt_completed, wpt_tasks
 
     def download_logs(self):
@@ -461,29 +475,33 @@ class TrySyntaxCommit(TryCommit):
         if rebuild:
             try_message += " --rebuild {}".format(rebuild)
         test_type_suite = {
-            "testharness": "web-platform-tests",
-            "reftest": "web-platform-tests-reftests",
-            "wdspec": "web-platform-tests-wdspec",
+            "testharness": ["web-platform-tests-e10s-1",
+                            "web-platform-tests-1"],
+            "reftest": ["web-platform-tests-reftests",
+                        "web-platform-tests-reftests-e10s-1"],
+            "wdspec": ["web-platform-tests-wdspec"],
         }
         platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]"
 
         def platform_filter(suite):
-            return platform_suffix if suite == "web-platform-tests" else ""
+            return platform_suffix if "-wdspec-" not in suite else ""
 
         if tests_by_type is None:
             test_data["test_jobs"] = ",".join(
-                [suite + platform_filter(suite) for suite in test_type_suite.itervalues()])
+                [suite + platform_filter(suite)
+                 for suites in test_type_suite.itervalues()
+                 for suite in suites])
             return try_message.format(**test_data)
 
         tests_by_suite = defaultdict(list)
         if len(tests_by_type) > 0:
             try_message += " --try-test-paths {prefixed_paths}"
             for test_type in tests_by_type.iterkeys():
-                suite = test_type_suite.get(test_type)
-                if suite:
-                    tests_by_suite[test_type_suite[test_type]].extend(
+                suites = test_type_suite.get(test_type)
+                for suite in suites:
+                    tests_by_suite[suite].extend(
                         tests_by_type[test_type])
-                elif tests_by_type[test_type]:
+                if test_type not in test_type_suite and test_type in tests_by_type:
                     logger.warning(
                         """Unrecognized test type {}.
                         Will attempt to run the following tests as testharness tests:
@@ -562,7 +580,7 @@ def update_taskgroup(git_gecko, git_wpt, sha1, task_id, result):
 
     if result != "success":
         try_push.status = "infra-fail"
-        pr_id = try_push.pr_id
+        pr_id = try_push.pr
         sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
         if sync and sync.bug:
             env.bz.comment(try_push.sync.bug,
@@ -572,12 +590,12 @@ def update_taskgroup(git_gecko, git_wpt, sha1, task_id, result):
 
 # Entry point
 def on_taskgroup_resolved(git_gecko, git_wpt, taskgroup_id):
-    try_push = TryPush.by_taskgroup(git_gecko, taskgroup_id)
+    try_push = TryPush.for_taskgroup(git_gecko, taskgroup_id)
     if not try_push:
         # this is not one of our try_pushes
         return
 
-    pr_id = try_push.pr_id
+    pr_id = try_push.pr
     sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     log_files = try_push.download_logs()
     disabled = sync.update_metadata(log_files, stability=try_push.stability)
@@ -593,3 +611,4 @@ def on_taskgroup_resolved(git_gecko, git_wpt, taskgroup_id):
             # TODO notify relevant people about test expectation changes, stability
             env.bz.comment(sync.bug, ("The following tests were disabled "
                                       "based on stability try push:\n %s" % disabled))
+    try_push.status = "complete"

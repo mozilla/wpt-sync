@@ -97,3 +97,16 @@ class Cinnabar(object):
 
     def fsck(self):
         self.git.cinnabar("fsck")
+
+
+def configure(config):
+    for repo in [WebPlatformTests, Gecko]:
+        repo = repo(config)
+        repo.configure()
+        repo.repo()
+
+
+wrappers = {
+    "gecko": Gecko,
+    "web-platform-tests": WebPlatformTests,
+}

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import traceback
 
 import git
@@ -18,6 +19,26 @@ logger = log.get_logger("base")
 
 
 class ProcessName(object):
+    """Representation of a refname, excluding the refs/<type>/ prefix
+    that is used to identify a sync operation.  This has the general form
+    <obj type>/<status>/<obj_id>[/<seq_id>]
+
+    Here <obj type> represents the type of process e.g upstream or downstream,
+    <status> is the current sync status, <obj_id> is an identifier for the sync,
+    typically either a bug number or PR number, and <seq_id> is an optional id
+    to cover cases where we might have multiple processes with the same obj_id.
+
+    This format means we are able to query all syncs with a given status easilly
+    by doing e.g.
+
+    git for-each-ref upstream/open/*
+
+    However it also means that we need to be able to update the ref name
+    whereever it is used when the status changes. This can be both in mutliple
+    repositories and with multiple types (e.g. tags vs branches). Therefore we
+    "attach" every VcsRefObject representing a concrete use of a ref to this
+    class and when changing the status propogate out the change to all users.
+    """
     def __init__(self, obj_type, status, obj_id, seq_id=None):
         self._obj_type = obj_type
         self._status = status
@@ -52,18 +73,16 @@ class ProcessName(object):
             ref.delete()
 
     @property
-    def type(self):
+    def obj_type(self):
         return self._obj_type
 
     @property
     def obj_id(self):
         return self._obj_id
 
-    @obj_id.setter
-    def obj_id(self, value):
-        if self._obj_id != value:
-            self._obj_id = value
-            self._update_refs()
+    @property
+    def seq_id(self):
+        return self._seq_id
 
     @property
     def status(self):
@@ -73,21 +92,17 @@ class ProcessName(object):
     def status(self, value):
         if self._status != value:
             self._status = value
-            self._update_refs()
-
-    def _update_refs(self):
-        for ref_obj in self._refs:
-            ref = ref_obj.ref
-            ref.rename(str(ref))
+            for ref_obj in self._refs:
+                ref_obj.rename()
 
     @classmethod
     def from_ref(cls, ref):
         parts = ref.split("/")
         if parts[0] == "refs":
             parts = parts[2:]
-        if parts[0] != "sync":
-            return None
-        return cls(*parts[1:])
+        if parts[0] == "sync":
+            parts = parts[1:]
+        return cls(*parts)
 
     @classmethod
     def commit_refs(cls, repo, ref_type, obj_type, status="open", obj_id="*", seq_id=None):
@@ -110,7 +125,8 @@ class ProcessName(object):
 
 class SyncPointName(object):
     """Like a process name but for pointers that aren't associated with a
-    specific sync object, but with a general process"""
+    specific sync object, but with a general process e.g. the last update point
+    for an upstream sync."""
     def __init__(self, obj_type, obj_id):
         self._obj_type = obj_type
         self._obj_id = obj_id
@@ -130,28 +146,47 @@ class SyncPointName(object):
 
 
 class VcsRefObject(object):
+    """Representation of a named reference to a git object associated with a
+    specific process_name.
+
+    This is typically either a tag or a head (i.e. branch), but can be any
+    git object."""
+
     ref_prefix = None
 
     def __init__(self, repo, process_name, commit_cls=sync_commit.Commit):
         self.repo = repo
         self._process_name = process_name.attach_ref(self)
         self.commit_cls = commit_cls
+        self._ref = str(process_name)
 
     def __str__(self):
-        return "refs/%s/%s" % (self.ref_prefix, str(self._process_name))
+        return self._ref
 
     def delete(self):
         self.repo.git.update_ref("-d", str(self))
 
     @classmethod
-    def full_name(cls, obj_type, status, obj_id):
-        return "refs/%s/%s" (cls.ref_prefix,
-                             ProcessName.name(obj_type, status, id))
+    def process_path(cls, process_name):
+        return "refs/%s/%s" % (cls.ref_prefix, str(process_name))
+
+    @property
+    def path(self):
+        return "refs/%s/%s" % (self.ref_prefix, self._ref)
 
     @property
     def ref(self):
-        name = str(self._process_name)
-        return self.repo.refs[name] if name in self.repo.refs else None
+        ref = git.Reference(self.repo, self.path)
+        if ref.is_valid():
+            return ref
+        return None
+
+    @classmethod
+    def create(cls, repo, process_name, obj):
+        path = cls.process_path(process_name)
+        ref = git.Reference(repo, path)
+        ref.set_object(obj)
+        cls(repo, process_name)
 
     @property
     def commit(self):
@@ -166,6 +201,13 @@ class VcsRefObject(object):
             commit = commit.commit
         self.create(self.repo, str(self), commit)
 
+    def rename(self):
+        ref = self.ref
+        if not ref:
+            return
+        self._ref = str(self._process_name)
+        ref.rename(self.path)
+
     @classmethod
     def load_all(cls, repo, obj_type, status="open", obj_id="*", seq_id=None,
                  commit_cls=sync_commit.Commit):
@@ -175,7 +217,7 @@ class VcsRefObject(object):
                                                        obj_type=obj_type,
                                                        status=status,
                                                        obj_id=obj_id,
-                                                       seq_id=None).itervalues()):
+                                                       seq_id=seq_id).itervalues()):
             rv.append(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
         return rv
 
@@ -183,53 +225,76 @@ class VcsRefObject(object):
 class BranchRefObject(VcsRefObject):
     ref_prefix = "heads"
 
-    @classmethod
-    def create(cls, repo, ref, commit):
-        repo.create_head(ref, commit, force=True)
+
+class DataRefObject(VcsRefObject):
+    ref_prefix = "syncs"
 
 
-class TagRefObject(VcsRefObject):
-    ref_prefix = "tags"
+def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Commit):
+    """
+    :param tree: A dictionary of path: file data
+    """
+    # TODO: use some lock around this since it writes to the index
 
-    def __init__(self, repo, process_name, commit_cls=sync_commit.Commit):
-        VcsRefObject.__init__(self, repo, process_name, commit_cls=commit_cls)
-        self._data = None
-
-    @classmethod
-    def create(cls, repo, ref, commit, message="{}"):
-        repo.create_tag(ref, commit, message=message, force=True)
-
-    @property
-    def data(self):
-        if self._data is None:
-            self._data = ProcessData(self)
-        return self._data
-
-    @property
-    def ref(self):
-        name = str(self._process_name)
-        return self.repo.tags[name] if name in self.repo.tags else None
-
-    def update_message(self, message):
-        assert self.ref is not None
-        commit = self.commit.sha1
-        self.repo.create_tag(str(self), commit, message=message, force=True)
+    # First we create an empty index
+    repo.git.read_tree(empty=True)
+    for path, data in tree.iteritems():
+        proc = repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
+                                    istream=subprocess.PIPE)
+        stdout, stderr = proc.communicate(data)
+        if proc.returncode is not 0:
+            raise git.GitCommandError(["git", "hash-object", "-w", "--path=%s" % path],
+                                      proc.returncode, stderr, stdout)
+        repo.git.update_index("100644", stdout, path, add=True, cacheinfo=True)
+    tree_id = repo.git.write_tree()
+    args = ["-m", message]
+    if parents is not None:
+        for item in parents:
+            args.extend(["-p", item])
+    args.append(tree_id)
+    sha1 = repo.git.commit_tree(*args)
+    return commit_cls(repo, sha1)
 
 
 class ProcessData(object):
-    def __init__(self, tag_object):
-        self._tag = tag_object
+    """Wrapper object for providing a dictionary-like API over data
+    stored in a git tag object, which automatically updates the
+    object whenever the data is changed"""
+    path = "data"
+
+    def __init__(self, repo, process_name):
+        self._ref = DataRefObject(repo, process_name)
         self._data = self._load()
 
-    def _load(self):
-        if self._tag.ref is None:
-            return {}
-        data = self._tag.ref.tag.message
-        return json.loads(data)
+    @property
+    def repo(self):
+        return self._ref.repo
 
-    def _save(self):
-        message = json.dumps(self._data)
-        self._tag.update_message(message)
+    @classmethod
+    def load(cls, repo, branch_name):
+        process_name = ProcessName.from_ref(branch_name)
+        if not process_name:
+            return None
+        return cls(repo, process_name)
+
+    @classmethod
+    def create(cls, repo, process_name, data, message="Sync data"):
+        commit = cls._create_commit(repo, process_name, data, message=message)
+        DataRefObject.create(repo, process_name, commit.commit)
+        return cls(repo, process_name)
+
+    @classmethod
+    def _create_commit(cls, repo, process_name, data, message="Sync data", parents=None):
+        tree = {cls.path: json.dumps(data)}
+        return create_commit(repo, tree, message=message, parents=parents)
+
+    def _save(self, message="Sync data"):
+        commit = self._create_commit(self.repo, self._ref._process_name, self._data,
+                                     parents=[self._ref.path], message=message)
+        self._ref.ref.set_commit(commit.sha1)
+
+    def _load(self):
+        return json.load(self._ref.ref.commit.tree[self.path].data_stream)
 
     def __getitem__(self, key):
         return self._data[key]
@@ -237,54 +302,63 @@ class ProcessData(object):
     def __setitem__(self, key, value):
         if key not in self._data or self._data[key] != value:
             self._data[key] = value
-            self._save()
+            self._save(message="Update %s" % key)
+
+    def __contains__(self, key):
+        return key in self._data
 
     def get(self, key, default=None):
         return self._data.get(key, default)
 
 
 class CommitFilter(object):
+    """Filter of a range of commits"""
     def path_filter(self):
+        """Path filter for the commit range,
+        returning a list of paths that match or None to
+        match all paths."""
         return None
 
     def filter_commit(self, commit):
+        """Per-commit filter.
+
+        :param commit: wpt_commit.Commit object
+        :returns: A boolean indicating whether to include the commit"""
         return True
 
     def filter_commits(self, commits):
+        """Filter that applies to the set of commits that were selected
+        by the per-commit filter. Useful for e.g. removing backouts
+        from a set of commits.
+
+        :param commits: List of wpt_commit.Commit objects
+        :returns: List of commits to return"""
         return commits
 
 
 class CommitRange(object):
-    def __init__(self, repo, process_name, commit_cls, commit_filter=None):
+    """Range of commits in a specific repository.
+
+    This is assumed to be between a tag and a branch sharing a single process_name
+    i.e. the tag represents the base commit of the branch.
+    TODO:  Maybe just store the base branch name in the tag rather than making it
+           an actual pointer since that works better with rebases.
+    """
+    def __init__(self, repo, base, head_ref, commit_cls, commit_filter=None):
         self.repo = repo
-        self.base_ref = TagRefObject(repo,
-                                     process_name,
-                                     commit_cls=commit_cls)
-        self.head_ref = BranchRefObject(repo,
-                                        process_name,
-                                        commit_cls=commit_cls)
+
+        # This ended up a little confused because these used to both be
+        # VcsRefObjects, but now the base is stored as a ref not associated
+        # with a process_name. This should be refactored.
+        self._base = commit_cls(repo, base)
+        self._head_ref = head_ref
         self.commit_cls = commit_cls
         self.commit_filter = commit_filter
 
         # Cache for the commits in this range
         self._commits = None
         self._head_sha = None
-
-    @property
-    def base(self):
-        return self.base_ref.commit
-
-    @base.setter
-    def base(self, commit):
-        self.base_ref.ref.set_commit(commit.sha1)
-
-    @property
-    def head(self):
-        return self.head_ref.commit
-
-    @head.setter
-    def head(self, commit):
-        self.head_ref.ref.set_commit(commit.sha1)
+        self._base_sha = None
 
     def __getitem__(self, index):
         return self.commits[index]
@@ -297,9 +371,26 @@ class CommitRange(object):
         return len(self.commits)
 
     @property
+    def base(self):
+        return self._base
+
+    # Base doesn't have a setter here because we don't have a good way to update
+    # the ref where it's stored
+
+    @property
+    def head(self):
+        return self._head_ref.commit
+
+    @head.setter
+    def head(self, value):
+        self._head_ref.commit = value
+
+    @property
     def commits(self):
-        if self._head_sha and self.head.sha1 == self._head_sha and self._commits:
-            return self._commits
+        if self._commits:
+            if (self.head.sha1 == self._head_sha and
+                self.base.sha1 == self._base_sha):
+                return self._commits
         revish = "%s..%s" % (self.base.sha1, self.head.sha1)
         commits = []
         for git_commit in self.repo.iter_commits(revish,
@@ -312,10 +403,16 @@ class CommitRange(object):
         commits = self.commit_filter.filter_commits(commits)
         self._commits = commits
         self._head_sha = self.head.sha1
+        self._base_sha = self.base.sha1
         return self._commits
 
 
 class Worktree(object):
+    """Wrapper for accessing a git worktree for a specific process.
+
+    To access the worktree call .get()
+    """
+
     def __init__(self, repo, process_name):
         self.repo = repo
         self._worktree = None
@@ -323,9 +420,15 @@ class Worktree(object):
         self.path = os.path.join(env.config["root"],
                                  env.config["paths"]["worktrees"],
                                  os.path.basename(repo.working_dir),
+                                 process_name.obj_type,
                                  process_name.obj_id)
 
     def get(self):
+        """Return the worktree.
+
+        On first access, the worktree is reset to the current HEAD. Subsequent
+        access doesn't perform the same check, so it's possible to retain state
+        within a specific process."""
         if self._worktree is None:
             if os.path.exists(self.path):
                 worktree = git.Repo(self.path)
@@ -360,12 +463,20 @@ class SyncProcess(object):
 
         self._process_name = process_name
 
+        self.data = ProcessData(git_gecko, self._process_name)
+
         self.gecko_commits = CommitRange(git_gecko,
-                                         self._process_name,
+                                         self.data["gecko-base"],
+                                         BranchRefObject(git_gecko,
+                                                         self._process_name,
+                                                         commit_cls=sync_commit.GeckoCommit),
                                          commit_cls=sync_commit.GeckoCommit,
                                          commit_filter=self.gecko_commit_filter())
         self.wpt_commits = CommitRange(git_wpt,
-                                       self._process_name,
+                                       self.data["wpt-base"],
+                                       BranchRefObject(git_wpt,
+                                                       self._process_name,
+                                                       commit_cls=sync_commit.WptCommit),
                                        commit_cls=sync_commit.WptCommit,
                                        commit_filter=self.wpt_commit_filter())
 
@@ -374,8 +485,6 @@ class SyncProcess(object):
         self.wpt_worktree = Worktree(git_wpt,
                                      self._process_name)
 
-        self._data = self.gecko_commits.base_ref.data
-
     def __eq__(self, other):
         if not hasattr(other, "_process_name"):
             return False
@@ -383,6 +492,13 @@ class SyncProcess(object):
 
     def __ne__(self, other):
         return not self == other
+
+    def set_wpt_base(self, ref):
+        # This is kind of an appaling hack
+        if ref not in self.git_wpt.refs:
+            raise ValueError
+        self.data["wpt-base"] = ref
+        self.wpt_commits._base = sync_commit.WptCommit(self.git_wpt, ref)
 
     def delete(self):
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
@@ -416,22 +532,21 @@ class SyncProcess(object):
         else:
             raise ValueError("Invalid cls.obj_id: %s" % cls.obj_id)
 
-        # This is pretty ugly
-        process_name = ProcessName(cls.sync_type, status, obj_id)
-        BranchRefObject.create(git_gecko, str(process_name), gecko_head)
-        TagRefObject.create(git_gecko, str(process_name), gecko_base)
-
         if wpt_head is None:
             wpt_head = wpt_base
 
-        BranchRefObject.create(git_wpt, str(process_name), wpt_head)
-        TagRefObject.create(git_wpt, str(process_name), wpt_base)
+        data = {"gecko-base": gecko_base,
+                "wpt-base": wpt_base,
+                "pr": pr,
+                "bug": bug}
+
+        # This is pretty ugly
+        process_name = ProcessName(cls.sync_type, status, obj_id)
+        ProcessData.create(git_gecko, process_name, data)
+        BranchRefObject.create(git_gecko, process_name, gecko_head)
+        BranchRefObject.create(git_wpt, process_name, wpt_head)
 
         rv = cls(git_gecko, git_wpt, process_name)
-        if pr and not rv.pr:
-            rv.pr = pr
-        if bug and not rv.bug:
-            rv.bug = bug
         return rv
 
     @classmethod
@@ -455,10 +570,6 @@ class SyncProcess(object):
     @property
     def branch_name(self):
         return str(self._process_name)
-
-    @property
-    def data(self):
-        return self._data
 
     @property
     def status(self):

@@ -143,7 +143,7 @@ class PushHandler(Handler):
 
 
 class TaskHandler(Handler):
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
+    def __call__(self, git_gecko, git_wpt, body):
         if not (body.get("origin")
                 and body["origin"].get("revision")
                 and body.get("taskId")):
@@ -151,24 +151,23 @@ class TaskHandler(Handler):
                          "Need 'revision' and 'taskId'. Got:\n{}\n".format(body))
             return
 
-        return downstream.update_taskgroup(body["origin"]["revision"],
+        return downstream.update_taskgroup(git_gecko,
+                                           git_wpt,
+                                           body["origin"]["revision"],
                                            body["taskId"],
                                            body["result"])
 
 
 class TaskGroupHandler(Handler):
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz, body):
-        return downstream.on_taskgroup_resolved(
-            self.config,
-            session,
-            git_gecko,
-            bz,
-            body["taskGroupId"])
+    def __call__(self, git_gecko, git_wpt, body):
+        return downstream.on_taskgroup_resolved(git_gecko,
+                                                git_wpt,
+                                                body["taskGroupId"])
 
 
 class LandingHandler(Handler):
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz):
-        return push.land_to_gecko(self.config, session, git_wpt, git_wpt, gh_wpt, bz)
+    def __call__(self, git_gecko, git_wpt):
+        return push.land_to_gecko(git_gecko, git_wpt)
 
 
 class CleanupHandler(Handler):

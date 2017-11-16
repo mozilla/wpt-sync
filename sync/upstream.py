@@ -155,10 +155,6 @@ class UpstreamSync(base.SyncProcess):
             self.wpt_commits.head = sync_commit.WptCommit(self.git_wpt,
                                                           remote_head.commit.hexsha)
 
-        remote_base = self.git_wpt.merge_base("origin/master", remote_head)
-        if remote_base.hexsha != self.wpt_commits.base.sha1:
-            self.wpt_commits.base = sync_commit.WptCommit(self.git_wpt, remote_base.hexsha)
-
     @classmethod
     def last_sync_point(cls, git_gecko, repository_name):
         name = base.SyncPointName(cls.sync_type,
@@ -533,9 +529,9 @@ def push(git_gecko, git_wpt, repository_name, rev):
 
     last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
     if last_sync_point.commit is None:
-        # If we are just starting, default to the current HEAD
+        # If we are just starting, default to the current mozilla central
         logger.info("No existing sync point for %s found, using the latest HEAD")
-        last_sync_point.commit = rev
+        last_sync_point.commit = env.config["gecko"]["refs"]["central"]
 
     wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
 
