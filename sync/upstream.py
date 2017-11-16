@@ -196,7 +196,6 @@ class UpstreamSync(base.SyncProcess):
         while name in remote_refs:
             count += 1
             name = "%s_%s" % (local_branch, count)
-        self.git_gecko.refs[local_branch].set_tracking_branch(name)
         return name, False
 
     @property
@@ -290,7 +289,7 @@ class UpstreamSync(base.SyncProcess):
         remote_branch, _ = self.remote_branch(create=True)
         logger.info("Pushing commits from bug %s to branch %s" % (self.bug, remote_branch))
         self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
-                                         force=True)
+                                         force=True, set_upstream=True)
         landed_status = "success" if self.gecko_landed() else "failure"
         # TODO - Maybe ignore errors setting the status
         env.gh_wpt.set_status(self.pr,

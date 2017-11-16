@@ -186,7 +186,7 @@ class VcsRefObject(object):
         path = cls.process_path(process_name)
         ref = git.Reference(repo, path)
         ref.set_object(obj)
-        cls(repo, process_name)
+        return cls(repo, process_name)
 
     @property
     def commit(self):
@@ -199,7 +199,8 @@ class VcsRefObject(object):
     def commit(self, commit):
         if isinstance(commit, sync_commit.Commit):
             commit = commit.commit
-        self.create(self.repo, str(self), commit)
+        ref = git.Reference(self.repo, self.path)
+        ref.set_object(commit)
 
     def rename(self):
         ref = self.ref
