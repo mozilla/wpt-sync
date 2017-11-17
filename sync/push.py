@@ -7,6 +7,7 @@ import base
 import commit as sync_commit
 import downstream
 import log
+import tree
 import upstream
 from env import Environment
 from gitutils import update_repositories
@@ -229,6 +230,12 @@ def push(landing):
 
     Returns: Tuple of booleans (success, retry)"""
     success = False
+
+    landing_tree = env.config["sync"]["landing"].rsplit("/", 1)[-1]
+    if not tree.is_open(landing_tree):
+            logger.info("%s is closed" % landing_tree)
+            # TODO make this auto-retry
+            raise AbortError("Tree is closed")
     while not success:
         try:
             landing.git_gecko.remotes.mozilla.push(

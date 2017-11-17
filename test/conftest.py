@@ -159,21 +159,14 @@ def git_wpt(git_wpt_upstream):
     return git_wpt.repo()
 
 
-@pytest.fixture(scope="function")
-def gh_wpt():
-    gh_wpt = gh.MockGitHub()
-    gh_wpt.output = StringIO()
-    return gh_wpt
-
-
 @pytest.fixture
-def upstream_wpt_commit(git_wpt_upstream, gh_wpt, pull_request):
+def upstream_wpt_commit(env, git_wpt_upstream, pull_request):
     def inner(title="Example change", file_data=None, pr_id=1):
         git_wpt_upstream.index.add(create_file_data(file_data, git_wpt_upstream.working_dir))
         commit = git_wpt_upstream.index.commit("Example change")
 
         if pr_id is not None:
-            gh_wpt.commit_prs[commit.hexsha] = pr_id
+            env.gh_wpt.commit_prs[commit.hexsha] = pr_id
             pull_request(pr_id, title, commits=[wpt_commit])
         return commit
     return inner

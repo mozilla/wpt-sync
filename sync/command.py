@@ -97,6 +97,7 @@ def do_list(git_gecko, git_wpt, *args, **kwargs):
     import upstream
     syncs = upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="open")
     syncs.extend(upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="landed"))
+    syncs.extend(upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="merged"))
     syncs.extend(downstream.DownstreamSync.load_all(git_gecko, git_wpt, status="open"))
     syncs.extend(downstream.DownstreamSync.load_all(git_gecko, git_wpt, status="ready"))
 
@@ -194,6 +195,7 @@ def do_setup(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_status(git_gecko, git_wpt, *args, **kwargs):
+    import upstream
     import downstream
     if kwargs["obj_type"] == "try":
         objs = downstream.TryPush.load_all(git_gecko,
@@ -201,10 +203,17 @@ def do_status(git_gecko, git_wpt, *args, **kwargs):
                                            pr_id=kwargs["obj_id"],
                                            seq_id=kwargs["seq_id"])
     else:
-        raise NotImplementedError
+        objs = upstream.UpstreamSync.load_all(git_gecko,
+                                              git_wpt,
+                                              status=kwargs["old_status"],
+                                              obj_id=kwargs["obj_id"])
+        if not objs:
+            objs = downstream.DownstreamSync.load_all(git_gecko,
+                                                      git_wpt,
+                                                      status=kwargs["old_status"],
+                                                      obj_id=kwargs["obj_id"])
     for obj in objs:
         obj.status = kwargs["new_status"]
-        print obj.status
 
 
 def main():

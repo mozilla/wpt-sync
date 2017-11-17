@@ -69,10 +69,8 @@ class UpstreamSync(base.SyncProcess):
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
-        for status in ["open", "merged", "landed"]:
+        for status in ["open", "merged", "landed", "closed"]:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
-            if len(syncs) == 0:
-                return None
 
             for sync in syncs:
                 if sync.pr == pr_id:
@@ -150,7 +148,7 @@ class UpstreamSync(base.SyncProcess):
         if remote_branch is None:
             return
 
-        remote_head = self.git_wpt.refs("origin/%s" % remote_branch)
+        remote_head = self.git_wpt.refs["origin/%s" % remote_branch]
         if remote_head.commit.hexsha != self.wpt_commits.head.sha1:
             self.wpt_commits.head = sync_commit.WptCommit(self.git_wpt,
                                                           remote_head.commit.hexsha)
@@ -185,6 +183,8 @@ class UpstreamSync(base.SyncProcess):
                                             abbrev_ref=True,
                                             with_exceptions=False)
         if remote:
+            assert remote.startswith("origin/")
+            remote = remote[len("origin/"):]
             return remote, True
 
         if not create:
@@ -195,7 +195,7 @@ class UpstreamSync(base.SyncProcess):
         name = local_branch
         while name in remote_refs:
             count += 1
-            name = "%s_%s" % (local_branch, count)
+            name = "gecko/%s/%s" % (local_branch, count)
         return name, False
 
     @property
@@ -276,13 +276,13 @@ class UpstreamSync(base.SyncProcess):
             body=body.strip(),
             base="master",
             head=remote_branch)
-        env.gh_wpt.approve_pull(self.pr_id)
         self.pr = pr_id
         # TODO: add label to bug
         env.bz.comment(self.bug,
                        "Created web-platform-tests PR %s for changes under "
                        "testing/web-platform/tests" %
                        env.gh_wpt.pr_url(pr_id))
+        env.gh_wpt.approve_pull(pr_id)
         return pr_id
 
     def push_commits(self):
@@ -290,13 +290,6 @@ class UpstreamSync(base.SyncProcess):
         logger.info("Pushing commits from bug %s to branch %s" % (self.bug, remote_branch))
         self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
                                          force=True, set_upstream=True)
-        landed_status = "success" if self.gecko_landed() else "failure"
-        # TODO - Maybe ignore errors setting the status
-        env.gh_wpt.set_status(self.pr,
-                              landed_status,
-                              target_url=env.bz.bugzilla_url(self.bug),
-                              description="Landed on mozilla-central",
-                              context="upstream/gecko")
 
     def update_github(self):
         if self.pr:
@@ -307,6 +300,13 @@ class UpstreamSync(base.SyncProcess):
         self.push_commits()
         if not self.pr:
             self.create_pr()
+        landed_status = "success" if self.gecko_landed() else "failure"
+        # TODO - Maybe ignore errors setting the status
+        env.gh_wpt.set_status(self.pr,
+                              landed_status,
+                              target_url=env.bz.bugzilla_url(self.bug),
+                              description="Landed on mozilla-central",
+                              context="upstream/gecko")
 
     def is_mergeable(self):
         return (self.gecko_landed() and
@@ -314,13 +314,16 @@ class UpstreamSync(base.SyncProcess):
                 env.gh_wpt.is_mergeable(self.pr_id))
 
     def try_land_pr(self):
+        logger.info("Checking if sync for bug %s can land" % self.bug)
         if not self.gecko_landed():
+            logger.info("Commits are not yet landed in gecko")
             return False
 
         if not self.pr:
+            logger.info("No upstream PR created")
             return False
 
-        logger.info("Trying to land %s" % self.pr)
+        logger.info("Commit are landable; trying to land %s" % self.pr)
 
         msg = None
         if not env.gh_wpt.status_checks_pass(self.pr):
@@ -331,7 +334,7 @@ class UpstreamSync(base.SyncProcess):
         else:
             # First try to rebase the PR
             try:
-                self.rebase()
+                self.wpt_rebase("origin/master")
             except AbortError:
                 msg = "Rebasing web-platform-tests PR branch onto origin/master failed"
 

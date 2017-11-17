@@ -107,9 +107,9 @@ class GitHub(object):
         latest = {}
         for status in statuses:
             if status.context not in latest and status.context != "upstream/gecko":
-                latest[status.context] = status.status
+                latest[status.context] = status.state
 
-        return all(status.status == "success" for status in latest.itervalues())
+        return all(status == "success" for status in latest.itervalues())
 
     def pr_for_commit(self, sha):
         owner, repo = self.repo_name.split("/")

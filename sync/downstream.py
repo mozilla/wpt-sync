@@ -523,7 +523,7 @@ class TrySyntaxCommit(TryCommit):
                     test_data["prefixed_paths"].append(suite + ":" + p)
         test_data["test_jobs"] = ",".join(test_data["test_jobs"])
         if test_data["prefixed_paths"]:
-            test_data["prefixed_paths"] = ",".join(test_data["prefixed_paths"])
+            test_data["prefixed_paths"] = " ".join(test_data["prefixed_paths"])
         return try_message.format(**test_data)
 
 

@@ -99,7 +99,8 @@ def update_pr(git_gecko, git_wpt, pr):
         elif pr.state == "closed" and not pr.merged:
             sync.state = "closed"
     elif isinstance(sync, upstream.UpstreamSync):
-        sync.update_state(pr.state, pr.merged)
+        sync.update_status(pr.state, pr.merged)
+        sync.try_land_pr()
 
 
 def update_from_github(git_gecko, git_wpt):

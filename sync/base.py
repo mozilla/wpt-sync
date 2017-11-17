@@ -164,7 +164,7 @@ class VcsRefObject(object):
         return self._ref
 
     def delete(self):
-        self.repo.git.update_ref("-d", str(self))
+        self.repo.git.update_ref("-d", self.path)
 
     @classmethod
     def process_path(cls, process_name):
@@ -206,8 +206,11 @@ class VcsRefObject(object):
         ref = self.ref
         if not ref:
             return
+        # Pretty sure there is an easier way to do this
         self._ref = str(self._process_name)
-        ref.rename(self.path)
+        new_ref = git.Reference(self.repo, self.path)
+        new_ref.set_object(ref.commit.hexsha)
+        ref.delete(self.repo, ref.path)
 
     @classmethod
     def load_all(cls, repo, obj_type, status="open", obj_id="*", seq_id=None,
@@ -219,12 +222,19 @@ class VcsRefObject(object):
                                                        status=status,
                                                        obj_id=obj_id,
                                                        seq_id=seq_id).itervalues()):
-            rv.append(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
+            rv.appe.end(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
         return rv
 
 
 class BranchRefObject(VcsRefObject):
     ref_prefix = "heads"
+
+    def rename(self):
+        ref = self.ref
+        if not ref:
+            return
+        self._ref = str(self._process_name)
+        self.repo.git.branch(ref.name, self._ref, move=True)
 
 
 class DataRefObject(VcsRefObject):
@@ -440,7 +450,9 @@ class Worktree(object):
                                                   os.path.abspath(self.path),
                                                   str(self.process_name))
             self._worktree = git.Repo(self.path)
-        assert self._worktree.active_branch.name == str(self.process_name)
+        if self._worktree.active_branch.name != str(self.process_name):
+            # I think this can only happen when we rename the reference
+            self._worktree.git.checkout(str(self.process_name))
         return self._worktree
 
     def delete(self):
@@ -607,7 +619,13 @@ class SyncProcess(object):
         self.data["pr"] = value
 
     def gecko_rebase(self, new_base):
-        new_base = sync_commit.GeckoCommit(self.repo, new_base)
+        new_base = sync_commit.GeckoCommit(self.git_gecko, new_base)
         git_worktree = self.gecko_worktree.get()
         git_worktree.git.rebase(new_base.sha1)
         self.git_commits.base = new_base
+
+    def wpt_rebase(self, ref):
+        assert ref in self.git_wpt.refs
+        git_worktree = self.wpt_worktree.get()
+        git_worktree.git.rebase(ref)
+        self.set_wpt_base(ref)
