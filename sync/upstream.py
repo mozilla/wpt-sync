@@ -39,7 +39,7 @@ class BackoutCommitFilter(base.CommitFilter):
 class UpstreamSync(base.SyncProcess):
     sync_type = "upstream"
     obj_id = "bug"
-    statuses = ("open", "merged", "landed", "closed")
+    statuses = ("open", "complete")
 
     def __init__(self, *args, **kwargs):
         super(UpstreamSync, self).__init__(*args, **kwargs)
@@ -59,7 +59,7 @@ class UpstreamSync(base.SyncProcess):
             return None
 
         if len(syncs) > 1:
-            for status in ["open", "merged"]:
+            for status in self.statuses:
                 status_syncs = [item for item in syncs if item.status == status]
                 if status_syncs:
                     assert len(status_syncs) == 1
@@ -69,7 +69,7 @@ class UpstreamSync(base.SyncProcess):
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
-        for status in ["open", "merged", "landed", "closed"]:
+        for status in ["open", "complete", "incomplete"]:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
 
             for sync in syncs:
@@ -78,15 +78,11 @@ class UpstreamSync(base.SyncProcess):
 
     @classmethod
     def from_pr(cls, git_gecko, git_wpt, pr_id, body):
-        required_keys = ["gecko-commit",
-                         "gecko-integration-branch",
-                         "bugzilla-url"]
         gecko_commits = []
         bug = None
         integration_branch = None
 
-        # First check the pr body, since that doesn't require any extra network traffic
-        if not all(required_keys) in sync_commit.get_metadata(body):
+        if not cls.has_metadata(body):
             return None
 
         commits = env.gh_wpt.get_commits(pr_id)
@@ -122,22 +118,29 @@ class UpstreamSync(base.SyncProcess):
         return cls.new(git_gecko, git_wpt, gecko_base, gecko_head,
                        wpt_base, wpt_head, bug. pr_id)
 
-    def update_status(self, action, merged=None):
+    @classmethod
+    def has_metadata(cls, message):
+        required_keys = ["gecko-commit",
+                         "gecko-integration-branch",
+                         "bugzilla-url"]
+        return all(item in sync_commit.get_metadata(message)
+                   for item in required_keys)
+
+    def update_status(self, action, merge_sha=None):
         """Update the sync status for a PR event on github
 
         :param action string: Either a PR action or a PR status
-        :param merged boolean: True if the PR merged or False if it didn't
+        :param merge_sha boolean: SHA of the new head if the PR merged or None if it didn't
         """
         if action == "closed":
-            if not merged:
+            if not merge_sha:
                 env.bz.comment(self.bug, "Upstream PR was closed without merging")
-                self.status = "closed"
+                self.pr_status = "closed"
             else:
-                self.status = "landed"
+                self.merge_sha = merge_sha
                 env.bz.comment(self.bug, "Upstream PR merged")
         elif action == "reopened" or action == "open":
-            status = "merged" if self.gecko_landed() else "open"
-            self.status = status
+            self.pr_status = "open"
 
     def gecko_commit_filter(self):
         return BackoutCommitFilter(self.bug)
@@ -172,6 +175,22 @@ class UpstreamSync(base.SyncProcess):
     @pr.setter
     def pr(self, value):
         self.data["pr"] = value
+
+    @property
+    def pr_status(self):
+        return self.data.get("pr-status", "open")
+
+    @pr_status.setter
+    def pr_status(self, value):
+        self.data["pr-status"] = value
+
+    @property
+    def merge_sha(self):
+        return self.data.get("merge-sha", None)
+
+    @merge_sha.setter
+    def merge_sha(self, value):
+        self.data["merge-sha"] = value
 
     def remote_branch(self, create=False):
         local_branch = self.branch_name
@@ -339,13 +358,12 @@ class UpstreamSync(base.SyncProcess):
                 msg = "Rebasing web-platform-tests PR branch onto origin/master failed"
 
             try:
-                env.gh_wpt.merge_pull(self.pr)
+                merge_sha = env.gh_wpt.merge_pull(self.pr)
             except Exception as e:
                 # TODO: better exception type
                 msg = "Merging PR failed: %s" % e
             else:
-                # Now close the sync by marking the branch as merged
-                self.status = "merged"
+                self.merge_sha = merge_sha
                 return True
         logger.error(msg)
         env.bz.comment(self.bug, msg)

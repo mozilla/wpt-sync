@@ -88,6 +88,7 @@ class GitHub(object):
             pr.url + "/merge",
             input=post_parameters
         )
+        return data["sha"]
 
     def approve_pull(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -117,7 +118,7 @@ class GitHub(object):
         if len(prs) == 0:
             return
 
-        if len(prs > 1):
+        if len(prs) > 1:
             logger.warning("Got multiple PRs related to commit %s: %s" %
                            (sha, ", ".join(item["number"] for item in prs)))
             prs = sorted(prs, key=lambda x: x["number"])

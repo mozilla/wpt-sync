@@ -70,14 +70,33 @@ class DownstreamSync(base.SyncProcess):
         return sync_commit.WptCommit(self.git_wpt, "origin/pr/%s" % self.pr)
 
     @property
+    def pr_status(self):
+        return self.data.get("pr-status", "open")
+
+    @pr_status.setter
+    def pr_status(self, value):
+        self.data["pr-status"] = value
+
+    @property
+    def metadata_ready(self):
+        return self.data.get("metadata-ready", False)
+
+    @metadata_ready.setter
+    def metadata_ready(self, value):
+        self.data["metadata-ready"] = value
+
+    @property
     def wpt(self):
         git_work = self.wpt_worktree.get()
         return WPT(os.path.join(git_work.working_dir))
 
-    def update_status(self, action, merged=None):
-        if action == "closed" and not merged:
-            # TODO: cancel related try pushes &c.
-            self.status = "closed"
+    def update_status(self, action, merge_sha=None):
+        if action == "closed":
+            self.pr_status = "closed"
+            self.finish()
+        elif action == "reopened" or action == "open":
+            self.status = "open"
+            self.pr_status = "open"
 
     def update_wpt_head(self):
         if self.wpt_commits.head.sha1 != self.pr_head.sha1:
@@ -285,7 +304,7 @@ class DownstreamSync(base.SyncProcess):
             self.ensure_metadata_commit()
 
         if stability:
-            self.status = "ready"
+            self.metadata_ready = True
         return disabled
 
 

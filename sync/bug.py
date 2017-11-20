@@ -60,6 +60,7 @@ class MockBugzilla(Bugzilla):
     def __init__(self, config):
         self.bz_url = config["bugzilla"]["url"]
         self.output = sys.stdout
+        self.known_bugs = []
 
     def _log(self, data):
         self.output.write(data)
@@ -68,6 +69,12 @@ class MockBugzilla(Bugzilla):
     def new(self, summary, comment, product, component):
         self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s" % (
             product, component, summary, comment))
+        if self.known_bugs:
+            bug_id = self.known_bugs[-1] + 1
+        else:
+            bug_id = 100000
+        self.known_bugs.append(bug_id)
+        return str(bug_id)
 
     def comment(self, bug_id, text):
         self._log("Posting to bug %s:\n%s" % (bug_id, text))

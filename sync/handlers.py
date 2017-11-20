@@ -3,7 +3,7 @@ import urlparse
 
 import downstream
 import log
-import push
+import landing
 import upstream
 import worktree
 from gitutils import is_ancestor, pr_for_commit
@@ -102,7 +102,7 @@ def handle_status(git_gecko, git_wpt, event):
 
 
 def handle_push(git_gecko, git_wpt, event):
-    push.wpt_push(git_wpt, [item["sha"] for item in event["commits"]])
+    landing.wpt_push(git_wpt, [item["sha"] for item in event["commits"]])
 
 
 class GitHubHandler(Handler):
@@ -167,7 +167,7 @@ class TaskGroupHandler(Handler):
 
 class LandingHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
-        return push.land_to_gecko(git_gecko, git_wpt)
+        return landing.land_to_gecko(git_gecko, git_wpt)
 
 
 class CleanupHandler(Handler):

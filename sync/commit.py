@@ -36,11 +36,12 @@ def get_metadata(text):
 
 class GitNotes(object):
     def __init__(self, commit):
+        self.commit = commit
         self._data = self._read()
 
     def _read(self):
         try:
-            text = self.commit.repo.git("notes", "show", self.commit.sha1)
+            text = self.commit.repo.git.notes("show", self.commit.sha1)
         except git.GitCommandError:
             return {}
         data = get_metadata(text)
@@ -57,9 +58,9 @@ class GitNotes(object):
         self._data[key] = value
         if key in self._data:
             data = "\n".join("%s: %s" % item for item in self._data.iteritems())
-            self.commit.repo.git("notes", "add", "-f", "-m", data)
+            self.commit.repo.git.notes("add", "-f", "-m", data, self.commit.sha1)
         else:
-            self.commit.repo.git("notes", "append", "-m", data)
+            self.commit.repo.git.notes("append", "-m", data, self.commit.sha1)
 
 
 class Commit(object):
@@ -217,7 +218,7 @@ class GeckoCommit(Commit):
 class WptCommit(Commit):
     def pr(self):
         if "wpt_pr" not in self.notes:
-            self.notes["wpt_pr"] = env.gh_wpt.pr_for_commit(self.sha)
+            self.notes["wpt_pr"] = env.gh_wpt.pr_for_commit(self.sha1).number
         return self.notes["wpt_pr"]
 
 

@@ -222,7 +222,7 @@ class VcsRefObject(object):
                                                        status=status,
                                                        obj_id=obj_id,
                                                        seq_id=seq_id).itervalues()):
-            rv.appe.end(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
+            rv.append(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
         return rv
 
 
@@ -450,9 +450,9 @@ class Worktree(object):
                                                   os.path.abspath(self.path),
                                                   str(self.process_name))
             self._worktree = git.Repo(self.path)
-        if self._worktree.active_branch.name != str(self.process_name):
-            # I think this can only happen when we rename the reference
-            self._worktree.git.checkout(str(self.process_name))
+        # TODO: In general the worktree should be on the right branch, but it would
+        # be good to check. In the specific case of landing, we move the wpt worktree
+        # around various commits, so it isn't necessarily on the correct branch
         return self._worktree
 
     def delete(self):
@@ -618,11 +618,17 @@ class SyncProcess(object):
             raise AttributeError("Can't set attribute")
         self.data["pr"] = value
 
+    def finish(self):
+        # TODO: cancel related try pushes &c.
+        self.status = "complete"
+        for worktree in [self.gecko_worktree, self.wpt_worktree]:
+            worktree.delete()
+
     def gecko_rebase(self, new_base):
         new_base = sync_commit.GeckoCommit(self.git_gecko, new_base)
         git_worktree = self.gecko_worktree.get()
         git_worktree.git.rebase(new_base.sha1)
-        self.git_commits.base = new_base
+        self.gecko_commits.base = new_base
 
     def wpt_rebase(self, ref):
         assert ref in self.git_wpt.refs
