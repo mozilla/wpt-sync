@@ -3,7 +3,7 @@ set -ex
 
 SYNC_DIR=$PWD
 pip install -r prod-requirements.txt --no-deps
-pip install -r ../pylib/mozautomation --no-deps
+pip install ../pylib/mozautomation --no-deps
 pip install -e . --no-deps
 cd ~
 git clone https://github.com/glandium/git-cinnabar.git cinnabar
