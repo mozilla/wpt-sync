@@ -1,0 +1,61 @@
+version: '3'
+services:
+  sync:
+    user: wptsync
+    build:
+      # root of version-control-tools repo
+      context: ../../..
+      dockerfile: wpt-sync/docker/dev/Dockerfile
+    volumes:
+      - ../../..:/home/wptsync/vct
+      - wptsync-workspace:/home/wptsync/workspace
+      # this serves as a mozilla-unified remote in dev env
+      - ${PATH_TO_GECKO_HG}:/home/wptsync/gecko-hg
+    environment:
+      - PYTHONPATH=/home/wptsync/vct/wpt-sync
+      - WPTSYNC_ROOT=/home/wptsync/workspace
+    command: /home/wptsync/venv/bin/wptsync listen
+  rabbitmq:
+      image: rabbitmq
+      ports:
+        - 5672:5672
+  celery:
+    user: wptsync
+    build:
+      # root of version-control-tools repo
+      context: ../../..
+      dockerfile: wpt-sync/docker/dev/Dockerfile
+    volumes:
+      - ../../..:/home/wptsync/vct
+      - wptsync-workspace:/home/wptsync/workspace
+      # this serves as a mozilla-unified remote in dev env
+      - ${PATH_TO_GECKO_HG}:/home/wptsync/gecko-hg
+    command: /home/wptsync/start_celeryworker.sh
+    environment:
+      - PYTHONPATH=/home/wptsync/vct/wpt-sync
+      - WPTSYNC_ROOT=/home/wptsync/workspace
+    env_file:
+      - ../celery_variables.env
+    depends_on:
+      - rabbitmq
+  celerybeat:
+    user: wptsync
+    build:
+      # root of version-control-tools repo
+      context: ../../..
+      dockerfile: wpt-sync/docker/dev/Dockerfile
+    volumes:
+      - ../../..:/home/wptsync/vct
+      - wptsync-workspace:/home/wptsync/workspace
+      # this serves as a mozilla-unified remote in dev env
+      - ${PATH_TO_GECKO_HG}:/home/wptsync/gecko-hg
+    command: /home/wptsync/start_celerybeat.sh
+    environment:
+      - PYTHONPATH=/home/wptsync/vct/wpt-sync
+      - WPTSYNC_ROOT=/home/wptsync/workspace
+    env_file:
+      - ../celery_variables.env
+    depends_on:
+      - rabbitmq
+volumes:
+  wptsync-workspace:
