@@ -15,7 +15,6 @@ import log
 import commit as sync_commit
 from env import Environment
 from gitutils import pr_for_commit, update_repositories
-from pipeline import AbortError
 from projectutil import Mach, WPT
 from trypush import TryPush
 
@@ -26,7 +25,6 @@ env = Environment()
 class DownstreamSync(base.SyncProcess):
     sync_type = "downstream"
     obj_id = "pr"
-    statues = ("open", "ready", "merged", "closed")
 
     @classmethod
     def new(cls, git_gecko, git_wpt, wpt_base, pr_id, pr_title, pr_body):
@@ -96,7 +94,7 @@ class DownstreamSync(base.SyncProcess):
             self.pr_status = "open"
 
     def update_wpt_head(self):
-        if self.wpt_commits.head.sha1 != self.pr_head.sha1:
+        if not self.wpt_commits.head or self.wpt_commits.head.sha1 != self.pr_head.sha1:
             self.wpt_commits.head = self.pr_head
 
     def files_changed(self):
@@ -272,19 +270,6 @@ class DownstreamSync(base.SyncProcess):
             self.data["affected-tests"] = tests_by_type
         return self.data["affected-tests"]
 
-    def try_push_for_commit(self, sha):
-        try_pushes = TryPush.load_all(self.git_gecko, self.pr, status="*")
-        for try_push in try_pushes:
-            if try_push.wpt_sha == sha:
-                return try_push
-        return None
-
-    @property
-    def latest_try_push(self):
-        try_pushes = TryPush.load_all(self.git_gecko, self.pr, status="*")
-        if try_pushes:
-            return try_pushes[-1]
-
     def update_metadata(self, log_files, stability):
         meta_path = env.config["gecko"]["path"]["meta"]
         args = log_files
@@ -298,8 +283,9 @@ class DownstreamSync(base.SyncProcess):
         disabled = mach.wpt_update(*args)
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
-            gecko_work.index.add([meta_path])
             self.ensure_metadata_commit()
+            gecko_work.index.add([meta_path])
+            self._commit_metadata()
 
         if stability:
             self.metadata_ready = True
@@ -340,42 +326,17 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha):
         # We got new commits that we missed
         sync.update_commits()
     elif status == "success":
-        if sync.try_push_for_commit(head_sha):
+        if TryPush.for_commit(git_gecko, head_sha):
             return
         sync.update_commits()
-        TryPush.create(git_gecko, sync)
+        TryPush.create(sync, sync.affected_tests())
 
         # TODO set a status on the PR
         # TODO: check only for status of Firefox job(s)
 
 
 # Entry point
-def update_taskgroup(git_gecko, git_wpt, sha1, task_id, result):
-    try_push = TryPush.for_commit(git_gecko, sha1)
-    if not try_push:
-        return
-
-    try_push.taskgroup_id = task_id
-
-    if result != "success":
-        try_push.status = "infra-fail"
-        pr_id = try_push.pr
-        sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
-        if sync and sync.bug:
-            env.bz.comment(try_push.sync.bug,
-                           "Try push failed: decision task returned error")
-        raise AbortError
-
-
-# Entry point
-def on_taskgroup_resolved(git_gecko, git_wpt, taskgroup_id):
-    try_push = TryPush.for_taskgroup(git_gecko, taskgroup_id)
-    if not try_push:
-        # this is not one of our try_pushes
-        return
-
-    pr_id = try_push.pr
-    sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+def try_push_complete(git_gecko, git_wpt, try_push, sync):
     log_files = try_push.download_logs()
     disabled = sync.update_metadata(log_files, stability=try_push.stability)
 
@@ -383,7 +344,7 @@ def on_taskgroup_resolved(git_gecko, git_wpt, taskgroup_id):
         # TODO check if tonnes of tests are failing -- don't want to update the
         # expectation data in that case
         # TODO decide whether to do another narrow push on mac
-        TryPush.create(git_gecko, sync, stability=True)
+        TryPush.create(sync, sync.affected_tests(), stability=True)
     else:
         if disabled:
             logger.debug("The following tests were disabled:\n%s" % disabled)

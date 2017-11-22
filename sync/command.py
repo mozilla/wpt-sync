@@ -8,7 +8,8 @@ import listen
 import log
 from tasks import setup
 from env import Environment
-from handlers import get_pr_sync, get_bug_sync
+from gitutils import update_repositories
+from load import get_syncs, get_pr_sync
 
 logger = log.get_logger("command")
 env = Environment()
@@ -59,8 +60,9 @@ def get_parser():
     parser_upstream.set_defaults(func=do_upstream)
 
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
-    parser_delete.add_argument("--bug", help="Bug number for sync")
-    parser_delete.add_argument("--pr",  help="PR number for sync")
+    parser_delete.add_argument("sync_type",  help="Type of sync to delete")
+    parser_delete.add_argument("obj_id", help="Bug or PR id for the sync")
+    parser_delete.add_argument("--try", action="store_true", help="Delete try pushes for a sync")
     parser_delete.set_defaults(func=do_delete)
 
     parser_status = subparsers.add_parser("status", help="Set the status of a Sync or Try push")
@@ -131,6 +133,7 @@ def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
     if pr_id is None:
         pr_id = sync_from_path(git_gecko, git_wpt).pr
     pr = env.gh_wpt.get_pull(int(pr_id))
+    update_repositories(git_gecko, git_wpt, True)
     update.update_pr(git_gecko, git_wpt, pr)
 
 
@@ -149,28 +152,12 @@ def do_upstream(git_gecko, git_wpt, *args, **kwargs):
     upstream.push(git_gecko, git_wpt, repository_name, rev)
 
 
-def do_delete(git_gecko, git_wpt, *args, **kwargs):
-    if not kwargs["bug"] and not kwargs["pr"]:
-        print >> sys.stderr, "Must provide a bug number or PR number"
-        sys.exit(1)
-    if kwargs["bug"]:
-        sync_bug = get_bug_sync(git_gecko, git_wpt, kwargs["bug"])
-    else:
-        sync_bug = None
-    if kwargs["pr"]:
-        sync_pr = get_pr_sync(git_gecko, git_wpt, kwargs["pr"])
-    else:
-        sync_pr = None
-    if sync_pr is None and sync_bug is None:
-        print >> sys.stderr, "No sync found"
-        sys.exit(1)
-    if sync_pr is not None and sync_bug is not None and sync_bug.process_name != sync_pr:
-        print >> sys.stderr, "Bug and PR numbers don't match"
-        sys.exit(1)
-    if sync_pr is not None:
-        sync_pr.delete()
-    else:
-        sync_bug.delete()
+def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
+    syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
+    for sync in syncs:
+        for try_push in sync.try_pushes():
+            try_push.delete()
+        sync.delete()
 
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
@@ -225,6 +212,7 @@ def main():
     args = parser.parse_args()
     git_gecko, git_wpt = setup()
     try:
+        print args
         args.func(git_gecko, git_wpt, **vars(args))
     except Exception as e:
         if args.pdb:

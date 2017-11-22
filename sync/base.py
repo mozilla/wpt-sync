@@ -21,7 +21,7 @@ logger = log.get_logger("base")
 class ProcessName(object):
     """Representation of a refname, excluding the refs/<type>/ prefix
     that is used to identify a sync operation.  This has the general form
-    <obj type>/<status>/<obj_id>[/<seq_id>]
+    <obj type>/<subtype>/<status>/<obj_id>[/<seq_id>]
 
     Here <obj type> represents the type of process e.g upstream or downstream,
     <status> is the current sync status, <obj_id> is an identifier for the sync,
@@ -39,8 +39,13 @@ class ProcessName(object):
     "attach" every VcsRefObject representing a concrete use of a ref to this
     class and when changing the status propogate out the change to all users.
     """
-    def __init__(self, obj_type, status, obj_id, seq_id=None):
+    def __init__(self, obj_type, subtype, status, obj_id, seq_id=None):
+        assert obj_type is not None
+        assert subtype is not None
+        assert status is not None
+        assert obj_id is not None
         self._obj_type = obj_type
+        self._subtype = subtype
         self._status = status
         self._obj_id = str(obj_id)
         self._seq_id = str(seq_id) if seq_id is not None else None
@@ -48,15 +53,17 @@ class ProcessName(object):
 
     def __str__(self):
         return self.name(self._obj_type,
+                         self._subtype,
                          self._status,
                          self._obj_id,
                          self._seq_id)
 
     @staticmethod
-    def name(obj_type, status, obj_id, seq_id=None):
-        rv = "sync/%s/%s/%s" % (obj_type,
-                                status,
-                                obj_id)
+    def name(obj_type, subtype, status, obj_id, seq_id=None):
+        rv = "%s/%s/%s/%s" % (obj_type,
+                              subtype,
+                              status,
+                              obj_id)
         if seq_id is not None:
             rv = "%s/%s" % (rv, seq_id)
         return rv
@@ -75,6 +82,10 @@ class ProcessName(object):
     @property
     def obj_type(self):
         return self._obj_type
+
+    @property
+    def subtype(self):
+        return self._subtype
 
     @property
     def obj_id(self):
@@ -100,13 +111,23 @@ class ProcessName(object):
         parts = ref.split("/")
         if parts[0] == "refs":
             parts = parts[2:]
-        if parts[0] == "sync":
-            parts = parts[1:]
         return cls(*parts)
 
     @classmethod
-    def commit_refs(cls, repo, ref_type, obj_type, status="open", obj_id="*", seq_id=None):
-        branch_filter = "refs/%s/sync/%s/%s/%s" % (ref_type, obj_type, status, obj_id)
+    def with_seq_id(cls, repo, ref_type, obj_type, subtype, status, obj_id):
+        existing = cls.commit_refs(repo, ref_type, obj_type, subtype, status="*",
+                                   obj_id=obj_id, seq_id="*")
+        last_id = -1
+        for branch in existing.itervalues():
+            seq_id = int(branch.rsplit("/", 1)[-1])
+            if seq_id > last_id:
+                last_id = seq_id
+        seq_id = last_id + 1
+        return cls(obj_type, status, obj_id, seq_id)
+
+    @classmethod
+    def commit_refs(cls, repo, ref_type, obj_type, subtype, status="open", obj_id="*", seq_id=None):
+        branch_filter = "refs/%s/%s/%s/%s/%s" % (ref_type, obj_type, subtype, status, obj_id)
         if seq_id is not None:
             branch_filter = "%s/%s" % (branch_filter, seq_id)
         commits_refs = repo.git.for_each_ref("--format", "%(objectname) %(refname:short)",
@@ -118,7 +139,6 @@ class ProcessName(object):
             if not line:
                 continue
             commit, ref = line.split(" ", 1)
-            ref = "/".join(ref.split("/")[1:])
             commit_refs[commit] = ref
         return commit_refs
 
@@ -213,12 +233,13 @@ class VcsRefObject(object):
         ref.delete(self.repo, ref.path)
 
     @classmethod
-    def load_all(cls, repo, obj_type, status="open", obj_id="*", seq_id=None,
+    def load_all(cls, repo, obj_type, subtype, status="open", obj_id="*", seq_id=None,
                  commit_cls=sync_commit.Commit):
         rv = []
         for ref_name in sorted(ProcessName.commit_refs(repo,
                                                        ref_type=cls.ref_prefix,
                                                        obj_type=obj_type,
+                                                       subtype=subtype,
                                                        status=status,
                                                        obj_id=obj_id,
                                                        seq_id=seq_id).itervalues()):
@@ -264,6 +285,7 @@ def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Comm
             args.extend(["-p", item])
     args.append(tree_id)
     sha1 = repo.git.commit_tree(*args)
+    repo.git.read_tree(empty=True)
     return commit_cls(repo, sha1)
 
 
@@ -431,7 +453,7 @@ class Worktree(object):
         self.path = os.path.join(env.config["root"],
                                  env.config["paths"]["worktrees"],
                                  os.path.basename(repo.working_dir),
-                                 process_name.obj_type,
+                                 process_name.subtype,
                                  process_name.obj_id)
 
     def get(self):
@@ -440,6 +462,13 @@ class Worktree(object):
         On first access, the worktree is reset to the current HEAD. Subsequent
         access doesn't perform the same check, so it's possible to retain state
         within a specific process."""
+        # TODO: We can get the worktree to only checkout the paths we actually
+        # need.
+        # To do this we have to
+        # * Enable sparse checkouts by setting core.sparseCheckouts
+        # * Add the worktree with --no-checkout
+        # * Add the list of paths to check out under $REPO/worktrees/info/sparse-checkout
+        # * Go to the worktree and check it out
         if self._worktree is None:
             if os.path.exists(self.path):
                 worktree = git.Repo(self.path)
@@ -457,6 +486,7 @@ class Worktree(object):
 
     def delete(self):
         if os.path.exists(self.path):
+            logger.info("Deleting worktree at %s" % self.path)
             try:
                 shutil.rmtree(self.path)
             except Exception:
@@ -464,9 +494,11 @@ class Worktree(object):
                                (self.path, traceback.format_exc()))
             else:
                 logger.debug("Removed worktree %s" % (self.path,))
+        self.repo.git.worktree("prune")
 
 
 class SyncProcess(object):
+    obj_type = "sync"
     sync_type = "*"
     obj_id = None  # Either "bug" or "pr"
 
@@ -554,7 +586,7 @@ class SyncProcess(object):
                 "bug": bug}
 
         # This is pretty ugly
-        process_name = ProcessName(cls.sync_type, status, obj_id)
+        process_name = ProcessName(cls.obj_type, cls.sync_type, status, obj_id)
         ProcessData.create(git_gecko, process_name, data)
         BranchRefObject.create(git_gecko, process_name, gecko_head)
         BranchRefObject.create(git_wpt, process_name, wpt_head)
@@ -574,7 +606,8 @@ class SyncProcess(object):
         rv = []
         for branch_name in ProcessName.commit_refs(git_gecko,
                                                    ref_type="heads",
-                                                   obj_type=cls.sync_type,
+                                                   obj_type=cls.obj_type,
+                                                   subtype=cls.sync_type,
                                                    status=status,
                                                    obj_id=obj_id).itervalues():
             rv.append(cls.load(git_gecko, git_wpt, branch_name))
@@ -618,11 +651,27 @@ class SyncProcess(object):
             raise AttributeError("Can't set attribute")
         self.data["pr"] = value
 
+    def try_pushes(self):
+        import trypush
+        return trypush.TryPush.load_all(self.git_gecko,
+                                        self.sync_type,
+                                        self._process_name.obj_id,
+                                        status="*")
+
+    @property
+    def latest_try_push(self):
+        try_pushes = self.try_pushes()
+        if try_pushes:
+            try_pushes = sorted(try_pushes, key=lambda x: x.seq_id)
+            return try_pushes[-1]
+
     def finish(self):
         # TODO: cancel related try pushes &c.
         self.status = "complete"
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
+        for repo in [self.git_gecko, self.git_wpt]:
+            repo.git.worktree("prune")
 
     def gecko_rebase(self, new_base):
         new_base = sync_commit.GeckoCommit(self.git_gecko, new_base)

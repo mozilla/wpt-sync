@@ -8,6 +8,7 @@ import commit as sync_commit
 import downstream
 import log
 import tree
+import trypush
 import upstream
 from env import Environment
 from gitutils import update_repositories
@@ -193,6 +194,41 @@ Automatic update from web-platform-tests%s
             if isinstance(sync, downstream.DownstreamSync):
                 self.add_metadata(pr, sync)
 
+    @property
+    def metadata_commit(self):
+        if self.gecko_commits[-1].metadata["wpt-type"] == "metadata":
+            return self.gecko_commits[-1]
+
+    def update_metadata_commit(self):
+        if not self.metadata_commit:
+            assert all(item.metadata.get("wpt-type") != "metadata" for item in self.gecko_commits)
+            git_work = self.gecko_worktree.get()
+            metadata = {
+                "wpt-pr": self.pr,
+                "wpt-type": "metadata"
+            }
+            msg = sync_commit.Commit.make_commit_msg(
+                "Bug %s - Update wpt metadata for update to %s, a=testonly" %
+                (self.bug, self.wpt_commits.head.sha1), metadata)
+            git_work.git.commit(message=msg, allow_empty=True)
+        else:
+            git_work.git.commit(allow_empty=True, amend=True, no_edit=True)
+        commit = git_work.commit("HEAD")
+        return sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
+
+    def update_metadata(self, log_files):
+        # TODO: this shares a lot of code with downstreaming
+        meta_path = env.config["gecko"]["path"]["meta"]
+
+        gecko_work = self.gecko_worktree.get()
+        mach = Mach(gecko_work.working_dir)
+        logger.debug("Updating metadata")
+        mach.wpt_update(*log_files)
+
+        if gecko_work.is_dirty(untracked_files=True, path=meta_path):
+            gecko_work.index.add([meta_path])
+            self.update_metadata_commit()
+
     def update_sync_point(self, sync_point):
         new_sha1 = self.wpt_commits.head.sha1
         if sync_point["upstream"] == new_sha1:
@@ -336,9 +372,26 @@ def land_to_gecko(git_gecko, git_wpt):
         assert wpt_head == landing.wpt_commits.head.sha1
 
     landing.apply_prs(commits)
-    # TODO: Try push here
-    landing.update_sync_point(sync_point)
 
+    if landing.latest_try_push is None:
+        trypush.TryPush.create(landing)
+
+
+# Entry point
+def try_push_complete(git_gecko, git_wpt, try_push, sync):
+    log_files = try_push.download_logs()
+    sync.update_metadata(log_files)
+
+    try_push.status = "complete"
+
+    sync_point = load_sync_point(git_gecko, git_wpt)
+
+    wpt_head, commits = landable_commits(git_gecko,
+                                         git_wpt,
+                                         sync_point,
+                                         landing.wpt_commits.head.sha1)
+
+    landing.update_sync_point(sync_point)
     push(landing)
     for _, sync, _ in commits:
         sync.finish()

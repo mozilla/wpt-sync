@@ -1,6 +1,5 @@
 import os
 import re
-from collections import defaultdict
 from itertools import chain
 
 import base
@@ -8,6 +7,7 @@ import log
 import taskcluster
 import tree
 from env import Environment
+from load import get_syncs
 from pipeline import AbortError
 
 logger = log.get_logger("downstream")
@@ -18,20 +18,22 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 class TryPush(base.ProcessData):
     """A try push is represented by a an annotated tag with a path like
 
-    sync/try/<pr_id>/<status>/<id>
+    try/<pr_id>/<status>/<id>
 
     Where id is a number to indicate the Nth try push for this PR.
     """
+    obj_type = "try"
     statuses = ("open", "complete", "infra-fail")
 
     @classmethod
-    def create(cls, git_work, sync_type, sync_id, bug, affected_tests=None,
-               stability=False, wpt_sha=None):
+    def create(cls, sync, affected_tests=None, stability=False, wpt_sha=None):
 
         if not tree.is_open("try"):
             logger.info("try is closed")
             # TODO make this auto-retry
             raise AbortError("Try is closed")
+
+        git_work = sync.gecko_worktree.get()
 
         rebuild_count = 0 if not stability else 10
         with TrySyntaxCommit(git_work, affected_tests, rebuild_count) as c:
@@ -42,12 +44,13 @@ class TryPush(base.ProcessData):
             "stability": stability,
             "wpt-sha": wpt_sha
         }
-        process_name = base.ProcessName.with_seq_id(git_work,
+        process_name = base.ProcessName.with_seq_id(sync.git_gecko,
                                                     "heads",
-                                                    "try-%s" % sync_type,
+                                                    cls.obj_type,
+                                                    sync.sync_type,
                                                     "open",
-                                                    sync_id)
-        rv = super(TryPush, cls).create(git_work, process_name, data)
+                                                    getattr(sync, sync.obj_id))
+        rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
 
         env.bz.comment(sync.bug,
                        "Pushed to try%s. Results: "
@@ -60,28 +63,25 @@ class TryPush(base.ProcessData):
     def load_all(cls, git_gecko, sync_type, sync_id, status="open", seq_id="*"):
         return [cls.load(git_gecko, ref.path)
                 for ref in base.DataRefObject.load_all(git_gecko,
-                                                       obj_type="try-%s" % sync_type,
+                                                       obj_type=cls.obj_type,
+                                                       subtype=sync_type,
                                                        status=status,
                                                        obj_id=sync_id,
                                                        seq_id=seq_id)]
 
     @classmethod
-    def for_commit(cls, git_gecko, sha1, sync_type="*", status="open", seq_id="*"):
-        pushes = cls.load_all(git_gecko, "*", status=status)
+    def for_commit(cls, git_gecko, sha1, sync_type="*", sync_id="*", status="open"):
+        pushes = cls.load_all(git_gecko, sync_type, sync_id, status=status)
         for push in reversed(pushes):
             if push.try_rev == sha1:
                 return push
 
     @classmethod
-    def for_taskgroup(cls, git_gecko, taskgroup_id, status="open", seq_id="*"):
-        pushes = cls.load_all(git_gecko, "*", status=status)
+    def for_taskgroup(cls, git_gecko, taskgroup_id, sync_type="*", status="open"):
+        pushes = cls.load_all(git_gecko, sync_type, "*", status=status)
         for push in reversed(pushes):
             if push.taskgroup_id == taskgroup_id:
                 return push
-
-    @property
-    def pr(self):
-        return self._ref._process_name.obj_id
 
     @property
     def try_rev(self):
@@ -106,6 +106,20 @@ class TryPush(base.ProcessData):
     @status.setter
     def status(self, value):
         self._ref._process_name.status = value
+
+    def sync(self, git_gecko, git_wpt):
+        process_name = self._ref.process_name
+        syncs = get_syncs(git_gecko, git_wpt,
+                          process_name.subtype,
+                          process_name.obj_id)
+        if len(syncs) == 0:
+            return None
+        if len(syncs) == 1:
+            return syncs[0]
+        for item in syncs:
+            if item.status == "open":
+                return item
+        raise ValueError("Got multiple syncs and none were open")
 
     @property
     def stability(self):
@@ -224,7 +238,7 @@ class TrySyntaxCommit(TryCommit):
             test_data["test_jobs"].extend(suite + platform_suffix for suite in
                                           test_type_suite["testharness"])
         else:
-            suites = chain.from_iterable(value for key, value in test_type_suite.itervalues()
+            suites = chain.from_iterable(value for key, value in test_type_suite.iteritems()
                                          if key in tests_by_type)
             path_flavors = {value: tests_by_type[key] for key, value in test_type_flavor.iteritems()
                             if key in tests_by_type}

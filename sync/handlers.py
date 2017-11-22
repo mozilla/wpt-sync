@@ -6,8 +6,10 @@ import log
 import landing
 import upstream
 import worktree
+import trypush
 from gitutils import is_ancestor, pr_for_commit
 from env import Environment
+from load import get_pr_sync
 
 env = Environment()
 
@@ -26,22 +28,6 @@ def log_exceptions(f):
     inner.__name__ = f.__name__
     inner.__doc__ = f.__doc__
     return inner
-
-
-def get_pr_sync(git_gecko, git_wpt, pr_id):
-    sync = None
-    sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
-    if not sync:
-        sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
-    return sync
-
-
-def get_bug_sync(git_gecko, git_wpt, bug_number):
-    sync = None
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_number)
-    if not sync:
-        sync = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number)
-    return sync
 
 
 class Handler(object):
@@ -151,18 +137,31 @@ class TaskHandler(Handler):
                          "Need 'revision' and 'taskId'. Got:\n{}\n".format(body))
             return
 
-        return downstream.update_taskgroup(git_gecko,
-                                           git_wpt,
-                                           body["origin"]["revision"],
-                                           body["taskId"],
-                                           body["result"])
+        sha1 = body["origin"]["revision"]
+        task_id = body["taskId"]
+        result = body["result"]
+
+        try_push = trypush.TryPush.for_commit(git_gecko, sha1)
+        if not try_push:
+            return
+
+        try_push.taskgroup_id = task_id
+
+        if result != "success":
+            try_push.status = "infra-fail"
+            sync = try_push.sync(git_gecko, git_wpt)
+            if sync and sync.bug:
+                env.bz.comment(try_push.sync.bug,
+                               "Try push failed: decision task returned error")
 
 
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
-        return downstream.on_taskgroup_resolved(git_gecko,
-                                                git_wpt,
-                                                body["taskGroupId"])
+        try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
+        if not try_push:
+            # this is not one of our try_pushes
+            return
+
 
 
 class LandingHandler(Handler):
