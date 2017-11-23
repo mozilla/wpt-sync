@@ -158,8 +158,12 @@ class MockGitHub(GitHub):
         self._log("Getting PR %s" % id)
         return self.prs.get(id)
 
-    def create_pull(self, title, body, base, head):
+    def create_pull(self, title, body, base, head, _commits=None):
         id = self._id.next()
+        if _commits is None:
+            _commits = [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
+                                    "message": "Test commit",
+                                    "_statuses": []})]
         data = AttrDict(**{
             "number": id,
             "title": title,
@@ -170,9 +174,7 @@ class MockGitHub(GitHub):
             "state": "open",
             "mergeable": True,
             "approved": True,
-            "_commits": [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
-                                     "message": "Test commit",
-                                     "_statuses": []})],
+            "_commits": _commits,
         })
         self.prs[id] = data
         self._log("Created PR with id %s" % id)

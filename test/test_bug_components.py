@@ -2,8 +2,8 @@ import os
 from sync import bugcomponents
 
 
-def test_remove(config, directory):
-    wpt_root = directory(config["gecko"]["path"]["wpt"])
+def test_remove(env, directory):
+    wpt_root = directory(env.config["gecko"]["path"]["wpt"])
 
     # Create some sample files
     for path in ["../1.html", "../3.html", "a/1.html", "b/1.html", "c/d/1.html"]:

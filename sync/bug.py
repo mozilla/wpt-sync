@@ -3,15 +3,22 @@ import sys
 import urlparse
 
 
+def bz_url_from_api_url(api_url):
+    parts = urlparse.urlparse(api_url)
+    bz_url = (parts.scheme, parts.netloc, "", "", "", "")
+    return urlparse.urlunparse(bz_url)
+
+
 class Bugzilla(object):
     def __init__(self, config):
         self.bug_cache = {}
-        self.bz_url = config["bugzilla"]["url"]
-        self.bugzilla = bugsy.Bugsy(bugzilla_url=self.bz_url,
+        self.api_url = config["bugzilla"]["url"]
+        self.bz_url = bz_url_from_api_url(self.api_url)
+        self.bugzilla = bugsy.Bugsy(bugzilla_url=self.api_url,
                                     api_key=config["bugzilla"]["apikey"])
 
     def bugzilla_url(self, bug_id):
-        "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
+        return "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
 
     def id_from_url(self, url):
         if not url.startswith(self.bz_url):
@@ -58,7 +65,8 @@ class Bugzilla(object):
 
 class MockBugzilla(Bugzilla):
     def __init__(self, config):
-        self.bz_url = config["bugzilla"]["url"]
+        self.api_url = config["bugzilla"]["url"]
+        self.bz_url = bz_url_from_api_url(self.api_url)
         self.output = sys.stdout
         self.known_bugs = []
 

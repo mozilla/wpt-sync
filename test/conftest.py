@@ -7,14 +7,45 @@ from cStringIO import StringIO
 import git
 import pytest
 
-from file import create_file_data
-
 from sync import repos, settings
 from sync.env import Environment, set_env
 
 here = os.path.dirname(os.path.abspath(__file__))
 
 root = os.path.join(here, "testdata")
+
+
+def create_file_data(file_data, repo_workdir):
+    paths = []
+    for repo_path, contents in file_data.iteritems():
+        path = os.path.join(repo_workdir, repo_path)
+        paths.append(repo_path)
+        with open(path, "w") as f:
+            f.write(contents)
+    return paths
+
+
+def git_commit(git, message="Example change", file_data=None, metadata=None):
+    git.index.add(create_file_data(file_data, git.working_dir))
+    return git_wpt_upstream.index.commit(message)
+
+
+def gecko_changes(env, test_changes=None, meta_changes=None, other_changes=None):
+    test_prefix = env.config["gecko"]["path"]["wpt"]
+    meta_prefix = env.config["gecko"]["path"]["meta"]
+
+    def prefix_paths(changes, prefix):
+        if changes is not None:
+            return {os.path.join(prefix, path): data for path, data in changes.iteritems()}
+
+    test_changes = prefix_paths(test_changes, test_prefix)
+    meta_changes = prefix_paths(meta_changes, meta_prefix)
+
+    changes = {}
+    for item in [test_changes, meta_changes, other_changes]:
+        if item is not None:
+            changes.update(item)
+    return changes
 
 
 # TODO: Probably don't need all of these to be function scoped
@@ -49,10 +80,6 @@ def env():
     return Environment()
 
 
-#Ensure that configuration is loaded
-env()
-
-
 @pytest.fixture
 def initial_repo_content():
     return [("README", "Initial text\n")]
@@ -71,6 +98,12 @@ class hg(object):
     def __init__(self, path):
         self.working_tree = path
 
+    def setup(self):
+        self.init()
+        with open(os.path.join(self.working_tree, ".hg", "hgrc"), "w") as f:
+            f.write("""[ui]
+username=test""")
+
     def __getattr__(self, name):
         def call(self, *args):
             cmd = ["hg", name] + list(args)
@@ -83,16 +116,15 @@ class hg(object):
 @pytest.fixture(scope="function")
 def hg_gecko_upstream(env, initial_repo_content):
     repo_dir = os.path.join(env.config["root"], env.config["sync"]["landing"])
-    sync_dir = os.path.join(repo_dir, config["gecko"]["path"]["wpt"])
-    meta_dir = os.path.join(repo_dir, config["gecko"]["path"]["meta"])
+    sync_dir = os.path.join(repo_dir, env.config["gecko"]["path"]["wpt"])
+    meta_dir = os.path.join(repo_dir, env.config["gecko"]["path"]["meta"])
 
     os.makedirs(repo_dir)
     os.makedirs(sync_dir)
     os.makedirs(meta_dir)
 
     hg_gecko = hg(repo_dir)
-
-    hg_gecko.init()
+    hg_gecko.setup()
 
     for wpt_dir in [sync_dir, meta_dir]:
         for path, content in initial_repo_content:
@@ -110,7 +142,7 @@ def hg_gecko_upstream(env, initial_repo_content):
 
 
 @pytest.fixture(scope="function")
-def git_wpt_upstream(initial_repo_content, pr_content):
+def git_wpt_upstream(env, initial_repo_content, pr_content):
     repo_dir = env.config["web-platform-tests"]["path"]
     os.makedirs(repo_dir)
 
@@ -122,7 +154,7 @@ def git_wpt_upstream(initial_repo_content, pr_content):
             f.write(content)
         git_upstream.index.add([path])
 
-    head = git_upstream.index.commit("Initial commit")
+    git_upstream.index.commit("Initial commit")
 
     count = 0
     for pr_id, commits in enumerate(pr_content):
@@ -147,66 +179,87 @@ def git_gecko(env, hg_gecko_upstream):
     git_gecko.configure()
     git_gecko = git_gecko.repo()
     git_gecko.remotes.mozilla.fetch()
-    repo.last_processed_commit_id = (
-        git_gecko.iter_commits(env.config["gecko"]["refs"]["central"]).next().hexsha)
     return git_gecko
 
 
 @pytest.fixture(scope="function")
-def git_wpt(git_wpt_upstream):
+def git_wpt(env, git_wpt_upstream):
     git_wpt = repos.WebPlatformTests(env.config)
     git_wpt.configure()
     return git_wpt.repo()
 
 
 @pytest.fixture
-def upstream_wpt_commit(env, git_wpt_upstream, pull_request):
-    def inner(title="Example change", file_data=None, pr_id=1):
-        git_wpt_upstream.index.add(create_file_data(file_data, git_wpt_upstream.working_dir))
-        commit = git_wpt_upstream.index.commit("Example change")
-
+def upstream_wpt_commit(env, git_wpt_upstream, git_commit, pull_request):
+    def inner(message="Example change", file_data=None, pr_id=1):
+        commit = git_commit(git_wpt_upstream, message, file_data)
         if pr_id is not None:
             env.gh_wpt.commit_prs[commit.hexsha] = pr_id
-            pull_request(pr_id, title, commits=[wpt_commit])
+            pull_request(pr_id, message, commits=[commit])
         return commit
     return inner
 
 
-@pytest.fixture
-def local_gecko_commit(env, git_gecko, pull_request):
-    def inner(test_changes=None, meta_changes=None, pr_id=1, cls=None,
-              bug=1234, title="Example changes", metadata_ready=False):
-        if cls:
-            sync = cls()
-            sync.pr = pull_request(pr_id=pr_id)
-            sync.bug = bug
-            sync.metadata_ready = metadata_ready
-        else:
-            sync = None
+def hg_commit(hg, message, bookmarks):
+    hg.commit("-m", message)
+    rev = hg.log("-l1", "--template={node}")
+    if isinstance(bookmarks, (str, unicode)):
+        bookmarks = [bookmarks]
+    for bookmark in bookmarks:
+        hg.bookmark(bookmark)
+    return rev
 
-        for path in create_file_data(test_changes, git_work.working_dir, config["gecko"]["path"]["wpt"]):
-            git_work.git.add(path)
-        git_work.git.commit(message=title)
-        if meta_changes is not None:
-            git_work.index.add(
-                create_file_data(meta_changes, os.path.join(git_work.working_dir,
-                                                            env.config["gecko"]["path"]["meta"])))
-            git_work.commit("%s [metadata]" % title)
-        return git_work, sync
+
+@pytest.fixture
+def upstream_gecko_commit(env, hg_gecko_upstream):
+    def inner(test_changes=None, meta_changes=None, other_changes=None,
+              bug="1234", message="Example changes", bookmarks="inbound"):
+        changes = gecko_changes(env, test_changes, meta_changes, other_changes)
+        message = "Bug %s - %s" % (bug, message)
+
+        file_data = create_file_data(changes, hg_gecko_upstream.working_tree)
+        for path in file_data:
+            hg_gecko_upstream.add(path)
+        return hg_commit(hg_gecko_upstream, message, bookmarks)
+
     return inner
 
 
 @pytest.fixture
-def pull_request(gh_wpt):
-    def inner(pr_id, title=None, commits=None):
-        if created:
-            pr.title = title if title is not None else "Example PR"
-            if commits is not None:
-                pr.commits = commits
-            head = commits[0].rev if commits else None
-            gh_wpt.create_pull(title, "Example pr", None, head)
-        else:
-            assert title is None and commits is None
+def upstream_gecko_backout(env, hg_gecko_upstream):
+    def inner(revs, bugs, message=None, bookmarks="inbound"):
+        if isinstance(revs, (str, unicode)):
+            revs = [revs]
+        if isinstance(bugs, (str, unicode)):
+            bugs = [bugs] * len(revs)
+        assert len(bugs) == len(revs)
+        msg = ["Backed out %i changesets (bug %s) for test, r=backout" % (len(revs), bugs[0]), ""]
+        for rev, bug in zip(revs, bugs):
+            hg_gecko_upstream.backout("--no-commit", rev)
+            msg.append("Backed out changeset %s (Bug %s)" % (rev[:12], bug))
+        if message is None:
+            message = "\n".join(msg)
+        return hg_commit(hg_gecko_upstream, message, bookmarks)
+    return inner
+
+
+@pytest.fixture
+def local_gecko_commit(env, git_commit, pull_request):
+    def inner(git_gecko, test_changes=None, meta_changes=None, other_changes=None,
+              bug="1234", message="Example changes"):
+        changes = gecko_changes(env, test_changes, meta_changes, other_changes)
+        message = "Bug %s - %s" % (bug, message)
+
+        return git_commit(git_gecko, changes, message)
+    return inner
+
+
+@pytest.fixture
+def pull_request(env):
+    def inner(pr_id, title=None, head=None, commits=None):
+        if pr_id not in env.gh.prs:
+            env.gh.create_pull(title, "Example pr", None, head, _commits=commits)
+        pr = env.gh.get_pull(pr_id)
         return pr
 
     inner.__name__ = "pull_request"

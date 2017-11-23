@@ -45,7 +45,7 @@ class TryPush(base.ProcessData):
             "wpt-sha": wpt_sha
         }
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
-                                                    "heads",
+                                                    "syncs",
                                                     cls.obj_type,
                                                     sync.sync_type,
                                                     "open",
@@ -108,7 +108,7 @@ class TryPush(base.ProcessData):
         self._ref._process_name.status = value
 
     def sync(self, git_gecko, git_wpt):
-        process_name = self._ref.process_name
+        process_name = self._ref._process_name
         syncs = get_syncs(git_gecko, git_wpt,
                           process_name.subtype,
                           process_name.obj_id)
@@ -132,7 +132,12 @@ class TryPush(base.ProcessData):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
         if len(wpt_tasks) > len(wpt_completed):
             # TODO check for unscheduled versus failed versus exception
-            err = "The tests didn't all run; perhaps a build failed?"
+            def get_task_names(tasks):
+                return set(item["task"]["metadata"]["name"] for item in tasks)
+
+            missing = get_task_names(wpt_tasks) - get_task_names(wpt_completed)
+            err = ("The tests didn't all run; perhaps a build failed?\nMissing:%s" %
+                   (",".join(missing)))
 
         if err:
             logger.debug(err)

@@ -119,13 +119,13 @@ class PushHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
         data = body["payload"]["data"]
         repo_url = data["repo_url"]
-        # Not sure if it's everey possible to get multiple heads here in a way that
+        # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
         rev = data["heads"][0]
         logger.debug("Commit landed in repo %s" % repo_url)
         if repo_url in self.repos:
             repo_name = self.integration_repos[repo_url]
-            upstream.integration_commit(git_gecko, git_wpt, repo_name, rev)
+            upstream.push(git_gecko, git_wpt, repo_name, rev)
 
 
 class TaskHandler(Handler):
@@ -157,11 +157,18 @@ class TaskHandler(Handler):
 
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
+        taskgroup_id = body["taskGroupId"]
+
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
         if not try_push:
             # this is not one of our try_pushes
             return
+        sync = try_push.sync(git_gecko, git_wpt)
 
+        if isinstance(sync, downstream.DownstreamSync):
+            downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
+        elif isinstance(sync, landing.LandingSync):
+            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
 
 class LandingHandler(Handler):

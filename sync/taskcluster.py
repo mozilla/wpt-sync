@@ -27,7 +27,7 @@ def is_build(task):
 def is_completed(task):
     status = task.get("status")
     if status:
-        return status.get("state") == "completed"
+        return status.get("state") in ("completed", "failed")
 
 
 def filter_suite(tasks, suite):

@@ -165,8 +165,9 @@ def update_taskgroup_ids(git_gecko, git_wpt):
 
 def update_tasks(git_gecko, git_wpt):
     for sync in downstream.DownstreamSync.load_all(git_gecko, git_wpt):
+        print sync._process_name
         try_push = sync.latest_try_push
-        if try_push.taskgroup_id:
+        if try_push and try_push.taskgroup_id:
             try:
                 handle_sync("taskgroup", {"taskGroupId": try_push.taskgroup_id})
             except AbortError:

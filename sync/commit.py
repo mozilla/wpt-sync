@@ -120,11 +120,11 @@ class Commit(object):
             msg = "%s\n%s" % (msg, metadata_str)
         return msg
 
-    def is_empty(self, path=None):
-        for blob in self.commit.blobs:
-            if path is None or blob.name.startswith(path):
-                return True
-        return False
+    def is_empty(self, prefix=None):
+        for path in self.commit.stats.files:
+            if path.startswith(prefix):
+                return False
+        return True
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
              dest_prefix=None):
@@ -186,7 +186,7 @@ class GeckoCommit(Commit):
 
     def has_wpt_changes(self):
         prefix = env.config["gecko"]["path"]["wpt"]
-        return not self.is_empty(path=prefix)
+        return not self.is_empty(prefix)
 
     @property
     def is_backout(self):

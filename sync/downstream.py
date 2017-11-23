@@ -233,8 +233,11 @@ class DownstreamSync(base.SyncProcess):
                 else:
                     break
 
-            if len(retain_commits) < len(existing_gecko_commits):
+            if retain_commits and len(retain_commits) < len(existing_gecko_commits):
                 self.gecko_head = retain_commits[-1].sha1
+
+            # TODO: If there are no commits to retain, reset the gecko branch to the current
+            # base
 
         append_commits = self.wpt_commits[len(retain_commits):]
         if not append_commits:

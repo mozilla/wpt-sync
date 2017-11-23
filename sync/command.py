@@ -66,8 +66,10 @@ def get_parser():
     parser_delete.set_defaults(func=do_delete)
 
     parser_status = subparsers.add_parser("status", help="Set the status of a Sync or Try push")
-    parser_status.add_argument("obj_type", choices=["try", "downstream", "upstream", "landing"],
+    parser_status.add_argument("obj_type", choices=["try", "sync"],
                                help="Object type")
+    parser_status.add_argument("sync_type", choices=["downstream", "upstream", "landing"],
+                               help="Sync type")
     parser_status.add_argument("obj_id",  help="Object id (pr number or bug)")
     parser_status.add_argument("new_status",  help="Status to set")
     parser_status.add_argument("--old-status", default="*", help="Current status")
@@ -153,11 +155,17 @@ def do_upstream(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
-    syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
-    for sync in syncs:
-        for try_push in sync.try_pushes():
+    import trypush
+    if kwargs["try"]:
+        try_pushes = trypush.TryPush.load_all(git_gecko, sync_type, obj_id)
+        for try_push in try_pushes:
             try_push.delete()
-        sync.delete()
+    else:
+        syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
+        for sync in syncs:
+            for try_push in sync.try_pushes():
+                try_push.delete()
+            sync.delete()
 
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
@@ -178,31 +186,32 @@ def do_setup(git_gecko, git_wpt, *args, **kwargs):
     repos.configure()
 
 
-def do_status(git_gecko, git_wpt, *args, **kwargs):
+def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     import upstream
     import downstream
     import landing
-    obj_type = kwargs["obj_type"]
+    import trypush
     if obj_type == "try":
-        objs = downstream.TryPush.load_all(git_gecko,
-                                           status=kwargs["old_status"],
-                                           pr_id=kwargs["obj_id"],
-                                           seq_id=kwargs["seq_id"])
-    elif obj_type == "upstream":
+        objs = trypush.TryPush.load_all(git_gecko,
+                                        sync_type,
+                                        obj_id,
+                                        status=kwargs["old_status"],
+                                        seq_id=kwargs["seq_id"])
+    elif sync_type == "upstream":
         objs = upstream.UpstreamSync.load_all(git_gecko,
                                               git_wpt,
                                               status=kwargs["old_status"],
-                                              obj_id=kwargs["obj_id"])
-    elif obj_type == "downstream":
+                                              obj_id=obj_id)
+    elif sync_type == "downstream":
         objs = downstream.DownstreamSync.load_all(git_gecko,
                                                   git_wpt,
                                                   status=kwargs["old_status"],
-                                                  obj_id=kwargs["obj_id"])
-    elif obj_type == "landing":
+                                                  obj_id=obj_id)
+    elif sync_type == "landing":
         objs = landing.LandingSync.load_all(git_gecko,
                                             git_wpt,
                                             status=kwargs["old_status"],
-                                            obj_id=kwargs["obj_id"])
+                                            obj_id=obj_id)
     for obj in objs:
         obj.status = kwargs["new_status"]
 
@@ -212,7 +221,6 @@ def main():
     args = parser.parse_args()
     git_gecko, git_wpt = setup()
     try:
-        print args
         args.func(git_gecko, git_wpt, **vars(args))
     except Exception as e:
         if args.pdb:

@@ -93,7 +93,7 @@ class ProcessName(object):
 
     @property
     def seq_id(self):
-        return self._seq_id
+        return int(self._seq_id)
 
     @property
     def status(self):
@@ -123,14 +123,14 @@ class ProcessName(object):
             if seq_id > last_id:
                 last_id = seq_id
         seq_id = last_id + 1
-        return cls(obj_type, status, obj_id, seq_id)
+        return cls(obj_type, subtype, status, obj_id, seq_id)
 
     @classmethod
     def commit_refs(cls, repo, ref_type, obj_type, subtype, status="open", obj_id="*", seq_id=None):
         branch_filter = "refs/%s/%s/%s/%s/%s" % (ref_type, obj_type, subtype, status, obj_id)
         if seq_id is not None:
             branch_filter = "%s/%s" % (branch_filter, seq_id)
-        commits_refs = repo.git.for_each_ref("--format", "%(objectname) %(refname:short)",
+        commits_refs = repo.git.for_each_ref("--format", "%(objectname) %(refname)",
                                              branch_filter)
 
         commit_refs = {}
@@ -662,7 +662,7 @@ class SyncProcess(object):
     def latest_try_push(self):
         try_pushes = self.try_pushes()
         if try_pushes:
-            try_pushes = sorted(try_pushes, key=lambda x: x.seq_id)
+            try_pushes = sorted(try_pushes, key=lambda x: x._ref._process_name.seq_id)
             return try_pushes[-1]
 
     def finish(self):

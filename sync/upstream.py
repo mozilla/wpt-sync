@@ -45,6 +45,7 @@ class UpstreamSync(base.SyncProcess):
         super(UpstreamSync, self).__init__(*args, **kwargs)
 
         self._upstreamed_gecko_commits = None
+        self._upstreamed_gecko_head = None
 
     @classmethod
     def load(cls, git_gecko, git_wpt, branch_name):
@@ -219,16 +220,22 @@ class UpstreamSync(base.SyncProcess):
 
     @property
     def upstreamed_gecko_commits(self):
-        if self._upstreamed_gecko_commits is None:
+        if (self._upstreamed_gecko_commits is None or
+            self._upstreamed_gecko_head != self.wpt_commits.head.sha1):
             self._upstreamed_gecko_commits = [
                 sync_commit.GeckoCommit(self.git_gecko,
                                         self.git_gecko.cinnabar.hg2git(
                                             wpt_commit.metadata["gecko-commit"]))
                 for wpt_commit in self.wpt_commits]
+            self._upstreamed_gecko_head = self.wpt_commits.head.sha1
         return self._upstreamed_gecko_commits
 
     def update_wpt_commits(self):
         matching_commits = []
+
+        if len(self.gecko_commits) == 0:
+            self.wpt_commits.head = self.wpt_commits.base
+
         for gecko_commit, upstream_commit in zip(self.gecko_commits, self.upstreamed_gecko_commits):
             if upstream_commit != gecko_commit:
                 break
@@ -243,6 +250,10 @@ class UpstreamSync(base.SyncProcess):
 
         for commit in self.gecko_commits[len(matching_commits):]:
             self.add_commit(commit)
+
+        assert (len(self.gecko_commits) ==
+                len(self.wpt_commits) ==
+                len(self.upstreamed_gecko_commits))
 
         return True
 
@@ -288,7 +299,13 @@ class UpstreamSync(base.SyncProcess):
             logger.debug("Waiting for branch")
             time.sleep(1)
 
-        summary, body = self.gecko_commits[0].commit.message.split("\n", 1)
+        msg_parts = self.gecko_commits[0].commit.message.split("\n", 1)
+        if len(msg_parts) == 1:
+            summary = msg_parts[0]
+            body = ""
+        else:
+            summary, body = msg_parts
+
         remote_branch, _ = self.remote_branch()
         pr_id = env.gh_wpt.create_pull(
             title="[Gecko%s] %s" % (" bug %s" % self.bug if self.bug else "", summary),
@@ -312,7 +329,7 @@ class UpstreamSync(base.SyncProcess):
 
     def update_github(self):
         if self.pr:
-            if not len(self.wpt_commits()):
+            if not len(self.wpt_commits):
                 env.gh_wpt.close_pull(self.pr)
             elif env.gh_wpt.pull_state(self.pr) == "closed":
                 env.gh_wpt.reopen_pull(self.pr)
@@ -405,7 +422,8 @@ def remove_complete_backouts(commits):
     commits_remaining = set()
     for commit in commits:
         if commit.is_backout:
-            backed_out = set(item.sha1 for item, _ in commit.wpt_commits_backed_out())
+            backed_out, _ = commit.wpt_commits_backed_out()
+            backed_out = set(backed_out)
             if backed_out.issubset(commits_remaining):
                 commits_remaining -= backed_out
                 continue
@@ -425,14 +443,16 @@ class Endpoints(object):
 
     @property
     def head(self):
-        if self._second:
+        if self._second is not None:
             return self._second.sha1
-        else:
-            self._first.sha1
+        return self._first.sha1
 
     @head.setter
     def head(self, value):
         self._second = value
+
+    def __repr__(self):
+        return "<Endpoints %s:%s>" % (self.base, self.head)
 
 
 def updates_for_backout(syncs_by_bug, commit):
@@ -445,10 +465,11 @@ def updates_for_backout(syncs_by_bug, commit):
     # Check each sync for the backed-out commits
     for target_sync in sorted(syncs_by_bug.values(),
                               key=lambda x: 0 if x.bug in bugs else 1):
-        gecko_shas = set(item.canonical_rev for item in target_sync.upstream_gecko_commits)
-        for backout_commit in backout_commit_shas[:]:
-            if backout_commit in gecko_shas:
-                update_syncs[target_sync.bug] = backout_commit
+        for landing_commit in reversed(target_sync.upstreamed_gecko_commits):
+            if landing_commit.sha1 in backout_commit_shas.copy():
+                # This will set the sync to include the backout commit
+                update_syncs[target_sync.bug] = commit.sha1
+                backout_commit_shas.remove(landing_commit.sha1)
         if not backout_commit_shas:
             break
 
@@ -540,8 +561,10 @@ def update_sync_heads(syncs_by_bug, heads_by_bug):
 
 
 # Entry point
-def push(git_gecko, git_wpt, repository_name, rev):
+def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
     update_repositories(git_gecko, git_wpt, repository_name == "autoland")
+
+    rev = git_gecko.cinnabar.hg2git(hg_rev)
 
     pushed_syncs = set()
     landed_syncs = set()
@@ -572,14 +595,20 @@ def push(git_gecko, git_wpt, repository_name, rev):
 
     for sync in to_push:
         sync.update_wpt_commits()
+
+        if len(sync.upstreamed_gecko_commits) > 0:
+            sync.status == "open"
+        else:
+            sync.status = "complete"
+
         try:
             sync.update_github()
         except Exception as e:
+            if raise_on_error:
+                raise
             traceback.print_exc()
             logger.error(e)
-            import pdb
-            pdb.post_mortem()
-            failed_syncs.add(sync)
+            failed_syncs.add((sync, e))
         else:
             pushed_syncs.add(sync)
 
