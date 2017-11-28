@@ -94,6 +94,38 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     sync.wpt_commits[0].metadata["gecko-commit"] == relanding_rev
 
 
+def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
+                                  upstream_gecko_backout):
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    rev0 = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                 message="Change README")
+    rev1 = upstream_gecko_commit(test_changes={"README": "Change README again\n"}, bug=bug,
+                                 message="Change README again")
+
+    upstream.push(git_gecko, git_wpt, "inbound", rev1,
+                  raise_on_error=True)
+
+    upstream_gecko_backout(rev1, bug)
+
+    # Make some unrelated commit in the root
+    upstream_gecko_commit(other_changes=test_changes, bug="1235",
+                          message="Change other file")
+
+    relanding_rev = upstream_gecko_commit(test_changes={"README": "Change README once more\n"}, bug=bug,
+                                          message="Change README once more")
+
+    upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
+
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert sync.bug == "1234"
+    assert len(sync.gecko_commits) == 2
+    assert len(sync.wpt_commits) == 2
+    assert sync.status == "open"
+    sync.wpt_commits[0].metadata["gecko-commit"] == rev0
+    sync.wpt_commits[1].metadata["gecko-commit"] == relanding_rev
+
+
 def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit):
     bug = "1234"
     test_changes = {"README": "Change README\n"}

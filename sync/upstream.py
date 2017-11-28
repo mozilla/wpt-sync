@@ -246,7 +246,7 @@ class UpstreamSync(base.SyncProcess):
             return False
 
         if len(matching_commits) < len(self.upstreamed_gecko_commits):
-            self.wpt_commits.head = matching_commits[-1]
+            self.wpt_commits.head = self.wpt_commits[len(matching_commits) - 1]
 
         # Ensure the worktree is clean
         wpt_work = self.wpt_worktree.get()
