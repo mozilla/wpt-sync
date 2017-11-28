@@ -1,4 +1,5 @@
 from sync import upstream
+from sync.gitutils import update_repositories
 
 
 def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
@@ -35,7 +36,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert "Created PR with id %s" % sync.pr in env.gh_wpt.output.getvalue()
 
 
-def test_create_pr_backout(env, git_gecko, git_wpt, upstream_gecko_commit,
+def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
                            upstream_gecko_backout):
     bug = "1234"
     test_changes = {"README": "Change README\n"}
@@ -60,6 +61,91 @@ def test_create_pr_backout(env, git_gecko, git_wpt, upstream_gecko_commit,
     assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 0
     assert sync.status == "complete"
+
+
+def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
+                                  upstream_gecko_backout):
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change README")
+
+    upstream.push(git_gecko, git_wpt, "inbound", rev,
+                  raise_on_error=True)
+
+    backout_rev = upstream_gecko_backout(rev, bug)
+
+    upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
+
+    # Make some unrelated commit in the root
+    upstream_gecko_commit(other_changes=test_changes, bug="1235",
+                          message="Change other file")
+
+    relanding_rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                          message="Reland: Change README")
+
+    upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
+
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert sync.bug == "1234"
+    assert len(sync.gecko_commits) == 1
+    assert len(sync.wpt_commits) == 1
+    assert sync.status == "open"
+    sync.wpt_commits[0].metadata["gecko-commit"] == relanding_rev
+
+
+def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit):
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change README")
+
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
+                                           raise_on_error=True)
+
+    hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
+
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
+                                           raise_on_error=True)
+
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert sync.gecko_landed()
+    assert sync.status == "complete"
+    pr = env.gh_wpt.get_pull(sync.pr)
+    assert pr.merged
+
+
+def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
+                                     upstream_gecko_commit):
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change README")
+
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
+                                           raise_on_error=True)
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+
+    env.gh_wpt.set_status(sync.pr, "failed", "http://test/", "tests failed",
+                          "continuous-integration/travis-ci/pr")
+    upstream.status_changed(git_gecko, git_wpt, sync,
+                            "continuous-integration/travis-ci/pr",
+                            "failed", "http://test/", sync.wpt_commits.head.sha1)
+
+    hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
+
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
+                                           raise_on_error=True)
+
+    env.gh_wpt.set_status(sync.pr, "success", "http://test/", "tests failed",
+                          "continuous-integration/travis-ci/pr")
+    upstream.status_changed(git_gecko, git_wpt, sync,
+                            "continuous-integration/travis-ci/pr",
+                            "success", "http://test/", sync.wpt_commits.head.sha1)
+
+    assert sync.gecko_landed()
+    assert sync.status == "complete"
+
 
 
 # def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):

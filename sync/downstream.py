@@ -116,7 +116,7 @@ class DownstreamSync(base.SyncProcess):
 
     @property
     def metadata_commit(self):
-        if self.gecko_commits[-1].metadata["wpt-type"] == "metadata":
+        if self.gecko_commits[-1].metadata.get("wpt-type") == "metadata":
             return self.gecko_commits[-1]
 
     def ensure_metadata_commit(self):
@@ -147,7 +147,7 @@ class DownstreamSync(base.SyncProcess):
         diff_blobs = self.wpt_commits.head.commit.diff(self.wpt_commits.base.commit)
         for item in diff_blobs:
             if item.rename_from:
-                renames[item.rename_from] = renames[item.rename_to]
+                renames[item.rename_from] = item.rename_to
         return renames
 
     def move_metadata(self, renames):
@@ -189,12 +189,12 @@ class DownstreamSync(base.SyncProcess):
         mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
                                 for old, new in renames.iteritems()}
 
-        if not os.path.exists(mozbuild_path):
-            logger.warning("moz.build file not found, skipping update")
-
-        new_data = bugcomponents.remove_obsolete(mozbuild_path, moves=mozbuild_rel_renames)
-        with open(mozbuild_path, "w") as f:
-            f.write(new_data)
+        if os.path.exists(mozbuild_path):
+            new_data = bugcomponents.remove_obsolete(mozbuild_path, moves=mozbuild_rel_renames)
+            with open(mozbuild_path, "w") as f:
+                f.write(new_data)
+        else:
+            logger.warning("Can't find moz.build file to update")
 
         self._commit_metadata()
 
@@ -265,8 +265,8 @@ class DownstreamSync(base.SyncProcess):
             if revish:
                 args.append(revish)
             logger.info("Getting a list of tests affected by changes.")
-            s = self.wpt.tests_affected(*args)
-            if s is not None:
+            output = self.wpt.tests_affected(*args)
+            if output:
                 for item in s.strip().split("\n"):
                     path, test_type = item.strip().split("\t")
                     tests_by_type[test_type].append(path)
@@ -321,9 +321,6 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha):
         return
 
     update_repositories(git_gecko, git_wpt)
-
-    pr_id = pr_for_commit(git_wpt, head_sha)
-    sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
 
     if status == "pending":
         # We got new commits that we missed

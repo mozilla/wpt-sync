@@ -26,7 +26,7 @@ class TryPush(base.ProcessData):
     statuses = ("open", "complete", "infra-fail")
 
     @classmethod
-    def create(cls, sync, affected_tests=None, stability=False, wpt_sha=None):
+    def create(cls, sync, affected_tests=None, stability=False):
 
         if not tree.is_open("try"):
             logger.info("try is closed")
@@ -36,13 +36,12 @@ class TryPush(base.ProcessData):
         git_work = sync.gecko_worktree.get()
 
         rebuild_count = 0 if not stability else 10
-        with TrySyntaxCommit(git_work, affected_tests, rebuild_count) as c:
+        with TrySyntaxCommit(sync.git_gecko, git_work, affected_tests, rebuild_count) as c:
             try_rev = c.push()
 
         data = {
             "try-rev": try_rev,
             "stability": stability,
-            "wpt-sha": wpt_sha
         }
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
                                                     "syncs",
@@ -86,10 +85,6 @@ class TryPush(base.ProcessData):
     @property
     def try_rev(self):
         return self.get("try-rev")
-
-    @property
-    def wpt_sha(self):
-        return self.get("wpt-sha")
 
     @property
     def taskgroup_id(self):
@@ -153,7 +148,8 @@ class TryPush(base.ProcessData):
 
 
 class TryCommit(object):
-    def __init__(self, worktree, tests_by_type, rebuild):
+    def __init__(self, git_gecko, worktree, tests_by_type, rebuild):
+        self.git_gecko = git_gecko
         self.worktree = worktree
         self.tests_by_type = tests_by_type
         self.rebuild = rebuild
@@ -172,7 +168,9 @@ class TryCommit(object):
         status, stdout, stderr = self.worktree.git.push('try', with_extended_output=True)
         rev_match = rev_re.search(stderr)
         if not rev_match:
-            logger.debug("No revision found in string:\n\n{}\n".format(stderr))
+            logger.warning("No revision found in string:\n\n{}\n".format(stderr))
+            # Assume that the revision is HEAD~
+            try_rev = self.git_gecko.cinnabar.git2hg(self.worktree.commit("HEAD~").hexsha)
         else:
             try_rev = rev_match.group('rev')
         if status != 0:
@@ -236,12 +234,11 @@ class TrySyntaxCommit(TryCommit):
         path_flavors = None
 
         if tests_by_type is None:
-            suites = chain.from_iterable(test_type_suite.itervalues())
+            suites = ["web-platform-tests"]
         elif len(tests_by_type) == 0:
             suites = [test_type_suite["testharness"]]
             # run first chunk of the wpt job if no tests are affected
-            test_data["test_jobs"].extend(suite + platform_suffix for suite in
-                                          test_type_suite["testharness"])
+            suites = chain.from_iterable(test_type_suite.itervalues())
         else:
             suites = chain.from_iterable(value for key, value in test_type_suite.iteritems()
                                          if key in tests_by_type)

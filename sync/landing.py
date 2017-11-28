@@ -47,7 +47,7 @@ class SyncPoint(object):
         fp.write(self.dumps() + "\n")
 
     def dumps(self):
-        return "\n".join("%s: %s" for key, value in self._items.iteritems())
+        return "\n".join("%s: %s" % (key, value) for key, value in self._items.iteritems())
 
 
 class LandingSync(base.SyncProcess):
@@ -56,7 +56,7 @@ class LandingSync(base.SyncProcess):
     statuses = ("open", "complete")
 
     @classmethod
-    def new(cls, git_gecko, git_wpt, wpt_head, bug=None):
+    def new(cls, git_gecko, git_wpt, wpt_base, wpt_head, bug=None):
         # There is some chance here we create a bug but never create the branch.
         # Probably need something to clean up orphan bugs
 
@@ -73,7 +73,7 @@ class LandingSync(base.SyncProcess):
         return super(LandingSync, cls).new(git_gecko, git_wpt,
                                            gecko_base,
                                            gecko_head,
-                                           wpt_base=wpt_base(git_gecko, git_wpt).sha1,
+                                           wpt_base=wpt_base,
                                            wpt_head=wpt_head,
                                            bug=bug)
 
@@ -117,7 +117,7 @@ Automatic update from web-platform-tests%s
         message = sync_commit.Commit.make_commit_msg(message, metadata)
         commit = git_work_gecko.index.commit(message=message)
         gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
-        self._gecko_commits.append(commit)
+        self.gecko_commits.head = commit
 
         return gecko_commit
 
@@ -167,9 +167,9 @@ Automatic update from web-platform-tests%s
         have_try_pushes = {item.metadata.get("try-push")
                            for item in sync.gecko_commits
                            if "try-push" in item.metadata}
-        for commit in sync.metadata_commits:
-            if commit.metadata["try-push"] not in have_try_pushes:
-                apply_metadata.append(commit.sha1)
+        if sync.metadata_commit:
+            if sync.metadata_commit.metadata["try-push"] not in have_try_pushes:
+                apply_metadata.append(sync.metadata_commit.sha1)
         # TODO: so we need to reverse the order here?
         if apply_metadata:
             self.gecko_worktree.get().git.cherry_pick(*apply_metadata)
@@ -235,11 +235,14 @@ Automatic update from web-platform-tests%s
             return
         sync_point["upstream"] = new_sha1
         gecko_work = self.gecko_worktree.get()
+        sync_point["local"] = gecko_work.head.commit.hexsha
         with open(os.path.join(gecko_work.working_dir,
-                               "testing/web-platform/meta/mozilla-sync"), "w") as f:
+                               env.config["gecko"]["path"]["meta"],
+                               "mozilla-sync"), "w") as f:
             sync_point.dump(f)
         if gecko_work.is_dirty():
-            gecko_work.index.add(["testing/web-platform/meta/mozilla-sync"])
+            gecko_work.index.add([os.path.join(env.config["gecko"]["path"]["meta"],
+                                               "mozilla-sync")])
             gecko_work.index.commit(
                 message="Bug %s - [wpt-sync] Update web-platform-tests to %s" %
                 (self.bug, new_sha1))
@@ -295,10 +298,7 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, sync_point, wpt_head="origin/
     for commit in git_wpt.iter_commits(revish,
                                        reverse=True):
         commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
-        if not git_wpt.is_ancestor(commit.sha1, "eb0f876acd39a6bb3bd3e6bd70155bfe6dd6931f"):
-            pr = commit.pr()
-        else:
-            pr = None
+        pr = commit.pr()
         if not commits_by_pr or commits_by_pr[-1][0] != pr:
             commits_by_pr.append((pr, []))
         commits_by_pr[-1][1].append(commit)
@@ -319,11 +319,11 @@ def landable_commits(git_gecko, git_wpt, sync_point, wpt_head="origin/master"):
                                                  git_wpt,
                                                  commits[0].metadata["bugzilla-url"])
         else:
-            sync = downstream.DownstreamSync.for_pr(pr)
+            sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if not sync:
                 # TODO: schedule a downstream sync for this pr
                 last = True
-            if not sync.matadata_ready:
+            elif not sync.metadata_ready:
                 last = True
             if last:
                 break
@@ -363,7 +363,7 @@ def land_to_gecko(git_gecko, git_wpt):
         if landable is None:
             return
         wpt_head, commits = landable
-        landing = LandingSync.new(git_gecko, git_wpt, wpt_head)
+        landing = LandingSync.new(git_gecko, git_wpt, sync_point["upstream"], wpt_head)
     else:
         wpt_head, commits = landable_commits(git_gecko,
                                              git_wpt,
@@ -375,6 +375,8 @@ def land_to_gecko(git_gecko, git_wpt):
 
     if landing.latest_try_push is None:
         trypush.TryPush.create(landing)
+
+    return landing
 
 
 # Entry point
@@ -389,9 +391,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     wpt_head, commits = landable_commits(git_gecko,
                                          git_wpt,
                                          sync_point,
-                                         landing.wpt_commits.head.sha1)
+                                         sync.wpt_commits.head.sha1)
 
-    landing.update_sync_point(sync_point)
-    push(landing)
+    sync.update_sync_point(sync_point)
+    push(sync)
     for _, sync, _ in commits:
         sync.finish()

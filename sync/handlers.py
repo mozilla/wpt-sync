@@ -177,5 +177,5 @@ class LandingHandler(Handler):
 
 
 class CleanupHandler(Handler):
-    def __call__(self, session, git_gecko, git_wpt, gh_wpt, bz):
-        return worktree.cleanup(self.config, session)
+    def __call__(self, git_gecko, git_wpt):
+        return worktree.cleanup()

@@ -7,6 +7,58 @@
 
 # from sync import downstream, model, worktree
 
+from sync import downstream, load
+
+
+def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, set_pr_status, mock_mach, mock_wpt):
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+
+    mock_mach.set_data("file-info", """Testing :: web-platform-tests
+  testing/web-platform/tests/README
+""")
+
+    mock_wpt.set_data("files-changed", "README\n")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+    assert sync is not None
+    assert sync.status == "open"
+    assert len(sync.gecko_commits) == 1
+    assert len(sync.wpt_commits) == 1
+    assert sync.gecko_commits[0].metadata == {
+        "wpt-pr": str(pr["number"]),
+        "wpt-commit": pr["head"]
+    }
+    assert "Creating a bug in component Testing :: web-platform" in env.bz.output.getvalue()
+
+
+def test_wpt_pr_status_success(git_gecko, git_wpt, pull_request, set_pr_status,
+                               hg_gecko_try, mock_wpt):
+    mock_wpt.set_data("tests-affected", "")
+
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr, "success")
+    try_push = sync.latest_try_push
+    assert try_push is not None
+    assert try_push.status == "open"
+    assert try_push.try_rev == sync.gecko_commits[-1].canonical_rev
+    assert try_push.stability is False
+
+
+def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
+                         hg_gecko_try, local_gecko_commit,
+                         sample_gecko_metadata, initial_wpt_content):
+    local_gecko_commit(message="Add wpt metadata", meta_changes=sample_gecko_metadata)
+    pr = pull_request([("Test commit",
+                        {"example/test.html": None,
+                         "example/test1.html": initial_wpt_content["example/test.html"]})],
+                      "Test PR")
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr, "success")
+    assert sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
 
 # def test_new_wpt_pr(config, session, git_gecko, git_wpt, bz):
 #     body = {
@@ -138,78 +190,12 @@
 #         assert len(tests["wdspec"]) == 3
 #         assert len(tests["reftest"]) == 1
 
-
 # def test_get_affected_tests_empty():
 #     wpt = Mock()
 #     wpt.tests_affected = Mock(return_value=None)
 #     with patch("sync.downstream.WPT", return_value=wpt):
 #         assert len(downstream.get_affected_tests("some/path")) == 0
-
-
-# def test_try_message_when_no_affected_tests():
-#     expected = (
-#         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests-1"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
-#         "--artifact")
-#     assert downstream.try_message({}) == expected
-
-
-# def test_try_message_no_affected_tests_rebuild():
-#     rebuild = 10
-#     expected = (
-#         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests-1"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
-#         "--artifact --rebuild {}".format(rebuild))
-#     assert downstream.try_message({}, rebuild=rebuild) == expected
-
-
-# def test_try_message_all_rebuild():
-#     rebuild = 10
-#     expected = (
-#         "try: -b do -p win32,win64,linux64,linux -u "
-#         "web-platform-tests-reftests,web-platform-tests-wdspec,"
-#         "web-platform-tests"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] "
-#         "-t none --artifact --rebuild {}".format(rebuild))
-#     assert downstream.try_message(rebuild=rebuild) == expected
-
-
-# def test_try_message_testharness_invalid():
-#     base = "foo"
-#     tests_affected = {
-#         "invalid_type": ["path1"],
-#         "testharness": ["testharnesspath1", "testharnesspath2",
-#                         os.path.join(base, "path3")]
-#     }
-#     expected = (
-#         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
-#         "--artifact --try-test-paths web-platform-tests:{base}/path1,"
-#         "web-platform-tests:{base}/testharnesspath1,"
-#         "web-platform-tests:{base}/testharnesspath2,"
-#         "web-platform-tests:{base}/path3".format(base=base)
-#     )
-#     assert downstream.try_message(tests_affected, base=base) == expected
-
-
-# def test_try_message_wdspec_invalid():
-#     base = "foo"
-#     tests_affected = {
-#         "invalid_type": [os.path.join(base, "path1")],
-#         "wdspec": [os.path.join(base, "wdspecpath1")],
-#         "invalid_empty": [],
-#         "also_invalid": ["path2"],
-#     }
-#     expected = (
-#         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10],"
-#         "web-platform-tests-wdspec -t none "
-#         "--artifact --try-test-paths web-platform-tests:{base}/path1,"
-#         "web-platform-tests:{base}/path2,"
-#         "web-platform-tests-wdspec:{base}/wdspecpath1".format(base=base)
-#     )
-#     assert downstream.try_message(tests_affected, base=base) == expected
-
+#
 
 # def test_try_message_just_reftest():
 #     base = "foo"

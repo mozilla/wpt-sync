@@ -66,10 +66,22 @@ class Gecko(GitSettings):
     cinnabar = True
     fetch_args = ["mozilla"]
 
+    def configure(self):
+        super(Gecko, self).configure()
+        git = self.repo().git
+        git.config("remote.try.push", "+HEAD:refs/heads/branches/default/tip", add=True)
+
 
 class WebPlatformTests(GitSettings):
     name = "web-platform-tests"
     fetch_args = ["origin", "master", "--no-tags"]
+
+    def configure(self):
+        super(WebPlatformTests, self).configure()
+        git = self.repo().git
+        git.config("remote.origin.fetch", unset_all=True)
+        git.config("remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*", add=True)
+        git.config("remote.origin.fetch", "+refs/pull/*/head:refs/remotes/origin/pr/*", add=True)
 
 
 class Cinnabar(object):

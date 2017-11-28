@@ -51,3 +51,36 @@ class Mach(Command):
 class WPT(Command):
     def __init__(self, path):
         Command.__init__(self, "wpt", path)
+
+
+def create_mock(name):
+    class MockCommand(Command):
+        _data = {}
+        _log = []
+
+        def __init__(self, path):
+            self.name = name
+            self.path = path
+
+        @classmethod
+        def set_data(cls, command, value):
+            cls._data[command] = value
+
+        @classmethod
+        def get_log(cls):
+            return cls._log
+
+        def get(self, *args, **kwargs):
+            data = self._data.get(args[0], "")
+            if callable(data):
+                data = data(*args[1:], **kwargs)
+
+            self._log.append({"command": self.name,
+                              "cwd": self.path,
+                              "args": args,
+                              "kwargs": kwargs,
+                              "rv": data})
+
+            return data
+
+    return MockCommand

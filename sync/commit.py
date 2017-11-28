@@ -218,7 +218,7 @@ class GeckoCommit(Commit):
 class WptCommit(Commit):
     def pr(self):
         if "wpt_pr" not in self.notes:
-            self.notes["wpt_pr"] = env.gh_wpt.pr_for_commit(self.sha1).number
+            self.notes["wpt_pr"] = env.gh_wpt.pr_for_commit(self.sha1)
         return self.notes["wpt_pr"]
 
 

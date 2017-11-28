@@ -1,6 +1,6 @@
 import argparse
 import os
-import sys
+import subprocess
 
 import git
 
@@ -9,7 +9,7 @@ import log
 from tasks import setup
 from env import Environment
 from gitutils import update_repositories
-from load import get_syncs, get_pr_sync
+from load import get_syncs
 
 logger = log.get_logger("command")
 env = Environment()
@@ -75,6 +75,9 @@ def get_parser():
     parser_status.add_argument("--old-status", default="*", help="Current status")
     parser_status.add_argument("--seq-id",  nargs="?", default="*", help="Sequence number")
     parser_status.set_defaults(func=do_status)
+
+    parser_status = subparsers.add_parser("test", help="Run the tests with pytest")
+    parser_status.set_defaults(func=do_test)
 
     return parser
 
@@ -214,6 +217,11 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
                                             obj_id=obj_id)
     for obj in objs:
         obj.status = kwargs["new_status"]
+
+
+def do_test(*args, **kwargs):
+    cmd = ["pytest", "--cov", "sync", "--cov-report", "html", "test/test_upstream.py"]
+    subprocess.call(cmd)
 
 
 def main():

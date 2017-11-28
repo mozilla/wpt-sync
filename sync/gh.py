@@ -107,7 +107,7 @@ class GitHub(object):
         statuses = self.get_statuses(pr_id)
         latest = {}
         for status in statuses:
-            if status.context not in latest and status.context != "upstream/gecko":
+            if status.context != "upstream/gecko":
                 latest[status.context] = status.state
 
         return all(status == "success" for status in latest.itervalues())
@@ -123,7 +123,7 @@ class GitHub(object):
                            (sha, ", ".join(item["number"] for item in prs)))
             prs = sorted(prs, key=lambda x: x["number"])
 
-        return prs[0]
+        return prs[0].number
 
     def get_pulls(self, minimum_id=None):
         for item in self.repo.get_pulls():
@@ -158,8 +158,12 @@ class MockGitHub(GitHub):
         self._log("Getting PR %s" % id)
         return self.prs.get(id)
 
-    def create_pull(self, title, body, base, head, _commits=None):
-        id = self._id.next()
+    def create_pull(self, title, body, base, head, _commits=None, _id=None):
+        if _id is None:
+            id = self._id.next()
+        else:
+            id = _id
+        assert id not in self.prs
         if _commits is None:
             _commits = [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
                                     "message": "Test commit",
@@ -168,7 +172,7 @@ class MockGitHub(GitHub):
             "number": id,
             "title": title,
             "body": body,
-            "base": base,
+            "base": {"ref": base},
             "head": head,
             "merged": False,
             "state": "open",
@@ -177,6 +181,8 @@ class MockGitHub(GitHub):
             "_commits": _commits,
         })
         self.prs[id] = data
+        for commit in _commits:
+            self.commit_prs[commit["sha"]] = id
         self._log("Created PR with id %s" % id)
         return id
 
@@ -187,23 +193,17 @@ class MockGitHub(GitHub):
 
     def set_status(self, pr_id, status, target_url, description, context):
         pr = self.get_pull(pr_id)
-        for item in pr._commits[0]._statuses:
-            if item.context == context and item.description == description:
-                item.status = status
-                item.target_url = target_url
-                self._log("Set status on PR %s to %s" % (pr_id, status))
-            return
-        pr._commits[0]._statuses.append(AttrDict(status=status,
-                                                 target_url=target_url,
-                                                 description=description,
-                                                 context=context))
+        pr._commits[-1]._statuses.append(AttrDict(state=status,
+                                                  target_url=target_url,
+                                                  description=description,
+                                                  context=context))
         self._log("Set status on PR %s to %s" % (pr_id, status))
 
     def get_statuses(self, pr_id):
         pr = self.get_pull(pr_id)
         if pr:
             self._log("Got status for PR %s " % pr_id)
-            return pr["_commits"][0]["_statuses"]
+            return pr["_commits"][-1]["_statuses"]
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -227,7 +227,7 @@ class MockGitHub(GitHub):
         pr = self.get_pull(pr_id)
         status_by_context = {}
         for item in pr._commits[0]._statuses:
-            status_by_context[item.context] = item.status
+            status_by_context[item.context] = item.state
         return (pr.mergeable and
                 all(item == "success" for item in
                     status_by_context.itervalues()) and

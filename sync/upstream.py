@@ -60,7 +60,7 @@ class UpstreamSync(base.SyncProcess):
             return None
 
         if len(syncs) > 1:
-            for status in self.statuses:
+            for status in cls.statuses:
                 status_syncs = [item for item in syncs if item.status == status]
                 if status_syncs:
                     assert len(status_syncs) == 1
@@ -248,6 +248,10 @@ class UpstreamSync(base.SyncProcess):
         if len(matching_commits) < len(self.upstreamed_gecko_commits):
             self.wpt_commits.head = matching_commits[-1]
 
+        # Ensure the worktree is clean
+        wpt_work = self.wpt_worktree.get()
+        wpt_work.git.clean(f=True, d=True, x=True)
+
         for commit in self.gecko_commits[len(matching_commits):]:
             self.add_commit(commit)
 
@@ -294,6 +298,9 @@ class UpstreamSync(base.SyncProcess):
         return wpt_commit, True
 
     def create_pr(self):
+        if self.pr:
+            return self.pr
+
         remote_branch, _ = self.remote_branch()
         while not env.gh_wpt.get_branch(remote_branch):
             logger.debug("Waiting for branch")
@@ -381,6 +388,7 @@ class UpstreamSync(base.SyncProcess):
                 msg = "Merging PR failed: %s" % e
             else:
                 self.merge_sha = merge_sha
+                self.status = "complete"
                 return True
         logger.error(msg)
         env.bz.comment(self.bug, msg)
@@ -585,8 +593,9 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
                                      last_sync_point.commit,
                                      sync_commit.GeckoCommit(git_gecko, rev),
                                      syncs_by_bug)
+
     if updated is None:
-        return
+        return pushed_syncs, landed_syncs, failed_syncs
 
     create_endpoints, update_syncs = updated
 
@@ -631,7 +640,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
         # Never change anything for pending
         return landed
 
-    if status == "passed":
+    if status == "success":
         if sync.gecko_landed():
             landed = sync.try_land_pr()
         else:
