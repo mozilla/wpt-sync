@@ -5,7 +5,6 @@ services:
     build: .
     volumes:
      - .:/home/wptsync/wpt-sync
-     - ./ssh:/home/wptsync/.ssh
     environment:
      - PYTHONPATH=/wpt-sync
     command: wptsync listen
@@ -20,8 +19,6 @@ services:
     build: .
     volumes:
      - .:/home/wptsync/wpt-sync
-     - /home/james/develop/gecko:/home/wptsync/gecko
-     - /home/james/develop/gecko-hg:/home/wptsync/gecko-hg
-    command: celery worker --app sync.worker -B
+    command: ./run_sync_tasks.sh
     depends_on:
       - rabbitmq
