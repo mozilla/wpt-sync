@@ -1,3 +1,5 @@
+import filelock
+
 import bug
 import env
 import gh
@@ -12,6 +14,7 @@ logger = log.get_logger(__name__)
 
 handler_map = None
 
+lock = filelock.FileLock("sync.lock")
 
 @settings.configure
 def get_handlers(config):
@@ -44,7 +47,9 @@ def setup(config):
 def try_task(f):
     def inner(*args, **kwargs):
         try:
-            return f(*args, **kwargs)
+            # TODO: much more finegrained locking
+            with lock:
+                return f(*args, **kwargs)
         except Exception as e:
             logger.error(str(unicode(e).encode("utf8")))
             raise

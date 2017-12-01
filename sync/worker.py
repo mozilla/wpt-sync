@@ -22,8 +22,3 @@ worker = celery.Celery('sync',
                        include=['sync.tasks'])
 worker.conf.beat_schedule = beat_schedule
 
-if __name__ == "__main__":
-    config = settings.load()
-    worker.conf.update(**config["celery"])
-    repos.configure(config)
-    worker.start()

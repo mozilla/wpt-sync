@@ -295,7 +295,7 @@ class DownstreamSync(base.SyncProcess):
         return disabled
 
 
-# Entry point
+@base.entry_point
 def new_wpt_pr(git_gecko, git_wpt, pr_data):
     """ Start a new downstream sync """
     update_repositories(git_gecko, git_wpt)
@@ -313,7 +313,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data):
     # Now wait for the status to change before we take any actions
 
 
-# Entry point
+@base.entry_point
 def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha):
     # TODO: seems like ignoring status that isn't our own would make more sense
     if context != "continuous-integration/travis-ci/pr":
@@ -335,7 +335,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha):
         # TODO: check only for status of Firefox job(s)
 
 
-# Entry point
+@base.entry_point
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     log_files = try_push.download_logs()
     disabled = sync.update_metadata(log_files, stability=try_push.stability)

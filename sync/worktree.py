@@ -10,7 +10,7 @@ logger = log.get_logger("worktree")
 
 def cleanup(git_gecko, git_wpt):
     for git in [git_gecko, git_wpt]:
-        worktrees = git.worktree("list", porcelain=True)
+        worktrees = git.git.worktree("list", "--porcelain")
         groups = [item for item in worktrees.split("\n\n") if item.strip()]
         for group in groups:
             data = {}
@@ -25,6 +25,7 @@ def cleanup(git_gecko, git_wpt):
             if "bare" in data or "branch" not in data:
                 continue
 
+            logger.info("Checking worktree %s for branch %s" % (data["worktree"], data["branch"]))
             worktree_path = data["worktree"]
 
             process_name = ProcessName.from_ref(data["branch"])

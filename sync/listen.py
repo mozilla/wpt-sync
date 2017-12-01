@@ -193,8 +193,7 @@ class Filter(object):
 
     def __call__(self, body):
         if self.accept(body):
-            pass
-            # self.task.apply_async((self.name, body))
+            self.task.apply_async((self.name, body))
 
     def accept(self, body):
         raise NotImplementedError
@@ -207,12 +206,12 @@ class GitHubFilter(Filter):
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
     def __init__(self, config):
-        Filter.__init__(self, config)
-        self.prefix = "%s/" % (
-            urlparse.urlparse(config["web-platform-tests"]["repo"]["url"]).path[1:])
+        self.config = config
+        repo_path = urlparse.urlparse(config["web-platform-tests"]["repo"]["url"]).path
+        self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
     def accept(self, body):
-        return (body['_meta']['routing_key'].startswith(self.prefix) and
+        return (body['_meta']['routing_key'].startswith(self.key_filter) and
                 body["event"] in self.event_filters
                 and self.event_filters[body["event"]](body))
 

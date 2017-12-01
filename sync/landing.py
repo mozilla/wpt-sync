@@ -77,6 +77,14 @@ class LandingSync(base.SyncProcess):
                                            wpt_head=wpt_head,
                                            bug=bug)
 
+    @classmethod
+    def for_bug(cls, git_gecko, git_wpt, bug):
+        for status in cls.statuses:
+            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
+            assert len(syncs) <= 1
+            if len(syncs) == 1:
+                return syncs[0]
+
     def check_finished(self):
         return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
                                           self.branch_name)
@@ -339,7 +347,7 @@ def landable_commits(git_gecko, git_wpt, sync_point, wpt_head="origin/master"):
     return wpt_head, landable_commits
 
 
-# Entry point
+@base.entry_point
 def wpt_push(git_wpt, commits):
     git_wpt.remotes.origin.fetch()
     for commit in commits:
@@ -347,7 +355,7 @@ def wpt_push(git_wpt, commits):
         sync_commit.WptCommit(git_wpt, commit).pr()
 
 
-# Entry point
+@base.entry_point
 def land_to_gecko(git_gecko, git_wpt):
     update_repositories(git_gecko, git_wpt)
 
@@ -379,7 +387,7 @@ def land_to_gecko(git_gecko, git_wpt):
     return landing
 
 
-# Entry point
+@base.entry_point
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     log_files = try_push.download_logs()
     sync.update_metadata(log_files)

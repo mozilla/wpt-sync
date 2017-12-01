@@ -7,7 +7,7 @@ import landing
 import upstream
 import worktree
 import trypush
-from gitutils import is_ancestor, pr_for_commit
+from gitutils import is_ancestor, pr_for_commit, update_repositories
 from env import Environment
 from load import get_pr_sync
 
@@ -50,7 +50,7 @@ def handle_pr(git_gecko, git_wpt, event):
         # set up state for
         # TODO: maybe want to create a new sync here irrespective of the event
         # type because we missed some events.
-        if event["action"] == "opened" and "downstream" in env["sync"]["enabled"]:
+        if event["action"] == "opened" and "downstream" in env.config["sync"]["enabled"]:
             downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"])
     else:
         sync.update_status(event["action"], event["pull_request"]["merged"])
@@ -61,12 +61,13 @@ def handle_status(git_gecko, git_wpt, event):
         # Never handle changes to our own status
         return
 
+    update_repositories(None, git_wpt, False)
+
     rev = event["sha"]
     pr_id = pr_for_commit(git_wpt, rev)
 
     if not pr_id:
-        if not is_ancestor(git_wpt, rev, "origin/master"):
-            logger.debug(event)
+        if not git_wpt.is_ancestor(rev, "origin/master"):
             logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
         return
     else:
@@ -79,16 +80,16 @@ def handle_status(git_gecko, git_wpt, event):
         # TODO: Handle this case
         logger.error("Got a status update for PR %s which is unknown to us" % pr_id)
 
-    if isinstance(sync, upstream.UpstreamSync) and "upstream" in env["sync"]["enabled"]:
+    if isinstance(sync, upstream.UpstreamSync) and "upstream" in env.config["sync"]["enabled"]:
         upstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
                                 event["target_url"], event["sha"])
-    elif isinstance(sync, downstream.DownstreamSync) and "downstream" in env["sync"]["enabled"]:
+    elif isinstance(sync, downstream.DownstreamSync) and "downstream" in env.config["sync"]["enabled"]:
         downstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
                                   event["target_url"], event["sha"])
 
 
 def handle_push(git_gecko, git_wpt, event):
-    landing.wpt_push(git_wpt, [item["sha"] for item in event["commits"]])
+    landing.wpt_push(git_wpt, [item["id"] for item in event["commits"]])
 
 
 class GitHubHandler(Handler):
@@ -109,12 +110,12 @@ class GitHubHandler(Handler):
 class PushHandler(Handler):
     def __init__(self, config):
         self.config = config
-        self.integration_repos = {}
+        self.repos = {}
         for repo_name, url in config["sync"]["integration"].iteritems():
             url_parts = urlparse.urlparse(url)
             url = urlparse.urlunparse(("https",) + url_parts[1:])
-            self.integration_repos[url] = repo_name
-        self.landing_repo = config["sync"]["landing"]
+            self.repos[url] = repo_name
+        self.repos[config["sync"]["landing"]] = "central"
 
     def __call__(self, git_gecko, git_wpt, body):
         data = body["payload"]["data"]
@@ -123,9 +124,10 @@ class PushHandler(Handler):
         # matters for us
         rev = data["heads"][0]
         logger.debug("Commit landed in repo %s" % repo_url)
+        print repo_url, repo_url in self.repos
         if repo_url in self.repos:
-            repo_name = self.integration_repos[repo_url]
-            if "upstream" in env["sync"]["enabled"]:
+            repo_name = self.repos[repo_url]
+            if "upstream" in env.config["sync"]["enabled"]:
                 upstream.push(git_gecko, git_wpt, repo_name, rev)
 
 
@@ -166,15 +168,15 @@ class TaskGroupHandler(Handler):
             return
         sync = try_push.sync(git_gecko, git_wpt)
 
-        if isinstance(sync, downstream.DownstreamSync) and "downstream" in env["sync"]["enabled"]:
+        if isinstance(sync, downstream.DownstreamSync) and "downstream" in env.config["sync"]["enabled"]:
             downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
-        elif isinstance(sync, landing.LandingSync) and "landing" in env["sync"]["enabled"]:
+        elif isinstance(sync, landing.LandingSync) and "landing" in env.config["sync"]["enabled"]:
             landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
 
 class LandingHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
-        if "landing" in env["sync"]["enabled"]:
+        if "landing" in env.config["sync"]["enabled"]:
             return landing.land_to_gecko(git_gecko, git_wpt)
 
 

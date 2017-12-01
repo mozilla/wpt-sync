@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import traceback
@@ -55,26 +56,25 @@ class UpstreamSync(base.SyncProcess):
 
     @classmethod
     def for_bug(cls, git_gecko, git_wpt, bug):
-        syncs = cls.load_all(git_gecko, git_wpt, status="*", obj_id=bug)
-        if len(syncs) == 0:
-            return None
-
-        if len(syncs) > 1:
-            for status in cls.statuses:
-                status_syncs = [item for item in syncs if item.status == status]
-                if status_syncs:
-                    assert len(status_syncs) == 1
-                syncs = status_syncs
-                break
-        return syncs[0]
+        for status in cls.statuses:
+            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
+            assert len(syncs) <= 1
+            if len(syncs) == 1:
+                return syncs[0]
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
+        wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
+        head_matches = None
         for status in ["open", "complete", "incomplete"]:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
 
             for sync in syncs:
                 if sync.pr == pr_id:
+                    return sync
+                elif sync.pr is None and sync.wpt_commits.head.sha1 == wpt_head:
+                    # This is to handle cases where the pr was not correctly stored
+                    sync.pr = pr_id
                     return sync
 
     @classmethod
@@ -290,6 +290,10 @@ class UpstreamSync(base.SyncProcess):
         metadata = {"gecko-commit": gecko_commit.canonical_rev,
                     "gecko-integration-branch": self.repository}
 
+        if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
+            # If there's already a patch file here then don't try to create a new one
+            # because we'll presumbaly fail again
+            raise AbortError("Skipping due to existing patch")
         wpt_commit = gecko_commit.move(git_work,
                                        metadata=metadata,
                                        msg_filter=commit_message_filter,
@@ -306,16 +310,16 @@ class UpstreamSync(base.SyncProcess):
             logger.debug("Waiting for branch")
             time.sleep(1)
 
-        msg_parts = self.gecko_commits[0].commit.message.split("\n", 1)
-        if len(msg_parts) == 1:
-            summary = msg_parts[0]
-            body = ""
-        else:
-            summary, body = msg_parts
+        commit_summary = self.gecko_commits[0].commit.summary
+        summary_parts = commit_summary.split("-", 1)
+        summary = summary_parts[1] if len(summary_parts) > 1 else commit_summary
+
+        body = self.wpt_commits[0].msg.split("\n", 1)
+        body = body[1] if len(body) != 1 else ""
 
         remote_branch, _ = self.remote_branch()
         pr_id = env.gh_wpt.create_pull(
-            title="[Gecko%s] %s" % (" bug %s" % self.bug if self.bug else "", summary),
+            title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "", summary),
             body=body.strip(),
             base="master",
             head=remote_branch)
@@ -325,7 +329,7 @@ class UpstreamSync(base.SyncProcess):
                        "Created web-platform-tests PR %s for changes under "
                        "testing/web-platform/tests" %
                        env.gh_wpt.pr_url(pr_id))
-        env.gh_wpt.approve_pull(pr_id)
+        #env.gh_wpt.approve_pull(pr_id)
         return pr_id
 
     def push_commits(self):
@@ -399,7 +403,7 @@ def commit_message_filter(msg):
     metadata = {}
     m = commitparser.BUG_RE.match(msg)
     if m:
-        bug_str = m.group(0)
+        bug_str = m.group(1)
         if msg.startswith(bug_str):
             # Strip the bug prefix
             prefix = re.compile("^%s[^\w\d]*" % bug_str)
@@ -421,7 +425,8 @@ def wpt_commits(git_gecko, first_commit, head_commit):
     return [sync_commit.GeckoCommit(git_gecko, item.hexsha) for item in
             git_gecko.iter_commits(revish,
                                    paths=env.config["gecko"]["path"]["wpt"],
-                                   reverse=True)]
+                                   reverse=True,
+                                   max_parents=1)]
 
 
 def remove_complete_backouts(commits):
@@ -519,7 +524,6 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit, syncs_
             create, update = updates_for_backout(syncs_by_bug, commit)
             create_syncs.update(create)
             update_syncs.update(update)
-
         else:
             bug = commit.bug
             if bug in syncs_by_bug:
@@ -568,36 +572,10 @@ def update_sync_heads(syncs_by_bug, heads_by_bug):
     return rv
 
 
-# Entry point
-def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
-    update_repositories(git_gecko, git_wpt, repository_name == "autoland")
-
-    rev = git_gecko.cinnabar.hg2git(hg_rev)
-
+def update_sync_prs(git_gecko, git_wpt, syncs_by_bug, create_endpoints, update_syncs,
+                    raise_on_error=False):
     pushed_syncs = set()
-    landed_syncs = set()
     failed_syncs = set()
-
-    last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
-    if last_sync_point.commit is None:
-        # If we are just starting, default to the current mozilla central
-        logger.info("No existing sync point for %s found, using the latest HEAD")
-        last_sync_point.commit = env.config["gecko"]["refs"]["central"]
-
-    wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
-
-    syncs_by_bug = {item.bug: item for item in wpt_syncs}
-
-    updated = updated_syncs_for_push(git_gecko,
-                                     git_wpt,
-                                     last_sync_point.commit,
-                                     sync_commit.GeckoCommit(git_gecko, rev),
-                                     syncs_by_bug)
-
-    if updated is None:
-        return pushed_syncs, landed_syncs, failed_syncs
-
-    create_endpoints, update_syncs = updated
 
     to_push = create_syncs(git_gecko, git_wpt, create_endpoints)
     to_push.extend(update_sync_heads(syncs_by_bug, update_syncs))
@@ -621,19 +599,89 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
         else:
             pushed_syncs.add(sync)
 
+    return pushed_syncs, failed_syncs
+
+
+def try_land_syncs(syncs):
+    landed_syncs = set()
+    for sync in syncs:
+        if sync.try_land_pr():
+            landed_syncs.add(sync)
+    return landed_syncs
+
+
+@base.entry_point
+def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
+    update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
+    assert isinstance(sync, UpstreamSync)
+    syncs_by_bug = {sync.bug: sync}
+    create_syncs = []
+    update_syncs = {sync.bug: sync.gecko_commits.head.sha1}
+    pushed_syncs, failed_syncs = update_sync_prs(git_gecko, git_wpt, syncs_by_bug, {}, update_syncs,
+                                                 raise_on_error=raise_on_error)
+
+    if sync.repository == "central" and sync not in failed_syncs:
+        landed_syncs = try_land_syncs([sync])
+    else:
+        landed_syncs = set()
+
+    return pushed_syncs, failed_syncs, landed_syncs
+
+@base.entry_point
+def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
+    i = 0
+    while True:
+        update_repositories(git_gecko, git_wpt, repository_name == "autoland")
+
+        try:
+            rev = git_gecko.cinnabar.hg2git(hg_rev)
+        except ValueError:
+            if i == 4:
+                raise
+            else:
+                i += 1
+                time.sleep(1 * (i + 1))
+        else:
+            break
+
+    last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
+    if last_sync_point.commit is None:
+        # If we are just starting, default to the current mozilla central
+        logger.info("No existing sync point for %s found, using the latest HEAD")
+        last_sync_point.commit = env.config["gecko"]["refs"]["central"]
+
+    wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
+
+    syncs_by_bug = {item.bug: item for item in wpt_syncs}
+
+    updated = updated_syncs_for_push(git_gecko,
+                                     git_wpt,
+                                     last_sync_point.commit,
+                                     sync_commit.GeckoCommit(git_gecko, rev),
+                                     syncs_by_bug)
+
+    if updated is None:
+        return set(), set(), set()
+
+    create_endpoints, update_syncs = updated
+
+    pushed_syncs, failed_syncs = update_sync_prs(git_gecko, git_wpt, syncs_by_bug,
+                                                 create_endpoints, update_syncs,
+                                                 raise_on_error=raise_on_error)
+
     # TODO: check this name
     if git_gecko.is_ancestor(rev, env.config["gecko"]["refs"]["central"]):
-        for sync in wpt_syncs:
-            if sync not in failed_syncs:
-                if sync.try_land_pr():
-                    landed_syncs.add(sync)
+        landable_syncs = [item for item in wpt_syncs if not item in failed_syncs]
+        landed_syncs = try_land_syncs(landable_syncs)
+    else:
+        landed_syncs = set()
 
     last_sync_point.commit = rev
 
     return pushed_syncs, landed_syncs, failed_syncs
 
 
-# Entry point
+@base.entry_point
 def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     landed = False
     if status == "pending":

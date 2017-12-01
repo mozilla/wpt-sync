@@ -7,7 +7,7 @@ import log
 import tasks
 import upstream
 from env import Environment
-from handlers import get_pr_sync
+from load import get_bug_sync, get_pr_sync
 from gitutils import update_repositories
 from pipeline import AbortError
 from tasks import get_handlers, setup
@@ -101,6 +101,16 @@ def update_pr(git_gecko, git_wpt, pr):
     elif isinstance(sync, upstream.UpstreamSync):
         sync.update_status(pr.state, pr.merged)
         sync.try_land_pr()
+
+
+def update_bug(git_gecko, git_wpt, bug):
+    sync = get_bug_sync(git_gecko, git_wpt, bug)
+    if not sync:
+        raise ValueError("No sync for bug %s" % bug)
+    elif isinstance(sync, upstream.UpstreamSync):
+        upstream.update_sync(git_gecko, git_wpt, sync)
+    else:
+        raise ValueError("Updating sync type for bug not yet supported")
 
 
 def update_from_github(git_gecko, git_wpt):

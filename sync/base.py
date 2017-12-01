@@ -684,3 +684,13 @@ class SyncProcess(object):
         git_worktree = self.wpt_worktree.get()
         git_worktree.git.rebase(ref)
         self.set_wpt_base(ref)
+
+
+def entry_point(f):
+    def inner(*args, **kwargs):
+        logger.info("Called entry point %s.%s" % (f.__module__, f.__name__))
+        logger.debug("Called args %r kwargs %r" % (args, kwargs))
+        return f(*args, **kwargs)
+    inner.__name__ = f.__name__
+    inner.__doc__ = f.__doc__
+    return inner

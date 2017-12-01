@@ -1,6 +1,7 @@
 import logging
 import os
 from logging import handlers
+from celery.utils.log import get_task_logger
 
 import settings
 
@@ -32,7 +33,7 @@ def setup_handlers(config, logger):
 
 @settings.configure
 def get_logger(config, name):
-    logger = logging.getLogger(name)
+    logger = get_task_logger(name)
     if name not in configured:
         setup_handlers(config, logger)
     return logger

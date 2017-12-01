@@ -95,7 +95,7 @@ class Cinnabar(object):
         if rev not in self.hg2git_cache:
             value = self.git.cinnabar("hg2git", rev)
             if all(c == "0" for c in value):
-                raise ValueError
+                raise ValueError("No git rev corresponding to hg rev %s" % rev)
             self.hg2git_cache[rev] = value
         return self.hg2git_cache[rev]
 
@@ -103,7 +103,7 @@ class Cinnabar(object):
         if rev not in self.git2hg_cache:
             value = self.git.cinnabar("git2hg", rev)
             if all(c == "0" for c in value):
-                raise ValueError
+                raise ValueError("No hg rev corresponding to git rev %s" % rev)
             self.git2hg_cache[rev] = value
         return self.git2hg_cache[rev]
 

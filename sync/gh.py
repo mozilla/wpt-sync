@@ -39,9 +39,20 @@ class GitHub(object):
         return self.pr_cache[id]
 
     def create_pull(self, title, body, base, head):
-        pr = self.repo.create_pull(title=title, body=body, base=base, head=head)
-        self.pr_cache[pr.id] = pr
-        return pr
+        try:
+            pr = self.repo.create_pull(title=title, body=body, base=base, head=head)
+        except github.GithubException:
+            # Check if there's already a PR for this head
+            user = self.repo_name.split("/")[0]
+            pulls = self.repo.get_pulls(head="%s:%s" % (user, head))
+            entries = list(pulls[:2])
+            if len(entries) == 0:
+                raise
+            elif len(entries) > 1:
+                raise ValueError("Found multiple existing pulls for branch")
+            pr = pulls[0]
+        self.pr_cache[pr.number] = pr
+        return pr.number
 
     def get_branch(self, name):
         try:
@@ -66,6 +77,12 @@ class GitHub(object):
         head_commit = self.repo.get_commit(pr.head.ref)
 
         return head_commit.get_statuses()
+
+    def pull_state(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if not pr:
+            raise ValueError
+        return pr.state
 
     def close_pull(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -107,7 +124,7 @@ class GitHub(object):
         statuses = self.get_statuses(pr_id)
         latest = {}
         for status in statuses:
-            if status.context != "upstream/gecko":
+            if status.context not in latest:
                 latest[status.context] = status.state
 
         return all(status == "success" for status in latest.itervalues())
@@ -193,10 +210,10 @@ class MockGitHub(GitHub):
 
     def set_status(self, pr_id, status, target_url, description, context):
         pr = self.get_pull(pr_id)
-        pr._commits[-1]._statuses.append(AttrDict(state=status,
-                                                  target_url=target_url,
-                                                  description=description,
-                                                  context=context))
+        pr._commits[-1]._statuses.insert(0, AttrDict(state=status,
+                                                     target_url=target_url,
+                                                     description=description,
+                                                     context=context))
         self._log("Set status on PR %s to %s" % (pr_id, status))
 
     def get_statuses(self, pr_id):

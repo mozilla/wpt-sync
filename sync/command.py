@@ -10,6 +10,7 @@ from tasks import setup
 from env import Environment
 from gitutils import update_repositories
 from load import get_syncs
+from tasks import lock
 
 logger = log.get_logger("command")
 env = Environment()
@@ -54,9 +55,13 @@ def get_parser():
     parser_pr.add_argument("pr_id", default=None, nargs="?", help="PR number")
     parser_pr.set_defaults(func=do_pr)
 
+    parser_bug = subparsers.add_parser("bug", help="Update the upstreaming for a specific bug")
+    parser_bug.add_argument("bug", default=None, nargs="?", help="Bug number")
+    parser_bug.set_defaults(func=do_bug)
+
     parser_upstream = subparsers.add_parser("upstream", help="Run the upstreaming code")
-    parser_upstream.add_argument("--rev", help="Revision to upstream to")
-    parser_upstream.add_argument("--branch", help="Repository name to use e.g. mozilla-inbound")
+    parser_upstream.add_argument("branch", help="Repository name to use e.g. mozilla-inbound")
+    parser_upstream.add_argument("rev", help="Revision to upstream to")
     parser_upstream.set_defaults(func=do_upstream)
 
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
@@ -142,19 +147,39 @@ def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
     update.update_pr(git_gecko, git_wpt, pr)
 
 
+def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
+    import update
+    if bug is None:
+        bug = sync_from_path(git_gecko, git_wpt).bug
+    update.update_bug(git_gecko, git_wpt, bug)
+
+
 def do_upstream(git_gecko, git_wpt, *args, **kwargs):
     import upstream
     rev = kwargs["rev"]
+
     if rev is None:
         rev = git_gecko.commit(env.config["gecko"]["refs"]["mozilla-inbound"]).hexsha
+
+    try:
+        git_rev = git_gecko.cinnabar.hg2git(rev)
+        hg_rev = rev
+    except ValueError:
+        # This was probably a git rev
+        try:
+            hg_rev = git_gecko.cinnabar.git2hg(rev)
+        except ValueError:
+            raise ValueError("%s is not a valid git or hg rev" % (rev,))
+        git_rev = rev
+
 
     repository_name = kwargs["branch"]
     if repository_name is None:
         repository_name = env.config["gecko"]["refs"]["mozilla-inbound"]
 
-    if not git_gecko.is_ancestor(rev, repository_name):
+    if not git_gecko.is_ancestor(git_rev, repository_name):
         raise ValueError("%s is not on branch %s" % (rev, repository_name))
-    upstream.push(git_gecko, git_wpt, repository_name, rev)
+    upstream.push(git_gecko, git_wpt, repository_name, hg_rev)
 
 
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
@@ -229,7 +254,8 @@ def main():
     args = parser.parse_args()
     git_gecko, git_wpt = setup()
     try:
-        args.func(git_gecko, git_wpt, **vars(args))
+        with lock:
+            args.func(git_gecko, git_wpt, **vars(args))
     except Exception as e:
         if args.pdb:
             import traceback
