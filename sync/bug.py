@@ -38,7 +38,10 @@ class Bugzilla(object):
         return self.bug_cache[bug_id]
 
     def comment(self, bug_id, text):
-        bug = self.bugzilla.get(bug_id)
+        bug = self._get_bug(bug_id)
+        if bug is None:
+            logger.error("Failed to find bug %s to add comment:\n%s" % bug_id, text)
+            return
         bug.add_comment(text)
 
     def new(self, summary, comment, product, component):
@@ -54,6 +57,11 @@ class Bugzilla(object):
 
     def set_component(self, bug_id, product=None, component=None):
         bug = self._get_bug(bug_id)
+        if bug is None:
+            logger.error("Failed to find bug %s to set component: %s::%s" %
+                         (bug_id, product, component))
+            return
+
         if product is not None:
             bug.product = product
         if component is not None:
