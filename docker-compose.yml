@@ -12,8 +12,8 @@ services:
       - celery
   rabbitmq:
     image: rabbitmq
-    ports:
-      - 5672:5672
+    expose:
+      - 5672
   celery:
     user: wptsync
     build: .
