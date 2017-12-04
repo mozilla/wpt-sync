@@ -41,10 +41,7 @@ def schedule_pr_task(action, pr):
                             {"action": action, "number": pr.number, "pull_request": pr.raw_data})
     logger.info("Action %s for pr %s" % (action, pr.number))
     args = ("github", event)
-    if False:
-        tasks.handle.apply_async(args)
-    else:
-        handle_sync(*args)
+    handle_sync(*args)
 
 
 def schedule_status_task(commit, status):
@@ -58,10 +55,7 @@ def schedule_status_task(commit, status):
                              })
     logger.info("Status changed for commit %s" % commit.sha)
     args = ("github", event)
-    if False:
-        tasks.handle.apply_async(args)
-    else:
-        handle_sync(*args)
+    handle_sync(*args)
 
 
 def update_for_status(pr):

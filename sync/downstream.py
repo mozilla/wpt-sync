@@ -267,7 +267,7 @@ class DownstreamSync(base.SyncProcess):
             logger.info("Getting a list of tests affected by changes.")
             output = self.wpt.tests_affected(*args)
             if output:
-                for item in s.strip().split("\n"):
+                for item in output.strip().split("\n"):
                     path, test_type = item.strip().split("\t")
                     tests_by_type[test_type].append(path)
             self.data["affected-tests"] = tests_by_type

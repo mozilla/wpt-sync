@@ -4,9 +4,9 @@ import urlparse
 import downstream
 import log
 import landing
+import trypush
 import upstream
 import worktree
-import trypush
 from gitutils import is_ancestor, pr_for_commit, update_repositories, gecko_repo
 from env import Environment
 from load import get_pr_sync
@@ -78,7 +78,9 @@ def handle_status(git_gecko, git_wpt, event):
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
         # TODO: Handle this case
-        logger.error("Got a status update for PR %s which is unknown to us" % pr_id)
+        logger.info("Got a status update for PR %s which is unknown to us; starting downstreaming" % pr_id)
+        from update import schedule_pr_task
+        schedule_pr_task("opened", env.gh_wpt.get_pull(pr_id))
 
     if isinstance(sync, upstream.UpstreamSync) and "upstream" in env.config["sync"]["enabled"]:
         upstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],

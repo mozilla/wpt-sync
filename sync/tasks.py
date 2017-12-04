@@ -38,7 +38,7 @@ def setup(config):
     gh_wpt = gh.GitHub(config["web-platform-tests"]["github"]["token"],
                        config["web-platform-tests"]["repo"]["url"])
 
-    bz = bug.MockBugzilla(config)
+    bz = bug.Bugzilla(config)
 
     env.set_env(config, bz, gh_wpt)
     return git_gecko, git_wpt

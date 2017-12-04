@@ -34,6 +34,7 @@ def get_parser():
     parser_update.set_defaults(func=do_update_tasks)
 
     parser_list = subparsers.add_parser("list", help="List all in-progress syncs")
+    parser_list.add_argument("sync_type", nargs="*", help="Type of sync to list")
     parser_list.set_defaults(func=do_list)
 
     parser_landing = subparsers.add_parser("landing", help="Trigger the landing code")
@@ -84,6 +85,9 @@ def get_parser():
     parser_status = subparsers.add_parser("test", help="Run the tests with pytest")
     parser_status.set_defaults(func=do_test)
 
+    parser_status = subparsers.add_parser("cleanup", help="Run the cleanup code")
+    parser_status.set_defaults(func=do_cleanup)
+
     return parser
 
 
@@ -104,11 +108,13 @@ def sync_from_path(git_gecko, git_wpt):
     return cls(git_gecko, git_wpt, process_name)
 
 
-def do_list(git_gecko, git_wpt, *args, **kwargs):
+def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
     import downstream
     import upstream
-    syncs = upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="open")
-    syncs.extend(downstream.DownstreamSync.load_all(git_gecko, git_wpt, status="open"))
+    syncs = []
+    for cls in [upstream.UpstreamSync, downstream.DownstreamSync]:
+        if not sync_type or cls.sync_type in sync_type:
+            syncs.extend(cls.load_all(git_gecko, git_wpt, status="open"))
 
     for sync in syncs:
         extra = []
@@ -253,6 +259,12 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 def do_test(*args, **kwargs):
     cmd = ["pytest", "--cov", "sync", "--cov-report", "html", "test/test_upstream.py"]
     subprocess.call(cmd)
+
+
+def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
+    from tasks import cleanup
+    cleanup()
+
 
 
 def main():

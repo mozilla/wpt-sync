@@ -231,7 +231,7 @@ class Store(object):
 
     def __enter__(self):
         with open(self.path, "w") as f:
-            f.write(self.data)
+            f.write(self.data.encode("utf8"))
         self.data = None
         return self.path
 

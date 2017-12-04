@@ -19,6 +19,6 @@ services:
     build: .
     volumes:
      - .:/home/wptsync/wpt-sync
-    command: ./run_sync_tasks.sh
+    command: ./run_sync_tasks.sh --worker
     depends_on:
       - rabbitmq

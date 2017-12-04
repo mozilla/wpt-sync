@@ -29,6 +29,8 @@ def cleanup(git_gecko, git_wpt):
             worktree_path = data["worktree"]
 
             process_name = ProcessName.from_ref(data["branch"])
+            if process_name is None:
+                continue
 
             if process_name.status != "open":
                 logger.info("Removing worktree for closed sync %s" % worktree_path)

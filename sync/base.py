@@ -111,6 +111,8 @@ class ProcessName(object):
         parts = ref.split("/")
         if parts[0] == "refs":
             parts = parts[2:]
+        if parts[0] not in ["sync", "try"]:
+            return None
         return cls(*parts)
 
     @classmethod
