@@ -651,6 +651,21 @@ class SyncProcess(object):
             raise AttributeError("Can't set attribute")
         self.data["pr"] = value
 
+    @property
+    def error(self):
+        return self.data.get("error")
+
+    @error.setter
+    def error(self, value):
+        try:
+            stack = getattr(value, "stack")
+        except AttributeError:
+            stack = traceback.format_exc()
+        if value is not None:
+            value = {"message": value.message,
+                     "stack": stack}
+        self.data["error"] = value
+
     def try_pushes(self):
         import trypush
         return trypush.TryPush.load_all(self.git_gecko,

@@ -1,5 +1,8 @@
 import git
 import log
+from env import Environment
+
+env = Environment()
 
 
 logger = log.get_logger(__name__)
@@ -45,3 +48,13 @@ def pr_for_commit(git_wpt, rev):
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
         return int(pr_refs[rev][len(prefix):])
+
+
+def gecko_repo(git_gecko, head):
+    repos = ([("central", env.config["gecko"]["refs"]["central"])] +
+             [(name, ref) for name, ref in env.config["gecko"]["refs"].iteritems()
+              if name != "central"])
+
+    for name, ref in repos:
+        if git_gecko.is_ancestor(head, ref):
+            return name

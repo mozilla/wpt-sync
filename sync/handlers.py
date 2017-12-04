@@ -7,7 +7,7 @@ import landing
 import upstream
 import worktree
 import trypush
-from gitutils import is_ancestor, pr_for_commit, update_repositories
+from gitutils import is_ancestor, pr_for_commit, update_repositories, gecko_repo
 from env import Environment
 from load import get_pr_sync
 
@@ -123,7 +123,16 @@ class PushHandler(Handler):
         # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
         rev = data["heads"][0]
+        update_repositories(git_gecko, None)
         logger.debug("Commit landed in repo %s" % repo_url)
+        try:
+            git_rev = git_gecko.cinnabar.hg2git(rev)
+        except ValueError:
+            pass
+        else:
+            if gecko_repo(git_gecko, git_rev) is None:
+                logger.info("Skipping commit as it isn't in a branch we track")
+                return
         print repo_url, repo_url in self.repos
         if repo_url in self.repos:
             repo_name = self.repos[repo_url]

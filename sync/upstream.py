@@ -8,7 +8,7 @@ from mozautomation import commitparser
 import base
 import log
 import commit as sync_commit
-from gitutils import update_repositories
+from gitutils import update_repositories, gecko_repo
 from pipeline import AbortError
 from env import Environment
 
@@ -274,15 +274,11 @@ class UpstreamSync(base.SyncProcess):
     @property
     def repository(self):
         # Need to check central before landing repos
-        repos = ([("central", env.config["gecko"]["refs"]["central"])] +
-                 [(name, ref) for name, ref in env.config["gecko"]["refs"].iteritems()
-                  if name != "central"])
-        for name, ref in repos:
-            if ref not in self.git_gecko.refs:
-                continue
-            if self.git_gecko.is_ancestor(self.gecko_commits.head.sha1, ref):
-                return name
-        raise ValueError("Commit not part of any repository")
+        head = self.gecko_commits.head.sha1
+        repo = gecko_repo(self.git_gecko, head)
+        if repo is None:
+            raise ValueError("Commit %s not part of any repository" % head)
+        return repo
 
     def add_commit(self, gecko_commit):
         git_work = self.wpt_worktree.get()
@@ -572,6 +568,17 @@ def update_sync_heads(syncs_by_bug, heads_by_bug):
     return rv
 
 
+def update_modified_sync(sync):
+    sync.update_wpt_commits()
+
+    if len(sync.upstreamed_gecko_commits) > 0:
+        sync.status == "open"
+    else:
+        sync.status = "complete"
+
+    sync.update_github()
+
+
 def update_sync_prs(git_gecko, git_wpt, syncs_by_bug, create_endpoints, update_syncs,
                     raise_on_error=False):
     pushed_syncs = set()
@@ -581,22 +588,17 @@ def update_sync_prs(git_gecko, git_wpt, syncs_by_bug, create_endpoints, update_s
     to_push.extend(update_sync_heads(syncs_by_bug, update_syncs))
 
     for sync in to_push:
-        sync.update_wpt_commits()
-
-        if len(sync.upstreamed_gecko_commits) > 0:
-            sync.status == "open"
-        else:
-            sync.status = "complete"
-
         try:
-            sync.update_github()
+            update_modified_sync(sync)
         except Exception as e:
+            sync.error = e
             if raise_on_error:
                 raise
             traceback.print_exc()
             logger.error(e)
             failed_syncs.add((sync, e))
         else:
+            sync.error = None
             pushed_syncs.add(sync)
 
     return pushed_syncs, failed_syncs
@@ -626,6 +628,7 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
         landed_syncs = set()
 
     return pushed_syncs, failed_syncs, landed_syncs
+
 
 @base.entry_point
 def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):

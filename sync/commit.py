@@ -163,7 +163,7 @@ class Commit(object):
                 if dest_prefix:
                     apply_kwargs["directory"] = dest_prefix
                 try:
-                    dest_repo.git.apply(patch_path, index=True, p=strip_dirs, **apply_kwargs)
+                    dest_repo.git.apply(patch_path, index=True, reject=True, p=strip_dirs, **apply_kwargs)
                 except git.GitCommandError as e:
                     err_msg = """git apply failed
         %s returned status %s
@@ -181,7 +181,7 @@ class GeckoCommit(Commit):
         bugs = commitparser.parse_bugs(self.commit.message)
         if len(bugs) > 1:
             logger.warning("Got multiple bugs for commit %s: %s" %
-                           (self.canonical_rev,  ", ".join(bugs)))
+                           (self.canonical_rev,  ", ".join(str(item) for item in bugs)))
         return str(bugs[0])
 
     def has_wpt_changes(self):

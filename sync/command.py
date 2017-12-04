@@ -118,8 +118,14 @@ def do_list(git_gecko, git_wpt, *args, **kwargs):
                 extra.append("https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % sync.latest_try_push.try_rev)
                 if try_push.taskgroup_id:
                     extra.append(try_push.taskgroup_id)
-        print("%s %s bug:%s PR:%s %s" % (sync.sync_type, sync.status, sync.bug, sync.pr,
-                                         " ".join(extra)))
+        error = sync.error
+        print("%s %s %s bug:%s PR:%s %s%s" % ("*"if sync.error else " ",
+                                              sync.sync_type,
+                                              sync.status,
+                                              sync.bug,
+                                              sync.pr,
+                                              " ".join(extra),
+                                              "ERROR: %s" % error["message"].split("\n", 1)[0] if error else ""))
 
 
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
