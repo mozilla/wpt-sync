@@ -9,18 +9,19 @@ logger = log.get_logger(__name__)
 
 
 def update_repositories(git_gecko, git_wpt, include_autoland=False):
+
     if git_gecko is not None:
         logger.info("Fetching mozilla-unified")
         # Not using the built in fetch() function since that tries to parse the output
         # and sometimes fails
         git_gecko.remotes.mozilla.fetch()
-        logger.info("Fetch done")
 
         if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
-            logger.info("Fetch autoland")
+            logger.info("Fetching autoland")
             git_gecko.remotes.autoland.fetch()
-            logger.info("Fetch done")
+
     if git_wpt is not None:
+        logger.info("Fetching web-platform-tests")
         git_wpt.remotes.origin.fetch()
 
 
