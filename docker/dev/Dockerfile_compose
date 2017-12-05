@@ -1,0 +1,64 @@
+FROM python:2
+
+RUN groupadd -r wptsync
+RUN useradd -ms /bin/bash -g wptsync wptsync
+
+
+# Set up celery scripts
+ADD ./wpt-sync/docker/start_celeryworker.sh /home/wptsync/start_celeryworker.sh
+RUN chmod +x /home/wptsync/start_celeryworker.sh
+ADD ./wpt-sync/docker/start_celerybeat.sh /home/wptsync/start_celerybeat.sh
+RUN chmod +x /home/wptsync/start_celerybeat.sh
+
+
+USER wptsync
+
+# Install git-cinnabar
+RUN mkdir /home/wptsync/git-cinnabar
+
+WORKDIR /home/wptsync/git-cinnabar
+
+RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout a55510fb6f23cf4fab01365640daea757cfb851f
+
+ENV PATH=/home/wptsync/git-cinnabar:$PATH
+
+RUN pip install --user requests
+
+RUN git cinnabar download
+
+
+# Set up files and config
+RUN mkdir /home/wptsync/workspace
+RUN mkdir /home/wptsync/vct
+
+WORKDIR /home/wptsync/vct
+
+RUN git config --global user.name wpt-sync && \
+    git config --global user.email wptsync@mozilla.com
+
+# Copy the current directory contents into the container
+ADD . /home/wptsync/vct
+
+WORKDIR /home/wptsync/vct/wpt-sync
+
+
+# Install the app in development mode
+RUN virtualenv /home/wptsync/venv
+RUN /home/wptsync/venv/bin/pip install -r prod-requirements.txt --no-deps
+RUN /home/wptsync/venv/bin/pip install -r requirements-dev.txt --no-deps
+RUN /home/wptsync/venv/bin/pip install ../pylib/mozautomation --no-deps
+
+WORKDIR /home/wptsync
+
+# This puts the egg-info dir in /home/wptsync, which won't be overwritten
+# when docker-compose mounts the volume for our source code
+RUN /home/wptsync/venv/bin/python /home/wptsync/vct/wpt-sync/setup.py develop --no-deps
+
+ENV PYTHONPATH=/home/wptsync/vct/wpt-sync
+
+WORKDIR /home/wptsync/vct/wpt-sync
+
+
+# Copy configuration files into workspace
+RUN cp /home/wptsync/vct/wpt-sync/sync.ini /home/wptsync/workspace/sync.ini
+RUN cp /home/wptsync/vct/wpt-sync/credentials.ini /home/wptsync/workspace/credentials.ini

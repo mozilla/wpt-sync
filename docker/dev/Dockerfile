@@ -1,26 +1,31 @@
 FROM python:2
 
-RUN groupadd -r wptsync
-RUN useradd -ms /bin/bash -g wptsync wptsync
+RUN groupadd --gid 10001 app && \
+    useradd --uid 10001 --gid 10001 --home /app --create-home app
 
+ADD ./wpt-sync/docker/start_wptsync.sh /app/start_wptsync.sh
+RUN chmod +x /app/start_wptsync.sh
 
-# Set up celery scripts
-ADD ./wpt-sync/docker/start_celeryworker.sh /home/wptsync/start_celeryworker.sh
-RUN chmod +x /home/wptsync/start_celeryworker.sh
-ADD ./wpt-sync/docker/start_celerybeat.sh /home/wptsync/start_celerybeat.sh
-RUN chmod +x /home/wptsync/start_celerybeat.sh
+# install rabbitmq and dependencies
+RUN set -ex; \
+    apt-get update; \
+    apt-get install -y erlang rabbitmq-server
 
+RUN service rabbitmq-server start
 
-USER wptsync
+# get logs to stdout
+ENV RABBITMQ_LOGS=- RABBITMQ_SASL_LOGS=-
+
+USER app
 
 # Install git-cinnabar
-RUN mkdir /home/wptsync/git-cinnabar
+RUN mkdir /app/git-cinnabar
 
-WORKDIR /home/wptsync/git-cinnabar
+WORKDIR /app/git-cinnabar
 
 RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout a55510fb6f23cf4fab01365640daea757cfb851f
 
-ENV PATH=/home/wptsync/git-cinnabar:$PATH
+ENV PATH=/app/git-cinnabar:$PATH
 
 RUN pip install --user requests
 
@@ -28,38 +33,42 @@ RUN git cinnabar download
 
 
 # Set up files and config
-RUN mkdir /home/wptsync/workspace
-RUN mkdir /home/wptsync/vct
+RUN mkdir /app/workspace
+RUN mkdir /app/vct
 
-WORKDIR /home/wptsync/vct
+WORKDIR /app/vct
 
 RUN git config --global user.name wpt-sync && \
     git config --global user.email wptsync@mozilla.com
 
 # Copy the current directory contents into the container
-ADD . /home/wptsync/vct
+ADD . /app/vct
 
-WORKDIR /home/wptsync/vct/wpt-sync
+WORKDIR /app/vct/wpt-sync
 
 
 # Install the app in development mode
-RUN virtualenv /home/wptsync/venv
-RUN /home/wptsync/venv/bin/pip install -r prod-requirements.txt --no-deps
-RUN /home/wptsync/venv/bin/pip install -r requirements-dev.txt --no-deps
-RUN /home/wptsync/venv/bin/pip install ../pylib/mozautomation --no-deps
+RUN virtualenv /app/venv
+RUN /app/venv/bin/pip install -r prod-requirements.txt --no-deps
+RUN /app/venv/bin/pip install -r requirements-dev.txt --no-deps
+RUN /app/venv/bin/pip install ../pylib/mozautomation --no-deps
 
-WORKDIR /home/wptsync
+WORKDIR /app
 
-# This puts the egg-info dir in /home/wptsync, which won't be overwritten
-# when docker-compose mounts the volume for our source code
-RUN /home/wptsync/venv/bin/python /home/wptsync/vct/wpt-sync/setup.py develop --no-deps
+# This puts the egg-info dir in /app, which won't be overwritten
+# when docker mounts the volume for our source code
+RUN /app/venv/bin/python /app/vct/wpt-sync/setup.py develop --no-deps
 
-ENV PYTHONPATH=/home/wptsync/vct/wpt-sync
+ENV PYTHONPATH=/app/vct/wpt-sync
+ENV WPTSYNC_ROOT=/app/workspace
 
-WORKDIR /home/wptsync/vct/wpt-sync
-
+WORKDIR /app/vct/wpt-sync
 
 # Copy configuration files into workspace
-RUN cp /home/wptsync/vct/wpt-sync/sync.ini /home/wptsync/workspace/sync.ini
-RUN cp /home/wptsync/vct/wpt-sync/credentials.ini /home/wptsync/workspace/credentials.ini
+RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini
+RUN cp /app/vct/wpt-sync/credentials.ini /app/workspace/credentials.ini
 
+VOLUME /app/vct
+
+ENTRYPOINT ["/app/start_wptsync.sh"]
+CMD ["listen"]

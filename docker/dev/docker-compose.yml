@@ -1,11 +1,12 @@
 version: '3'
+# This is kind of broken now, you probably don't want to use it.
 services:
   sync:
     user: wptsync
     build:
       # root of version-control-tools repo
       context: ../../..
-      dockerfile: wpt-sync/docker/dev/Dockerfile
+      dockerfile: wpt-sync/docker/dev/Dockerfile_compose
     volumes:
       - ../../..:/home/wptsync/vct
       - wptsync-workspace:/home/wptsync/workspace
@@ -24,7 +25,7 @@ services:
     build:
       # root of version-control-tools repo
       context: ../../..
-      dockerfile: wpt-sync/docker/dev/Dockerfile
+      dockerfile: wpt-sync/docker/dev/Dockerfile_compose
     volumes:
       - ../../..:/home/wptsync/vct
       - wptsync-workspace:/home/wptsync/workspace
@@ -43,7 +44,7 @@ services:
     build:
       # root of version-control-tools repo
       context: ../../..
-      dockerfile: wpt-sync/docker/dev/Dockerfile
+      dockerfile: wpt-sync/docker/dev/Dockerfile_compose
     volumes:
       - ../../..:/home/wptsync/vct
       - wptsync-workspace:/home/wptsync/workspace
