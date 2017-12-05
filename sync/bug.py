@@ -10,8 +10,9 @@ def bz_url_from_api_url(api_url):
 
 
 class Bugzilla(object):
+    bug_cache = {}
+
     def __init__(self, config):
-        self.bug_cache = {}
         self.api_url = config["bugzilla"]["url"]
         self.bz_url = bz_url_from_api_url(self.api_url)
         self.bugzilla = bugsy.Bugsy(bugzilla_url=self.api_url,
@@ -31,10 +32,11 @@ class Bugzilla(object):
 
     def _get_bug(self, bug_id):
         if bug_id not in self.bug_cache:
-            bugs = bugsy.Search(self.bugzilla).bug_numbers(bug_id).search()
-            if not bugs:
+            try:
+                bug = self.bugzilla.get(bug_id)
+            except bugsy.BugsyException:
                 return
-            self.bug_cache[bug_id] = bugs[0]
+            self.bug_cache[bug_id] = bug
         return self.bug_cache[bug_id]
 
     def comment(self, bug_id, text):
