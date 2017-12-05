@@ -1,5 +1,6 @@
 import itertools
 import random
+import re
 import urlparse
 import sys
 
@@ -150,6 +151,11 @@ class GitHub(object):
 
     def get_commits(self, pr_id):
         return list(self.get_pull(pr_id).commits)
+
+    def cleanup_pr_body(self, text):
+        r = re.compile(re.escape("<!-- Reviewable:start -->") + ".*" +
+                       re.escape("<!-- Reviewable:end -->"), re.DOTALL)
+        return r.sub("", text)
 
 
 class AttrDict(dict):

@@ -37,7 +37,7 @@ class DownstreamSync(base.SyncProcess):
                                               wpt_base=wpt_base,
                                               wpt_head="origin/pr/%s" % pr_id)
         bug = env.bz.new(summary="[wpt-sync] PR %s - %s" % (pr_id, pr_title),
-                         comment=pr_body,
+                         comment=env.gh_wpt.cleanup_pr_body(pr_body),
                          product="Testing",
                          component="web-platform-tests")
         sync.bug = bug
