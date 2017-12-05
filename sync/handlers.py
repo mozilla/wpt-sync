@@ -70,10 +70,14 @@ def handle_status(git_gecko, git_wpt, event):
 
     if not pr_id:
         if not git_wpt.is_ancestor(rev, "origin/master"):
-            logger.error("Got status for commit %s, but that isn't the head of any PR" % rev)
+            logger.error("Got status for commit %s, but that isn't the head of any PR\n"
+                         "context: %s url: %s state: %s" %
+                         (rev, event["context"], event["target_url"], event["state"]))
         return
     else:
-        logger.info("Got status for commit %s from PR %s" % (rev, pr_id))
+        logger.info("Got status for commit %s from PR %s\n"
+                    "context: %s url: %s state: %s" %
+                    (rev, pr_id, event["context"], event["target_url"], event["state"]))
 
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
 
@@ -128,7 +132,7 @@ class PushHandler(Handler):
         # matters for us
         rev = data["heads"][0]
         update_repositories(git_gecko, None)
-        logger.debug("Commit landed in repo %s" % repo_url)
+        logger.info("Handing commit %s to repo %s" % (rev, repo_url))
         try:
             git_rev = git_gecko.cinnabar.hg2git(rev)
         except ValueError:
@@ -137,7 +141,6 @@ class PushHandler(Handler):
             if gecko_repo(git_gecko, git_rev) is None:
                 logger.info("Skipping commit as it isn't in a branch we track")
                 return
-        print repo_url, repo_url in self.repos
         if repo_url in self.repos:
             repo_name = self.repos[repo_url]
             if "upstream" in env.config["sync"]["enabled"]:
