@@ -15,5 +15,5 @@ Host github.com
 IdentityFile ~/wpt-sync/ssh/id_github_ecdsa
 " >> ~/.ssh/config
 if [ "$1" == "--worker" ]; then
-    celery worker --app sync.worker -B -c1
+    celery worker --app sync.worker -B -c1 --loglevel DEBUG
 fi

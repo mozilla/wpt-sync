@@ -15,7 +15,7 @@ env = Environment()
 
 invalid_re = re.compile(".*[-_]")
 
-logger = log.get_logger("base")
+logger = log.get_logger(__name__)
 
 
 class ProcessName(object):

@@ -3,7 +3,7 @@ from git import Repo
 
 import log
 
-logger = log.get_logger("repos")
+logger = log.get_logger(__name__)
 
 
 class GitSettings(object):

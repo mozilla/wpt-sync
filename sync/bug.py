@@ -1,6 +1,12 @@
 import bugsy
 import sys
 import urlparse
+import log
+from env import Environment
+
+env = Environment()
+
+logger = log.get_logger(__name__)
 
 
 def bz_url_from_api_url(api_url):
@@ -42,7 +48,7 @@ class Bugzilla(object):
     def comment(self, bug_id, text):
         bug = self._get_bug(bug_id)
         if bug is None:
-            logger.error("Failed to find bug %s to add comment:\n%s" % bug_id, text)
+            logger.error("Failed to find bug %s to add comment:\n%s" % (bug_id, text))
             return
         bug.add_comment(text)
 

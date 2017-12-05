@@ -14,7 +14,7 @@ from env import Environment
 
 env = Environment()
 
-logger = log.get_logger("upstream")
+logger = log.get_logger(__name__)
 
 
 class BackoutCommitFilter(base.CommitFilter):
@@ -418,6 +418,7 @@ def commit_message_filter(msg):
 def wpt_commits(git_gecko, first_commit, head_commit):
     # List of syncs that have changed, so we can update them all as appropriate at the end
     revish = "%s..%s" % (first_commit.sha1, head_commit.sha1)
+    logger.info("Getting commits in range %s" % revish)
     return [sync_commit.GeckoCommit(git_gecko, item.hexsha) for item in
             git_gecko.iter_commits(revish,
                                    paths=env.config["gecko"]["path"]["wpt"],
@@ -505,6 +506,8 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit, syncs_
     if not commits:
         logger.info("No new commits affecting wpt found")
         return
+    else:
+        logger.info("Got %i commits since the last sync point" % len(commits))
 
     commits = remove_complete_backouts(commits)
 
@@ -650,8 +653,14 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
     last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
     if last_sync_point.commit is None:
         # If we are just starting, default to the current mozilla central
-        logger.info("No existing sync point for %s found, using the latest HEAD")
+        logger.info("No existing sync point for %s found, using the latest mozilla-central")
         last_sync_point.commit = env.config["gecko"]["refs"]["central"]
+    else:
+        logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
+
+    if git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+        logger.info("Last sync point moved past commit")
+        return
 
     wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
 

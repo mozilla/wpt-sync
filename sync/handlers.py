@@ -15,7 +15,7 @@ from taskcluster import normalize_task_id
 
 env = Environment()
 
-logger = log.get_logger("handlers")
+logger = log.get_logger(__name__)
 
 
 def log_exceptions(f):
@@ -131,8 +131,8 @@ class PushHandler(Handler):
         # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
         rev = data["heads"][0]
-        update_repositories(git_gecko, None)
         logger.info("Handing commit %s to repo %s" % (rev, repo_url))
+        update_repositories(git_gecko, None)
         try:
             git_rev = git_gecko.cinnabar.hg2git(rev)
         except ValueError:
@@ -143,6 +143,7 @@ class PushHandler(Handler):
                 return
         if repo_url in self.repos:
             repo_name = self.repos[repo_url]
+            logger.info("Got repository name %s" % repo_name)
             if "upstream" in env.config["sync"]["enabled"]:
                 upstream.push(git_gecko, git_wpt, repo_name, rev)
 

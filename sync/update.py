@@ -13,7 +13,7 @@ from pipeline import AbortError
 from tasks import get_handlers, setup
 
 env = Environment()
-logger = log.get_logger("command")
+logger = log.get_logger(__name__)
 
 
 def handle_sync(task, body):

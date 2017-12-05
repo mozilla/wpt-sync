@@ -5,7 +5,7 @@ import requests
 import log
 
 
-logger = log.get_logger("tree")
+logger = log.get_logger(__name__)
 
 
 def get_tree_status(project):

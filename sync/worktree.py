@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import log
 from base import ProcessName
 
-logger = log.get_logger("worktree")
+logger = log.get_logger(__name__)
 
 
 def cleanup(git_gecko, git_wpt):

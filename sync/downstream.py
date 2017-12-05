@@ -18,7 +18,7 @@ from gitutils import pr_for_commit, update_repositories
 from projectutil import Mach, WPT
 from trypush import TryPush
 
-logger = log.get_logger("downstream")
+logger = log.get_logger(__name__)
 env = Environment()
 
 

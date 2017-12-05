@@ -20,5 +20,6 @@ beat_schedule = {
 worker = celery.Celery('sync',
                        broker='pyamqp://guest:guest@rabbitmq',
                        include=['sync.tasks'])
-worker.conf.beat_schedule = beat_schedule
 
+worker.conf.worker_hijack_root_logger = False
+worker.conf.beat_schedule = beat_schedule

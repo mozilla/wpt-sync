@@ -11,7 +11,7 @@ import log
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
 
-logger = log.get_logger("upstream")
+logger = log.get_logger(__name__)
 
 
 def normalize_task_id(task_id):

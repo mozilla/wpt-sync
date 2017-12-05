@@ -10,7 +10,7 @@ from env import Environment
 from load import get_syncs
 from pipeline import AbortError
 
-logger = log.get_logger("downstream")
+logger = log.get_logger(__name__)
 env = Environment()
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 

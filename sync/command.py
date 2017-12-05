@@ -12,7 +12,7 @@ from gitutils import update_repositories
 from load import get_syncs
 from tasks import lock
 
-logger = log.get_logger("command")
+logger = log.get_logger(__name__)
 env = Environment()
 
 # HACK for docker

@@ -12,7 +12,7 @@ import tasks
 
 here = os.path.dirname(__file__)
 
-logger = log.get_logger("listen")
+logger = log.get_logger(__name__)
 
 
 class Consumer(object):
