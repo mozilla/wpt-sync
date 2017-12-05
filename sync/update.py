@@ -77,10 +77,7 @@ def update_pr(git_gecko, git_wpt, pr):
         if upstream_sync is not None:
             upstream_sync.update_status(pr.state, pr.merged)
         else:
-            if pr.state != "open":
-                # If this landed, the landing code will notice
-                # we don't have results for it and kick off that process
-                # so we don't need those results here
+            if pr.state != "open" and not pr.merged:
                 return
             schedule_pr_task("opened", pr)
             update_for_status(pr)
