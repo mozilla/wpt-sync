@@ -182,6 +182,8 @@ class GeckoCommit(Commit):
         if len(bugs) > 1:
             logger.warning("Got multiple bugs for commit %s: %s" %
                            (self.canonical_rev,  ", ".join(str(item) for item in bugs)))
+        if not bugs:
+            return None
         return str(bugs[0])
 
     def has_wpt_changes(self):

@@ -23,14 +23,16 @@ class BackoutCommitFilter(base.CommitFilter):
         self.seen = set()
 
     def filter_commit(self, commit):
+        if commit.is_empty(env.config["gecko"]["path"]["wpt"]):
+            return False
+        if commit.is_backout:
+            commits, bugs = commit.wpt_commits_backed_out()
+            for backout_commit in commits:
+                if backout_commit in self.seen:
+                    return True
         if commit.bug == self.bug:
             self.seen.add(commit.canonical_rev)
             return True
-        elif commit.is_backout:
-            commits, bugs = commit.wpt_commits_backed_out()
-            for commit in commits:
-                if commit.sha1 in self.seen:
-                    return True
         return False
 
     def filter_commits(self, commits):
