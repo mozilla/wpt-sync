@@ -82,11 +82,14 @@ def get_parser():
     parser_status.add_argument("--seq-id",  nargs="?", default="*", help="Sequence number")
     parser_status.set_defaults(func=do_status)
 
-    parser_status = subparsers.add_parser("test", help="Run the tests with pytest")
-    parser_status.set_defaults(func=do_test)
+    parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
+    parser_test.set_defaults(func=do_test)
 
-    parser_status = subparsers.add_parser("cleanup", help="Run the cleanup code")
-    parser_status.set_defaults(func=do_cleanup)
+    parser_cleanup = subparsers.add_parser("cleanup", help="Run the cleanup code")
+    parser_cleanup.set_defaults(func=do_cleanup)
+
+    parser_landable = subparsers.add_parser("landable", help="Display commits from upstream that are able to land")
+    parser_landable.set_defaults(func=do_landable)
 
     return parser
 
@@ -265,6 +268,21 @@ def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
     from tasks import cleanup
     cleanup()
 
+
+def do_landable(git_gecko, git_wpt, *args, **kwargs):
+    from landing import load_sync_point, landable_commits
+
+    update_repositories(git_gecko, git_wpt)
+    sync_point = load_sync_point(git_gecko, git_wpt)
+    print("Last sync was to commit %s" % sync_point["upstream"])
+    landable = landable_commits(git_gecko, git_wpt, sync_point)
+
+    if landable is None:
+        print("Landing will not add any new commits")
+        return
+
+    wpt_head, commits = landable
+    print "Landing will update wpt head to %s" % wpt_head.sha1
 
 
 def main():
