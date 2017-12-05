@@ -121,7 +121,14 @@ class TryPush(base.ProcessData):
         return self["stability"]
 
     def wpt_tasks(self):
-        wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+        try:
+            wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+        except ValueError:
+            # If this happens we may have the wrong taskgroup id
+            task_id = taskcluster.normalize_task_id(self.taskgroup_id)
+            if task_id != self.taskgroup_id:
+                self.taskgroup_id = task_id
+                wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
         err = None
         if not len(wpt_tasks):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)

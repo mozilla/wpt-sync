@@ -7,3 +7,4 @@ celery==4.1.0
 requests==2.18.4
 git+https://github.com/mozilla/version-control-tools.git#egg=mozautomation&subdirectory=pylib/mozautomation
 filelock==2.0.13
+slugid==1.0.7

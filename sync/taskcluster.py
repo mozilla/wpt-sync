@@ -2,6 +2,9 @@ import os
 import requests
 import shutil
 import traceback
+import uuid
+
+import slugid
 
 import log
 
@@ -9,6 +12,21 @@ QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
 
 logger = log.get_logger("upstream")
+
+
+def normalize_task_id(task_id):
+    # For some reason, pulse doesn't get the real
+    # task ID, but some alternate encoding of it that doesn't
+    # work anywhere else. So we have to first convert to the canonical
+    # form.
+    task_id = task_id.split("/", 1)[0]
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        # This is probably alrady in the canonoical form
+        return task_id
+
+    return slugid.encode(task_uuid)
 
 
 def is_suite(task, suite):

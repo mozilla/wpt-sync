@@ -7,9 +7,11 @@ import landing
 import trypush
 import upstream
 import worktree
-from gitutils import is_ancestor, pr_for_commit, update_repositories, gecko_repo
 from env import Environment
+from gitutils import is_ancestor, pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
+from taskcluster import normalize_task_id
+
 
 env = Environment()
 
@@ -152,8 +154,9 @@ class TaskHandler(Handler):
             return
 
         sha1 = body["origin"]["revision"]
-        task_id = body["taskId"]
+        task_id = normalize_task_id(body["taskId"])
         result = body["result"]
+
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
         if not try_push:
