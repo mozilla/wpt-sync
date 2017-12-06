@@ -46,6 +46,13 @@ ADD . /app/vct
 
 WORKDIR /app/vct/wpt-sync
 
+# Can set with --build-arg CREDENTIALS_INI=credentials.ini
+ARG CREDENTIALS_INI
+ENV CREDENTIALS_INI ${CREDENTIALS_INI}
+
+# Copy configuration files into workspace
+RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini
+RUN if [ -n "$CREDENTIALS_INI" ]; then cp -v /app/vct/wpt-sync/$CREDENTIALS_INI /app/workspace/credentials.ini; fi
 
 # Install the app in development mode
 RUN virtualenv /app/venv
@@ -63,10 +70,6 @@ ENV PYTHONPATH=/app/vct/wpt-sync
 ENV WPTSYNC_ROOT=/app/workspace
 
 WORKDIR /app/vct/wpt-sync
-
-# Copy configuration files into workspace
-RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini
-RUN cp /app/vct/wpt-sync/credentials.ini /app/workspace/credentials.ini
 
 VOLUME /app/vct
 
