@@ -161,6 +161,7 @@ class UpstreamSync(base.SyncProcess):
 
     @classmethod
     def last_sync_point(cls, git_gecko, repository_name):
+        assert "/" not in repository_name
         name = base.SyncPointName(cls.sync_type,
                                   repository_name)
         return base.BranchRefObject(git_gecko,

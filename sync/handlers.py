@@ -146,6 +146,8 @@ class PushHandler(Handler):
             logger.info("Got repository name %s" % repo_name)
             if "upstream" in env.config["sync"]["enabled"]:
                 upstream.push(git_gecko, git_wpt, repo_name, rev)
+        else:
+            logger.error("Unrecognised repo url")
 
 
 class TaskHandler(Handler):

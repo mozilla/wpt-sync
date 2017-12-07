@@ -196,7 +196,13 @@ def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
 
 def do_upstream(git_gecko, git_wpt, *args, **kwargs):
     import update
-    update.update_upstream(rev)
+    rev = kwargs["rev"]
+
+    if rev is None:
+        rev = git_gecko.commit(env.config["gecko"]["refs"]["mozilla-inbound"]).hexsha
+
+    update.update_upstream(git_gecko, git_wpt, rev)
+
 
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush

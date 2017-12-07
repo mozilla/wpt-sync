@@ -70,6 +70,33 @@ def update_for_status(pr):
             return
 
 
+def update_upstream(git_gecko, git_wpt, rev):
+    try:
+        git_rev = git_gecko.cinnabar.hg2git(rev)
+        hg_rev = rev
+    except ValueError:
+        # This was probably a git rev
+        try:
+            hg_rev = git_gecko.cinnabar.git2hg(rev)
+        except ValueError:
+            raise ValueError("%s is not a valid git or hg rev" % (rev,))
+        git_rev = rev
+
+    if not git_gecko.is_ancestor(git_rev, env.config["gecko"]["refs"]["autoland"]):
+        repository_url = env.config["sync"]["integration"]["mozilla-inbound"]
+    else:
+        repository_url = env.config["sync"]["integration"]["autoland"]
+    repository_url = repository_url.replace("ssh://", "https://")
+
+    event = construct_event("push", {"data":
+                                     {"repo_url": repository_url,
+                                      "heads": [hg_rev],
+                                     }})
+
+    args = ("push", event)
+    handle_sync(*args)
+
+
 def update_pr(git_gecko, git_wpt, pr):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
