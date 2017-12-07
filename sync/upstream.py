@@ -404,7 +404,7 @@ def commit_message_filter(msg):
     metadata = {}
     m = commitparser.BUG_RE.match(msg)
     if m:
-        bug_str = m.group(1)
+        bug_str = m.groups[1]
         if msg.startswith(bug_str):
             # Strip the bug prefix
             prefix = re.compile("^%s[^\w\d]*" % bug_str)
