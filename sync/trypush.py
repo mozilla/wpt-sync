@@ -52,9 +52,8 @@ class TryPush(base.ProcessData):
         rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
 
         env.bz.comment(sync.bug,
-                       "Pushed to try%s. Results: "
-                       "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" %
-                       (" (stability)" if stability else "", try_rev))
+                       "Pushed to try%s. Results: %s" %
+                       (cls.treeherder_url(try_rev), " (stability)" if stability else ""))
 
         return rv
 
@@ -82,6 +81,10 @@ class TryPush(base.ProcessData):
             if push.taskgroup_id == taskgroup_id:
                 return push
 
+    @staticmethod
+    def treeherder_url(try_rev):
+        return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
+
     @property
     def try_rev(self):
         return self.get("try-rev")
@@ -101,6 +104,9 @@ class TryPush(base.ProcessData):
     @status.setter
     def status(self, value):
         self._ref._process_name.status = value
+
+    def delete(self):
+        self._ref._process_name.delete()
 
     def sync(self, git_gecko, git_wpt):
         process_name = self._ref._process_name

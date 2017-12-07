@@ -345,6 +345,10 @@ class ProcessData(object):
     def get(self, key, default=None):
         return self._data.get(key, default)
 
+    def items(self):
+        for key, value in self._data.iteritems():
+            yield key, value
+
 
 class CommitFilter(object):
     """Filter of a range of commits"""
@@ -532,6 +536,26 @@ class SyncProcess(object):
         self.wpt_worktree = Worktree(git_wpt,
                                      self._process_name)
 
+    def _output_data(self):
+        rv = ["%s%s" % ("*" if self.error else " ",
+                        str(self._process_name)),
+              "gecko range: %s..%s" % (self.gecko_commits.base.sha1,
+                                       self.gecko_commits.head.sha1),
+              "wpt range: %s..%s" % (self.wpt_commits.base.sha1,
+                                     self.wpt_commits.head.sha1)]
+        if self.error:
+            rv.extend(["ERROR:",
+                       self.error["message"],
+                       self.error["stack"]])
+
+        for key, value in sorted(self.data.items()):
+            if key != "error":
+                rv.append("%s: %s" % (key, value))
+        return rv
+
+    def output(self):
+        return "\n".join(self._output_data())
+
     def __eq__(self, other):
         if not hasattr(other, "_process_name"):
             return False
@@ -659,13 +683,9 @@ class SyncProcess(object):
 
     @error.setter
     def error(self, value):
-        try:
-            stack = getattr(value, "stack")
-        except AttributeError:
-            stack = traceback.format_exc()
         if value is not None:
             value = {"message": value.message,
-                     "stack": stack}
+                     "stack": traceback.format_exc()}
         self.data["error"] = value
 
     def try_pushes(self):

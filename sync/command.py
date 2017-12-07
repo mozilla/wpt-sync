@@ -29,15 +29,23 @@ def get_parser():
                                           help="Update the local state by reading from GH + etc.")
     parser_update.set_defaults(func=do_update)
 
-    parser_update = subparsers.add_parser("update-tasks",
+    parser_update_tasks = subparsers.add_parser("update-tasks",
                                           help="Update the state of try pushes")
-    parser_update.set_defaults(func=do_update_tasks)
+    parser_update_tasks.add_argument("pr_id", nargs="?", help="Downstream PR id for sync to update")
+    parser_update_tasks.set_defaults(func=do_update_tasks)
 
     parser_list = subparsers.add_parser("list", help="List all in-progress syncs")
     parser_list.add_argument("sync_type", nargs="*", help="Type of sync to list")
+    parser_list.add_argument("--error", action="store_true", help="List only syncs with errors")
     parser_list.set_defaults(func=do_list)
 
+    parser_detail = subparsers.add_parser("detail", help="List all in-progress syncs")
+    parser_detail.add_argument("sync_type", help="Type of sync")
+    parser_detail.add_argument("obj_id", help="Bug or PR id for the sync")
+    parser_detail.set_defaults(func=do_detail)
+
     parser_landing = subparsers.add_parser("landing", help="Trigger the landing code")
+    parser_landing.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landing.set_defaults(func=do_landing)
 
     parser_setup = subparsers.add_parser("init", help="Configure repos and model in "
@@ -61,8 +69,7 @@ def get_parser():
     parser_bug.set_defaults(func=do_bug)
 
     parser_upstream = subparsers.add_parser("upstream", help="Run the upstreaming code")
-    parser_upstream.add_argument("branch", help="Repository name to use e.g. mozilla-inbound")
-    parser_upstream.add_argument("rev", help="Revision to upstream to")
+    parser_upstream.add_argument("rev", nargs="?", help="Revision to upstream to")
     parser_upstream.set_defaults(func=do_upstream)
 
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
@@ -89,6 +96,7 @@ def get_parser():
     parser_cleanup.set_defaults(func=do_cleanup)
 
     parser_landable = subparsers.add_parser("landable", help="Display commits from upstream that are able to land")
+    parser_landable.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landable.set_defaults(func=do_landable)
 
     return parser
@@ -113,11 +121,22 @@ def sync_from_path(git_gecko, git_wpt):
 
 def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
     import downstream
+    import landing
     import upstream
     syncs = []
-    for cls in [upstream.UpstreamSync, downstream.DownstreamSync]:
+
+    def filter(sync):
+        return True
+
+    if kwargs["error"]:
+        def filter(sync):
+            return sync.error is not None
+
+
+    for cls in [upstream.UpstreamSync, downstream.DownstreamSync, landing.LandingSync]:
         if not sync_type or cls.sync_type in sync_type:
-            syncs.extend(cls.load_all(git_gecko, git_wpt, status="open"))
+            syncs.extend(item for item in cls.load_all(git_gecko, git_wpt, status="open")
+                         if filter(item))
 
     for sync in syncs:
         extra = []
@@ -134,12 +153,18 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                                               sync.bug,
                                               sync.pr,
                                               " ".join(extra),
-                                              "ERROR: %s" % error["message"].split("\n", 1)[0] if error else ""))
+                                            "ERROR: %s" % error["message"].split("\n", 1)[0] if error else ""))
+
+
+def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
+    syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
+    for sync in syncs:
+        print(sync.output())
 
 
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
-    landing.land_to_gecko(git_gecko, git_wpt)
+    landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"])
 
 
 def do_update(git_gecko, git_wpt, *args, **kwargs):
@@ -150,7 +175,7 @@ def do_update(git_gecko, git_wpt, *args, **kwargs):
 def do_update_tasks(git_gecko, git_wpt, *args, **kwargs):
     import update
     update.update_taskgroup_ids(git_gecko, git_wpt)
-    update.update_tasks(git_gecko, git_wpt)
+    update.update_tasks(git_gecko, git_wpt, kwargs["pr_id"])
 
 
 def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
@@ -170,32 +195,8 @@ def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
 
 
 def do_upstream(git_gecko, git_wpt, *args, **kwargs):
-    import upstream
-    rev = kwargs["rev"]
-
-    if rev is None:
-        rev = git_gecko.commit(env.config["gecko"]["refs"]["mozilla-inbound"]).hexsha
-
-    try:
-        git_rev = git_gecko.cinnabar.hg2git(rev)
-        hg_rev = rev
-    except ValueError:
-        # This was probably a git rev
-        try:
-            hg_rev = git_gecko.cinnabar.git2hg(rev)
-        except ValueError:
-            raise ValueError("%s is not a valid git or hg rev" % (rev,))
-        git_rev = rev
-
-
-    repository_name = kwargs["branch"]
-    if repository_name is None:
-        repository_name = env.config["gecko"]["refs"]["mozilla-inbound"]
-
-    if not git_gecko.is_ancestor(git_rev, repository_name):
-        raise ValueError("%s is not on branch %s" % (rev, repository_name))
-    upstream.push(git_gecko, git_wpt, repository_name, hg_rev)
-
+    import update
+    update.update_upstream(rev)
 
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush
@@ -273,16 +274,20 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
     from landing import load_sync_point, landable_commits
 
     update_repositories(git_gecko, git_wpt)
-    sync_point = load_sync_point(git_gecko, git_wpt)
-    print("Last sync was to commit %s" % sync_point["upstream"])
-    landable = landable_commits(git_gecko, git_wpt, sync_point)
+    if kwargs["prev_wpt_head"] is None:
+        sync_point = load_sync_point(git_gecko, git_wpt)
+        prev_wpt_head = sync_point["upstream"]
+        print("Last sync was to commit %s" % sync_point["upstream"])
+    else:
+        prev_wpt_head = kwargs["prev_wpt_head"]
+    landable = landable_commits(git_gecko, git_wpt, prev_wpt_head)
 
     if landable is None:
         print("Landing will not add any new commits")
         return
 
     wpt_head, commits = landable
-    print "Landing will update wpt head to %s" % wpt_head.sha1
+    print "Landing will update wpt head to %s" % wpt_head
 
 
 def main():

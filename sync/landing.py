@@ -1,3 +1,4 @@
+import re
 import os
 import shutil
 
@@ -170,17 +171,14 @@ Automatic update from web-platform-tests%s
             git_work.git.add("testing/web-platform/meta")
             git_work.git.commit(amend=True, no_edit=True)
 
-    def add_metadata(self, pr, sync):
-        apply_metadata = []
-        have_try_pushes = {item.metadata.get("try-push")
-                           for item in sync.gecko_commits
-                           if "try-push" in item.metadata}
+    def add_metadata(self, sync):
+        for item in sync.gecko_commits:
+            if (item.metadata.get("wpt-pr") == sync.pr and
+                item.metadata.get("wpt-type") == "metadata"):
+                return
+
         if sync.metadata_commit:
-            if sync.metadata_commit.metadata["try-push"] not in have_try_pushes:
-                apply_metadata.append(sync.metadata_commit.sha1)
-        # TODO: so we need to reverse the order here?
-        if apply_metadata:
-            self.gecko_worktree.get().git.cherry_pick(*apply_metadata)
+            self.gecko_worktree.get().git.cherry_pick(sync.metadata_commit.sha1)
 
     def apply_prs(self, landable_commits):
         unlanded_syncs = self.unlanded_syncs()
@@ -200,7 +198,7 @@ Automatic update from web-platform-tests%s
                 self.reapply_local_commits(unlanded_gecko_commits)
             self.manifest_update()
             if isinstance(sync, downstream.DownstreamSync):
-                self.add_metadata(pr, sync)
+                self.add_metadata(sync)
 
     @property
     def metadata_commit(self):
@@ -299,13 +297,18 @@ def load_sync_point(git_gecko, git_wpt):
     return sync_point
 
 
-def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, sync_point, wpt_head="origin/master"):
-    revish = "%s..%s" % (sync_point["upstream"], wpt_head)
+def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head="origin/master"):
+    revish = "%s..%s" % (prev_wpt_head, wpt_head)
 
     commits_by_pr = []
+    legacy_sync_re = re.compile(r"Merge pull request \#\d+ from w3c/sync_[0-9a-fA-F]+")
+
     for commit in git_wpt.iter_commits(revish,
-                                       reverse=True):
+                                       reverse=True,
+                                       first_parent=True):
         commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
+        if legacy_sync_re.match(commit.msg):
+            continue
         pr = commit.pr()
         if not commits_by_pr or commits_by_pr[-1][0] != pr:
             commits_by_pr.append((pr, []))
@@ -313,8 +316,8 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, sync_point, wpt_head="origin/
     return commits_by_pr
 
 
-def landable_commits(git_gecko, git_wpt, sync_point, wpt_head="origin/master"):
-    pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt, sync_point, wpt_head)
+def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head="origin/master"):
+    pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head)
     landable_commits = []
     for pr, commits in pr_commits:
         last = False
@@ -330,8 +333,10 @@ def landable_commits(git_gecko, git_wpt, sync_point, wpt_head="origin/master"):
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if not sync:
                 # TODO: schedule a downstream sync for this pr
+                logger.info("Commit %s has no corresponding sync" % commits[0].sha1)
                 last = True
             elif not sync.metadata_ready:
+                logger.info("Metadata pending for PR %s" % pr)
                 last = True
             if last:
                 break
@@ -356,7 +361,7 @@ def wpt_push(git_wpt, commits):
 
 
 @base.entry_point
-def land_to_gecko(git_gecko, git_wpt):
+def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
     update_repositories(git_gecko, git_wpt)
 
     landings = LandingSync.load_all(git_gecko, git_wpt)
@@ -366,16 +371,19 @@ def land_to_gecko(git_gecko, git_wpt):
 
     sync_point = load_sync_point(git_gecko, git_wpt)
 
+    if prev_wpt_head is None:
+        prev_wpt_head = sync_point["upstream"]
+
     if landing is None:
-        landable = landable_commits(git_gecko, git_wpt, sync_point)
+        landable = landable_commits(git_gecko, git_wpt, prev_wpt_head)
         if landable is None:
             return
         wpt_head, commits = landable
-        landing = LandingSync.new(git_gecko, git_wpt, sync_point["upstream"], wpt_head)
+        landing = LandingSync.new(git_gecko, git_wpt, prev_wpt_head, wpt_head)
     else:
         wpt_head, commits = landable_commits(git_gecko,
                                              git_wpt,
-                                             sync_point,
+                                             prev_wpt_head,
                                              landing.wpt_commits.head.sha1)
         assert wpt_head == landing.wpt_commits.head.sha1
 
@@ -394,13 +402,12 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
     try_push.status = "complete"
 
-    sync_point = load_sync_point(git_gecko, git_wpt)
-
     wpt_head, commits = landable_commits(git_gecko,
                                          git_wpt,
-                                         sync_point,
+                                         sync.wpt_commits.base.sha1,
                                          sync.wpt_commits.head.sha1)
 
+    sync_point = load_sync_point(git_gecko, git_wpt)
     sync.update_sync_point(sync_point)
     push(sync)
     for _, sync, _ in commits:

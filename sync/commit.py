@@ -121,10 +121,7 @@ class Commit(object):
         return msg
 
     def is_empty(self, prefix=None):
-        for path in self.commit.stats.files:
-            if path.startswith(prefix):
-                return False
-        return True
+        return self.repo.git.show(self.sha1, format="", patch=True).strip() == ""
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
              dest_prefix=None):

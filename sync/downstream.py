@@ -7,6 +7,7 @@ from __future__ import print_function
 """Functionality to support VCS syncing for WPT."""
 
 import os
+import traceback
 from collections import defaultdict
 
 import base
@@ -143,8 +144,11 @@ class DownstreamSync(base.SyncProcess):
         env.bz.set_component(self.bug, *new_component)
 
     def renames(self):
+        import pdb
+        pdb.set_trace()
         renames = {}
-        diff_blobs = self.wpt_commits.head.commit.diff(self.wpt_commits.base.commit)
+        diff_blobs = self.wpt_commits.head.commit.diff(
+            self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1))
         for item in diff_blobs:
             if item.rename_from:
                 renames[item.rename_from] = item.rename_to
@@ -165,7 +169,11 @@ class DownstreamSync(base.SyncProcess):
                                            old_meta_path)):
                 new_meta_path = os.path.join(metadata_base,
                                              new_path + ".ini")
-                gecko_work.index.move(old_meta_path, new_meta_path)
+                dir_name = os.path.join(gecko_work.working_dir,
+                                        os.path.dirname(new_meta_path))
+                if not os.path.exists(dir_name):
+                    os.makedirs(dir_name)
+                gecko_work.index.move((old_meta_path, new_meta_path))
 
         self._commit_metadata()
 
@@ -273,7 +281,7 @@ class DownstreamSync(base.SyncProcess):
             self.data["affected-tests"] = tests_by_type
         return self.data["affected-tests"]
 
-    def update_metadata(self, log_files, stability):
+    def update_metadata(self, log_files):
         meta_path = env.config["gecko"]["path"]["meta"]
         args = log_files
         if stability:
@@ -290,13 +298,11 @@ class DownstreamSync(base.SyncProcess):
             gecko_work.index.add([meta_path])
             self._commit_metadata()
 
-        if stability:
-            self.metadata_ready = True
         return disabled
 
 
 @base.entry_point
-def new_wpt_pr(git_gecko, git_wpt, pr_data):
+def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
     """ Start a new downstream sync """
     update_repositories(git_gecko, git_wpt)
     pr_id = pr_data["number"]
@@ -309,12 +315,20 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data):
                               pr_id,
                               pr_data["title"],
                               pr_data["body"])
-    sync.update_commits()
+    try:
+        sync.update_commits()
+    except Exception as e:
+        sync.error = e
+        if raise_on_error:
+            raise
+        traceback.print_exc()
+        logger.error(e)
     # Now wait for the status to change before we take any actions
 
 
 @base.entry_point
-def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha):
+def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
+                   raise_on_error=False):
     # TODO: seems like ignoring status that isn't our own would make more sense
     if context != "continuous-integration/travis-ci/pr":
         logger.debug("Ignoring status for context %s." % context)
@@ -322,25 +336,31 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha):
 
     update_repositories(git_gecko, git_wpt)
 
-    if status == "pending":
-        # We got new commits that we missed
-        sync.update_commits()
-    elif status == "success":
-        if TryPush.for_commit(git_gecko, head_sha):
-            return
-        sync.update_commits()
-        TryPush.create(sync, sync.affected_tests())
+    try:
+        if status == "pending":
+            # We got new commits that we missed
+                sync.update_commits()
+        elif status == "success":
+            if TryPush.for_commit(git_gecko, head_sha):
+                return
+            sync.update_commits()
+            TryPush.create(sync, sync.affected_tests())
 
-        # TODO set a status on the PR
-        # TODO: check only for status of Firefox job(s)
-
+            # TODO set a status on the PR
+            # TODO: check only for status of Firefox job(s)
+    except Exception as e:
+        sync.error = e
+        if raise_on_error:
+            raise
+        traceback.print_exc()
+        logger.error(e)
 
 @base.entry_point
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     log_files = try_push.download_logs()
     disabled = sync.update_metadata(log_files, stability=try_push.stability)
 
-    if not try_push.stability:
+    if sync.affected_tests() and not try_push.stability:
         # TODO check if tonnes of tests are failing -- don't want to update the
         # expectation data in that case
         # TODO decide whether to do another narrow push on mac
@@ -351,4 +371,5 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             # TODO notify relevant people about test expectation changes, stability
             env.bz.comment(sync.bug, ("The following tests were disabled "
                                       "based on stability try push:\n %s" % disabled))
+        self.metadata_ready = True
     try_push.status = "complete"

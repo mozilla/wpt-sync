@@ -61,15 +61,18 @@ def schedule_status_task(commit, status):
 def update_for_status(pr):
     commits = pr.get_commits()
     head = commits.reversed[0]
+    status = None
     for status in head.get_statuses():
         if (status.context == "continuous-integration/travis-ci/pr" and
             status.state != "pending"):
+            status = status
             schedule_status_task(head, status)
             return
 
 
 def update_pr(git_gecko, git_wpt, pr):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
+
     if not sync:
         # If this looks like something that came from gecko, create
         # a corresponding sync
@@ -89,6 +92,19 @@ def update_pr(git_gecko, git_wpt, pr):
             update_for_status(pr)
         elif pr.state == "closed" and not pr.merged:
             sync.state = "closed"
+        elif pr.merged and not sync.latest_try_push:
+            # We need to act as if this has a passing status
+            # TODO: some bad code reuse here
+            event = construct_event("status",
+                                    {"sha": sync.wpt_commits.head.sha1,
+                                     "context": "continuous-integration/travis-ci/pr",
+                                     "state": "success",
+                                     "description": None,
+                                     "target_url": None,
+                                     "branches": []
+                                    })
+            args = ("github", event)
+            handle_sync(*args)
     elif isinstance(sync, upstream.UpstreamSync):
         sync.update_status(pr.state, pr.merged)
         sync.try_land_pr()
@@ -164,8 +180,10 @@ def update_taskgroup_ids(git_gecko, git_wpt):
                                  "result": job_data["result"]})
 
 
-def update_tasks(git_gecko, git_wpt):
+def update_tasks(git_gecko, git_wpt, pr_id=None):
     for sync in downstream.DownstreamSync.load_all(git_gecko, git_wpt):
+        if pr_id is not None and sync.pr != pr_id:
+            continue
         print sync._process_name
         try_push = sync.latest_try_push
         if try_push and try_push.taskgroup_id:
