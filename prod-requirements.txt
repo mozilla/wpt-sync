@@ -6,12 +6,14 @@ bugsy==0.10.1 \
     --hash=sha256:e42ef4a1f6f7e633bdb0f699b5f41ae94754101ca91682b376bd058478ef9456
 celery==4.1.0 \
     --hash=sha256:81a67f0d53a688ec2bc8557bd5d6d7218f925a6f2e6df80e01560de9e28997ec
-certifi==2017.7.27.1 \
-    --hash=sha256:54a07c09c586b0e4c619f02a5e94e36619da8e2b053e20f594348c0611803704
+certifi==2017.11.5 \
+    --hash=sha256:244be0d93b71e93fc0a0a479862051414d0e00e16435707e5bf5000f92e04694
 chardet==3.0.4 \
     --hash=sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691
 enum34==1.1.6 \
     --hash=sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79
+filelock==2.0.13 \
+    --hash=sha256:d05079e7d7cae7576e192749d3461999ca6b0843d35b0f79f1fa956b0f6fc7d8
 gitdb2==2.0.3 \
     --hash=sha256:cf9a4b68e8c4da8d42e48728c944ff7af2d8c9db303ac1ab32eac37aa4194b0e
 GitPython==2.1.7 \
@@ -26,14 +28,14 @@ PyGithub==1.35 \
     --hash=sha256:fea1c5adedb0b2c641422efa7d22ad1af1b538a499faf25da14c0bb57e2cfefe
 PyJWT==1.5.3 \
     --hash=sha256:a4e5f1441e3ca7b382fd0c0b416777ced1f97c64ef0c33bfa39daf38505cfd2f
-pytz==2017.2 \
-    --hash=sha256:d1d6729c85acea5423671382868627129432fba9a89ecbb248d8d1c7a9f01c67
+pytz==2017.3 \
+    --hash=sha256:c41c62827ce9cafacd6f2f7018e4f83a6f1986e87bfd000b8cfbd4ab5da95f1a
 requests==2.18.4 \
     --hash=sha256:6a1b267aa90cac58ac3a765d067950e7dbbf75b1da07e895d1f594193a40a38b
 smmap2==2.0.3 \
     --hash=sha256:b78ee0f1f5772d69ff50b1cbdb01b8c6647a8354f02f23b488cf4b2cfc923956
-SQLAlchemy==1.2.0b2 \
-    --hash=sha256:2a01c36941b87cdc5ab32aec5b0f315f1a3dfb8d8b8efc97be0419cfd78fc590
+slugid==1.0.7 \
+    --hash=sha256:6dab3c7eef0bb423fb54cb7752e0f466ddd0ee495b78b763be60e8a27f69e779
 urllib3==1.22 \
     --hash=sha256:06330f386d6e4b195fbfc736b297f58c5a892e4440e54d294d7004e3a9bbea1b
 vine==1.1.4 \

@@ -2,8 +2,6 @@ import os
 from collections import defaultdict
 from ConfigParser import RawConfigParser
 
-import model
-
 _config = None
 
 if os.environ.get("WPTSYNC_ROOT"):

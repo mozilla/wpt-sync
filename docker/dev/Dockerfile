@@ -1,4 +1,4 @@
-FROM python:2
+FROM python:2.7-stretch
 
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
@@ -6,10 +6,10 @@ RUN groupadd --gid 10001 app && \
 ADD ./wpt-sync/docker/start_wptsync.sh /app/start_wptsync.sh
 RUN chmod +x /app/start_wptsync.sh
 
-# install rabbitmq and dependencies
+# install/update git, rabbitmq and dependencies
 RUN set -ex; \
     apt-get update; \
-    apt-get install -y erlang rabbitmq-server
+    apt-get install -y erlang rabbitmq-server git
 
 RUN service rabbitmq-server start
 
@@ -35,6 +35,8 @@ RUN git cinnabar download
 # Set up files and config
 RUN mkdir /app/workspace
 RUN mkdir /app/vct
+RUN mkdir /app/data
+RUN mkdir /app/repos
 
 WORKDIR /app/vct
 
@@ -46,17 +48,16 @@ ADD . /app/vct
 
 WORKDIR /app/vct/wpt-sync
 
-# Can set with --build-arg CREDENTIALS_INI=credentials.ini
-ARG CREDENTIALS_INI
-ENV CREDENTIALS_INI ${CREDENTIALS_INI}
-
-# Copy configuration files into workspace
+# Seed default configuration files
 RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini
-RUN if [ -n "$CREDENTIALS_INI" ]; then cp -v /app/vct/wpt-sync/$CREDENTIALS_INI /app/workspace/credentials.ini; fi
+# Used only for running tests
+RUN cp /app/vct/wpt-sync/test_credentials.ini /app/workspace/credentials.ini
 
+
+# TODO make prod version that installs wheels
 # Install the app in development mode
 RUN virtualenv /app/venv
-RUN /app/venv/bin/pip install -r prod-requirements.txt --no-deps
+RUN /app/venv/bin/pip install -r prod-requirements.txt --no-deps --require-hashes
 RUN /app/venv/bin/pip install -r requirements-dev.txt --no-deps
 RUN /app/venv/bin/pip install ../pylib/mozautomation --no-deps
 
@@ -71,7 +72,11 @@ ENV WPTSYNC_ROOT=/app/workspace
 
 WORKDIR /app/vct/wpt-sync
 
-VOLUME /app/vct
+# /app/vct: bind mount to src dir (only on dev) or dir with wheels?
+# /app/workspace: docker volume for logs, worktrees, etc.
+# /app/repos: bind mount to ebs volume for gecko and wpt repos
+# /app/data: bind bound to host data such as config files, credentials
+VOLUME ["/app/vct", "/app/workspace", "/app/repos", "/app/data"]
 
 ENTRYPOINT ["/app/start_wptsync.sh"]
 CMD ["listen"]

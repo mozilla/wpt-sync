@@ -1,5 +1,5 @@
 git+https://github.com/gitpython-developers/GitPython.git#egg=gitpython
-mercurial==4.2.2
+mercurial==4.3
 PyGithub==1.35
 bugsy==0.10.1
 enum34==1.1.6

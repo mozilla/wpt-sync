@@ -144,8 +144,6 @@ class DownstreamSync(base.SyncProcess):
         env.bz.set_component(self.bug, *new_component)
 
     def renames(self):
-        import pdb
-        pdb.set_trace()
         renames = {}
         diff_blobs = self.wpt_commits.head.commit.diff(
             self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1))
