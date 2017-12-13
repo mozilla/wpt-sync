@@ -115,7 +115,6 @@ def configure(config):
     for repo in [WebPlatformTests, Gecko]:
         repo = repo(config)
         repo.configure()
-        repo.repo()
 
 
 wrappers = {

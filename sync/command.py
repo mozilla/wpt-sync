@@ -48,11 +48,6 @@ def get_parser():
     parser_landing.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landing.set_defaults(func=do_landing)
 
-    parser_setup = subparsers.add_parser("init", help="Configure repos and model in "
-                                          "WPTSYNC_ROOT")
-    parser_setup.add_argument("--create", action="store_true", help="Recreate the database")
-    parser_setup.set_defaults(func=do_setup)
-
     parser_fetch = subparsers.add_parser("fetch", help="Fetch from repo.")
     parser_fetch.set_defaults(func=do_fetch)
     parser_fetch.add_argument('repo', choices=['gecko', 'web-platform-tests'])
@@ -225,15 +220,10 @@ def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
 def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     import repos
     name = kwargs.get("repo")
-    r = repos.wrappers[name](config)
+    r = repos.wrappers[name](env.config)
     r.configure()
-    logger.info("Fetching %s..." % name)
+    logger.info("Fetching %s in %s..." % (name, r.root))
     r.repo().git.fetch(*r.fetch_args)
-
-
-def do_setup(git_gecko, git_wpt, *args, **kwargs):
-    import repos
-    repos.configure()
 
 
 def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
