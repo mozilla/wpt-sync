@@ -19,10 +19,13 @@ To start all the services in the container:
 
 ```
 # in project root dir
-docker run --env WPTSYNC_CREDS=/app/vct/wpt-sync/credentials.ini --mount type=bind,source=$(pwd),target=/app/vct wptsync_dev
+docker run --init --name wptsync_test --env WPTSYNC_CREDS=/app/vct/wpt-sync/credentials.ini \
+--mount type=bind,source=$(pwd),target=/app/vct \
+--mount type=bind,source=path/to/repos,target=/app/repos \
+wptsync_dev
 ```
 
-This runs the script designated by ENTRYPOINT in the Dockerfile. You could also use `--env-file` instead of `--env` to set environment variables in the container. 
+This runs the script designated by ENTRYPOINT in the Dockerfile with an init process. You could use `--env-file` instead of `--env` to set environment variables in the container. 
 
 Stop it with:
 
@@ -43,6 +46,10 @@ docker run -it --mount type=bind,source=$(pwd),target=/app/vct --entrypoint "/ap
 
 You can pass additional flags to the entrypoint after the `wptsync_dev` part, like `... --entrypoint "/app/venv/bin/pytest" wptsync_dev -x`
 
+### Volumes to --mount
+
+See the VOLUMES directive in the Dockerfile for information about what
+volumes it's expecting. 
 
 ### Permissions
 

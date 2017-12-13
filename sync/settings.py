@@ -13,6 +13,12 @@ else:
                 os.path.dirname(__file__),
                 os.pardir)))
 
+# In production, we want to store the repos in a different volume
+if os.environ.get("WPTSYNC_REPO_ROOT"):
+    repo_root = os.path.abspath(os.path.normpath(os.environ.get("WPTSYNC_REPO_ROOT")))
+else:
+    repo_root = root
+
 
 def read_ini(path):
     print("Loading config from path %s" % path)
@@ -41,6 +47,7 @@ def load_files(ini_sync, ini_credentials):
 
     config = nested()
     config["root"] = root
+    config["repo_root"] = repo_root
 
     for section in ini_sync.sections():
         for name, value in ini_sync.items(section):
