@@ -3,57 +3,60 @@
 ## Dev environment
 
 Setting up a development environment
-requires [Docker](https://www.docker.com/)
-and [Docker Compose](https://docs.docker.com/compose/install/). To
-create the environment run:
+requires [Docker](https://www.docker.com/). 
+
+We're following [mozilla-services' Dockerflow](https://github.com/mozilla-services/Dockerflow).
+
+From wpt-sync dir:
 
 ```
-docker-compose build
+docker build -t wptsync_dev --file docker/dev/Dockerfile ..
 ```
 
-This may take a long time if it needs to do a fresh clone of the gecko
-repository.
+The above sets the vct repo root as the build context for an image called `wptsync_dev`
 
-To start the services run
-
-```
-docker-compose start
-```
-
-If there is a problem, logs can be viewed using
+To start all the services in the container:
 
 ```
-docker-compose logs [container name]
+# in project root dir
+docker run --env WPTSYNC_CREDS=/app/vct/wpt-sync/credentials.ini --mount type=bind,source=$(pwd),target=/app/vct wptsync_dev
 ```
 
-To run a container interactively e.g. to run tests run:
+This runs the script designated by ENTRYPOINT in the Dockerfile. You could also use `--env-file` instead of `--env` to set environment variables in the container. 
+
+Stop it with:
 
 ```
-docker-compose run <container_name> bash
+docker stop [container name]
 ```
 
-e.g.
+You can see names of running containers with `docker container ls`.
+
+If you want to run a different command in the container
+interactively, use the `-i` and `--entrypoint` options like:
+
 
 ```
-docker-compose run sync bash
+# in project root dir
+docker run -it --mount type=bind,source=$(pwd),target=/app/vct --entrypoint "/app/venv/bin/pytest" wptsync_dev
 ```
+
+You can pass additional flags to the entrypoint after the `wptsync_dev` part, like `... --entrypoint "/app/venv/bin/pytest" wptsync_dev -x`
+
 
 ### Permissions
 
-Inside the Docker container we run as the wptsync user. This user
+Inside the Docker container we run as the app user with uid 10001. This user
 requires write permissions to directories `repos`, `work`, `logs` and
-`data`. The easiest way to do this is to get the uid
-using
+`data`. 
+
+For each path, run
 
 ```
-docker-compose run sync id -u
+sudo chown -R 10001 <path>
 ```
 
-and then for each path, run
-
-```
-sudo chown -R <uid> <path>
-```
+You may not need to do this at all on mac.
 
 ### Upstream
 
@@ -62,7 +65,7 @@ a local directory mounted under `/home/wpt/sync/` in the
 container. The `docker-compose.yml` file must be edited to mount a
 clone of mozilla-inbound at this path from the local filesystem.
 
-# Deployment
+# Deployment (deprecated)
 
 The deployment steps are configured in an ansible role in `ansible/roles/wptsync`. The entry point is the playbook `ansible/wptsync-deploy`. It assumes the services are being deployed to a minimal Centos 7 system.
 
