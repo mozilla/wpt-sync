@@ -6,7 +6,7 @@ import gh
 import handlers
 import log
 import repos
-from settings import configure
+import settings
 from worker import worker
 
 

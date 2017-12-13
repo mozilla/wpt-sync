@@ -28,6 +28,7 @@ setup(
         # git-cinnabar breaks with Mercurial 4.4
         'Mercurial==4.3',
         'requests>=2.18',
-        'SQLAlchemy>=1.1.11',
+        'filelock>=2.0.13',
+        'slugid>=1.0.7'
     ],
 )
