@@ -393,7 +393,7 @@ class UpstreamSync(base.SyncProcess):
                 msg = "Merging PR failed: %s" % e
             else:
                 self.merge_sha = merge_sha
-                self.status = "complete"
+                self.finish()
                 return True
         logger.error(msg)
         env.bz.comment(self.bug, msg)
