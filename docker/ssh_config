@@ -1,0 +1,9 @@
+StrictHostKeyChecking yes
+
+Host github.com
+  User wptsync@mozilla.com
+  IdentityFile ~/.ssh/id_github
+
+Host hg.mozilla.org
+  User wptsync@mozilla.com
+  IdentityFile ~/.ssh/id_hgmo

@@ -18,12 +18,19 @@ ENV RABBITMQ_LOGS=- RABBITMQ_SASL_LOGS=-
 
 USER app
 
-# Install git-cinnabar
-RUN mkdir /app/git-cinnabar
+# Set up files and config
+RUN mkdir /app/workspace \
+    /app/vct \
+    /app/data \
+    /app/repos \
+    /app/git-cinnabar \
+    /app/.ssh
 
+# Install git-cinnabar
 WORKDIR /app/git-cinnabar
 
-RUN git clone https://github.com/glandium/git-cinnabar.git . && git checkout a55510fb6f23cf4fab01365640daea757cfb851f
+RUN git clone https://github.com/glandium/git-cinnabar.git . \
+    && git checkout a55510fb6f23cf4fab01365640daea757cfb851f
 
 ENV PATH=/app/git-cinnabar:$PATH
 
@@ -31,17 +38,10 @@ RUN pip install --user requests
 
 RUN git cinnabar download
 
-
-# Set up files and config
-RUN mkdir /app/workspace
-RUN mkdir /app/vct
-RUN mkdir /app/data
-RUN mkdir /app/repos
-
 WORKDIR /app/vct
 
-RUN git config --global user.name wpt-sync && \
-    git config --global user.email wptsync@mozilla.com
+RUN git config --global user.name moz-wptsync-bot \
+    && git config --global user.email wptsync@mozilla.com
 
 # Copy the current directory contents into the container
 ADD . /app/vct
@@ -49,17 +49,22 @@ ADD . /app/vct
 WORKDIR /app/vct/wpt-sync
 
 # Seed default configuration files
-RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini
 # Used only for running tests
 RUN cp /app/vct/wpt-sync/test_credentials.ini /app/workspace/credentials.ini
 
+ARG WPTSYNC_SSH_CONFIG
+ENV WPTSYNC_SSH_CONFIG ${WPTSYNC_SSH_CONFIG:-/app/vct/wpt-sync/docker/ssh_config}
 
-# TODO make prod version that installs wheels
+RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini \
+    && cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts \
+    && cp ${WPTSYNC_SSH_CONFIG} /app/.ssh/config
+
+# TODO make prod version that installs wheels?
 # Install the app in development mode
-RUN virtualenv /app/venv
-RUN /app/venv/bin/pip install -r prod-requirements.txt --no-deps --require-hashes
-RUN /app/venv/bin/pip install -r requirements-dev.txt --no-deps
-RUN /app/venv/bin/pip install ../pylib/mozautomation --no-deps
+RUN virtualenv /app/venv \
+    && /app/venv/bin/pip install -r prod-requirements.txt --no-deps --require-hashes \
+    && /app/venv/bin/pip install -r requirements-dev.txt --no-deps \
+    && /app/venv/bin/pip install ../pylib/mozautomation --no-deps
 
 WORKDIR /app
 

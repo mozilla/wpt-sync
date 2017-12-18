@@ -41,7 +41,9 @@ interactively, use the `-i` and `--entrypoint` options like:
 
 ```
 # in project root dir
-docker run -it --mount type=bind,source=$(pwd),target=/app/vct --entrypoint "/app/venv/bin/pytest" wptsync_dev
+docker run -it --env WPTSYNC_REPO_ROOT=/app/vct/wpt-sync/test/testdata \
+    --mount type=bind,source=$(pwd),target=/app/vct \
+    --entrypoint "/app/venv/bin/pytest" wptsync_dev
 ```
 
 You can pass additional flags to the entrypoint after the `wptsync_dev` part, like `... --entrypoint "/app/venv/bin/pytest" wptsync_dev -x`
