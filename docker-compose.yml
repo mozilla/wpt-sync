@@ -7,10 +7,9 @@ services:
       dockerfile: ./wpt-sync/docker/dev/Dockerfile
     volumes:
      - ..:/app/vct
-     - ./logs:/app/workspace/logs
      - ./ssh:/app/ssh
      - ./repos:/app/repos
-     - ./work:/app/workspace/work
+     - ./workspace:/app/workspace/
      - ./credentials.ini:/app/workspace/credentials.ini
      - ./sync.ini:/app/workspace/sync.ini
     environment:

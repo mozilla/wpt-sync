@@ -78,6 +78,9 @@ ENV WPTSYNC_REPO_ROOT=/app/repos
 # Allow git-cinnabar to find latest hg
 ENV PATH=/app/venv/bin:$PATH
 
+# Mach requires that this is set
+ENV SHELL=/bin/bash
+
 WORKDIR /app/vct/wpt-sync
 
 # /app/vct: bind mount to src dir (only on dev) or dir with wheels?

@@ -19,7 +19,6 @@ trap "echo TRAPed signal" HUP INT QUIT TERM
 git --version
 hg --version
 
-export SHELL=/bin/bash
 eval "$(ssh-agent -s)"
 
 if [ "$1" == "--worker" ]; then
