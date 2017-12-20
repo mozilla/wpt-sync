@@ -1,24 +1,18 @@
 version: '3'
 services:
   sync:
-    user: wptsync
-    build: .
+    user: app
+    build:
+      context: ..
+      dockerfile: ./wpt-sync/docker/dev/Dockerfile
     volumes:
-     - .:/home/wptsync/wpt-sync
+     - ..:/app/vct
+     - ./logs:/app/workspace/logs
+     - ./ssh:/app/ssh
+     - ./repos:/app/repos
+     - ./work:/app/workspace/work
+     - ./credentials.ini:/app/workspace/credentials.ini
+     - ./sync.ini:/app/workspace/sync.ini
     environment:
-     - PYTHONPATH=/wpt-sync
-    command: wptsync listen
-    depends_on:
-      - celery
-  rabbitmq:
-    image: rabbitmq
-    expose:
-      - 5672
-  celery:
-    user: wptsync
-    build: .
-    volumes:
-     - .:/home/wptsync/wpt-sync
-    command: ./run_sync_tasks.sh --worker
-    depends_on:
-      - rabbitmq
+     - WPTSYNC_CREDS=/app/workspace/credentials.ini
+    command: /app/start_wptsync.sh --worker

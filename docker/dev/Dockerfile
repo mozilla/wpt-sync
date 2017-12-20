@@ -86,5 +86,5 @@ WORKDIR /app/vct/wpt-sync
 # /app/data: bind bound to host data such as config files, credentials
 VOLUME ["/app/vct", "/app/workspace", "/app/repos", "/app/data"]
 
-ENTRYPOINT ["/app/start_wptsync.sh"]
-CMD ["listen"]
+#ENTRYPOINT ["/app/start_wptsync.sh"]
+#CMD ["listen"]

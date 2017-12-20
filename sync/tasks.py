@@ -1,3 +1,5 @@
+import os
+
 import filelock
 
 import bug
@@ -14,7 +16,19 @@ logger = log.get_logger(__name__)
 
 handler_map = None
 
-lock = filelock.FileLock("sync.lock")
+lock = None
+
+@settings.configure
+def setup_lock(config):
+    global lock
+    if lock is None:
+        path = os.path.join(config["root"], "sync.lock")
+        logger.info("Using lockfile at path %s" % path)
+        lock = filelock.FileLock(path)
+
+
+setup_lock()
+
 
 @settings.configure
 def get_handlers(config):
