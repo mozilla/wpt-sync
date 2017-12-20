@@ -404,12 +404,12 @@ def commit_message_filter(msg):
     metadata = {}
     m = commitparser.BUG_RE.match(msg)
     if m:
-        bug_str = m.groups[1]
+        logger.info(m.groups())
+        bug_str, bug_number = m.groups()[:2]
         if msg.startswith(bug_str):
-            # Strip the bug prefix
-            prefix = re.compile("^%s[^\w\d]*" % bug_str)
+            prefix = re.compile(r"^%s[^\w\d]*" % bug_str)
             msg = prefix.sub("", msg)
-        metadata["bugzilla-url"] = env.bz.bugzilla_url(bug_str)
+        metadata["bugzilla-url"] = env.bz.bugzilla_url(bug_number)
 
     reviewers = ", ".join(commitparser.parse_reviewers(msg))
     if reviewers:
