@@ -13,30 +13,14 @@ trap "echo TRAPed signal" HUP INT QUIT TERM
 #cp -v ${WPTSYNC_CREDS:-/app/data/credentials.ini} /app/workspace/credentials.ini
 
 # Install ssh keys
-echo ${WPTSYNC_GH_SSH_KEY} > /app/.ssh/id_github
-echo ${WPTSYNC_HGMO_SSH_KEY} > /app/.ssh/id_hgmo
+#echo ${WPTSYNC_GH_SSH_KEY} > /app/.ssh/id_github
+#echo ${WPTSYNC_HGMO_SSH_KEY} > /app/.ssh/id_hgmo
 
 git --version
 hg --version
 
 export SHELL=/bin/bash
 eval "$(ssh-agent -s)"
-if [ -e /app/ssh/id_github_ecdsa ]; then
-    ssh-add /app/ssh/id_github_ecdsa
-fi
-if [ -e /app/ssh/id_mozilla_ecdsa ]; then
-    ssh-add /app/ssh/id_mozilla_ecdsa
-fi
-mkdir -p ~/.ssh
-ssh-keyscan -H github.com >> ~/.ssh/known_hosts
-ssh-keyscan -H hg.mozilla.org >> ~/.ssh/known_hosts
-echo "Host hg.mozilla.org
-User james@hoppipolla.co.uk
-IdentityFile /app/ssh/id_mozilla_ecdsa
-
-Host github.com
-IdentityFile /app/ssh/id_github_ecdsa
-" >> ~/.ssh/config
 
 if [ "$1" == "--worker" ]; then
     echo "Starting celerybeat"
