@@ -21,6 +21,11 @@ hg --version
 
 eval "$(ssh-agent -s)"
 
+service --status-all
+sudo service rabbitmq-server start
+
+ls -lh /app/workspace/logs
+
 if [ "$1" == "--worker" ]; then
     echo "Starting celerybeat"
 
