@@ -16,18 +16,31 @@ logger = log.get_logger(__name__)
 
 handler_map = None
 
-lock = None
+_lock = None
 
 @settings.configure
 def setup_lock(config):
-    global lock
-    if lock is None:
+    global _lock
+    if _lock is None:
         path = os.path.join(config["root"], "sync.lock")
         logger.info("Using lockfile at path %s" % path)
-        lock = filelock.FileLock(path)
+        _lock = filelock.FileLock(path)
 
 
-setup_lock()
+def with_lock(f):
+    global _lock
+    def inner(*args, **kwargs):
+        if _lock is None:
+            setup_lock()
+        try:
+            with _lock:
+                return f(*args, **kwargs)
+        except Exception as e:
+            logger.error(str(unicode(e).encode("utf8")))
+            raise
+    inner.__name__ = f.__name__
+    inner.__doc__ = f.__doc__
+    return inner
 
 
 @settings.configure
@@ -58,22 +71,8 @@ def setup(config):
     return git_gecko, git_wpt
 
 
-def try_task(f):
-    def inner(*args, **kwargs):
-        try:
-            # TODO: much more finegrained locking
-            with lock:
-                return f(*args, **kwargs)
-        except Exception as e:
-            logger.error(str(unicode(e).encode("utf8")))
-            raise
-    inner.__name__ = f.__name__
-    inner.__doc__ = f.__doc__
-    return inner
-
-
 @worker.task
-@try_task
+@with_lock
 def handle(task, body):
     handlers = get_handlers()
     if task in handlers:
@@ -89,7 +88,7 @@ def handle(task, body):
 
 
 @worker.task
-@try_task
+@with_lock
 @settings.configure
 def land(config):
     git_gecko, git_wpt = setup()
@@ -97,7 +96,7 @@ def land(config):
 
 
 @worker.task
-@try_task
+@with_lock
 @settings.configure
 def cleanup(config):
     git_gecko, git_wpt = setup()

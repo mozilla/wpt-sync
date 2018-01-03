@@ -1,6 +1,7 @@
 import argparse
 import os
 import subprocess
+import traceback
 
 import git
 
@@ -10,7 +11,7 @@ from tasks import setup
 from env import Environment
 from gitutils import update_repositories
 from load import get_syncs
-from tasks import lock
+from tasks import with_lock
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -151,28 +152,33 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                                             "ERROR: %s" % error["message"].split("\n", 1)[0] if error else ""))
 
 
+@with_lock
 def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
         print(sync.output())
 
 
+@with_lock
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
     landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"])
 
 
+@with_lock
 def do_update(git_gecko, git_wpt, *args, **kwargs):
     import update
     update.update_from_github(git_gecko, git_wpt)
 
 
+@with_lock
 def do_update_tasks(git_gecko, git_wpt, *args, **kwargs):
     import update
     update.update_taskgroup_ids(git_gecko, git_wpt)
     update.update_tasks(git_gecko, git_wpt, kwargs["pr_id"])
 
 
+@with_lock
 def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
     import update
     if pr_id is None:
@@ -182,6 +188,7 @@ def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
     update.update_pr(git_gecko, git_wpt, pr)
 
 
+@with_lock
 def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
     import update
     if bug is None:
@@ -189,6 +196,7 @@ def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
     update.update_bug(git_gecko, git_wpt, bug)
 
 
+@with_lock
 def do_upstream(git_gecko, git_wpt, *args, **kwargs):
     import update
     rev = kwargs["rev"]
@@ -199,6 +207,7 @@ def do_upstream(git_gecko, git_wpt, *args, **kwargs):
     update.update_upstream(git_gecko, git_wpt, rev)
 
 
+@with_lock
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush
     if kwargs["try"]:
@@ -217,6 +226,7 @@ def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
     listen.run_pulse_listener(env.config)
 
 
+@with_lock
 def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     import repos
     name = kwargs.get("repo")
@@ -226,6 +236,7 @@ def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     r.repo().git.fetch(*r.fetch_args)
 
 
+@with_lock
 def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     import upstream
     import downstream
@@ -261,11 +272,13 @@ def do_test(*args, **kwargs):
     subprocess.call(cmd)
 
 
+@with_lock
 def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
     from tasks import cleanup
     cleanup()
 
 
+@with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     from landing import load_sync_point, landable_commits
 
@@ -291,11 +304,9 @@ def main():
     args = parser.parse_args()
     git_gecko, git_wpt = setup()
     try:
-        with lock:
-            args.func(git_gecko, git_wpt, **vars(args))
+        args.func(git_gecko, git_wpt, **vars(args))
     except Exception as e:
         if args.pdb:
-            import traceback
             traceback.print_exc(e)
             import pdb
             pdb.post_mortem()
