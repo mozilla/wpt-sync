@@ -33,7 +33,7 @@ RUN mkdir /app/workspace \
 WORKDIR /app/git-cinnabar
 
 RUN git clone https://github.com/glandium/git-cinnabar.git . \
-    && git checkout a55510fb6f23cf4fab01365640daea757cfb851f
+    && git checkout bb45a922e9c7907ad6e101fbaa54cec5cb7b2434
 
 ENV PATH=/app/git-cinnabar:$PATH
 
