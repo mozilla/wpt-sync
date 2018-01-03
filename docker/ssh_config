@@ -1,8 +1,8 @@
 StrictHostKeyChecking yes
 
 Host github.com
-  IdentityFile /app/ssh/id_github_ecdsa
+  IdentityFile /app/.ssh/id_github
 
 Host hg.mozilla.org
-  User james@hoppipolla.co.uk
-  IdentityFile /app/ssh/id_mozilla_ecdsa
+  User wptsync@mozilla.com
+  IdentityFile /app/.ssh/id_hgmo

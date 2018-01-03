@@ -9,12 +9,13 @@ set -o xtrace
 #     or need to start multiple services in the one container
 trap "echo TRAPed signal" HUP INT QUIT TERM
 
-#cp -v ${WPTSYNC_CONFIG:-/app/vct/wpt-sync/sync.ini} /app/workspace/sync.ini
-#cp -v ${WPTSYNC_CREDS:-/app/data/credentials.ini} /app/workspace/credentials.ini
+cp -v ${WPTSYNC_CONFIG:-/app/vct/wpt-sync/sync.ini} /app/workspace/sync.ini
+cp -v ${WPTSYNC_CREDS:-/app/data/credentials.ini} /app/workspace/credentials.ini
+cp -v ${WPTSYNC_SSH_CONFIG:-/app/vct/wpt-sync/docker/ssh_config} /app/.ssh/config
 
 # Install ssh keys
-#echo ${WPTSYNC_GH_SSH_KEY} > /app/.ssh/id_github
-#echo ${WPTSYNC_HGMO_SSH_KEY} > /app/.ssh/id_hgmo
+cp -v ${WPTSYNC_GH_SSH_KEY:-/app/data/ssh/id_github}  /app/.ssh/id_github
+cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/data/ssh/id_hgmo} /app/.ssh/id_hgmo
 
 git --version
 hg --version
@@ -25,6 +26,8 @@ service --status-all
 sudo service rabbitmq-server start
 sudo service rabbitmq-server status
 
+# if we've never run wptsync service, log dir may not exist
+mkdir -p /app/workspace/logs
 ls -lh /app/workspace/logs
 
 if [ "$1" == "--worker" ]; then

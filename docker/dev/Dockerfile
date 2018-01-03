@@ -14,8 +14,6 @@ RUN set -ex; \
 RUN adduser app sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-RUN service rabbitmq-server start
-
 # get logs to stdout
 ENV RABBITMQ_LOGS=- RABBITMQ_SASL_LOGS=-
 
@@ -55,12 +53,8 @@ WORKDIR /app/vct/wpt-sync
 # Used only for running tests
 RUN cp /app/vct/wpt-sync/test_credentials.ini /app/workspace/credentials.ini
 
-ARG WPTSYNC_SSH_CONFIG
-ENV WPTSYNC_SSH_CONFIG ${WPTSYNC_SSH_CONFIG:-/app/vct/wpt-sync/docker/ssh_config}
-
 RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini \
-    && cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts \
-    && cp ${WPTSYNC_SSH_CONFIG} /app/.ssh/config
+    && cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
 
 # TODO make prod version that installs wheels?
 # Install the app in development mode
@@ -92,5 +86,5 @@ WORKDIR /app/vct/wpt-sync
 # /app/data: bind bound to host data such as config files, credentials
 VOLUME ["/app/vct", "/app/workspace", "/app/repos", "/app/data"]
 
-#ENTRYPOINT ["/app/start_wptsync.sh"]
-#CMD ["listen"]
+ENTRYPOINT ["/app/start_wptsync.sh"]
+CMD ["--worker"]

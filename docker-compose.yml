@@ -1,6 +1,8 @@
 version: '3'
 services:
   sync:
+#   --init option of docker run not supported in docker-compose scheme v3
+#   init: true
     user: app
     build:
       context: ..
@@ -8,12 +10,16 @@ services:
     extra_hosts:
       - "rabbitmq:127.0.0.1"
     volumes:
-     - ..:/app/vct
-     - ./ssh:/app/ssh
-     - ./repos:/app/repos
-     - ./workspace:/app/workspace/
-     - ./credentials.ini:/app/workspace/credentials.ini
-     - ./sync.ini:/app/workspace/sync.ini
+     # Make an ./.env file to define DEV_* vars for your local dev env
+     - ${DEV_VCT_ROOT:-..}:/app/vct
+     - ${DEV_REPO_ROOT:-./repos}:/app/repos
+     - ${DEV_WORKSPACE:-./workspace}:/app/workspace
+     - ${DEV_APP_DATA:-./appdata}:/app/data
     environment:
-     - WPTSYNC_CREDS=/app/workspace/credentials.ini
-    command: /app/start_wptsync.sh --worker
+     # See start_wptsync.sh
+     - WPTSYNC_CREDS=/app/vct/wpt-sync/credentials.ini
+     # - WPTSYNC_SSH_CONFIG=${DEV_SSH_CONFIG}
+     # - WPTSYNC_HGMO_SSH_KEY=${DEV_HGMO_SSH_KEY}
+     # - WPTSYNC_GH_SSH_KEY=${DEV_GH_SSH_KEY}
+#volumes:
+#    wptsync-workspace:
