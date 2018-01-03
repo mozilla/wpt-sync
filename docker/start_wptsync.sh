@@ -23,6 +23,7 @@ eval "$(ssh-agent -s)"
 
 service --status-all
 sudo service rabbitmq-server start
+sudo service rabbitmq-server status
 
 ls -lh /app/workspace/logs
 
