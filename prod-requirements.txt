@@ -16,14 +16,14 @@ filelock==2.0.13 \
     --hash=sha256:d05079e7d7cae7576e192749d3461999ca6b0843d35b0f79f1fa956b0f6fc7d8
 gitdb2==2.0.3 \
     --hash=sha256:cf9a4b68e8c4da8d42e48728c944ff7af2d8c9db303ac1ab32eac37aa4194b0e
-GitPython==2.1.7 \
-    --hash=sha256:e0b84d37fc7a3594e14818534ef3836d8182925399931a26eab2eb8ef5243a58
+GitPython==2.1.8 \
+    --hash=sha256:b8367c432de995dc330b5b146c5bfdc0926b8496e100fda6692134e00c0dcdc5
 idna==2.6 \
     --hash=sha256:8c7309c718f94b3a625cb648ace320157ad16ff131ae0af362c9f21b80ef6ec4
 kombu==4.1.0 \
     --hash=sha256:01f0da9fe222a2183345004243d1518c0fbe5875955f1b24842f2d9c65709ade
-Mercurial==4.3 \
-    --hash=sha256:ebf11176e9b5354ec7a1bde6c5382c914d10c397410531faf89f8b5124a7cb65
+Mercurial==4.4.2 \
+    --hash=sha256:dc2f72caccd6b760226753d48c2f4e8889fe176a6b23ef50775caac55ce28b85
 PyGithub==1.35 \
     --hash=sha256:fea1c5adedb0b2c641422efa7d22ad1af1b538a499faf25da14c0bb57e2cfefe
 PyJWT==1.5.3 \

@@ -26,7 +26,7 @@ setup(
         'GitPython>=2.1.7',
         'PyGithub>=1.35',
         # git-cinnabar breaks with Mercurial 4.4
-        'Mercurial==4.3',
+        'Mercurial>=4.4',
         'requests>=2.18',
         'filelock>=2.0.13',
         'slugid>=1.0.7'
