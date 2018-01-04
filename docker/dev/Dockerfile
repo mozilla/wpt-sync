@@ -49,12 +49,11 @@ ADD . /app/vct
 
 WORKDIR /app/vct/wpt-sync
 
-# Seed default configuration files
 # Used only for running tests
-RUN cp /app/vct/wpt-sync/test_credentials.ini /app/workspace/credentials.ini
+RUN cp /app/vct/wpt-sync/test_credentials.ini /app/workspace/credentials.ini \
+    && cp /app/vct/wpt-sync/test/test.ini /app/workspace/sync.ini
 
-RUN cp /app/vct/wpt-sync/sync.ini /app/workspace/sync.ini \
-    && cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
+RUN cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
 
 # TODO make prod version that installs wheels?
 # Install the app in development mode
@@ -81,9 +80,9 @@ ENV SHELL=/bin/bash
 WORKDIR /app/vct/wpt-sync
 
 # /app/vct: bind mount to src dir (only on dev) or dir with wheels?
-# /app/workspace: docker volume for logs, worktrees, etc.
-# /app/repos: bind mount to ebs volume for gecko and wpt repos
-# /app/data: bind bound to host data such as config files, credentials
+# /app/workspace: bind mount to [empty] dir where service will write working data, logs
+# /app/repos: bind mount to ebs volume for gecko and wpt repos (or local dev repos)
+# /app/data: bind bound to host data such as config files, credentials, ssh config
 VOLUME ["/app/vct", "/app/workspace", "/app/repos", "/app/data"]
 
 ENTRYPOINT ["/app/start_wptsync.sh"]
