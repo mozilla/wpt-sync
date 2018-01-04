@@ -268,7 +268,7 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 
 
 def do_test(*args, **kwargs):
-    cmd = ["pytest", "--cov", "sync", "--cov-report", "html", "test/test_upstream.py"]
+    cmd = ["pytest", "-s", "-v", "--cov", "sync", "--cov-report", "html"]
     subprocess.call(cmd)
 
 
