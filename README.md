@@ -5,12 +5,14 @@
 Setting up a development environment
 requires [Docker](https://www.docker.com/). 
 
-We're following [mozilla-services' Dockerflow](https://github.com/mozilla-services/Dockerflow).
+__See section below about using docker-compose.__
 
-From wpt-sync dir:
+We're somewhat following [mozilla-services' Dockerflow](https://github.com/mozilla-services/Dockerflow).
+
+From repo root:
 
 ```
-docker build -t wptsync_dev --file docker/dev/Dockerfile ..
+docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker/dev/Dockerfile .
 ```
 
 The above sets the vct repo root as the build context for an image called `wptsync_dev`
@@ -19,10 +21,11 @@ To start all the services in the container:
 
 ```
 # in project root dir
-docker run --init --name wptsync_test --env WPTSYNC_CREDS=/app/vct/wpt-sync/credentials.ini \
+docker run -it --init --name wptsync_test --env WPTSYNC_CREDS=/app/.../credentials.ini \
 --mount type=bind,source=$(pwd),target=/app/vct \
---mount type=bind,source=path/to/repos,target=/app/repos \
-wptsync_dev
+--mount type=bind,source=$(pwd)/../temp,target=/app/repos \
+--mount type=bind,source=$(pwd)/wpt-sync/workspace,target=/app/workspace \
+--mount type=bind,source=$(pwd)/wpt-sync/appdata,target=/app/data wptsync_dev
 ```
 
 This runs the script designated by ENTRYPOINT in the Dockerfile with an init process. You could use `--env-file` instead of `--env` to set environment variables in the container. 
@@ -67,12 +70,41 @@ sudo chown -R 10001 <path>
 
 You may not need to do this at all on mac.
 
-### Upstream
+### Using docker-compose
 
-For testing purposes the upstream mozilla-inbound repository is set to
-a local directory mounted under `/home/wpt/sync/` in the
-container. The `docker-compose.yml` file must be edited to mount a
-clone of mozilla-inbound at this path from the local filesystem.
+The docker-compose.yml file is provided as a convenience in the dev environment and it uses the same Dockerfile referenced in previous instructions.
+
+There are instructions in the docker-compose.yml file about how to customize
+your dev environment with appropriate mounts.
+
+From wpt-sync dir you can run:
+
+```
+docker-compose build
+```
+
+Then to start the services with the default entrypoint (pulse listener):
+
+```
+docker-compose up
+```
+
+To run an alternate command, e.g. bash, instead of the default entrypoint:
+
+```
+docker-compose run --entrypoint bash sync
+```
+
+Another example (__running tests__):
+
+```
+docker-compose run -e WPTSYNC_REPO_ROOT=/app/vct/wpt-sync/test/testdata --entrypoint /app/venv/bin/pytest sync test
+```
+
+You can also see an alternate way to run tests without docker-compose in `.travis.yml`.
+
+__Note__ that replacing the default entrypoint means that you're nolonger running the `start_wptsync.sh` script at container start-up and therefore some
+configuration may be missing or incomplete. (For example, the Dockerfile (build-time) doesn't set up any credentials; instead, credentials are only set up in the container at run-time with the above-mentioned script.)
 
 # Deployment (deprecated)
 
