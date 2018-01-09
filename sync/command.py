@@ -275,8 +275,8 @@ def do_test(*args, **kwargs):
     env["WPTSYNC_SETTINGS"] = "/app/vct/wpt-sync/test/test.ini"
     env["WPTSYNC_CREDENTIALS"] = "/app/vct/wpt-sync/test/credentials.ini"
 
-    cmd = ["pytest", "-p no:cacheprovider", "sync", "test/test_upstream.py", "--pdb"]
-    subprocess.check_call(cmd, env=env)
+    cmd = ["pytest", "-p no:cacheprovider", "sync", "test/"]
+    subprocess.call(cmd, env=env)
 
 
 @with_lock
