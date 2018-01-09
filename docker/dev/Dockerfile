@@ -21,6 +21,8 @@ USER app
 
 # Set up files and config
 RUN mkdir /app/workspace \
+    /app/workspace/testdata \
+    /app/workspace/logs \
     /app/vct \
     /app/data \
     /app/repos \
@@ -50,8 +52,10 @@ ADD . /app/vct
 WORKDIR /app/vct/wpt-sync
 
 # Used only for running tests
-RUN cp /app/vct/wpt-sync/test_credentials.ini /app/workspace/credentials.ini \
-    && cp /app/vct/wpt-sync/test/test.ini /app/workspace/sync.ini
+RUN cp /app/vct/wpt-sync/test/credentials.ini /app/workspace/credentials.ini \
+    && cp /app/vct/wpt-sync/test/test.ini /app/workspace/sync.ini \
+    && cp /app/vct/wpt-sync/test/credentials.ini /app/workspace/testdata/credentials.ini \
+    && cp /app/vct/wpt-sync/test/test.ini /app/workspace/testdata/sync.ini
 
 RUN cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
 

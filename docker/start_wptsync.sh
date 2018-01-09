@@ -32,8 +32,6 @@ service --status-all
 sudo service rabbitmq-server start
 sudo service rabbitmq-server status
 
-# if we've never run wptsync service, log dir may not exist
-mkdir -p /app/workspace/logs
 ls -lh /app/workspace/logs
 
 if [ "$1" == "--worker" ]; then

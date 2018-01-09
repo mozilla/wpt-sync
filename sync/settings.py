@@ -30,20 +30,12 @@ def get_root():
     return root, repo_root
 
 
-def get_defaults():
-    root, _ = get_root()
-    rv = []
-    for var, default in [("WPTSYNC_SETTINGS", "sync.ini"),
-                         ("WPTSYNC_CREDENTIALS", "credentials.ini")]:
-        rv.append(os.path.join(root, os.environ.get(var, default)))
-
-    return tuple(rv)
-
-
 def load():
     global _config
     if _config is None:
-        ini_sync, ini_credentials = (read_ini(item) for item in get_defaults())
+        root, _ = get_root()
+        ini_sync = read_ini(os.path.join(root, "sync.ini"))
+        ini_credentials = read_ini(os.path.join(root, "credentials.ini"))
         _config = load_files(ini_sync, ini_credentials)
     return _config
 

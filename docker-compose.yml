@@ -13,6 +13,7 @@ services:
      # Make an ./.env file to define DEV_* vars for your local dev env
      - ${DEV_VCT_ROOT:-..}:/app/vct
      - ${DEV_REPO_ROOT:-./repos}:/app/repos
+     # uncomment this if you want to run tests
      - ${DEV_WORKSPACE:-./workspace}:/app/workspace
      - ${DEV_APP_DATA:-./appdata}:/app/data
     environment:

@@ -7,8 +7,6 @@ from cStringIO import StringIO
 import git
 import pytest
 
-
-
 from sync import repos, settings, bugcomponents, downstream, landing
 from sync.env import Environment, set_env, clear_env
 

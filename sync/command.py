@@ -268,15 +268,8 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 
 
 def do_test(*args, **kwargs):
-    # Need to set these before anything could read them
-    env = os.environ.copy()
-    env["WPTSYNC_ROOT"] = "/app/workspace/testdata"
-    env["WPTSYNC_REPO_ROOT"] = "/app/workspace/testdata"
-    env["WPTSYNC_SETTINGS"] = "/app/vct/wpt-sync/test/test.ini"
-    env["WPTSYNC_CREDENTIALS"] = "/app/vct/wpt-sync/test/credentials.ini"
-
-    cmd = ["pytest", "-p no:cacheprovider", "sync", "test/"]
-    subprocess.call(cmd, env=env)
+    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider", "sync", "test/"]
+    subprocess.check_call(cmd)
 
 
 @with_lock
