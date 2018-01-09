@@ -23,7 +23,7 @@ setup(
         'bugsy>=0.10.1',
         'celery>=4.1',
         'enum34>=1.1.6',
-        'GitPython>=2.1.7',
+        'GitPython>=2.1.8',
         'PyGithub>=1.35',
         # git-cinnabar breaks with Mercurial 4.4
         'Mercurial>=4.4',

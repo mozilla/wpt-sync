@@ -4,22 +4,6 @@ from ConfigParser import RawConfigParser
 
 _config = None
 
-if os.environ.get("WPTSYNC_ROOT"):
-    root = os.path.abspath(os.path.normpath(os.environ.get("WPTSYNC_ROOT")))
-else:
-    root = os.path.abspath(
-        os.path.normpath(
-            os.path.join(
-                os.path.dirname(__file__),
-                os.pardir)))
-
-# In production, we want to store the repos in a different volume
-if os.environ.get("WPTSYNC_REPO_ROOT"):
-    repo_root = os.path.abspath(os.path.normpath(os.environ.get("WPTSYNC_REPO_ROOT")))
-else:
-    repo_root = root
-
-
 def read_ini(path):
     print("Loading config from path %s" % path)
     parser = RawConfigParser()
@@ -31,17 +15,42 @@ def read_ini(path):
     return parser
 
 
+def get_root():
+    if os.environ.get("WPTSYNC_ROOT"):
+        root = os.path.abspath(os.path.normpath(os.environ.get("WPTSYNC_ROOT")))
+    else:
+        root = os.path.abspath(os.path.normpath(
+            os.path.join(os.path.dirname(__file__), os.pardir)))
+
+    # In production, we want to store the repos in a different volume
+    if os.environ.get("WPTSYNC_REPO_ROOT"):
+        repo_root = os.path.abspath(os.path.normpath(os.environ.get("WPTSYNC_REPO_ROOT")))
+    else:
+        repo_root = root
+    return root, repo_root
+
+
+def get_defaults():
+    root, _ = get_root()
+    rv = []
+    for var, default in [("WPTSYNC_SETTINGS", "sync.ini"),
+                         ("WPTSYNC_CREDENTIALS", "credentials.ini")]:
+        rv.append(os.path.join(root, os.environ.get(var, default)))
+
+    return tuple(rv)
+
+
 def load():
     global _config
     if _config is None:
-        ini_sync = read_ini(os.path.join(root, "sync.ini"))
-        ini_credentials = read_ini(os.path.join(root, "credentials.ini"))
-
+        ini_sync, ini_credentials = (read_ini(item) for item in get_defaults())
         _config = load_files(ini_sync, ini_credentials)
     return _config
 
 
 def load_files(ini_sync, ini_credentials):
+    root, repo_root = get_root()
+
     def nested():
         return defaultdict(nested)
 

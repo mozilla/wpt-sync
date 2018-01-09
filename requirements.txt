@@ -1,4 +1,4 @@
-git+https://github.com/gitpython-developers/GitPython.git#egg=gitpython
+GitPython==2.1.8
 mercurial==4.3
 PyGithub==1.35
 bugsy==0.10.1

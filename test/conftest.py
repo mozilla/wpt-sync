@@ -7,12 +7,10 @@ from cStringIO import StringIO
 import git
 import pytest
 
+
+
 from sync import repos, settings, bugcomponents, downstream, landing
 from sync.env import Environment, set_env, clear_env
-
-here = os.path.dirname(os.path.abspath(__file__))
-
-root = os.path.join(here, "testdata")
 
 
 def create_file_data(file_data, repo_workdir, repo_prefix=None):
@@ -75,12 +73,8 @@ def cleanup(config):
 @pytest.fixture(scope="function")
 def env(mock_mach, mock_wpt):
     clear_env()
-    settings.root = root
-    ini_sync = settings.read_ini(os.path.abspath(os.path.join(here, "test.ini")))
-    ini_credentials = None
-    config = settings.load_files(ini_sync, ini_credentials)
+    config = settings.load()
     cleanup(config)
-    settings._config = config
 
     from sync import bug, gh
 
@@ -241,6 +235,7 @@ def hg_commit(hg, message, bookmarks):
         bookmarks = [bookmarks]
     for bookmark in bookmarks:
         hg.bookmark(bookmark)
+    assert "+" not in hg.identify("--id")
     return rev
 
 

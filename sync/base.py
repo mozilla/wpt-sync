@@ -478,7 +478,7 @@ class Worktree(object):
         if self._worktree is None:
             if os.path.exists(self.path):
                 worktree = git.Repo(self.path)
-                worktree.index.reset(str(self.process_name), working_tree=True)
+                worktree.git.reset(str(self.process_name), hard=True)
             else:
                 self.repo.git.worktree("prune")
                 worktree = self.repo.git.worktree("add",

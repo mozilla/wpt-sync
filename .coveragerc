@@ -1,2 +1,2 @@
 [run]
-data_file=test/testdata/.coverage
+data_file=app/workspace/.coverage

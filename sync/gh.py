@@ -246,16 +246,6 @@ class MockGitHub(GitHub):
             raise ValueError
         pr["state"] = "closed"
 
-    def is_mergeable(self, pr_id):
-        pr = self.get_pull(pr_id)
-        status_by_context = {}
-        for item in pr._commits[0]._statuses:
-            status_by_context[item.context] = item.state
-        return (pr.mergeable and
-                all(item == "success" for item in
-                    status_by_context.itervalues()) and
-                pr.approved)
-
     def merge_pull(self, pr_id):
         pr = self.get_pull(pr_id)
         if self.is_mergeable:
