@@ -44,6 +44,7 @@ if [ "$1" == "--worker" ]; then
     echo "Starting celery worker"
 
     /app/venv/bin/celery multi start syncworker1 -A sync.worker \
+                         --concurrency=1 \
                          --pidfile=${WPTSYNC_ROOT}/%n.pid \
                          --logfile=${WPTSYNC_ROOT}/%n%I.log --loglevel=DEBUG
 
