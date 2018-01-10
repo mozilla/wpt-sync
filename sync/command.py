@@ -268,7 +268,7 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 
 
 def do_test(*args, **kwargs):
-    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider", "sync", "test/"]
+    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider", "test"]
     subprocess.check_call(cmd)
 
 
@@ -302,7 +302,16 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    git_gecko, git_wpt = setup()
+
+    try:
+        func_name = args.func.__name__
+    except AttributeError as e:
+        func_name = None
+    if func_name == "do_test":
+        git_gecko, git_wpt = (None, None)
+    else:
+        git_gecko, git_wpt = setup()
+
     try:
         args.func(git_gecko, git_wpt, **vars(args))
     except Exception as e:

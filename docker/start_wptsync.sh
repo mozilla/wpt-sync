@@ -14,11 +14,10 @@ echo Args: $@
 if [ "$1" != "--test" ]; then
     eval "$(ssh-agent -s)"
     cp -v ${WPTSYNC_CONFIG:-/app/vct/wpt-sync/sync.ini} /app/workspace/sync.ini
-    cp -v ${WPTSYNC_CREDS:-/app/data/credentials.ini} /app/workspace/credentials.ini
     cp -v ${WPTSYNC_SSH_CONFIG:-/app/vct/wpt-sync/docker/ssh_config} /app/.ssh/config
     # Install ssh keys
-    cp -v ${WPTSYNC_GH_SSH_KEY:-/app/data/ssh/id_github} /app/.ssh/id_github
-    cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/data/ssh/id_hgmo} /app/.ssh/id_hgmo
+    cp -v ${WPTSYNC_GH_SSH_KEY:-/app/workspace/ssh/id_github} /app/.ssh/id_github
+    cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/workspace/ssh/id_hgmo} /app/.ssh/id_hgmo
     ssh-add /app/.ssh/id_github
     ssh-add /app/.ssh/id_hgmo
 fi

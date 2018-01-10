@@ -3,7 +3,7 @@ FROM python:2.7-stretch
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 
-ADD ./wpt-sync/docker/start_wptsync.sh /app/start_wptsync.sh
+COPY ./wpt-sync/docker/start_wptsync.sh /app/start_wptsync.sh
 RUN chmod +x /app/start_wptsync.sh
 
 # install/update git, rabbitmq and dependencies
@@ -17,14 +17,14 @@ RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 # get logs to stdout
 ENV RABBITMQ_LOGS=- RABBITMQ_SASL_LOGS=-
 
+COPY . /app/vct
+RUN chown -R app:app /app/vct
+
 USER app
 
 # Set up files and config
 RUN mkdir /app/workspace \
-    /app/workspace/testdata \
     /app/workspace/logs \
-    /app/vct \
-    /app/data \
     /app/repos \
     /app/git-cinnabar \
     /app/.ssh
@@ -46,16 +46,11 @@ WORKDIR /app/vct
 RUN git config --global user.name moz-wptsync-bot \
     && git config --global user.email wptsync@mozilla.com
 
-# Copy the current directory contents into the container
-ADD . /app/vct
-
 WORKDIR /app/vct/wpt-sync
 
-# Used only for running tests
-RUN cp /app/vct/wpt-sync/test/credentials.ini /app/workspace/credentials.ini \
-    && cp /app/vct/wpt-sync/test/test.ini /app/workspace/sync.ini \
-    && cp /app/vct/wpt-sync/test/credentials.ini /app/workspace/testdata/credentials.ini \
-    && cp /app/vct/wpt-sync/test/test.ini /app/workspace/testdata/sync.ini
+# Copy test credentials as a temporary placeholder
+RUN cp /app/vct/wpt-sync/test/testdata/credentials.ini /app/workspace/credentials.ini \
+    && cp /app/vct/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini
 
 RUN cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
 
@@ -85,9 +80,9 @@ WORKDIR /app/vct/wpt-sync
 
 # /app/vct: bind mount to src dir (only on dev) or dir with wheels?
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs
+# config files, credentials, ssh config
 # /app/repos: bind mount to ebs volume for gecko and wpt repos (or local dev repos)
-# /app/data: bind bound to host data such as config files, credentials, ssh config
-VOLUME ["/app/vct", "/app/workspace", "/app/repos", "/app/data"]
+VOLUME ["/app/vct", "/app/workspace", "/app/repos"]
 
 ENTRYPOINT ["/app/start_wptsync.sh"]
 CMD ["--worker"]
