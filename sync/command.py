@@ -86,6 +86,7 @@ def get_parser():
     parser_status.set_defaults(func=do_status)
 
     parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
+    parser_test.add_argument("args", nargs="*", help="Arguments to pass to pytest")
     parser_test.set_defaults(func=do_test)
 
     parser_cleanup = subparsers.add_parser("cleanup", help="Run the cleanup code")
@@ -268,8 +269,12 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 
 
 def do_test(*args, **kwargs):
-    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider", "sync", "test/"]
-    subprocess.check_call(cmd)
+    args = kwargs["args"]
+    if not any(item.startswith("test") for item in args):
+        args.append("test/")
+
+    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider", "sync"] + args
+    subprocess.check_call(cmd, env=env)
 
 
 @with_lock
