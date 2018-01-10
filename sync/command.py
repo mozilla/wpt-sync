@@ -269,6 +269,12 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 
 
 def do_test(*args, **kwargs):
+    env = os.environ.copy()
+    env["WPTSYNC_ROOT"] = "/app/workspace/testdata"
+    env["WPTSYNC_REPO_ROOT"] = "/app/workspace/testdata"
+    env["WPTSYNC_SETTINGS"] = "/app/vct/wpt-sync/test/test.ini"
+    env["WPTSYNC_CREDENTIALS"] = "/app/vct/wpt-sync/test/credentials.ini"
+
     args = kwargs["args"]
     if not any(item.startswith("test") for item in args):
         args.append("test/")
