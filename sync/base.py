@@ -536,6 +536,9 @@ class SyncProcess(object):
         self.wpt_worktree = Worktree(git_wpt,
                                      self._process_name)
 
+    def __repr__(self):
+        "<Sync %s %s>" % (self.sync_type, self._process_name)
+
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
                         str(self._process_name)),
