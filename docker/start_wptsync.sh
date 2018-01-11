@@ -11,9 +11,10 @@ trap "echo TRAPed signal" HUP INT QUIT TERM
 
 echo Args: $@
 
+cp -v ${WPTSYNC_CONFIG:-/app/vct/wpt-sync/sync.ini} /app/workspace/sync.ini
+
 if [ "$1" != "--test" ]; then
     eval "$(ssh-agent -s)"
-    cp -v ${WPTSYNC_CONFIG:-/app/vct/wpt-sync/sync.ini} /app/workspace/sync.ini
     cp -v ${WPTSYNC_SSH_CONFIG:-/app/vct/wpt-sync/docker/ssh_config} /app/.ssh/config
     # Install ssh keys
     cp -v ${WPTSYNC_GH_SSH_KEY:-/app/workspace/ssh/id_github} /app/.ssh/id_github
@@ -22,18 +23,15 @@ if [ "$1" != "--test" ]; then
     ssh-add /app/.ssh/id_hgmo
 fi
 
-git --version
-hg --version
-
 env
 
-service --status-all
-sudo service rabbitmq-server start
-sudo service rabbitmq-server status
+if [ "$1" == "--shell" ]; then
+    bash
+elif [ "$1" == "--worker" ]; then
+    service --status-all
+    sudo service rabbitmq-server start
+    sudo service rabbitmq-server status
 
-ls -lh /app/workspace/logs
-
-if [ "$1" == "--worker" ]; then
     echo "Starting celerybeat"
 
     /app/venv/bin/celery beat --detach --app sync.worker \
