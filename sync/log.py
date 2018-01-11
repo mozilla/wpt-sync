@@ -24,12 +24,13 @@ def setup(config):
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setLevel(logging.INFO)
 
-    basic_formatter = logging.Formatter(logging.BASIC_FORMAT, None)
+    basic_formatter = logging.Formatter('[%(asctime)s] %(levelname)s:%(name)s:%(message)s')
     stream_handler.setFormatter(basic_formatter)
 
     file_handler = handlers.TimedRotatingFileHandler(os.path.join(log_dir, "sync.log"),
                                                      when="D", utc=True)
     file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(basic_formatter)
 
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(file_handler)
