@@ -13,14 +13,10 @@ services:
      # Make an ./.env file to define DEV_* vars for your local dev env
      - ${DEV_VCT_ROOT:-..}:/app/vct
      - ${DEV_REPO_ROOT:-./repos}:/app/repos
-     # uncomment this if you want to run tests
      - ${DEV_WORKSPACE:-./workspace}:/app/workspace
-     - ${DEV_APP_DATA:-./appdata}:/app/data
     environment:
      # See start_wptsync.sh
      - WPTSYNC_CREDS=/app/vct/wpt-sync/credentials.ini
      # - WPTSYNC_SSH_CONFIG=${DEV_SSH_CONFIG}
      # - WPTSYNC_HGMO_SSH_KEY=${DEV_HGMO_SSH_KEY}
      # - WPTSYNC_GH_SSH_KEY=${DEV_GH_SSH_KEY}
-#volumes:
-#    wptsync-workspace:

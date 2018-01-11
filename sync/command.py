@@ -269,18 +269,12 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
 
 
 def do_test(*args, **kwargs):
-    env = os.environ.copy()
-    env["WPTSYNC_ROOT"] = "/app/workspace/testdata"
-    env["WPTSYNC_REPO_ROOT"] = "/app/workspace/testdata"
-    env["WPTSYNC_SETTINGS"] = "/app/vct/wpt-sync/test/test.ini"
-    env["WPTSYNC_CREDENTIALS"] = "/app/vct/wpt-sync/test/credentials.ini"
-
     args = kwargs["args"]
     if not any(item.startswith("test") for item in args):
-        args.append("test/")
+        args.append("test")
 
-    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider", "sync"] + args
-    subprocess.check_call(cmd, env=env)
+    cmd = ["pytest", "-s", "-v", "-p no:cacheprovider"] + args
+    subprocess.check_call(cmd)
 
 
 @with_lock
@@ -313,7 +307,16 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    git_gecko, git_wpt = setup()
+
+    try:
+        func_name = args.func.__name__
+    except AttributeError as e:
+        func_name = None
+    if func_name == "do_test":
+        git_gecko, git_wpt = (None, None)
+    else:
+        git_gecko, git_wpt = setup()
+
     try:
         args.func(git_gecko, git_wpt, **vars(args))
     except Exception as e:
