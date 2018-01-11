@@ -25,6 +25,7 @@ USER app
 # Set up files and config
 RUN mkdir /app/workspace \
     /app/workspace/logs \
+    /app/testdata \
     /app/repos \
     /app/git-cinnabar \
     /app/.ssh
@@ -48,9 +49,11 @@ RUN git config --global user.name moz-wptsync-bot \
 
 WORKDIR /app/vct/wpt-sync
 
-# Copy test credentials as a temporary placeholder
+# Copy test credentials as a temporary placeholder in workspace, and to testdata
 RUN cp /app/vct/wpt-sync/test/testdata/credentials.ini /app/workspace/credentials.ini \
-    && cp /app/vct/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini
+    && cp /app/vct/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini \
+    && cp /app/vct/wpt-sync/test/testdata/credentials.ini /app/testdata/credentials.ini \
+    && cp /app/vct/wpt-sync/test/testdata/sync.ini /app/testdata/sync.ini
 
 RUN cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
 
