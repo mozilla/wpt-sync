@@ -6,11 +6,13 @@ repos
 try_logs
 logs
 work
+workspace
 .\#*
 *.pyc
 sync.db
 data
-test/testdata
+test/testdata/**
+!test/testdata/*.ini
 *.db-journal
 dist
 build

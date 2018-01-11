@@ -24,6 +24,7 @@ pyflakes==1.6.0
 Pygments==2.2.0
 pytest==3.3.1
 pytest-cov==2.5.1
+pytest-env==0.6.2
 scandir==1.6
 simplegeneric==0.8.1
 six==1.11.0
