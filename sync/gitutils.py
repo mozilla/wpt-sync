@@ -14,15 +14,15 @@ def update_repositories(git_gecko, git_wpt, include_autoland=False):
         logger.info("Fetching mozilla-unified")
         # Not using the built in fetch() function since that tries to parse the output
         # and sometimes fails
-        git_gecko.remotes.mozilla.fetch()
+        git_gecko.git.fetch("mozilla")
 
         if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
             logger.info("Fetching autoland")
-            git_gecko.remotes.autoland.fetch()
+            git_gecko.git.fetch("autoland")
 
     if git_wpt is not None:
         logger.info("Fetching web-platform-tests")
-        git_wpt.remotes.origin.fetch()
+        git_wpt.git.fetch("origin")
 
 
 def is_ancestor(git_obj, rev, branch):
