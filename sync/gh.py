@@ -52,6 +52,7 @@ class GitHub(object):
             elif len(entries) > 1:
                 raise ValueError("Found multiple existing pulls for branch")
             pr = pulls[0]
+        self.add_labels(pr.id, "mozilla:gecko-sync")
         self.pr_cache[pr.number] = pr
         return pr.number
 
@@ -72,6 +73,10 @@ class GitHub(object):
         head_commit.create_status(status,
                                   context=context,
                                   **kwargs)
+
+    def add_labels(self, pr_id, *labels):
+        issue = self.repo.get_issue(pr_id)
+        issue.add_to_labels(*labels)
 
     def get_statuses(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -202,6 +207,7 @@ class MockGitHub(GitHub):
             "mergeable": True,
             "approved": True,
             "_commits": _commits,
+            "labels": []
         })
         self.prs[id] = data
         for commit in _commits:
@@ -221,6 +227,9 @@ class MockGitHub(GitHub):
                                                      description=description,
                                                      context=context))
         self._log("Set status on PR %s to %s" % (pr_id, status))
+
+    def add_labels(self, pr_id, *labels):
+        self.get_pull(pr_id)["labels"].extend(labels)
 
     def get_statuses(self, pr_id):
         pr = self.get_pull(pr_id)
