@@ -619,14 +619,17 @@ def try_land_syncs(syncs):
     return landed_syncs
 
 
-@base.entry_point
+@base.entry_point("upstream")
 def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
     update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
     assert isinstance(sync, UpstreamSync)
     syncs_by_bug = {sync.bug: sync}
-    create_syncs = []
     update_syncs = {sync.bug: sync.gecko_commits.head.sha1}
-    pushed_syncs, failed_syncs = update_sync_prs(git_gecko, git_wpt, syncs_by_bug, {}, update_syncs,
+    pushed_syncs, failed_syncs = update_sync_prs(git_gecko,
+                                                 git_wpt,
+                                                 syncs_by_bug,
+                                                 {},
+                                                 update_syncs,
                                                  raise_on_error=raise_on_error)
 
     if sync.repository == "central" and sync not in failed_syncs:
@@ -637,7 +640,7 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
     return pushed_syncs, failed_syncs, landed_syncs
 
 
-@base.entry_point
+@base.entry_point("upstream")
 def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
     i = 0
     while True:
@@ -697,7 +700,7 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
     return pushed_syncs, landed_syncs, failed_syncs
 
 
-@base.entry_point
+@base.entry_point("upstream")
 def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     landed = False
     if status == "pending":

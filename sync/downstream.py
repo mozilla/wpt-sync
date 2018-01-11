@@ -299,7 +299,7 @@ class DownstreamSync(base.SyncProcess):
         return disabled
 
 
-@base.entry_point
+@base.entry_point("downstream")
 def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
     """ Start a new downstream sync """
     update_repositories(git_gecko, git_wpt)
@@ -324,7 +324,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
     # Now wait for the status to change before we take any actions
 
 
-@base.entry_point
+@base.entry_point("downstream")
 def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                    raise_on_error=False):
     # TODO: seems like ignoring status that isn't our own would make more sense
@@ -353,7 +353,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
         traceback.print_exc()
         logger.error(e)
 
-@base.entry_point
+@base.entry_point("downstream")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     log_files = try_push.download_logs()
     disabled = sync.update_metadata(log_files, stability=try_push.stability)

@@ -352,7 +352,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head="origin/master"
     return wpt_head, landable_commits
 
 
-@base.entry_point
+@base.entry_point("landing")
 def wpt_push(git_wpt, commits):
     git_wpt.remotes.origin.fetch()
     for commit in commits:
@@ -360,7 +360,7 @@ def wpt_push(git_wpt, commits):
         sync_commit.WptCommit(git_wpt, commit).pr()
 
 
-@base.entry_point
+@base.entry_point("landing")
 def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
     update_repositories(git_gecko, git_wpt)
 
@@ -395,7 +395,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
     return landing
 
 
-@base.entry_point
+@base.entry_point("landing")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     log_files = try_push.download_logs()
     sync.update_metadata(log_files)
