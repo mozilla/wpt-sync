@@ -1,8 +1,11 @@
 import os
+import sys
+
 from collections import defaultdict
 from ConfigParser import RawConfigParser
 
 _config = None
+
 
 def read_ini(path):
     print("Loading config from path %s" % path)
@@ -49,6 +52,9 @@ def load_files(ini_sync, ini_credentials):
     config = nested()
     config["root"] = root
     config["repo_root"] = repo_root
+
+    print >> sys.stderr, "WPTSYNC_ROOT: %s" % root
+    print >> sys.stderr, "WPTSYNC_REPO_ROOT: %s" % repo_root
 
     for section in ini_sync.sections():
         for name, value in ini_sync.items(section):

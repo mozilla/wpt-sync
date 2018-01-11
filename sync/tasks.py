@@ -68,6 +68,8 @@ def setup(config):
     bz = bug.Bugzilla(config)
 
     env.set_env(config, bz, gh_wpt)
+    logger.info("Gecko repository: %s" % git_gecko.working_dir)
+    logger.info("wpt repository: %s" % git_wpt.working_dir)
     return git_gecko, git_wpt
 
 
