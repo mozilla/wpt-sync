@@ -57,6 +57,9 @@ RUN cp /app/vct/wpt-sync/test/testdata/credentials.ini /app/workspace/credential
 
 RUN cp /app/vct/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
 
+RUN mkdir -p /app/.ipython/profile_default/startup/
+RUN cp 00-startup.py /app/.ipython/profile_default/startup/
+
 # TODO make prod version that installs wheels?
 # Install the app in development mode
 RUN virtualenv /app/venv \
