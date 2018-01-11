@@ -9,7 +9,7 @@ RUN chmod +x /app/start_wptsync.sh
 # install/update git, rabbitmq and dependencies
 RUN set -ex; \
     apt-get update; \
-    apt-get install -y erlang rabbitmq-server git sudo
+    apt-get install -y erlang rabbitmq-server git sudo less
 
 RUN adduser app sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
