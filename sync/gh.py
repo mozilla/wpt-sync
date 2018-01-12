@@ -143,14 +143,14 @@ class GitHub(object):
 
         if len(prs) > 1:
             logger.warning("Got multiple PRs related to commit %s: %s" %
-                           (sha, ", ".join(item["number"] for item in prs)))
-            prs = sorted(prs, key=lambda x: x["number"])
+                           (sha, ", ".join(item.number for item in prs)))
+            prs = sorted(prs, key=lambda x: x.number)
 
         return prs[0].number
 
     def get_pulls(self, minimum_id=None):
         for item in self.repo.get_pulls():
-            if minimum_id and item["number"] < minimum_id:
+            if minimum_id and item.number < minimum_id:
                 break
             yield item
 
