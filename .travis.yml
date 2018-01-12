@@ -1,0 +1,28 @@
+sudo: required
+
+language: python
+python:
+  - "2.7"
+
+# Upgrade to newer docker version
+addons:
+  apt:
+    packages:
+      - docker-ce
+
+services:
+  - docker
+
+install:
+  - docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file docker/dev/Dockerfile .
+  - sudo chown -R 10001 .
+
+script:
+  - docker run -it wptsync_dev --test
+
+notifications:
+  irc:
+    channels:
+      - "irc.mozilla.org#wpt-sync"
+    on_success: change
+    on_failure: always

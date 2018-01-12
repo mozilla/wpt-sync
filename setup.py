@@ -4,7 +4,7 @@ setup(
     name='sync',
     version='0.1',
     description='Synchronize changes between gecko and web-platform-tests',
-    url='https://web-platform-tests.org',
+    url='https://github.com/mozilla/wpt-sync',
     author='Mozilla',
     author_email='mozilla-tools@lists.mozilla.org',
     license='MPL 2.0',
