@@ -35,6 +35,9 @@ def setup(config):
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(file_handler)
 
+    lock_logger = logging.getLogger("filelock")
+    lock_logger.setLevel(logging.INFO)
+
 
 def get_logger(name):
     logger = logging.getLogger(name)

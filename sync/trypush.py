@@ -72,7 +72,9 @@ class TryPush(base.ProcessData):
         pushes = cls.load_all(git_gecko, sync_type, sync_id, status=status)
         for push in reversed(pushes):
             if push.try_rev == sha1:
+                logger.info("Found try push %r for rev %s" %(push, sha1))
                 return push
+        logger.info("No try push for rev %s" %(push, sha1))
 
     @classmethod
     def for_taskgroup(cls, git_gecko, taskgroup_id, sync_type="*", status="open"):
