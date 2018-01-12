@@ -1,1 +1,1 @@
-../pylib/mozautomation
+git+https://github.com/mozilla/version-control-tools.git@489c9f1d299a99adad8c348d5c9ccb33fa2715db#egg=mozautomation&subdirectory=pylib/mozautomation

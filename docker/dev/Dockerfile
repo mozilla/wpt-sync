@@ -63,9 +63,9 @@ RUN cp 00-startup.py /app/.ipython/profile_default/startup/
 # TODO make prod version that installs wheels?
 # Install the app in development mode
 RUN virtualenv /app/venv \
-    && /app/venv/bin/pip install -r prod-requirements.txt --no-deps --require-hashes \
+    && /app/venv/bin/pip install -r requirements-prod.txt --no-deps --require-hashes \
     && /app/venv/bin/pip install -r requirements-dev.txt --no-deps \
-    && /app/venv/bin/pip install ../pylib/mozautomation --no-deps
+    && /app/venv/bin/pip install -r requirements-mozautomation.txt --no-deps
 
 WORKDIR /app
 
