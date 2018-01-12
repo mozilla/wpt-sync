@@ -537,7 +537,7 @@ class SyncProcess(object):
                                      self._process_name)
 
     def __repr__(self):
-        "<Sync %s %s>" % (self.sync_type, self._process_name)
+        return "<Sync %s %s>" % (self.sync_type, self._process_name)
 
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",

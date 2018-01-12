@@ -112,7 +112,8 @@ class DownstreamSync(base.SyncProcess):
                 "wpt-pr": self.pr,
                 "wpt-type": "manifest"
             }
-            msg = sync_commit.Commit.make_commit_msg("Update wpt manifest", metadata)
+            msg = sync_commit.Commit.make_commit_msg("Bug %s - Update wpt manifest for PR %s" %
+                                                     (self.bug, self.pr), metadata)
             gecko_work.index.commit(message=msg)
 
     @property
@@ -352,6 +353,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
             raise
         traceback.print_exc()
         logger.error(e)
+
 
 @base.entry_point("downstream")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
