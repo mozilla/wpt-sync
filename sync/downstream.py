@@ -357,10 +357,12 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
 
 @base.entry_point("downstream")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
+    logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
     log_files = try_push.download_logs()
     disabled = sync.update_metadata(log_files, stability=try_push.stability)
 
     if sync.affected_tests() and not try_push.stability:
+        logger.info("Creating a stability try push for PR %s" % sync.pr)
         # TODO check if tonnes of tests are failing -- don't want to update the
         # expectation data in that case
         # TODO decide whether to do another narrow push on mac
@@ -371,5 +373,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             # TODO notify relevant people about test expectation changes, stability
             env.bz.comment(sync.bug, ("The following tests were disabled "
                                       "based on stability try push:\n %s" % disabled))
-        self.metadata_ready = True
+        logger.info("Metadata is ready for PR" % (sync.pr))
+        sync.metadata_ready = True
     try_push.status = "complete"

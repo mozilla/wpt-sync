@@ -79,7 +79,7 @@ class Bugzilla(object):
             try:
                 self.bugzilla.put(bug)
             except bugsy.BugsyException:
-                logger.error("Failed to set component %s :: %s" (bug.product, bug.component))
+                logger.error("Failed to set component %s :: %s" % (bug.product, bug.component))
 
 class MockBugzilla(Bugzilla):
     def __init__(self, config):

@@ -101,6 +101,7 @@ class ProcessName(object):
 
     @status.setter
     def status(self, value):
+        logger.debug("Setting process %s status to %s" % (self, value))
         if self._status != value:
             self._status = value
             for ref_obj in self._refs:
@@ -228,6 +229,7 @@ class VcsRefObject(object):
         ref = self.ref
         if not ref:
             return
+        logger.debug("Renaming ref %s to %s" % (ref, self.path))
         # Pretty sure there is an easier way to do this
         self._ref = str(self._process_name)
         new_ref = git.Reference(self.repo, self.path)
@@ -300,6 +302,9 @@ class ProcessData(object):
     def __init__(self, repo, process_name):
         self._ref = DataRefObject(repo, process_name)
         self._data = self._load()
+
+    def __repr__(self):
+        return "<%s %s>" % (self.__class__.__name__, self._ref)
 
     @property
     def repo(self):
@@ -537,7 +542,9 @@ class SyncProcess(object):
                                      self._process_name)
 
     def __repr__(self):
-        return "<Sync %s %s>" % (self.sync_type, self._process_name)
+        return "<%s %s %s>" % (self.__class__.__name__,
+                               self.sync_type,
+                               self._process_name)
 
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
@@ -707,6 +714,7 @@ class SyncProcess(object):
 
     def finish(self):
         # TODO: cancel related try pushes &c.
+        logger.info("Marking sync %s as complete" % (self._process_name))
         self.status = "complete"
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()

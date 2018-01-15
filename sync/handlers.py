@@ -151,22 +151,16 @@ class PushHandler(Handler):
 
 class TaskHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
-        if not (body.get("origin")
-                and body["origin"].get("revision")
-                and body.get("taskId")):
-            logger.debug("Oh no, this payload doesn't have the format we expect!"
-                         "Need 'revision' and 'taskId'. Got:\n{}\n".format(body))
-            return
-
         sha1 = body["origin"]["revision"]
         task_id = normalize_task_id(body["taskId"])
         result = body["result"]
 
-
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
         if not try_push:
+            logger.debug("No try push for SHA1 %s" % (sha1,))
             return
 
+        logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
         try_push.taskgroup_id = task_id
 
         if result != "success":
@@ -179,12 +173,14 @@ class TaskHandler(Handler):
 
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
-        taskgroup_id = body["taskGroupId"]
+        taskgroup_id = normalize_task_id(body["taskGroupId"])
 
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
         if not try_push:
+            logger.debug("No try push for taskgroup %s" % taskgroup_id)
             # this is not one of our try_pushes
             return
+        logger.info("Found try push for taskgroup %s" % taskgroup_id)
         sync = try_push.sync(git_gecko, git_wpt)
 
         if isinstance(sync, downstream.DownstreamSync):
@@ -200,4 +196,5 @@ class LandingHandler(Handler):
 
 class CleanupHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
+        logger.info("Running cleanup")
         return worktree.cleanup(git_gecko, git_wpt)
