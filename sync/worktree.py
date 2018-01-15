@@ -10,6 +10,7 @@ logger = log.get_logger(__name__)
 
 def cleanup(git_gecko, git_wpt):
     for git in [git_gecko, git_wpt]:
+        git.git.worktree("prune")
         worktrees = git.git.worktree("list", "--porcelain")
         groups = [item for item in worktrees.split("\n\n") if item.strip()]
         for group in groups:
@@ -38,8 +39,8 @@ def cleanup(git_gecko, git_wpt):
                 continue
 
             now = datetime.now()
-            # Data hasn't been touched in a week
+            # Data hasn't been touched in two days
             if (datetime.fromtimestamp(os.stat(worktree_path).st_mtime) <
-                now - timedelta(days=7)):
+                now - timedelta(days=2)):
                 logger.info("Removing worktree without recent activity %s" % worktree_path)
                 shutil.rmtree(worktree_path)
