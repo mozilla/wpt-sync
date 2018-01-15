@@ -245,7 +245,7 @@ class TrySyntaxCommit(TryCommit):
             "prefixed_paths": []
         }
         # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u
-        # web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]
+        # web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 8,Windows 10]
         #  -t none --artifact
         try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
                        "-t none --artifact")
@@ -266,7 +266,7 @@ class TrySyntaxCommit(TryCommit):
             "wdspec": "web-platform-tests-wdspec"
         }
 
-        platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10]"
+        platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 10]"
 
         def platform_filter(suite):
             return platform_suffix if "-wdspec-" not in suite else ""

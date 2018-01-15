@@ -1,12 +1,3 @@
-# import os
-
-# from mock import Mock, patch
-# import pytest
-
-# from file import create_file_data
-
-# from sync import downstream, model, worktree
-
 from sync import downstream, load
 
 

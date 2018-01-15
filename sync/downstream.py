@@ -197,7 +197,8 @@ class DownstreamSync(base.SyncProcess):
                                 for old, new in renames.iteritems()}
 
         if os.path.exists(mozbuild_path):
-            new_data = bugcomponents.remove_obsolete(mozbuild_path, moves=mozbuild_rel_renames)
+            new_data = bugcomponents.remove_obsolete(mozbuild_path,
+                                                     moves=mozbuild_rel_renames)
             with open(mozbuild_path, "w") as f:
                 f.write(new_data)
         else:

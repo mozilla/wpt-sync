@@ -4,14 +4,14 @@ from sync import trypush
 def test_try_message_no_tests():
     assert trypush.TrySyntaxCommit.try_message() == (
         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
-        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
+        "[linux64-stylo,Ubuntu,10.10,Windows 10] -t none "
         "--artifact")
 
 
 def test_try_message_no_tests_rebuild():
     assert trypush.TrySyntaxCommit.try_message(rebuild=10) == (
         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
-        "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
+        "[linux64-stylo,Ubuntu,10.10,Windows 10] -t none "
         "--artifact --rebuild 10")
 
 
@@ -20,7 +20,7 @@ def test_try_message_no_tests_rebuild():
 #         "try: -b do -p win32,win64,linux64,linux -u "
 #         "web-platform-tests-reftests,web-platform-tests-wdspec,"
 #         "web-platform-tests"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] "
+#         "[linux64-stylo,Ubuntu,10.10,Windows 10] "
 #         "-t none --artifact --rebuild {}"
 
 
@@ -33,7 +33,7 @@ def test_try_message_no_tests_rebuild():
 #     }
 #     expected = (
 #         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10] -t none "
+#         "[linux64-stylo,Ubuntu,10.10,Windows 10] -t none "
 #         "--artifact --try-test-paths web-platform-tests:{base}/path1,"
 #         "web-platform-tests:{base}/testharnesspath1,"
 #         "web-platform-tests:{base}/testharnesspath2,"
@@ -52,7 +52,7 @@ def test_try_message_no_tests_rebuild():
 #     }
 #     expected = (
 #         "try: -b do -p win32,win64,linux64,linux -u web-platform-tests"
-#         "[linux64-stylo,Ubuntu,10.10,Windows 7,Windows 8,Windows 10],"
+#         "[linux64-stylo,Ubuntu,10.10,Windows 10],"
 #         "web-platform-tests-wdspec -t none "
 #         "--artifact --try-test-paths web-platform-tests:{base}/path1,"
 #         "web-platform-tests:{base}/path2,"
