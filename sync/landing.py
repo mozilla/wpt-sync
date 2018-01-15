@@ -390,7 +390,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
     landing.apply_prs(commits)
 
     if landing.latest_try_push is None:
-        trypush.TryPush.create(landing)
+        trypush.TryPush.create(landing, hacks=False)
 
     return landing
 

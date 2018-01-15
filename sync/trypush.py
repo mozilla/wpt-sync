@@ -2,6 +2,8 @@ import os
 import re
 from itertools import chain
 
+import yaml
+
 import base
 import log
 import taskcluster
@@ -26,8 +28,8 @@ class TryPush(base.ProcessData):
     statuses = ("open", "complete", "infra-fail")
 
     @classmethod
-    def create(cls, sync, affected_tests=None, stability=False):
-
+    def create(cls, sync, affected_tests=None, stability=False, hacks=True):
+        logger.info("Creating try push for PR %s" % sync.pr)
         if not tree.is_open("try"):
             logger.info("try is closed")
             # TODO make this auto-retry
@@ -36,7 +38,7 @@ class TryPush(base.ProcessData):
         git_work = sync.gecko_worktree.get()
 
         rebuild_count = 0 if not stability else 10
-        with TrySyntaxCommit(sync.git_gecko, git_work, affected_tests, rebuild_count) as c:
+        with TrySyntaxCommit(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks) as c:
             try_rev = c.push()
 
         data = {
@@ -72,9 +74,9 @@ class TryPush(base.ProcessData):
         pushes = cls.load_all(git_gecko, sync_type, sync_id, status=status)
         for push in reversed(pushes):
             if push.try_rev == sha1:
-                logger.info("Found try push %r for rev %s" %(push, sha1))
+                logger.info("Found try push %r for rev %s" % (push, sha1))
                 return push
-        logger.info("No try push for rev %s" %(push, sha1))
+        logger.info("No try push for rev %s" % (sha1,))
 
     @classmethod
     def for_taskgroup(cls, git_gecko, taskgroup_id, sync_type="*", status="open"):
@@ -163,11 +165,12 @@ class TryPush(base.ProcessData):
 
 
 class TryCommit(object):
-    def __init__(self, git_gecko, worktree, tests_by_type, rebuild):
+    def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True):
         self.git_gecko = git_gecko
         self.worktree = worktree
         self.tests_by_type = tests_by_type
         self.rebuild = rebuild
+        self.hacks=hacks
 
     def __enter__(self):
         self.create()
@@ -198,7 +201,27 @@ class TryCommit(object):
 class TrySyntaxCommit(TryCommit):
     def create(self):
         message = self.try_message(self.tests_by_type, self.rebuild)
+        if self.hacks:
+            self.apply_hacks()
         self.worktree.index.commit(message=message)
+
+    def apply_hacks(self):
+        # Some changes to forceably exclude certain default jobs that are uninteresting
+        # Spidermonkey jobs that take > 3 hours
+        logger.info("Removing spidermonkey jobs")
+        tc_config = "taskcluster/ci/config.yml"
+        path = os.path.join(self.worktree.working_dir, tc_config)
+        if os.path.exists(path):
+            with open(path) as f:
+                data = yaml.load(f)
+
+            if "try" in data and "ridealong-builds" in data["try"]:
+                data["try"]["ridealong-builds"] = {}
+
+            with open(path, "w") as f:
+                yaml.dump(data, f)
+
+            self.worktree.index.add([tc_config])
 
     @staticmethod
     def try_message(tests_by_type=None, rebuild=0):
