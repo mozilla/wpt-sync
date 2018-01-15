@@ -132,7 +132,7 @@ class TryPush(base.ProcessData):
 
     def wpt_tasks(self):
         try:
-            wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+            wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
         except ValueError:
             # If this happens we may have the wrong taskgroup id
             task_id = taskcluster.normalize_task_id(self.taskgroup_id)
@@ -142,14 +142,16 @@ class TryPush(base.ProcessData):
         err = None
         if not len(wpt_tasks):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
-        if len(wpt_tasks) > len(wpt_completed):
-            # TODO check for unscheduled versus failed versus exception
-            def get_task_names(tasks):
-                return set(item["task"]["metadata"]["name"] for item in tasks)
+        # TODO: it seems we don't have a great way of sanity checking that all the expected
+        # jobs ran to completion
+        # if any(item.get("status", {}).get("state", None)
+        #     # TODO check for unscheduled versus failed versus exception
+        #     def get_task_names(tasks):
+        #         return set(item["task"]["metadata"]["name"] for item in tasks)
 
-            missing = get_task_names(wpt_tasks) - get_task_names(wpt_completed)
-            err = ("The tests didn't all run; perhaps a build failed?\nMissing:%s" %
-                   (",".join(missing)))
+        #     missing = get_task_names(wpt_tasks) - get_task_names(wpt_completed)
+        #     err = ("The tests didn't all run; perhaps a build failed?\nMissing:%s" %
+        #            (",".join(missing)))
 
         if err:
             logger.debug(err)

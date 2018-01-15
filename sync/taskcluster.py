@@ -30,10 +30,8 @@ def normalize_task_id(task_id):
 
 
 def is_suite(task, suite):
-    t = task.get("task", {})
-    metadata = t.get("metadata")
-    if metadata and metadata.get("name"):
-        return suite in metadata["name"]
+    t = task.get("task", {}).get("extra", {}).get("suite", {}).get("name", "")
+    return t.startswith(suite)
 
 
 def is_build(task):
@@ -42,21 +40,9 @@ def is_build(task):
         return tags.get("kind") == "build"
 
 
-def is_completed(task):
-    status = task.get("status")
-    if status:
-        return status.get("state") in ("completed", "failed")
-
-
 def filter_suite(tasks, suite):
     # expects return value from get_tasks_in_group
     return [t for t in tasks if is_suite(t, suite)]
-
-
-def filter_completed(tasks):
-    # expects return value from get_tasks_in_group
-    # completed implies that it did not fail
-    return [t for t in tasks if is_completed(t)]
 
 
 def get_tasks_in_group(group_id):
@@ -80,8 +66,7 @@ def get_tasks_in_group(group_id):
 def get_wpt_tasks(taskgroup_id):
     tasks = get_tasks_in_group(taskgroup_id)
     wpt_tasks = filter_suite(tasks, "web-platform-tests")
-    wpt_completed = filter_completed(wpt_tasks)
-    return wpt_completed, wpt_tasks
+    return wpt_tasks
 
 
 def download_logs(tasks, destination, retry=5):
