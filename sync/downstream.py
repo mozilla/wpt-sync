@@ -87,7 +87,7 @@ class DownstreamSync(base.SyncProcess):
         return WPT(os.path.join(git_work.working_dir))
 
     def update_status(self, action, merge_sha=None):
-        if action == "closed":
+        if action == "closed" and not merge_sha:
             self.pr_status = "closed"
             self.finish()
         elif action == "reopened" or action == "open":
