@@ -108,9 +108,9 @@ class Commit(object):
         return get_metadata(self.msg)
 
     @classmethod
-    def create(cls, repo, msg, metadata):
+    def create(cls, repo, msg, metadata, author=None):
         msg = Commit.make_commit_msg(msg, metadata)
-        commit = repo.index.commit(message=msg)
+        commit = repo.index.commit(message=msg, author=author)
         return cls(repo, commit.hexsha)
 
     @staticmethod
@@ -143,7 +143,8 @@ class Commit(object):
             if src_prefix:
                 show_args = ("--", src_prefix)
             try:
-                patch = self.repo.git.show(self.sha1, pretty="email", *show_args) + "\n"
+                patch = self.repo.git.show(self.sha1, binary=True, pretty="email",
+                                           *show_args) + "\n"
             except git.GitCommandError as e:
                 raise AbortError(e.message)
 
@@ -160,7 +161,8 @@ class Commit(object):
                 if dest_prefix:
                     apply_kwargs["directory"] = dest_prefix
                 try:
-                    dest_repo.git.apply(patch_path, index=True, reject=True, p=strip_dirs, **apply_kwargs)
+                    dest_repo.git.apply(patch_path, index=True, reject=True, binary=True,
+                                        p=strip_dirs, **apply_kwargs)
                 except git.GitCommandError as e:
                     err_msg = """git apply failed
         %s returned status %s
@@ -169,7 +171,7 @@ class Commit(object):
          %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
                     raise AbortError(err_msg)
 
-                return Commit.create(dest_repo, msg, None)
+                return Commit.create(dest_repo, msg, None, author=self.commit.author)
 
 
 class GeckoCommit(Commit):

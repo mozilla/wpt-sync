@@ -112,7 +112,7 @@ class DownstreamSync(base.SyncProcess):
                 "wpt-pr": self.pr,
                 "wpt-type": "manifest"
             }
-            msg = sync_commit.Commit.make_commit_msg("Bug %s - Update wpt manifest for PR %s" %
+            msg = sync_commit.Commit.make_commit_msg("Bug %s [wpt PR %s] - Update wpt manifest" %
                                                      (self.bug, self.pr), metadata)
             gecko_work.index.commit(message=msg)
 
@@ -132,7 +132,7 @@ class DownstreamSync(base.SyncProcess):
             "wpt-type": "metadata"
         }
         msg = sync_commit.Commit.make_commit_msg(
-            "Bug %s - Update wpt metadata for PR %s, a=testonly" %
+            "Bug %s [wpt PR %s]- Update wpt metadata, a=testonly" %
             (self.bug, self.pr), metadata)
         git_work.git.commit(message=msg, allow_empty=True)
         commit = git_work.commit("HEAD")
@@ -258,9 +258,23 @@ class DownstreamSync(base.SyncProcess):
             }
             commit.move(gecko_work,
                         dest_prefix=env.config["gecko"]["path"]["wpt"],
+                        msg_filter=self.message_filter,
                         metadata=metadata)
 
         return True
+
+    def message_filter(self, msg):
+        parts = msg.split("\n", 1)
+        if len(parts) > 1:
+            summary, body = parts
+        else:
+            summary = parts[0]
+            body = ""
+        new_msg = "Bug %s [wpt PR %s] - %s, a=testonly\n%s" % (self.bug,
+                                                               self.pr,
+                                                               summary,
+                                                               body)
+        return new_msg, {}
 
     def affected_tests(self, revish=None):
         # TODO? support files, harness changes -- don't want to update metadata
