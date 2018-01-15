@@ -35,8 +35,9 @@ elif [ "$1" == "--worker" ]; then
     echo "Starting celerybeat"
 
     /app/venv/bin/celery beat --detach --app sync.worker \
+                         --schedule=${WPTSYNC_ROOT}/celerybeat-schedule \
                          --pidfile=${WPTSYNC_ROOT}/celerybeat.pid \
-                         --logfile=${WPTSYNC_ROOT}/celerybeat.log --loglevel=DEBUG
+                         --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log --loglevel=DEBUG
 
     echo "Starting celery worker"
 
