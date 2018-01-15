@@ -158,10 +158,10 @@ class TryPush(base.ProcessData):
             # TODO retry? manual intervention?
             self.status = "infra-fail"
             raise AbortError(err)
-        return wpt_completed, wpt_tasks
+        return wpt_tasks
 
     def download_logs(self):
-        wpt_completed, wpt_tasks = self.wpt_tasks()
+        wpt_completed = self.wpt_tasks()
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
         return taskcluster.download_logs(wpt_completed, dest)
 

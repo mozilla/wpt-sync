@@ -109,6 +109,7 @@ class GitHubHandler(Handler):
 
     def __call__(self, git_gecko, git_wpt, body):
         handler = self.dispatch_event[body["event"]]
+        print "Got GitHub Event %s %s" % (body["event"], handler)
         if handler:
             return handler(git_gecko, git_wpt, body["payload"])
         # TODO: other events to check if we can merge a PR

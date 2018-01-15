@@ -259,7 +259,7 @@ class DownstreamSync(base.SyncProcess):
 
         append_commits = self.wpt_commits[len(retain_commits):]
         if not append_commits:
-            return False
+            return
 
         gecko_work = self.gecko_worktree.get()
         for commit in append_commits:
@@ -306,7 +306,7 @@ class DownstreamSync(base.SyncProcess):
             self.data["affected-tests"] = tests_by_type
         return self.data["affected-tests"]
 
-    def update_metadata(self, log_files):
+    def update_metadata(self, log_files, stability=False):
         meta_path = env.config["gecko"]["path"]["meta"]
         args = log_files
         if stability:
@@ -398,6 +398,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             # TODO notify relevant people about test expectation changes, stability
             env.bz.comment(sync.bug, ("The following tests were disabled "
                                       "based on stability try push:\n %s" % disabled))
-        logger.info("Metadata is ready for PR" % (sync.pr))
+        logger.info("Metadata is ready for PR %s" % (sync.pr))
         sync.metadata_ready = True
     try_push.status = "complete"
