@@ -213,10 +213,14 @@ class DownstreamSync(base.SyncProcess):
 
     def update_commits(self):
         self.update_wpt_head()
-        commits_changed = self.wpt_to_gecko_commits()
+        old_gecko_head = self.gecko_commits.head.sha1
+        logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
+        self.wpt_to_gecko_commits()
 
-        if not commits_changed:
-            return
+        logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
+        if old_gecko_head == self.gecko_commits.head.sha1:
+            logger.info("Gecko commits did not change for PR %s" % self.pr)
+            return False
 
         self.commit_manifest_update()
 
@@ -226,6 +230,7 @@ class DownstreamSync(base.SyncProcess):
 
         files_changed = self.files_changed()
         self.set_bug_component(files_changed)
+        return True
 
     def wpt_to_gecko_commits(self):
         """Create a patch based on wpt branch, apply it to corresponding gecko branch"""
@@ -234,17 +239,22 @@ class DownstreamSync(base.SyncProcess):
 
         retain_commits = []
         if existing_gecko_commits:
+            # TODO: Don't retain commits if the gecko HEAD has moved too much here since the
+            # metadata won't be valid (e.g. check for dates > 1 day in the past)
             for gecko_commit, wpt_commit in zip(existing_gecko_commits, self.wpt_commits):
                 if gecko_commit.metadata["wpt-commit"] == wpt_commit.sha1:
                     retain_commits.append(gecko_commit)
                 else:
                     break
 
-            if retain_commits and len(retain_commits) < len(existing_gecko_commits):
-                self.gecko_head = retain_commits[-1].sha1
+        logger.info("Retaining %s previous commits" % len(retain_commits))
 
-            # TODO: If there are no commits to retain, reset the gecko branch to the current
-            # base
+        if retain_commits and len(retain_commits) < len(existing_gecko_commits):
+            self.gecko_commits.head = retain_commits[-1].sha1
+        elif not retain_commits:
+            # If there's no commit in common don't try to reuse the current branch at all
+            logger.info("Resetting gecko to latest central")
+            self.gecko_commits.head = self.gecko_landing_branch()
 
         append_commits = self.wpt_commits[len(retain_commits):]
         if not append_commits:
@@ -252,6 +262,7 @@ class DownstreamSync(base.SyncProcess):
 
         gecko_work = self.gecko_worktree.get()
         for commit in append_commits:
+            logger.info("Moving commit %s" % commit.sha1)
             metadata = {
                 "wpt-pr": self.pr,
                 "wpt-commit": commit.sha1
@@ -344,23 +355,22 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                    raise_on_error=False):
     # TODO: seems like ignoring status that isn't our own would make more sense
     if context != "continuous-integration/travis-ci/pr":
-        logger.debug("Ignoring status for context %s." % context)
+        logger.info("Ignoring status for context %s." % context)
         return
 
     update_repositories(git_gecko, git_wpt)
 
     try:
+        logger.debug("Got status %s for PR %s" % (status, sync.pr))
         if status == "pending":
             # We got new commits that we missed
-                sync.update_commits()
-        elif status == "success":
-            if TryPush.for_commit(git_gecko, head_sha):
-                return
             sync.update_commits()
+        elif status == "success":
+            head_changed = sync.update_commits()
+            if sync.latest_try_push and not head_changed:
+                logger.info("Commits on PR %s didn't change" % sync.pr)
+                return
             TryPush.create(sync, sync.affected_tests())
-
-            # TODO set a status on the PR
-            # TODO: check only for status of Firefox job(s)
     except Exception as e:
         sync.error = e
         if raise_on_error:
