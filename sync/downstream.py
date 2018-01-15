@@ -33,8 +33,8 @@ class DownstreamSync(base.SyncProcess):
         sync = super(DownstreamSync, cls).new(git_gecko,
                                               git_wpt,
                                               pr=pr_id,
-                                              gecko_base=DownstreamSync.gecko_integration_branch(),
-                                              gecko_head=DownstreamSync.gecko_integration_branch(),
+                                              gecko_base=DownstreamSync.gecko_landing_branch(),
+                                              gecko_head=DownstreamSync.gecko_landing_branch(),
                                               wpt_base=wpt_base,
                                               wpt_head="origin/pr/%s" % pr_id)
         bug = env.bz.new(summary="[wpt-sync] PR %s - %s" % (pr_id, pr_title),

@@ -590,6 +590,10 @@ class SyncProcess(object):
     def gecko_integration_branch():
         return env.config["gecko"]["refs"]["mozilla-inbound"]
 
+    @staticmethod
+    def gecko_landing_branch():
+        return env.config["gecko"]["refs"]["central"]
+
     def gecko_commit_filter(self):
         return CommitFilter()
 
