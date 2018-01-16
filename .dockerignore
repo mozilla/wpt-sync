@@ -4,5 +4,5 @@ repos
 workspace
 *~
 *.pyc
-wpt-sync/test/testdata/**
-!wpt-sync/test/testdata/*.ini
+test/testdata/**
+!test/testdata/*.ini
