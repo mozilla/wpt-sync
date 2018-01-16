@@ -1,0 +1,8 @@
+.git
+_venv
+repos
+workspace
+*~
+*.pyc
+wpt-sync/test/testdata/**
+!wpt-sync/test/testdata/*.ini
