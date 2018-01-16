@@ -104,6 +104,10 @@ class Commit(object):
         return self.commit.message
 
     @property
+    def author(self):
+        return self.commit.author
+
+    @property
     def metadata(self):
         return get_metadata(self.msg)
 

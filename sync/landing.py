@@ -98,6 +98,9 @@ class LandingSync(base.SyncProcess):
         if len(wpt_commits) > 1:
             assert all(item.pr() == pr_id for item in wpt_commits)
 
+        # Assume we can always use the author of the first commit
+        author = wpt_commits[0].author
+
         git_work_wpt = self.wpt_worktree.get()
         git_work_gecko = self.gecko_worktree.get()
 
@@ -119,12 +122,12 @@ class LandingSync(base.SyncProcess):
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
 
-        message = """Bug %s - [wpt-sync] %s, a=testonly
+        message = """Bug %s [wpt PR %s] - %s, a=testonly
 
 Automatic update from web-platform-tests%s
-""" % (self.bug, pr.title, "\n%s" % pr.body if pr.body else "")
+""" % (self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
         message = sync_commit.Commit.make_commit_msg(message, metadata)
-        commit = git_work_gecko.index.commit(message=message)
+        commit = git_work_gecko.index.commit(message=message, author=author)
         gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
         self.gecko_commits.head = commit
 
