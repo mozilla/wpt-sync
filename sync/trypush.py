@@ -245,7 +245,8 @@ class TryPush(base.ProcessData):
         git_work = sync.gecko_worktree.get()
 
         rebuild_count = 0 if not stability else 10
-        with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks, **kwargs) as c:
+        with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks,
+                     **kwargs) as c:
             try_rev = c.push()
 
         data = {

@@ -3,6 +3,7 @@ import requests
 import shutil
 import traceback
 import uuid
+from collections import defaultdict
 
 import slugid
 
@@ -122,3 +123,16 @@ def download(log_url, log_path, retry):
             logger.warning(traceback.format_exc(e))
             retry -= 1
     return False
+
+
+def parse_job_name(job_name):
+    if job_name.startswith("test-"):
+        job_name = job_name[len("test-"):]
+    if "web-platform-tests" in job_name:
+        job_name = job_name[job_name.index("web-platform-tests"):]
+    job_name = job_name.rstrip("-")
+
+    job_name = job_name.replace("/", "-")
+    job_name = job_name.replace()
+
+    return job_name
