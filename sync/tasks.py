@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import filelock
 
@@ -37,6 +38,7 @@ def with_lock(f):
                 return f(*args, **kwargs)
         except Exception as e:
             logger.error(str(unicode(e).encode("utf8")))
+            logger.error("".join(traceback.format_exc(e)))
             raise
     inner.__name__ = f.__name__
     inner.__doc__ = f.__doc__
@@ -83,8 +85,9 @@ def handle(task, body):
         git_gecko, git_wpt = setup()
         try:
             handlers[task](git_gecko, git_wpt, body)
-        except Exception:
+        except Exception as e:
             logger.error(body)
+            logger.error("".join(traceback.format_exc(e)))
             raise
     else:
         logger.error("No handler for %s" % task)
