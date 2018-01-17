@@ -19,163 +19,6 @@ env = Environment()
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 
 
-class TryPush(base.ProcessData):
-    """A try push is represented by a an annotated tag with a path like
-
-    try/<pr_id>/<status>/<id>
-
-    Where id is a number to indicate the Nth try push for this PR.
-    """
-    obj_type = "try"
-    statuses = ("open", "complete", "infra-fail")
-
-    @classmethod
-    def create(cls, sync, affected_tests=None, stability=False, hacks=True, try_cls=TrySyntaxCommit, **kwargs):
-        logger.info("Creating try push for PR %s" % sync.pr)
-        if not tree.is_open("try"):
-            logger.info("try is closed")
-            # TODO make this auto-retry
-            raise AbortError("Try is closed")
-
-        git_work = sync.gecko_worktree.get()
-
-        rebuild_count = 0 if not stability else 10
-        with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks, **kwargs) as c:
-            try_rev = c.push()
-
-        data = {
-            "try-rev": try_rev,
-            "stability": stability,
-        }
-        process_name = base.ProcessName.with_seq_id(sync.git_gecko,
-                                                    "syncs",
-                                                    cls.obj_type,
-                                                    sync.sync_type,
-                                                    "open",
-                                                    getattr(sync, sync.obj_id))
-        rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
-
-        env.bz.comment(sync.bug,
-                       "Pushed to try%s. Results: %s" %
-                       (cls.treeherder_url(try_rev), " (stability)" if stability else ""))
-
-        return rv
-
-    @classmethod
-    def load_all(cls, git_gecko, sync_type, sync_id, status="open", seq_id="*"):
-        return [cls.load(git_gecko, ref.path)
-                for ref in base.DataRefObject.load_all(git_gecko,
-                                                       obj_type=cls.obj_type,
-                                                       subtype=sync_type,
-                                                       status=status,
-                                                       obj_id=sync_id,
-                                                       seq_id=seq_id)]
-
-    @classmethod
-    def for_commit(cls, git_gecko, sha1, sync_type="*", sync_id="*", status="open"):
-        pushes = cls.load_all(git_gecko, sync_type, sync_id, status=status)
-        for push in reversed(pushes):
-            if push.try_rev == sha1:
-                logger.info("Found try push %r for rev %s" % (push, sha1))
-                return push
-        logger.info("No try push for rev %s" % (sha1,))
-
-    @classmethod
-    def for_taskgroup(cls, git_gecko, taskgroup_id, sync_type="*", status="open"):
-        pushes = cls.load_all(git_gecko, sync_type, "*", status=status)
-        for push in reversed(pushes):
-            if push.taskgroup_id == taskgroup_id:
-                return push
-
-    @staticmethod
-    def treeherder_url(try_rev):
-        return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
-
-    @property
-    def try_rev(self):
-        return self.get("try-rev")
-
-    @property
-    def taskgroup_id(self):
-        return self.get("taskgroup-id")
-
-    @taskgroup_id.setter
-    def taskgroup_id(self, value):
-        self["taskgroup-id"] = value
-
-    @property
-    def status(self):
-        return self._ref._process_name.status
-
-    @status.setter
-    def status(self, value):
-        self._ref._process_name.status = value
-
-    def delete(self):
-        self._ref._process_name.delete()
-
-    def sync(self, git_gecko, git_wpt):
-        process_name = self._ref._process_name
-        syncs = get_syncs(git_gecko, git_wpt,
-                          process_name.subtype,
-                          process_name.obj_id)
-        if len(syncs) == 0:
-            return None
-        if len(syncs) == 1:
-            return syncs[0]
-        for item in syncs:
-            if item.status == "open":
-                return item
-        raise ValueError("Got multiple syncs and none were open")
-
-    @property
-    def stability(self):
-        return self["stability"]
-
-    def wpt_tasks(self):
-        try:
-            wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
-        except ValueError:
-            # If this happens we may have the wrong taskgroup id
-            task_id = taskcluster.normalize_task_id(self.taskgroup_id)
-            if task_id != self.taskgroup_id:
-                self.taskgroup_id = task_id
-                wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
-        err = None
-        if not len(wpt_tasks):
-            err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
-        # TODO: it seems we don't have a great way of sanity checking that all the expected
-        # jobs ran to completion
-        # if any(item.get("status", {}).get("state", None)
-        #     # TODO check for unscheduled versus failed versus exception
-        #     def get_task_names(tasks):
-        #         return set(item["task"]["metadata"]["name"] for item in tasks)
-
-        #     missing = get_task_names(wpt_tasks) - get_task_names(wpt_completed)
-        #     err = ("The tests didn't all run; perhaps a build failed?\nMissing:%s" %
-        #            (",".join(missing)))
-
-        if err:
-            logger.debug(err)
-            # TODO retry? manual intervention?
-            self.status = "infra-fail"
-            raise AbortError(err)
-        return wpt_tasks
-
-    def download_logs(self):
-        wpt_tasks = self.wpt_tasks()
-        dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
-                            "try", self.try_rev)
-        taskcluster.download_logs(wpt_tasks, dest)
-        raw_logs = []
-        for task in wpt_tasks:
-            for run in task.get("status", {}).get("runs", []):
-                log = run.get("_log_paths", []).get("wpt_raw.log")
-                if log:
-                    raw_logs.append(log)
-        return raw_logs
-
-
 class TryCommit(object):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         self.git_gecko = git_gecko
@@ -382,3 +225,161 @@ class TryFuzzyCommit(TryCommit):
             return 0, output
         except subprocess.CalledProcessError as e:
             return e.returncode, e.output
+
+
+class TryPush(base.ProcessData):
+    """A try push is represented by a an annotated tag with a path like
+
+    try/<pr_id>/<status>/<id>
+
+    Where id is a number to indicate the Nth try push for this PR.
+    """
+    obj_type = "try"
+    statuses = ("open", "complete", "infra-fail")
+
+    @classmethod
+    def create(cls, sync, affected_tests=None, stability=False, hacks=True,
+               try_cls=TrySyntaxCommit, **kwargs):
+        logger.info("Creating try push for PR %s" % sync.pr)
+        if not tree.is_open("try"):
+            logger.info("try is closed")
+            # TODO make this auto-retry
+            raise AbortError("Try is closed")
+
+        git_work = sync.gecko_worktree.get()
+
+        rebuild_count = 0 if not stability else 10
+        with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks, **kwargs) as c:
+            try_rev = c.push()
+
+        data = {
+            "try-rev": try_rev,
+            "stability": stability,
+        }
+        process_name = base.ProcessName.with_seq_id(sync.git_gecko,
+                                                    "syncs",
+                                                    cls.obj_type,
+                                                    sync.sync_type,
+                                                    "open",
+                                                    getattr(sync, sync.obj_id))
+        rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
+
+        env.bz.comment(sync.bug,
+                       "Pushed to try%s. Results: %s" %
+                       (cls.treeherder_url(try_rev), " (stability)" if stability else ""))
+
+        return rv
+
+    @classmethod
+    def load_all(cls, git_gecko, sync_type, sync_id, status="open", seq_id="*"):
+        return [cls.load(git_gecko, ref.path)
+                for ref in base.DataRefObject.load_all(git_gecko,
+                                                       obj_type=cls.obj_type,
+                                                       subtype=sync_type,
+                                                       status=status,
+                                                       obj_id=sync_id,
+                                                       seq_id=seq_id)]
+
+    @classmethod
+    def for_commit(cls, git_gecko, sha1, sync_type="*", sync_id="*", status="open"):
+        pushes = cls.load_all(git_gecko, sync_type, sync_id, status=status)
+        for push in reversed(pushes):
+            if push.try_rev == sha1:
+                logger.info("Found try push %r for rev %s" % (push, sha1))
+                return push
+        logger.info("No try push for rev %s" % (sha1,))
+
+    @classmethod
+    def for_taskgroup(cls, git_gecko, taskgroup_id, sync_type="*", status="open"):
+        pushes = cls.load_all(git_gecko, sync_type, "*", status=status)
+        for push in reversed(pushes):
+            if push.taskgroup_id == taskgroup_id:
+                return push
+
+    @staticmethod
+    def treeherder_url(try_rev):
+        return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
+
+    @property
+    def try_rev(self):
+        return self.get("try-rev")
+
+    @property
+    def taskgroup_id(self):
+        return self.get("taskgroup-id")
+
+    @taskgroup_id.setter
+    def taskgroup_id(self, value):
+        self["taskgroup-id"] = value
+
+    @property
+    def status(self):
+        return self._ref._process_name.status
+
+    @status.setter
+    def status(self, value):
+        self._ref._process_name.status = value
+
+    def delete(self):
+        self._ref._process_name.delete()
+
+    def sync(self, git_gecko, git_wpt):
+        process_name = self._ref._process_name
+        syncs = get_syncs(git_gecko, git_wpt,
+                          process_name.subtype,
+                          process_name.obj_id)
+        if len(syncs) == 0:
+            return None
+        if len(syncs) == 1:
+            return syncs[0]
+        for item in syncs:
+            if item.status == "open":
+                return item
+        raise ValueError("Got multiple syncs and none were open")
+
+    @property
+    def stability(self):
+        return self["stability"]
+
+    def wpt_tasks(self):
+        try:
+            wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+        except ValueError:
+            # If this happens we may have the wrong taskgroup id
+            task_id = taskcluster.normalize_task_id(self.taskgroup_id)
+            if task_id != self.taskgroup_id:
+                self.taskgroup_id = task_id
+                wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+        err = None
+        if not len(wpt_tasks):
+            err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
+        # TODO: it seems we don't have a great way of sanity checking that all the expected
+        # jobs ran to completion
+        # if any(item.get("status", {}).get("state", None)
+        #     # TODO check for unscheduled versus failed versus exception
+        #     def get_task_names(tasks):
+        #         return set(item["task"]["metadata"]["name"] for item in tasks)
+
+        #     missing = get_task_names(wpt_tasks) - get_task_names(wpt_completed)
+        #     err = ("The tests didn't all run; perhaps a build failed?\nMissing:%s" %
+        #            (",".join(missing)))
+
+        if err:
+            logger.debug(err)
+            # TODO retry? manual intervention?
+            self.status = "infra-fail"
+            raise AbortError(err)
+        return wpt_tasks
+
+    def download_logs(self):
+        wpt_tasks = self.wpt_tasks()
+        dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
+                            "try", self.try_rev)
+        taskcluster.download_logs(wpt_tasks, dest)
+        raw_logs = []
+        for task in wpt_tasks:
+            for run in task.get("status", {}).get("runs", []):
+                log = run.get("_log_paths", []).get("wpt_raw.log")
+                if log:
+                    raw_logs.append(log)
+        return raw_logs
