@@ -136,6 +136,7 @@ class GitHub(object):
         return all(status == "success" for status in latest.itervalues())
 
     def pr_for_commit(self, sha):
+        logger.info("Looking up PR for commit %s" % sha)
         owner, repo = self.repo_name.split("/")
         prs = list(self.gh.search_issues(query="is:pr repo:%s/%s %s" % (owner, repo, sha)))
         if len(prs) == 0:
@@ -143,7 +144,7 @@ class GitHub(object):
 
         if len(prs) > 1:
             logger.warning("Got multiple PRs related to commit %s: %s" %
-                           (sha, ", ".join(item.number for item in prs)))
+                           (sha, ", ".join(str(item.number) for item in prs)))
             prs = sorted(prs, key=lambda x: x.number)
 
         return prs[0].number

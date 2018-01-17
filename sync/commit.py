@@ -127,6 +127,10 @@ class Commit(object):
     def is_empty(self, prefix=None):
         return self.repo.git.show(self.sha1, format="", patch=True).strip() == ""
 
+    def tags(self):
+        return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n")
+                if item.strip()]
+
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
              dest_prefix=None):
         if metadata is None:
@@ -223,7 +227,16 @@ class GeckoCommit(Commit):
 class WptCommit(Commit):
     def pr(self):
         if "wpt_pr" not in self.notes:
-            self.notes["wpt_pr"] = env.gh_wpt.pr_for_commit(self.sha1)
+            tags = [item.rsplit("_", 1)[1] for item in self.tags()
+                    if item.startswith("merge_pr_")]
+            if tags and len(tags) == 1:
+                logger.info("Using tagged PR for commit %s" % self.sha1)
+                pr = tags[0]
+            else:
+                pr = env.gh_wpt.pr_for_commit(self.sha1)
+
+            logger.info("Setting PR to %s" % pr)
+            self.notes["wpt_pr"] = pr
         return self.notes["wpt_pr"]
 
 
