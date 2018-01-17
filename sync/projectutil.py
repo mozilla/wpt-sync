@@ -37,6 +37,8 @@ class Command(object):
 
     def __getattr__(self, name):
         def call(self, *args, **kwargs):
+            if name.endswith("_"):
+                name = name[:-1]
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
         self.__dict__[name] = types.MethodType(call, self, self.__class__)

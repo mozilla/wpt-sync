@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 from itertools import chain
 
 import yaml
@@ -11,6 +12,7 @@ import tree
 from env import Environment
 from load import get_syncs
 from pipeline import AbortError
+from projectutil import Mach
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -28,7 +30,7 @@ class TryPush(base.ProcessData):
     statuses = ("open", "complete", "infra-fail")
 
     @classmethod
-    def create(cls, sync, affected_tests=None, stability=False, hacks=True):
+    def create(cls, sync, affected_tests=None, stability=False, hacks=True, try_cls=TrySyntaxCommit, **kwargs):
         logger.info("Creating try push for PR %s" % sync.pr)
         if not tree.is_open("try"):
             logger.info("try is closed")
@@ -38,7 +40,7 @@ class TryPush(base.ProcessData):
         git_work = sync.gecko_worktree.get()
 
         rebuild_count = 0 if not stability else 10
-        with TrySyntaxCommit(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks) as c:
+        with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks, **kwargs) as c:
             try_rev = c.push()
 
         data = {
@@ -161,51 +163,41 @@ class TryPush(base.ProcessData):
         return wpt_tasks
 
     def download_logs(self):
-        wpt_completed = self.wpt_tasks()
-        dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
-        return taskcluster.download_logs(wpt_completed, dest)
+        wpt_tasks = self.wpt_tasks()
+        dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
+                            "try", self.try_rev)
+        taskcluster.download_logs(wpt_tasks, dest)
+        raw_logs = []
+        for task in wpt_tasks:
+            for run in task.get("status", {}).get("runs", []):
+                log = run.get("_log_paths", []).get("wpt_raw.log")
+                if log:
+                    raw_logs.append(log)
+        return raw_logs
 
 
 class TryCommit(object):
-    def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True):
+    def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         self.git_gecko = git_gecko
         self.worktree = worktree
         self.tests_by_type = tests_by_type
         self.rebuild = rebuild
         self.hacks=hacks
+        self.try_rev = None
+        self.extra_args = kwargs
 
     def __enter__(self):
         self.create()
-        self.try_rev = self.worktree.head.commit.hexsha
         return self
 
     def __exit__(self, *args, **kwargs):
-        assert self.worktree.head.commit.hexsha == self.try_rev
-        self.worktree.head.reset("HEAD~", working_tree=True)
+        self.cleanup()
 
-    def push(self):
-        logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
-        status, stdout, stderr = self.worktree.git.push('try', with_extended_output=True)
-        rev_match = rev_re.search(stderr)
-        if not rev_match:
-            logger.warning("No revision found in string:\n\n{}\n".format(stderr))
-            # Assume that the revision is HEAD~
-            try_rev = self.git_gecko.cinnabar.git2hg(self.worktree.commit("HEAD~").hexsha)
-        else:
-            try_rev = rev_match.group('rev')
-        if status != 0:
-            logger.error("Failed to push to try.")
-            # TODO retry
-            raise AbortError("Failed to push to try")
-        return try_rev
-
-
-class TrySyntaxCommit(TryCommit):
     def create(self):
-        message = self.try_message(self.tests_by_type, self.rebuild)
-        if self.hacks:
-            self.apply_hacks()
-        self.worktree.index.commit(message=message)
+        pass
+
+    def cleanup(self):
+        pass
 
     def apply_hacks(self):
         # Some changes to forceably exclude certain default jobs that are uninteresting
@@ -223,7 +215,45 @@ class TrySyntaxCommit(TryCommit):
             with open(path, "w") as f:
                 yaml.dump(data, f)
 
-            self.worktree.index.add([tc_config])
+                self.worktree.index.add([tc_config])
+
+    def push(self):
+        status, output = self._push()
+        try_rev = self.read_treeherder(status, output)
+        if self.try_rev is not None:
+            assert self.try_rev == try_rev
+        else:
+            self.try_rev = try_rev
+
+    def _push(self):
+        raise NotImplementedError
+
+    def read_treeherder(self, status, output):
+        rev_match = rev_re.search(output)
+        if not rev_match:
+            logger.warning("No revision found in string:\n\n{}\n".format(output))
+            # Assume that the revision is HEAD~
+            try_rev = self.git_gecko.cinnabar.git2hg(self.worktree.commit("HEAD~").hexsha)
+        else:
+            try_rev = rev_match.group('rev')
+        if status != 0:
+            logger.error("Failed to push to try.")
+            # TODO retry
+            raise AbortError("Failed to push to try")
+        return try_rev
+
+
+class TrySyntaxCommit(TryCommit):
+    def create(self):
+        message = self.try_message(self.tests_by_type, self.rebuild)
+        if self.hacks:
+            self.apply_hacks()
+        self.worktree.index.commit(message=message)
+        self.try_rev = self.worktree.head.commit.hexsha
+
+    def cleanup(self):
+        assert self.worktree.head.commit.hexsha == self.try_rev
+        self.worktree.head.reset("HEAD~", working_tree=True)
 
     @staticmethod
     def try_message(tests_by_type=None, rebuild=0):
@@ -302,3 +332,53 @@ class TrySyntaxCommit(TryCommit):
             test_data["prefixed_paths"] = " ".join(test_data["prefixed_paths"])
 
         return try_message.format(**test_data)
+
+    def _push(self):
+        logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
+        status, stdout, stderr = self.worktree.git.push('try', with_extended_output=True)
+        return status, "\n".join([stdout, stderr])
+
+
+class TryFuzzyCommit(TryCommit):
+    def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
+        super(TryCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
+                                        hacks=True, **kwargs)
+        self.exclude = self.extra_args.get("exclude", ["pgo", "ccov", "macosx"])
+        self.include = self.extra_args.get("include", ["web-platform-tests"])
+        self.reset = None
+
+    def create(self):
+        if self.hacks:
+            self.reset = self.worktree.head.ref
+            self.apply_hacks()
+            # TODO add something useful to the commit message here since that will
+            # appear in email &c.
+            self.worktree.index.commit(message="Apply task hacks before running try")
+
+    def cleanup(self):
+        if self.reset is not None:
+            self.worktree.head.reset(self.reset, working_tree=True)
+            self.reset = None
+
+    @property
+    def query(self):
+        return " ".join(self.include + ["!%s" % item for item in self.exclude])
+
+    def _push(self):
+        mach = Mach(self.worktree.working_dir)
+        query = self.query
+
+        logger.info("Pushing to try with fuzzy query: %s" % query)
+
+        if self.tests_by_type:
+            raise NotImplementedError
+
+        args = ["fuzzy", "-q", query, "--artifact"]
+        if self.rebuild:
+            args.append("--rebuild")
+            args.append(self.rebuild)
+        try:
+            output = mach.try_(*args, stderr=subprocess.STDOUT)
+            return 0, output
+        except subprocess.CalledProcessError as e:
+            return e.returncode, e.output
