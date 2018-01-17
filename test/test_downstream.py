@@ -35,7 +35,7 @@ def test_wpt_pr_status_success(git_gecko, git_wpt, pull_request, set_pr_status,
     try_push = sync.latest_try_push
     assert try_push is not None
     assert try_push.status == "open"
-    assert try_push.try_rev == sync.gecko_commits[-1].canonical_rev
+    assert try_push.try_rev == hg_gecko_try.log("-l1", "--template={node}")
     assert try_push.stability is False
 
 

@@ -28,6 +28,7 @@ class TryCommit(object):
         self.hacks=hacks
         self.try_rev = None
         self.extra_args = kwargs
+        self.reset = None
 
     def __enter__(self):
         self.create()
@@ -40,7 +41,11 @@ class TryCommit(object):
         pass
 
     def cleanup(self):
-        pass
+        if self.reset is not None:
+            logger.debug("Resetting working tree to %s" % self.reset)
+            self.worktree.head.reset(self.reset, working_tree=True)
+            self.reset = None
+
 
     def apply_hacks(self):
         # Some changes to forceably exclude certain default jobs that are uninteresting
@@ -62,11 +67,7 @@ class TryCommit(object):
 
     def push(self):
         status, output = self._push()
-        try_rev = self.read_treeherder(status, output)
-        if self.try_rev is not None:
-            assert self.try_rev == try_rev
-        else:
-            self.try_rev = try_rev
+        return self.read_treeherder(status, output)
 
     def _push(self):
         raise NotImplementedError
@@ -75,8 +76,13 @@ class TryCommit(object):
         rev_match = rev_re.search(output)
         if not rev_match:
             logger.warning("No revision found in string:\n\n{}\n".format(output))
-            # Assume that the revision is HEAD~
-            try_rev = self.git_gecko.cinnabar.git2hg(self.worktree.commit("HEAD~").hexsha)
+            # Assume that the revision is HEAD
+            # This happens in tests and isn't a problem, but would be in real code,
+            # so that's not ideal
+            try:
+                try_rev = self.git_gecko.cinnabar.git2hg(self.worktree.head.commit.hexsha)
+            except ValueError:
+                return None
         else:
             try_rev = rev_match.group('rev')
         if status != 0:
@@ -88,15 +94,11 @@ class TryCommit(object):
 
 class TrySyntaxCommit(TryCommit):
     def create(self):
+        self.reset = self.worktree.head.commit.hexsha
         message = self.try_message(self.tests_by_type, self.rebuild)
         if self.hacks:
             self.apply_hacks()
         self.worktree.index.commit(message=message)
-        self.try_rev = self.worktree.head.commit.hexsha
-
-    def cleanup(self):
-        assert self.worktree.head.commit.hexsha == self.try_rev
-        self.worktree.head.reset("HEAD~", working_tree=True)
 
     @staticmethod
     def try_message(tests_by_type=None, rebuild=0):
@@ -184,24 +186,18 @@ class TrySyntaxCommit(TryCommit):
 
 class TryFuzzyCommit(TryCommit):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
-        super(TryCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
-                                        hacks=True, **kwargs)
+        super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
+                                             hacks=True, **kwargs)
         self.exclude = self.extra_args.get("exclude", ["pgo", "ccov", "macosx"])
         self.include = self.extra_args.get("include", ["web-platform-tests"])
-        self.reset = None
 
     def create(self):
         if self.hacks:
-            self.reset = self.worktree.head.ref
+            self.reset = self.worktree.head.commit.hexsha
             self.apply_hacks()
             # TODO add something useful to the commit message here since that will
             # appear in email &c.
             self.worktree.index.commit(message="Apply task hacks before running try")
-
-    def cleanup(self):
-        if self.reset is not None:
-            self.worktree.head.reset(self.reset, working_tree=True)
-            self.reset = None
 
     @property
     def query(self):
@@ -379,7 +375,7 @@ class TryPush(base.ProcessData):
         raw_logs = []
         for task in wpt_tasks:
             for run in task.get("status", {}).get("runs", []):
-                log = run.get("_log_paths", []).get("wpt_raw.log")
+                log = run.get("_log_paths", {}).get("wpt_raw.log")
                 if log:
                     raw_logs.append(log)
         return raw_logs

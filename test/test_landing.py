@@ -1,4 +1,4 @@
-from sync import landing, downstream, tree
+from sync import landing, downstream, tree, trypush
 from sync import commit as sync_commit
 
 
@@ -12,10 +12,11 @@ def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
 
 def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                  hg_gecko_try):
+                  hg_gecko_try, mock_mach):
     pr = pull_request([("Test commit", {"README": "example_change"})])
     head_rev = pr._commits[0]["sha"]
 
+    trypush.Mach = mock_mach
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
 
@@ -30,8 +31,10 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     try_push = sync.latest_try_push
     assert try_push is not None
     assert try_push.status == "open"
-    assert try_push.try_rev == sync.gecko_commits[-1].canonical_rev
     assert try_push.stability is False
+    mach_command = mock_mach.get_log()[-1]
+    assert mach_command["command"] == "mach"
+    assert mach_command["args"] == ("try", "fuzzy", "-q", "web-platform-tests !pgo !ccov", "--artifact")
 
 
 def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
