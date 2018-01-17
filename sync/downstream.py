@@ -384,6 +384,8 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
     log_files = try_push.download_logs()
+    if not log_files:
+        raise ValueError("No log files found for try push %r" % try_push)
     disabled = sync.update_metadata(log_files, stability=try_push.stability)
 
     if sync.affected_tests() and not try_push.stability:

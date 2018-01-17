@@ -69,38 +69,51 @@ def get_wpt_tasks(taskgroup_id):
     return wpt_tasks
 
 
-def download_logs(tasks, destination, retry=5):
+def download_logs(tasks, destination, retry=5, raw=True):
     if not os.path.exists(destination):
         os.makedirs(destination)
-    url = ARTIFACTS_BASE + "{task}/{run}/public/test_info//wpt_raw.log"
-    log_files = []
+    file_names = ["wptreport.json"]
+    if raw:
+        file_names.append("wpt_raw.log")
+
+    urls = [ARTIFACTS_BASE + "{task}/{run}/public/test_info//%s" % file_name
+            for file_name in file_names]
     for task in tasks:
         status = task.get("status", {})
         for run in status.get("runs", []):
-            params = {
-                "task": status["taskId"],
-                "run": run["runId"],
-            }
-            log_url = url.format(**params)
-            log_name = "live_backing-{task}_{run}.log".format(**params)
-            success = False
-            logger.debug("Trying to download {}".format(log_url))
-            log_path = os.path.abspath(os.path.join(destination, log_name))
-            if os.path.exists(log_path):
-                continue
-            while not success and retry > 0:
-                try:
-                    r = requests.get(log_url, stream=True)
-                    tmp_path = log_path + ".tmp"
-                    with open(tmp_path, 'wb') as f:
-                        r.raw.decode_content = True
-                        shutil.copyfileobj(r.raw, f)
-                    os.rename(tmp_path, log_path)
+            for url in urls:
+                params = {
+                    "task": status["taskId"],
+                    "run": run["runId"],
+                }
+                run["_log_paths"] = {}
+                params["file_name"] = url.rsplit("/", 1)[1]
+                log_url = url.format(**params)
+                log_name = "{task}_{run}_{file_name}".format(**params)
+                success = False
+                logger.debug("Trying to download {}".format(log_url))
+                log_path = os.path.abspath(os.path.join(destination, log_name))
+                if not os.path.exists(log_path):
+                    success = download(log_url, log_path, retry)
+                else:
                     success = True
-                    log_files.append(log_path)
-                except Exception as e:
-                    logger.warning(traceback.format_exc(e))
-                    retry -= 1
-            if not success:
-                logger.warning("Failed to download log from {}".format(log_url))
-    return log_files
+                if not success:
+                    logger.warning("Failed to download log from {}".format(log_url))
+                run["_log_paths"][params["file_name"]] = log_path
+
+
+def download(log_url, log_path, retry):
+    while retry > 0:
+        try:
+            logger.debug("Downloading from %s" % log_url)
+            r = requests.get(log_url, stream=True)
+            tmp_path = log_path + ".tmp"
+            with open(tmp_path, 'wb') as f:
+                r.raw.decode_content = True
+                shutil.copyfileobj(r.raw, f)
+            os.rename(tmp_path, log_path)
+            return True
+        except Exception as e:
+            logger.warning(traceback.format_exc(e))
+            retry -= 1
+    return False
