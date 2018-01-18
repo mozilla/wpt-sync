@@ -208,6 +208,7 @@ def update_taskgroup_ids(git_gecko, git_wpt):
 
 
 def update_tasks(git_gecko, git_wpt, pr_id=None):
+    logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
     for sync in downstream.DownstreamSync.load_all(git_gecko, git_wpt):
         if pr_id is not None and sync.pr != pr_id:
             continue

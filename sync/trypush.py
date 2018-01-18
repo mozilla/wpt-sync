@@ -335,9 +335,15 @@ class TryPush(base.ProcessData):
 
     @property
     def stability(self):
+        """Is the current try push a stability test"""
         return self["stability"]
 
     def wpt_tasks(self):
+        """Get a list of all the taskcluster tasks for web-paltform-tests
+        jobs associated with the current try push.
+
+        :return: List of tasks
+        """
         try:
             wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
         except ValueError:
@@ -368,7 +374,16 @@ class TryPush(base.ProcessData):
         return wpt_tasks
 
     def download_logs(self):
+        """Download all the logs for the current try push
+
+        :return: List of paths to raw logs
+        """
         wpt_tasks = self.wpt_tasks()
+        if self.try_rev is None:
+            if wpt_tasks:
+                logger.info("Got try push with no rev; setting it from a task")
+                self._data["try-rev"] = wpt_tasks[0]["task"]["payload"]["env"]["GECKO_HEAD_REV"]
+        logger.info("Downloading logs for try revision %s" % self.try_rev)
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
         taskcluster.download_logs(wpt_tasks, dest)

@@ -234,6 +234,7 @@ class VcsRefObject(object):
         self._ref = str(self._process_name)
         new_ref = git.Reference(self.repo, self.path)
         new_ref.set_object(ref.commit.hexsha)
+        logger.debug("Deleting ref %s" % (ref.path))
         ref.delete(self.repo, ref.path)
 
     @classmethod

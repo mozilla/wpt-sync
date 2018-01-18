@@ -1,5 +1,6 @@
 import os
 import traceback
+import time
 
 import filelock
 
@@ -36,6 +37,10 @@ def with_lock(f):
         try:
             with _lock:
                 return f(*args, **kwargs)
+            # If some other task is waiting on the lock, give it a chance to
+            # run before this task completes. That means that manual commands
+            # will always  win over celery tasks, which we want
+            time.sleep(0.1)
         except Exception as e:
             logger.error(str(unicode(e).encode("utf8")))
             logger.error("".join(traceback.format_exc(e)))
