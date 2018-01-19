@@ -25,6 +25,7 @@ def get_parser():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
     parser.add_argument("--pdb", action="store_true", help="Run in pdb")
+    parser.add_argument("--config", action="append", help="Set a config option")
 
     parser_update = subparsers.add_parser("update",
                                           help="Update the local state by reading from GH + etc.")
@@ -304,6 +305,18 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
     print "Landing will update wpt head to %s" % wpt_head
 
 
+def set_config(opts):
+    for opt in opts:
+        keys, value = opt.split("=", 1)
+        keys = keys.split(".")
+        target = env.config
+        for key in keys[:-1]:
+            target = target[key]
+        logger.info("Setting config option %s from %s to %s" %
+                    (".".join(keys), target[keys[-1]], value))
+        target[keys[-1]] = value
+
+
 def main():
     parser = get_parser()
     args = parser.parse_args()
@@ -316,6 +329,9 @@ def main():
         git_gecko, git_wpt = (None, None)
     else:
         git_gecko, git_wpt = setup()
+
+    if args.config:
+        set_config(args.config)
 
     try:
         args.func(git_gecko, git_wpt, **vars(args))
