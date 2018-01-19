@@ -28,6 +28,7 @@ RUN mkdir /app/workspace \
     /app/testdata \
     /app/repos \
     /app/git-cinnabar \
+    /app/fzf \
     /app/.ssh
 
 # Install git-cinnabar
@@ -41,6 +42,14 @@ ENV PATH=/app/git-cinnabar:$PATH
 RUN pip install --user requests
 
 RUN git cinnabar download
+
+# Install fzf for mach try fuzzy
+WORKDIR /app/fzf
+
+RUN git clone --depth 1 https://github.com/junegunn/fzf.git . \
+    && ./install --bin
+
+ENV PATH=/app/fzf/bin:$PATH
 
 WORKDIR /app/wpt-sync
 
