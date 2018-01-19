@@ -2,7 +2,6 @@
 
 set -o errexit
 set -o pipefail
-set -o nounset
 set -o xtrace
 
 # USE the trap if you need to also do manual cleanup after the service is stopped,
@@ -21,6 +20,9 @@ if [ "$1" != "--test" ]; then
     cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/workspace/ssh/id_hgmo} /app/.ssh/id_hgmo
     ssh-add /app/.ssh/id_github
     ssh-add /app/.ssh/id_hgmo
+    if [ -n "$WPTSYNC_CREDS" ]; then
+        cp -v $WPTSYNC_CREDS /app/workspace/credentials.ini
+    fi
 fi
 
 env
@@ -44,7 +46,7 @@ elif [ "$1" == "--worker" ]; then
     /app/venv/bin/celery multi start syncworker1 -A sync.worker \
                          --concurrency=1 \
                          --pidfile=${WPTSYNC_ROOT}/%n.pid \
-                         --logfile=${WPTSYNC_ROOT}/%n%I.log --loglevel=DEBUG
+                         --logfile=${WPTSYNC_ROOT}/logs/%n%I.log --loglevel=DEBUG
 
     echo "Starting pulse listener"
 
