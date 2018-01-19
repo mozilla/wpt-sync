@@ -33,6 +33,9 @@ def cleanup(git_gecko, git_wpt):
             if process_name is None:
                 continue
 
+            if not os.path.exists(worktree_path):
+                continue
+
             if process_name.status != "open":
                 logger.info("Removing worktree for closed sync %s" % worktree_path)
                 shutil.rmtree(worktree_path)
@@ -44,3 +47,4 @@ def cleanup(git_gecko, git_wpt):
                 now - timedelta(days=2)):
                 logger.info("Removing worktree without recent activity %s" % worktree_path)
                 shutil.rmtree(worktree_path)
+        git.git.worktree("prune")
