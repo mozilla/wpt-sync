@@ -15,6 +15,10 @@ def bz_url_from_api_url(api_url):
     return urlparse.urlunparse(bz_url)
 
 
+def bug_number_from_url(url):
+    return urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
+
+
 class Bugzilla(object):
     bug_cache = {}
 

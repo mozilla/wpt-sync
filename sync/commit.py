@@ -185,7 +185,7 @@ class Commit(object):
 class GeckoCommit(Commit):
     @property
     def bug(self):
-        bugs = commitparser.parse_bugs(self.commit.message)
+        bugs = commitparser.parse_bugs(self.commit.message.split("\n")[0])
         if len(bugs) > 1:
             logger.warning("Got multiple bugs for commit %s: %s" %
                            (self.canonical_rev,  ", ".join(str(item) for item in bugs)))
