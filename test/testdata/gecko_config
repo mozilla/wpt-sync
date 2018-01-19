@@ -1,0 +1,13 @@
+[core]
+    repositoryformatversion = 0
+    filemode = true
+    bare = true
+[remote "try"]
+    url = hg::/app/testdata/remotes/try
+    fetch = +refs/heads/*:refs/remotes/try/*
+    push = +HEAD:refs/heads/branches/default/tip
+[fetch]
+    prune = true
+[remote "mozilla"]
+    url = hg::/app/testdata/remotes/gecko
+    fetch = +refs/heads/*:refs/remotes/mozilla/*

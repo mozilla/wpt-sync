@@ -13,6 +13,8 @@ sync.db
 data
 test/testdata/**
 !test/testdata/*.ini
+!test/testdata/wpt_config
+!test/testdata/gecko_config
 *.db-journal
 dist
 build

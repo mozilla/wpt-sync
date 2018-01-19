@@ -50,6 +50,11 @@ def get_parser():
     parser_landing.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landing.set_defaults(func=do_landing)
 
+    parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
+    parser_fetch.set_defaults(func=do_configure_repos)
+    parser_fetch.add_argument('repo', choices=['gecko', 'web-platform-tests'])
+    parser_fetch.add_argument('config_file', help="Path to git config file to copy.")
+
     parser_fetch = subparsers.add_parser("fetch", help="Fetch from repo.")
     parser_fetch.set_defaults(func=do_fetch)
     parser_fetch.add_argument('repo', choices=['gecko', 'web-platform-tests'])
@@ -233,9 +238,16 @@ def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     import repos
     name = kwargs.get("repo")
     r = repos.wrappers[name](env.config)
-    r.configure()
     logger.info("Fetching %s in %s..." % (name, r.root))
     r.repo().git.fetch(*r.fetch_args)
+
+
+@with_lock
+def do_configure_repos(git_gecko, git_wpt, *args, **kwargs):
+    import repos
+    name = kwargs.get("repo")
+    r = repos.wrappers[name](env.config)
+    r.configure(os.path.abspath(os.path.normpath(kwargs.get("config_file"))))
 
 
 @with_lock

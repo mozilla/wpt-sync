@@ -10,6 +10,8 @@ import pytest
 from sync import repos, settings, bugcomponents, downstream, landing
 from sync.env import Environment, set_env, clear_env
 
+here = os.path.abspath(os.path.dirname(__file__))
+
 
 def create_file_data(file_data, repo_workdir, repo_prefix=None):
     add_paths = []
@@ -200,10 +202,26 @@ def git_wpt_upstream(env, initial_wpt_content):
     return git_upstream
 
 
+def set_remote_urls(repo):
+    pyrepo = repo.repo()
+    for name, url in repo.remotes:
+        try:
+            remote = pyrepo.remote(name=name)
+        except ValueError:
+            remote = pyrepo.create_remote(name, url)
+        else:
+            current_urls = list(remote.urls)
+            if len(current_urls) > 1:
+                for old_url in current_urls[1:]:
+                    remote.delete_url(old_url)
+            remote.set_url(url, current_urls[0])
+
+
 @pytest.fixture(scope="function")
 def git_gecko(env, hg_gecko_upstream):
     git_gecko = repos.Gecko(env.config)
-    git_gecko.configure()
+    git_gecko.configure(os.path.join(here, "testdata", "gecko_config"))
+    set_remote_urls(git_gecko)
     git_gecko = git_gecko.repo()
     git_gecko.remotes.mozilla.fetch()
     git_gecko.create_head("sync/upstream/inbound", "FETCH_HEAD")
@@ -214,7 +232,8 @@ def git_gecko(env, hg_gecko_upstream):
 @pytest.fixture(scope="function")
 def git_wpt(env, git_wpt_upstream):
     git_wpt = repos.WebPlatformTests(env.config)
-    git_wpt.configure()
+    git_wpt.configure(os.path.join(here, "testdata", "wpt_config"))
+    set_remote_urls(git_wpt)
     return git_wpt.repo()
 
 

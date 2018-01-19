@@ -1,4 +1,5 @@
 import os
+import shutil
 from git import Repo
 
 import log
@@ -34,31 +35,9 @@ class GitSettings(object):
 
         return repo
 
-    def configure(self):
-        repo = self.repo()
-        for name, url in self.remotes:
-            try:
-                remote = repo.remote(name=name)
-            except ValueError:
-                remote = repo.create_remote(name, url)
-            else:
-                current_urls = list(remote.urls)
-                if len(current_urls) > 1:
-                    for old_url in current_urls[1:]:
-                        remote.delete_url(old_url)
-                remote.set_url(url, current_urls[0])
-
-            with repo.config_writer() as config_writer:
-                for key in self.config[self.name]["remote"][name].keys():
-                    config_writer.set_value(
-                        "remote \"%s\"" % name,
-                        key,
-                        self.config[self.name]["remote"][name][key])
-
-                if self.cinnabar:
-                    config_writer.set_value("fetch",
-                                            "prune",
-                                            "true")
+    def configure(self, file):
+        r = self.repo()
+        shutil.copyfile(file, os.path.normpath(os.path.join(r.git_dir, "config")))
 
 
 class Gecko(GitSettings):
@@ -66,22 +45,10 @@ class Gecko(GitSettings):
     cinnabar = True
     fetch_args = ["mozilla"]
 
-    def configure(self):
-        super(Gecko, self).configure()
-        git = self.repo().git
-        git.config("remote.try.push", "+HEAD:refs/heads/branches/default/tip", add=True)
-
 
 class WebPlatformTests(GitSettings):
     name = "web-platform-tests"
     fetch_args = ["origin", "master", "--no-tags"]
-
-    def configure(self):
-        super(WebPlatformTests, self).configure()
-        git = self.repo().git
-        git.config("remote.origin.fetch", unset_all=True)
-        git.config("remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*", add=True)
-        git.config("remote.origin.fetch", "+refs/pull/*/head:refs/remotes/origin/pr/*", add=True)
 
 
 class Cinnabar(object):
@@ -109,12 +76,6 @@ class Cinnabar(object):
 
     def fsck(self):
         self.git.cinnabar("fsck")
-
-
-def configure(config):
-    for repo in [WebPlatformTests, Gecko]:
-        repo = repo(config)
-        repo.configure()
 
 
 wrappers = {

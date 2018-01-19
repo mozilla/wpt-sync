@@ -6,3 +6,5 @@ workspace
 *.pyc
 test/testdata/**
 !test/testdata/*.ini
+!test/testdata/wpt_config
+!test/testdata/gecko_config
