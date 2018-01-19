@@ -14,11 +14,11 @@ services:
   - docker
 
 install:
-  - docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file docker/dev/Dockerfile .
+  - docker build -t wptsync_dev --file docker/dev/Dockerfile .
   - sudo chown -R 10001 .
 
 script:
-  - docker run -it wptsync_dev --test
+  - docker run -it --add-host=rabbitmq:127.0.0.1 wptsync_dev --test
 
 notifications:
   irc:
