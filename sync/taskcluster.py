@@ -69,12 +69,17 @@ def get_wpt_tasks(taskgroup_id):
     return wpt_tasks
 
 
-def download_logs(tasks, destination, retry=5, raw=True):
+def download_logs(tasks, destination, retry=5, raw=True, report=True):
     if not os.path.exists(destination):
         os.makedirs(destination)
-    file_names = ["wptreport.json"]
+    file_names = []
+    if report:
+        file_names.append("wptreport.json")
     if raw:
         file_names.append("wpt_raw.log")
+
+    if not file_names:
+        return []
 
     urls = [ARTIFACTS_BASE + "{task}/{run}/public/test_info//%s" % file_name
             for file_name in file_names]

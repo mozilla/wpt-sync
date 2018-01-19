@@ -338,12 +338,17 @@ class TryPush(base.ProcessData):
         """Is the current try push a stability test"""
         return self["stability"]
 
-    def wpt_tasks(self):
+    def wpt_tasks(self, force_update=False):
         """Get a list of all the taskcluster tasks for web-paltform-tests
         jobs associated with the current try push.
 
+        :param bool force_update: Force the tasks to be refreshed from the
+                                  server
         :return: List of tasks
         """
+        if not force_update and "tasks" in self._data:
+            return self._data["tasks"]
+
         try:
             wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
         except ValueError:
@@ -371,7 +376,14 @@ class TryPush(base.ProcessData):
             # TODO retry? manual intervention?
             self.status = "infra-fail"
             raise AbortError(err)
+
+        self._data["tasks"] = wpt_tasks
         return wpt_tasks
+
+    def success(self):
+        """Check if all the wpt tasks in a try push ended with a successful status"""
+        wpt_tasks = self.wpt_tasks()
+        return all(task.get("status", {}).get("state", None) == "success" for task in wpt_tasks)
 
     def download_logs(self):
         """Download all the logs for the current try push
@@ -386,7 +398,7 @@ class TryPush(base.ProcessData):
         logger.info("Downloading logs for try revision %s" % self.try_rev)
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
-        taskcluster.download_logs(wpt_tasks, dest)
+        taskcluster.download_logs(wpt_tasks, dest, report=not self.stability)
         raw_logs = []
         for task in wpt_tasks:
             for run in task.get("status", {}).get("runs", []):
