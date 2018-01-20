@@ -29,6 +29,7 @@ class GitSettings(object):
             repo = Repo.init(self.root, bare=True)
         else:
             repo = Repo(self.root)
+            logger.debug("Existing repo found at " + self.root)
 
         if self.cinnabar:
             repo.cinnabar = Cinnabar(repo)
@@ -38,6 +39,7 @@ class GitSettings(object):
     def configure(self, file):
         r = self.repo()
         shutil.copyfile(file, os.path.normpath(os.path.join(r.git_dir, "config")))
+        logger.debug("Config from {} copied to {}".format(file, os.path.join(r.git_dir, "config")))
 
 
 class Gecko(GitSettings):

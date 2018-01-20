@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import subprocess
 import traceback
 
@@ -236,10 +237,21 @@ def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
 @with_lock
 def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     import repos
+    c = env.config
     name = kwargs.get("repo")
-    r = repos.wrappers[name](env.config)
+    r = repos.wrappers[name](c)
     logger.info("Fetching %s in %s..." % (name, r.root))
-    r.repo().git.fetch(*r.fetch_args)
+    pyrepo = r.repo()
+    try:
+        pyrepo.git.fetch(*r.fetch_args)
+    except git.GitCommandError as e:
+        # GitPython fails when git warns about adding known host key for new IP
+        if re.search(".*Warning: Permanently added.*host key.*", e.stderr) is not None:
+            logger.debug(e.stderr)
+        else:
+            raise e
+    for key in c[name]["refs"].keys():
+        pyrepo.git.show_ref(c[name]["refs"][key])
 
 
 @with_lock

@@ -27,9 +27,16 @@ fi
 
 env
 
+/app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/docker/wpt_config}
+/app/venv/bin/wptsync repo-config gecko $FILE ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/docker/gecko_config}
+
+
 if [ "$1" == "--shell" ]; then
     bash
 elif [ "$1" == "--worker" ]; then
+    /app/venv/bin/wptsync fetch web-platform-tests
+    /app/venv/bin/wptsync fetch gecko
+
     service --status-all
     sudo service rabbitmq-server start
     sudo service rabbitmq-server status
