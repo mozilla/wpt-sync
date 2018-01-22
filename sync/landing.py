@@ -113,6 +113,14 @@ class LandingSync(base.SyncProcess):
 
         pr = env.gh_wpt.get_pull(int(pr_id))
 
+        upstream_changed = set()
+        for commit in wpt_commits:
+            stats = commit.commit.stats
+            upstream_changed |= set(stats.files.keys())
+
+        logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
+
+        logger.info("Setting wpt HEAD to %s" % wpt_commits[-1].sha1)
         git_work_wpt.head.reference = wpt_commits[-1].commit
         git_work_wpt.head.reset(index=True, working_tree=True)
         shutil.rmtree(dest_path)
@@ -121,12 +129,26 @@ class LandingSync(base.SyncProcess):
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
 
+        # Some files we don't want to update on import ever
+        ignore_paths = ["LICENSE"]
+        all_paths = [item for item in git_work_gecko.git.ls_files().split("\n")
+                     if item.strip()]
+        for rel_path in ignore_paths:
+            path = os.path.join(env.config["gecko"]["path"]["wpt"], rel_path)
+            if path in all_paths:
+                logger.debug("Resetting %s" % path)
+                git_work_gecko.index.reset([path])
+                git_work_gecko.head.checkout(paths=[path])
+            else:
+                logger.debug("Path %s is not in the repository" % path)
+
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
 Automatic update from web-platform-tests%s
 """ % (self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
         message = sync_commit.Commit.make_commit_msg(message, metadata)
         commit = git_work_gecko.index.commit(message=message, author=author)
+        logger.debug("Gecko files changed: \n%s" % "\n".join(commit.stats.files.keys()))
         gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
         self.gecko_commits.head = commit
 
@@ -172,8 +194,9 @@ Automatic update from web-platform-tests%s
             wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
             gecko_commit = wpt_commit.metadata.get("gecko-commit")
             if gecko_commit:
-                commit = sync_commit.GeckoCommit(self.git_gecko, gecko_commit)
-                bug = item.metadata.get("bugzilla-url")
+                git_sha = self.git_gecko.cinnabar.hg2git(gecko_commit)
+                commit = sync_commit.GeckoCommit(self.git_gecko, git_sha)
+                bug = commit.metadata.get("bugzilla-url")
                 if on_integration_branch(commit):
                     if bug and bug not in seen_bugs:
                         logger.info("Commits from landed sync for bug %s will be reapplied" % bug)
@@ -212,7 +235,8 @@ Automatic update from web-platform-tests%s
             env.bz.comment(self.bug, err_msg)
             raise AbortError(err_msg)
 
-        metadata = {"reapplied-commits": ", ".join(commit.canonical_rev for commit in commits)}
+        gecko_commits = [sync_commit.GeckoCommit(self.git_gecko, item) for item in commits]
+        metadata = {"reapplied-commits": ", ".join(commit.canonical_rev for commit in gecko_commits)}
         new_message = sync_commit.Commit.make_commit_msg(landing_commit.msg, metadata)
         git_work_gecko.git.commit(amend=True, no_edit=True, message=new_message)
 
@@ -441,19 +465,24 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
 
     sync_point = load_sync_point(git_gecko, git_wpt)
 
-    if prev_wpt_head is None:
-        prev_wpt_head = sync_point["upstream"]
-
     if landing is None:
+        if prev_wpt_head is None:
+            prev_wpt_head = sync_point["upstream"]
+
         landable = landable_commits(git_gecko, git_wpt, prev_wpt_head)
         if landable is None:
             return
         wpt_head, commits = landable
         landing = LandingSync.new(git_gecko, git_wpt, prev_wpt_head, wpt_head)
     else:
+        if prev_wpt_head and landing.wpt_commits.base.sha1 != prev_wpt_head:
+            raise AbortError("Existing landing base commit %s doesn't match"
+                             "supplied previous wpt head %s" % (landing.wpt_commits.base.sha1,
+                                                                prev_wpt_head))
+
         wpt_head, commits = landable_commits(git_gecko,
                                              git_wpt,
-                                             prev_wpt_head,
+                                             landing.wpt_commits.base.sha1,
                                              landing.wpt_commits.head.sha1)
         assert wpt_head == landing.wpt_commits.head.sha1
 
@@ -462,6 +491,8 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
     if landing.latest_try_push is None:
         trypush.TryPush.create(landing, hacks=False,
                                try_cls=trypush.TryFuzzyCommit, exclude=["pgo", "ccov"])
+    else:
+        logger.info("Got existing try push %s" % landing.latest_try_push)
 
     return landing
 
@@ -482,4 +513,5 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     sync.update_sync_point(sync_point)
     push(sync)
     for _, sync, _ in commits:
-        sync.finish()
+        if sync is not None:
+            sync.finish()
