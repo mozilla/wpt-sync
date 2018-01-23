@@ -261,8 +261,9 @@ class TryPush(base.ProcessData):
         rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
 
         env.bz.comment(sync.bug,
-                       "Pushed to try%s. Results: %s" %
-                       (cls.treeherder_url(try_rev), " (stability)" if stability else ""))
+                       "Pushed to try%s %s" %
+                       (" (stability)" if stability else "",
+                        cls.treeherder_url(try_rev)))
 
         return rv
 
