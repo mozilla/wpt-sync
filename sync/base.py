@@ -711,8 +711,10 @@ class SyncProcess(object):
             else:
                 message = value.message
                 stack = traceback.format_exc()
-            error = {"message": message
-                     "stack": stack}
+            error = {
+                "message": message,
+                "stack": stack
+            }
             self.data["error"] = error
             self.set_bug_data("error")
         else:
