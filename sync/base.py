@@ -705,9 +705,15 @@ class SyncProcess(object):
     @error.setter
     def error(self, value):
         if value is not None:
-            value = {"message": value.message,
-                     "stack": traceback.format_exc()}
-            self.data["error"] = value
+            if isinstance(value, (str, unicode)):
+                message = value
+                stack = None
+            else:
+                message = value.message
+                stack = traceback.format_exc()
+            error = {"message": message
+                     "stack": stack}
+            self.data["error"] = error
             self.set_bug_data("error")
         else:
             del self.data["error"]

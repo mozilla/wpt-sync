@@ -709,6 +709,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
         return landed
 
     if status == "success":
+        sync.error(None)
         if sync.gecko_landed():
             landed = sync.try_land_pr()
         else:
@@ -718,4 +719,5 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
         env.bz.comment(sync.bug, "Upstream web-platform-tests status %s for %s. "
                        "This will block the upstream PR from merging. "
                        "See %s for more information" % (status, context, url))
+        sync.error("Travis failed")
     return landed
