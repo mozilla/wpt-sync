@@ -7,6 +7,7 @@ import traceback
 
 import git
 
+import bug
 import log
 import commit as sync_commit
 from env import Environment
@@ -347,6 +348,11 @@ class ProcessData(object):
 
     def __contains__(self, key):
         return key in self._data
+
+    def __delitem__(self, key):
+        if key in self._data:
+            del self._data[key]
+            self._save(message="Delete %s" % key)
 
     def get(self, key, default=None):
         return self._data.get(key, default)
@@ -701,7 +707,19 @@ class SyncProcess(object):
         if value is not None:
             value = {"message": value.message,
                      "stack": traceback.format_exc()}
-        self.data["error"] = value
+            self.data["error"] = value
+            self.set_bug_data("error")
+        else:
+            del self.data["error"]
+            self.set_bug_data(None)
+
+    def set_bug_data(self, status=None):
+        if self.bug:
+            whiteboard = env.bz.get_whiteboard(self.bug)
+            current_subtype, current_status = bug.get_sync_data(whiteboard)
+            if current_subtype != self.sync_type or current_status != status:
+                new_whiteboard = bug.set_sync_data(whiteboard, self.sync_type, status)
+                env.bz.set_whiteboard(self.bug, new_whiteboard)
 
     def try_pushes(self):
         import trypush

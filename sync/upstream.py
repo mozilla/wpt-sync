@@ -556,7 +556,8 @@ def create_syncs(git_gecko, git_wpt, create_endpoints):
                                  endpoint.first.canonical_rev,
                                  "",
                                  "Testing",
-                                 "web-platform-tests")
+                                 "web-platform-tests",
+                                 whiteboard="[wptsync upstream]")
             sync = UpstreamSync.new(git_gecko,
                                     git_wpt,
                                     bug=bug,

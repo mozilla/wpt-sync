@@ -2,6 +2,8 @@ import bugsy
 import sys
 import urlparse
 import log
+import re
+
 from env import Environment
 
 env = Environment()
@@ -17,6 +19,41 @@ def bz_url_from_api_url(api_url):
 
 def bug_number_from_url(url):
     return urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
+
+
+def get_whiteboard(bug):
+    return bug._bug.get("whiteboard", "")
+
+
+def set_whiteboard(bug, value):
+    bug._bug["whiteboard"] = value
+
+
+status_re = re.compile("\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
+
+
+def get_sync_data(whiteboard):
+    matches = status_re.findall(whiteboard)
+    if matches:
+        subtype, status = matches[0]
+        if not status:
+            status = None
+        return subtype, status
+    return None, None
+
+
+def set_sync_data(whiteboard, subtype, status):
+    if subtype is None:
+        raise ValueError
+
+    if status:
+        text = "[wptsync %s %s]" % (subtype, status)
+    else:
+        text = "[wptsync %s]" % subtype
+    new = status_re.sub(text, whiteboard)
+    if new == whiteboard:
+        new = whiteboard + text
+    return new
 
 
 class Bugzilla(object):
@@ -56,11 +93,13 @@ class Bugzilla(object):
             return
         bug.add_comment(text)
 
-    def new(self, summary, comment, product, component):
+    def new(self, summary, comment, product, component, whiteboard=None):
         bug = bugsy.Bug(self.bugzilla,
                         summary=summary,
                         product=product,
                         component=component)
+        if whiteboard:
+            set_whiteboard(bug, whiteboard)
         bug.add_comment(comment)
 
         self.bugzilla.put(bug)
@@ -85,6 +124,16 @@ class Bugzilla(object):
             except bugsy.BugsyException:
                 logger.error("Failed to set component %s :: %s" % (bug.product, bug.component))
 
+    def set_whiteboard(self, bug_id, whiteboard):
+        bug = self._get_bug(bug_id)
+        set_whiteboard(bug, whiteboard)
+        self.bugzilla.put(bug)
+
+    def get_whiteboard(self, bug_id):
+        bug = self._get_bug(bug_id)
+        return get_whiteboard(bug, whiteboard)
+
+
 class MockBugzilla(Bugzilla):
     def __init__(self, config):
         self.api_url = config["bugzilla"]["url"]
@@ -96,9 +145,9 @@ class MockBugzilla(Bugzilla):
         self.output.write(data)
         self.output.write("\n")
 
-    def new(self, summary, comment, product, component):
-        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s" % (
-            product, component, summary, comment))
+    def new(self, summary, comment, product, component, whiteboard=None):
+        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\nWhiteboard: %s" % (
+            product, component, summary, comment, whiteboard))
         if self.known_bugs:
             bug_id = self.known_bugs[-1] + 1
         else:
@@ -111,3 +160,9 @@ class MockBugzilla(Bugzilla):
 
     def set_component(self, bug_id, product=None, component=None):
         self._log("Setting bug %s product: %s component: %s" % (bug_id, product, component))
+
+    def set_whiteboard(self, bug_id, whiteboard):
+        self._log("Setting bug %s whiteboard: %s" % (bug_id, whiteboard))
+
+    def get_whiteboard(self, bug_id):
+        return "fake data"

@@ -42,6 +42,7 @@ class GitHub(object):
     def create_pull(self, title, body, base, head):
         try:
             pr = self.repo.create_pull(title=title, body=body, base=base, head=head)
+            logger.info("Created PR %s" % pr.number)
         except github.GithubException:
             # Check if there's already a PR for this head
             user = self.repo_name.split("/")[0]
@@ -75,6 +76,7 @@ class GitHub(object):
                                   **kwargs)
 
     def add_labels(self, pr_id, *labels):
+        logger.debug("Adding labels %s to PR %s" % (", ".join(labels), pr_id))
         issue = self.repo.get_issue(pr_id)
         issue.add_to_labels(*labels)
 

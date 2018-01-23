@@ -14,9 +14,4 @@ services:
      - ${DEV_PROJECT_ROOT:-.}:/app/wpt-sync
      - ${DEV_REPO_ROOT:-./repos}:/app/repos
      - ${DEV_WORKSPACE:-./workspace}:/app/workspace
-    #environment:
-     # See start_wptsync.sh
-     # - WPTSYNC_CREDS=/app/wpt-sync/credentials.ini
-     # - WPTSYNC_SSH_CONFIG=${DEV_SSH_CONFIG}
-     # - WPTSYNC_HGMO_SSH_KEY=${DEV_HGMO_SSH_KEY}
-     # - WPTSYNC_GH_SSH_KEY=${DEV_GH_SSH_KEY}
+     - ${DEV_CREDS:-./credentials.ini}:/app/workspace/credentials.ini

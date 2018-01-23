@@ -40,7 +40,8 @@ class DownstreamSync(base.SyncProcess):
         bug = env.bz.new(summary="[wpt-sync] PR %s - %s" % (pr_id, pr_title),
                          comment=env.gh_wpt.cleanup_pr_body(pr_body),
                          product="Testing",
-                         component="web-platform-tests")
+                         component="web-platform-tests",
+                         whiteboard="[wptsync downstream]")
         sync.bug = bug
         return sync
 
@@ -348,6 +349,8 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
             raise
         traceback.print_exc()
         logger.error(e)
+    else:
+        sync.error = None
     # Now wait for the status to change before we take any actions
 
 
@@ -378,6 +381,8 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
             raise
         traceback.print_exc()
         logger.error(e)
+    else:
+        sync.error = None
 
 
 @base.entry_point("downstream")

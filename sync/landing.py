@@ -69,7 +69,8 @@ class LandingSync(base.SyncProcess):
             bug = env.bz.new("Update web-platform-tests to %s" % wpt_head,
                              "",
                              "Testing",
-                             "web-platform-tests")
+                             "web-platform-tests",
+                             whiteboard="[wptsync landing]")
 
         return super(LandingSync, cls).new(git_gecko, git_wpt,
                                            gecko_base,
