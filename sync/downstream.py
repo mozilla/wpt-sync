@@ -341,18 +341,22 @@ class DownstreamSync(base.SyncProcess):
         if self.results_notified:
             return
 
+        logger.info("Trying to generate results notification for PR %s" % self.pr)
+
         complete_try_push = None
-        for try_push in sorted(self.try_pushes(), key=lambda x: -x.seq_id):
+        for try_push in sorted(self.try_pushes(), key=lambda x: -x._ref._process_name.seq_id):
             if try_push.status == "complete" and not try_push.stability:
                 complete_try_push = try_push
                 break
 
         if not complete_try_push:
+            logger.info("No complete try push available for PR %s" % self.pr)
             return
 
         # Get the list of central tasks and download the wptreport logs
         central_tasks = notify.get_central_tasks(self.git_gecko, self)
         if not central_tasks:
+            logger.info("Not all mozilla-central results avaiable for PR %s" % self.pr)
             return
 
         try_tasks = complete_try_push.wpt_tasks()
