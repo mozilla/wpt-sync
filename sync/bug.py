@@ -21,14 +21,6 @@ def bug_number_from_url(url):
     return urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
 
 
-def get_whiteboard(bug):
-    return bug._bug.get("whiteboard", "")
-
-
-def set_whiteboard(bug, value):
-    bug._bug["whiteboard"] = value
-
-
 status_re = re.compile("\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
 
 
@@ -99,7 +91,7 @@ class Bugzilla(object):
                         product=product,
                         component=component)
         if whiteboard:
-            set_whiteboard(bug, whiteboard)
+            self.set_whiteboard(bug.id, whiteboard)
         bug.add_comment(comment)
 
         self.bugzilla.put(bug)
@@ -126,12 +118,12 @@ class Bugzilla(object):
 
     def set_whiteboard(self, bug_id, whiteboard):
         bug = self._get_bug(bug_id)
-        set_whiteboard(bug, whiteboard)
+        bug._bug["whiteboard"] = whiteboard
         self.bugzilla.put(bug)
 
     def get_whiteboard(self, bug_id):
         bug = self._get_bug(bug_id)
-        return get_whiteboard(bug, whiteboard)
+        return bug._bug.get("whiteboard", "")
 
 
 class MockBugzilla(Bugzilla):
