@@ -2,8 +2,8 @@ import os
 import requests
 import shutil
 import traceback
+import urlparse
 import uuid
-from collections import defaultdict
 
 import slugid
 
@@ -11,6 +11,7 @@ import log
 
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
+TREEHERDER_BASE = "https://treeherder.mozilla.org/"
 
 logger = log.get_logger(__name__)
 
@@ -44,6 +45,11 @@ def is_build(task):
 def filter_suite(tasks, suite):
     # expects return value from get_tasks_in_group
     return [t for t in tasks if is_suite(t, suite)]
+
+
+def is_complete(tasks):
+    return not any(task.get("status", {}).get("state", "pending") in ("pending", "running")
+                   for task in tasks)
 
 
 def get_tasks_in_group(group_id):
@@ -136,3 +142,47 @@ def parse_job_name(job_name):
     job_name = job_name.replace()
 
     return job_name
+
+
+def fetch_json(url, params=None):
+    headers = {
+        'Accept': 'application/json',
+        'User-Agent': 'wpt-sync',
+    }
+    response = requests.get(url=url, params=params, headers=headers, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def get_taskgroup_id(project, revision):
+    resultset_url = urlparse.urljoin(TREEHERDER_BASE,
+                                     "/api/project/%s/resultset/" % project)
+    resultset_params = {
+        'revision': revision,
+    }
+
+    revision_data = fetch_json(resultset_url, resultset_params)
+    result_set = revision_data["results"][0]["id"]
+
+    jobs_url = urlparse.urljoin(TREEHERDER_BASE, "/api/project/%s/jobs/" % project)
+    jobs_params = {
+        'result_set_id': result_set,
+        'count': 2000,
+        'exclusion_profile': 'false',
+        'job_type_name': "Gecko Decision Task",
+    }
+    jobs_data = fetch_json(jobs_url, params=jobs_params)
+
+    if not jobs_data["results"]:
+        logger.info("No decision task found for %s %s" % (project, revision))
+
+    if len(jobs_data["results"]) > 1:
+        logger.warning("Multiple decision tasks found for %s" % revision)
+
+    job_id = jobs_data["results"][-1]["id"]
+
+    job_url = urlparse.urljoin(TREEHERDER_BASE, "/api/project/%s/jobs/%s/" %
+                               (project, job_id))
+    job_data = fetch_json(job_url)
+
+    return normalize_task_id(job_data["taskcluster_metadata"]["task_id"])

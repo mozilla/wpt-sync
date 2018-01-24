@@ -83,6 +83,14 @@ class DownstreamSync(base.SyncProcess):
         self.data["metadata-ready"] = value
 
     @property
+    def results_notified(self):
+        return self.data.get("results-notified", False)
+
+    @results_notified.setter
+    def results_notified(self, value):
+        self.data["results-notified"] = value
+
+    @property
     def wpt(self):
         git_work = self.wpt_worktree.get()
         return WPT(os.path.join(git_work.working_dir))
@@ -91,6 +99,9 @@ class DownstreamSync(base.SyncProcess):
         if action == "closed" and not merge_sha:
             self.pr_status = "closed"
             self.finish()
+        elif action == "closed":
+            # If we can, try to add a notification to the bug
+            self.try_notify()
         elif action == "reopened" or action == "open":
             self.status = "open"
             self.pr_status = "open"
@@ -326,6 +337,31 @@ class DownstreamSync(base.SyncProcess):
 
         return disabled
 
+    def try_notify(self):
+        if self.results_notified:
+            return
+
+        complete_try_push = None
+        for try_push in sorted(self.try_pushes(), key=lambda x: -x.seq_id):
+            if try_push.status == "complete" and not try_push.stability:
+                complete_try_push = try_push
+                break
+
+        if not complete_try_push:
+            return
+
+        # Get the list of central tasks and download the wptreport logs
+        central_tasks = notify.get_central_tasks(self.git_gecko, self)
+        if not central_tasks:
+            return
+
+        try_tasks = complete_try_push.wpt_tasks()
+        complete_try_push.download_logs(report=True, raw=False)
+
+        msg = notify.get_msg(try_tasks, central_tasks)
+        env.bz.comment(self.bug, msg)
+        self.results_notified = True
+
 
 @base.entry_point("downstream")
 def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
@@ -391,7 +427,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     # Ensure we don't have some old set of tasks
     try_push.wpt_tasks(force_update=True)
     if not try_push.success():
-        log_files = try_push.download_logs()
+        log_files = try_push.download_raw_logs()
         if not log_files:
             raise ValueError("No log files found for try push %r" % try_push)
         disabled = sync.update_metadata(log_files, stability=try_push.stability)
@@ -413,3 +449,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         logger.info("Metadata is ready for PR %s" % (sync.pr))
         sync.metadata_ready = True
     try_push.status = "complete"
+
+    pr = env.gh.get_pull(self.pr)
+    if pr.merged:
+        sync.try_notify()

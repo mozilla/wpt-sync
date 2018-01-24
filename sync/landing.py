@@ -495,6 +495,10 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
     else:
         logger.info("Got existing try push %s" % landing.latest_try_push)
 
+    for _, sync, _ in commits:
+        if isinstance(sync, downstream.DownstreamSync):
+            sync.try_notify()
+
     return landing
 
 
@@ -515,4 +519,10 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     push(sync)
     for _, sync, _ in commits:
         if sync is not None:
+            if isinstance(sync, downstream.DownstreamSync):
+                # If we can't perform a notification by now it isn't ever going
+                # to work
+                sync.try_notify()
+                if not sync.results_notified:
+                    env.bz.comment(sync.bug, "Result changes from PR not available.")
             sync.finish()
