@@ -250,8 +250,6 @@ def do_fetch(git_gecko, git_wpt, *args, **kwargs):
             logger.debug(e.stderr)
         else:
             raise e
-    for key in c[name]["refs"].keys():
-        pyrepo.git.show_ref(c[name]["refs"][key])
 
 
 @with_lock
