@@ -312,9 +312,7 @@ class UpstreamSync(base.SyncProcess):
             logger.debug("Waiting for branch")
             time.sleep(1)
 
-        commit_summary = self.gecko_commits[0].commit.summary
-        summary_parts = commit_summary.split("-", 1)
-        summary = summary_parts[1] if len(summary_parts) > 1 else commit_summary
+        commit_summary = self.wpt_commits[0].commit.summary
 
         body = self.wpt_commits[0].msg.split("\n", 1)
         body = body[1] if len(body) != 1 else ""
