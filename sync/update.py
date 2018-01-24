@@ -1,7 +1,3 @@
-import urlparse
-
-import requests
-
 import downstream
 import log
 import tasks
@@ -153,18 +149,7 @@ def update_from_github(git_gecko, git_wpt):
         update_pr(git_gecko, git_wpt, pr)
 
 
-def fetch_json(url, params=None):
-    headers = {
-        'Accept': 'application/json',
-        'User-Agent': 'wpt-sync',
-    }
-    response = requests.get(url=url, params=params, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.json()
-
-
 def update_taskgroup_ids(git_gecko, git_wpt):
-    treeherder_base = "https://treeherder.mozilla.org/"
     for sync in downstream.DownstreamSync.load_all(git_gecko, git_wpt):
         try_push = sync.latest_try_push
 
@@ -172,35 +157,7 @@ def update_taskgroup_ids(git_gecko, git_wpt):
             continue
 
         if not try_push.taskgroup_id:
-            resultset_url = urlparse.urljoin(treeherder_base, "/api/project/try/resultset/")
-            resultset_params = {
-                'revision': try_push.try_rev,
-            }
-
-            revision_data = fetch_json(resultset_url, resultset_params)
-            result_set = revision_data["results"][0]["id"]
-
-            jobs_url = urlparse.urljoin(treeherder_base, "/api/project/try/jobs/")
-            jobs_params = {
-                'result_set_id': result_set,
-                'count': 2000,
-                'exclusion_profile': 'false',
-                'job_type_name': "Gecko Decision Task",
-            }
-            jobs_data = fetch_json(jobs_url, params=jobs_params)
-
-            if not jobs_data["results"]:
-                logger.info("No decision task found for %s" % try_push.try_rev)
-
-            if len(jobs_data["results"]) > 1:
-                logger.warning("Multiple decision tasks found for %s" % try_push.try_rev)
-
-            job_id = jobs_data["results"][-1]["id"]
-
-            job_url = urlparse.urljoin(treeherder_base, "/api/project/try/jobs/%s/" % job_id)
-            job_data = fetch_json(job_url)
-
-            taskgroup_id = job_data["taskcluster_metadata"]["task_id"]
+            taskgroupId = taskcluster.get_taskgroup_id(try_push.try_rev)
 
             handle_sync("task", {"origin": {"revision": try_push.try_rev},
                                  "taskId": taskgroup_id,

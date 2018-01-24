@@ -1,3 +1,6 @@
+import copy
+import io
+import json
 import os
 import shutil
 import subprocess
@@ -405,3 +408,60 @@ def set_pr_status(git_gecko, git_wpt):
                                   "success", "http://test/", pr["head"])
         return sync
     return inner
+
+
+@pytest.fixture
+def wptreport_json_data():
+    base_results = [
+        {'test': '/test1.html',
+         'message': None,
+         'status': 'OK',
+         'subtests': [{'message': None, 'name': 'Subtest 1', 'status': 'PASS'},
+                      {'message': None, 'name': 'Subtest 2', 'status': 'PASS'},
+                      {'message': None, 'name': 'Subtest 3', 'status': 'FAIL'}],
+        },
+        {'message': None,
+         'status': 'PASS',
+         'subtests': [],
+         'test': '/test2.html'},
+        {'message': None,
+         'status': 'FAIL',
+         'subtests': [],
+         'test': '/test3.html'}]
+
+    new_results_1 = copy.deepcopy(base_results)
+    new_results_1[0]["subtests"][1]["status"] = "FAIL"
+    new_results_1[0]["subtests"].append({"status": "FAIL",
+                                         "message": None,
+                                         "name": "Subtest 4"})
+    new_results_1[1]["status"] = "FAIL"
+    new_results_1[2]["status"] = "CRASH"
+    new_results_1.extend([{"test": "/test4.html",
+                           "status": "FAIL",
+                           "message": None,
+                           "subtests": []},
+                          {"test": "/test5.html",
+                           "status": "PASS",
+                           "message": None,
+                           "subtests": []}])
+
+    new_results_2 = copy.deepcopy(new_results_1)
+    # On the second platform remove a crash, a regression, and a new failure
+    new_results_2[0]["subtests"][1]["status"] = "PASS"
+    new_results_2[2]["status"] = "FAIL"
+    new_results_2[3]["status"] = "PASS"
+
+    return {
+        "central.json": json.dumps({"results": base_results}),
+        "try1.json": json.dumps({"results": new_results_1}),
+        "try2.json": json.dumps({"results": new_results_2}),
+    }
+
+
+@pytest.fixture
+def open_wptreport_path(wptreport_json_data):
+    def mock_open(path, *args):
+        if path in wptreport_json_data:
+            return io.BytesIO(wptreport_json_data[path])
+        return open(path, *args)
+    return mock_open

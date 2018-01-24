@@ -14,6 +14,12 @@ class Result(object):
         self.new_result = new_result
         self.previous_result = None
 
+    def __str__(self):
+        return "(%s, %s)" % (self.previous_result, self.new_result)
+
+    def __repr__(self):
+        return "Result<(%s, %s)>" % (self.previous_result, self.new_result)
+
     def is_crash(self):
         return self.new_result == "CRASH"
 
@@ -38,9 +44,9 @@ def parse_logs(job_logs, log_data, new=True):
 
         for log in logs:
             with open(log) as f:
-                log_data = json.load(f)
+                data = json.load(f)
 
-            for test in log_data["results"]:
+            for test in data["results"]:
                 if new:
                     subtest_results = {}
                     log_data[job_name][test["test"]] = (Result(test["status"]),
@@ -53,7 +59,7 @@ def parse_logs(job_logs, log_data, new=True):
                         continue
                 for subtest in test["subtests"]:
                     if new:
-                        subtest_results[subtest["name"]] = subtest["status"]
+                        subtest_results[subtest["name"]] = Result(subtest["status"])
                     else:
                         if subtest["name"] in subtest_results:
                             subtest_results[subtest["name"]].previous_result = subtest["status"]
@@ -67,21 +73,21 @@ def get_central_tasks(git_gecko, sync):
     taskgroup_id = taskcluster.get_taskgroup_id("mozilla-central",
                                                 central_commit.canonical_rev)
     if taskgroup_id is None:
-        return False
+        return None
 
     taskgroup_id = taskcluster.normalize_task_id(taskgroup_id)
     tasks = taskcluster.get_tasks_in_group(taskgroup_id)
 
-    if not tasks:
-        return False
+    wpt_tasks = taskcluster.filter_suite(tasks, "web-platform-tests")
+
+    if not wpt_tasks:
+        return None
 
     # Check if the job is complete
-    for task in tasks:
+    for task in wpt_tasks:
         state = task.get("status", {}).get("state")
         if state in (None, "pending", "running"):
-            return False
-
-    wpt_tasks = taskcluster.filter_suite(tasks, "web-platform-tests")
+            return None
 
     dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                         "central", central_commit.sha1)
@@ -149,12 +155,14 @@ def get_details(log_data):
         key = None
         if result.is_crash():
             key = "crash"
-        if result.is_new_non_passing():
+        elif result.is_new_non_passing():
             key = "new_not_pass"
         elif result.is_regression():
             key = "worse_result"
         elif result.is_disabled():
             key = "disabled"
+        if not key:
+            return
 
         target = details[key]
         for extra in keys:
@@ -171,9 +179,11 @@ def get_details(log_data):
     return details
 
 
-def consistent(results):
-    target = results.itervalues().next()
-    return all(value == target for value in results.itervalues())
+def consistent(results, job_names):
+    if len(results) == len(job_names):
+        target = results.itervalues().next()
+        return all(value == target for value in results.itervalues())
+    return False
 
 
 def group(results):
@@ -183,13 +193,20 @@ def group(results):
     return by_value
 
 
-def value_str(results, merge_consistent):
-    if merge_consistent and consistent(results):
-        value = "%s" % parent_tests.itervalues().next()
+def value_str(results, job_names, include_result=True):
+    if consistent(results, job_names):
+        if include_result:
+            value = results.itervalues().next()
+        else:
+            value = ""
     else:
         by_value = group(results)
-        value = "%s" % (", ".join("%s[%s]" % ((count, ",".join(sorted(job_names)))
-                                              for count, job_name in by_value.iteritems())))
+        if include_result:
+            value = ", ".join("%s[%s]" % (result, ",".join(sorted(job_name)))
+                              for result, job_name in by_value.iteritems())
+        else:
+            value = ", ".join("[%s]" % ",".join(sorted(job_name))
+                              for job_name in by_value.itervalues())
     return value
 
 
@@ -200,7 +217,7 @@ def message(job_names, summary, details):
 
     suffix = "\n(truncated for maximum comment length)"
 
-    message = summary_message(summary)
+    message = summary_message(job_names, summary)
     for part in details_message(job_names, details):
         if len(message) + len(part) + 1 > MAX_LENGTH - len(suffix):
             message += suffix
@@ -210,15 +227,15 @@ def message(job_names, summary, details):
     return message
 
 
-def summary_message(summary):
+def summary_message(job_names, summary):
     parent_tests = summary["parent_tests"]
-    parent_summary = "Ran %s tests" % value_str(parent_tests, True)
+    parent_summary = "Ran %s tests" % value_str(parent_tests, job_names)
 
     subtests = summary["subtests"]
     if not subtests:
         subtest_summary = ""
     else:
-        subtest_summary = " and %s subtests" % value_str(subtests, True)
+        subtest_summary = " and %s subtests" % value_str(subtests, job_names)
 
     results_summary = []
 
@@ -228,34 +245,37 @@ def summary_message(summary):
         if result in summary:
             result_data = summary[result]
             results_summary.append("%s: %s" % (result.ljust(max_width),
-                                               value_str(result_data, True)))
+                                               value_str(result_data, job_names)))
 
     return """%s%s
-
-%s""" % (parent_summary, subtest_summary, "\n".join(results_summary))
+%s
+""" % (parent_summary, subtest_summary, "\n".join(results_summary))
 
 
 def details_message(job_names, details):
     msg_parts = []
 
-    for key, intro, include_result in [("crash", "The following tests crash:", False),
-                                       ("worse_result", "The following tests have a worse result "
+    def new_results(results):
+        return {k: v.new_result for k,v in results.iteritems()}
+
+    for key, intro, include_result in [("crash", "These tests crash:", False),
+                                       ("worse_result", "These tests have a worse result "
                                         "after import (e.g. they used to PASS and now FAIL)", True),
-                                       ("new_not_pass", "The following new tests don't PASS "
+                                       ("new_not_pass", "These new tests don't PASS "
                                         "on all platforms", True),
-                                       ("disabled", "The following tests are disabled", False)]:
-        part_parts = [intro, ""]
+                                       ("disabled", "These tests are disabled", False)]:
+        part_parts = [intro]
         data = details[key]
         if not data:
             continue
         for parent_test, (results, subtests) in sorted(data.iteritems()):
             test_str = []
             if results:
-                if len(results) == len(job_names) or not include_result:
+                value = value_str(new_results(results), job_names, include_result)
+                if not value:
                     test_str.append(parent_test)
                 else:
-                    test_str.append("%s: " % parent_test)
-                    test_str.append(value_str(group(results), False))
+                    test_str.append("%s: %s" % (parent_test, value))
             else:
                 test_str.append(parent_test)
 
@@ -263,11 +283,11 @@ def details_message(job_names, details):
             if subtests:
                 for title, subtest_results in sorted(subtests.iteritems()):
                     subtest_str = ["    "]
-                    if len(subtest_results) == len(job_names) or not include_result:
-                        subtest_str.append(title)
+                    value = value_str(new_results(subtest_results), job_names, include_result)
+                    if value:
+                        subtest_str.append("%s: %s" % (title, value))
                     else:
-                        subtest_str.append("%s: " % title)
-                        subtest_str.append(value_str(group(subtest_results), False))
+                        subtest_str.append(title)
                     part_parts.append("".join(subtest_str))
-            msg_parts.append("\n".join(part_parts))
+        msg_parts.append("\n".join(part_parts) + "\n")
     return msg_parts
