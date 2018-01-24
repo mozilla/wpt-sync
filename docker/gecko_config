@@ -8,7 +8,6 @@
     pushurl = hg::ssh://hg.mozilla.org/try
     push = +HEAD:refs/heads/branches/default/tip
     skipDefaultUpdate = True
-    push = +HEAD:refs/heads/branches/default/tip
 [fetch]
     prune = true
 [remote "mozilla"]

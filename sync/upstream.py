@@ -3,6 +3,7 @@ import re
 import time
 import traceback
 
+import git
 from mozautomation import commitparser
 
 import base
@@ -66,7 +67,10 @@ class UpstreamSync(base.SyncProcess):
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
-        wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
+        try:
+            wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
+        except git.BadName:
+            return None
         head_matches = None
         for status in ["open", "complete", "incomplete"]:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")

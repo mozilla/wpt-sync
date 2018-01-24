@@ -90,9 +90,9 @@ class Bugzilla(object):
                         summary=summary,
                         product=product,
                         component=component)
-        if whiteboard:
-            self.set_whiteboard(bug.id, whiteboard)
         bug.add_comment(comment)
+        if whiteboard:
+            bug._bug["whiteboard"] = whiteboard
 
         self.bugzilla.put(bug)
         self.bug_cache[bug.id] = bug
@@ -116,13 +116,15 @@ class Bugzilla(object):
             except bugsy.BugsyException:
                 logger.error("Failed to set component %s :: %s" % (bug.product, bug.component))
 
-    def set_whiteboard(self, bug_id, whiteboard):
-        bug = self._get_bug(bug_id)
+    def set_whiteboard(self, bug, whiteboard):
+        if not isinstance(bugsy.Bug, bug):
+            bug = self._get_bug(bug)
         bug._bug["whiteboard"] = whiteboard
         self.bugzilla.put(bug)
 
-    def get_whiteboard(self, bug_id):
-        bug = self._get_bug(bug_id)
+    def get_whiteboard(self, bug):
+        if not isinstance(bugsy.Bug, bug):
+            bug = self._get_bug(bug)
         return bug._bug.get("whiteboard", "")
 
 
