@@ -323,7 +323,7 @@ class UpstreamSync(base.SyncProcess):
 
         remote_branch, _ = self.remote_branch()
         pr_id = env.gh_wpt.create_pull(
-            title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "", summary),
+            title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "", commit_summary),
             body=body.strip(),
             base="master",
             head=remote_branch)
