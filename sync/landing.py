@@ -504,7 +504,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
 
 @base.entry_point("landing")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
-    log_files = try_push.download_logs()
+    log_files = try_push.download_raw_logs()
     sync.update_metadata(log_files)
 
     try_push.status = "complete"

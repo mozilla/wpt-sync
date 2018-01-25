@@ -71,6 +71,7 @@ def get_tasks_in_group(group_id):
 
 
 def get_wpt_tasks(taskgroup_id):
+    logger.info("Getting wpt tasks for taskgroup %s" % taskgroup_id)
     tasks = get_tasks_in_group(taskgroup_id)
     wpt_tasks = filter_suite(tasks, "web-platform-tests")
     return wpt_tasks
@@ -90,6 +91,7 @@ def download_logs(tasks, destination, retry=5, raw=True, report=True):
 
     urls = [ARTIFACTS_BASE + "{task}/{run}/public/test_info//%s" % file_name
             for file_name in file_names]
+    logger.info("Downloading logs to %s" % destination)
     for task in tasks:
         status = task.get("status", {})
         for run in status.get("runs", []):
@@ -135,11 +137,10 @@ def parse_job_name(job_name):
     if job_name.startswith("test-"):
         job_name = job_name[len("test-"):]
     if "web-platform-tests" in job_name:
-        job_name = job_name[job_name.index("web-platform-tests"):]
+        job_name = job_name[:job_name.index("web-platform-tests")]
     job_name = job_name.rstrip("-")
 
     job_name = job_name.replace("/", "-")
-    job_name = job_name.replace()
 
     return job_name
 

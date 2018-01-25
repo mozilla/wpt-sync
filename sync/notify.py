@@ -2,9 +2,12 @@ import json
 import os
 from collections import defaultdict
 
+import log
 import taskcluster
 import commit as sync_commit
 from env import Environment
+
+logger = log.get_logger(__name__)
 
 env = Environment()
 
@@ -44,7 +47,13 @@ def parse_logs(job_logs, log_data, new=True):
 
         for log in logs:
             with open(log) as f:
-                data = json.load(f)
+                # Seems we sometimes get Access Denied messages; it's not clear what the
+                # right thing to do in this case is
+                try:
+                    data = json.load(f)
+                except ValueError:
+                    logger.warning("Failed to parse %s as JSON" % f.name)
+                    continue
 
             for test in data["results"]:
                 if new:

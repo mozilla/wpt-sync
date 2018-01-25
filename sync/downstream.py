@@ -13,6 +13,7 @@ from collections import defaultdict
 import base
 import bugcomponents
 import log
+import notify
 import commit as sync_commit
 from env import Environment
 from gitutils import pr_for_commit, update_repositories
@@ -340,6 +341,9 @@ class DownstreamSync(base.SyncProcess):
     def try_notify(self):
         if self.results_notified:
             return
+
+        if not self.bug:
+            logger.error("Sync has no associated bug")
 
         logger.info("Trying to generate results notification for PR %s" % self.pr)
 

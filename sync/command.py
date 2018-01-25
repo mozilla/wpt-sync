@@ -92,6 +92,11 @@ def get_parser():
     parser_status.add_argument("--seq-id",  nargs="?", default="*", help="Sequence number")
     parser_status.set_defaults(func=do_status)
 
+    parser_notify = subparsers.add_parser("notify", help="Run the tests with pytest")
+    parser_notify.add_argument("pr_id", help="PR for which to run notification code")
+    parser_notify.add_argument("--force", action="store_true", help="Run even if the sync is already marked as notified")
+    parser_notify.set_defaults(func=do_notify)
+
     parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
     parser_test.add_argument("args", nargs="*", help="Arguments to pass to pytest")
     parser_test.set_defaults(func=do_test)
@@ -290,6 +295,24 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     for obj in objs:
         obj.status = kwargs["new_status"]
 
+
+@with_lock
+def do_notify(git_gecko, git_wpt, pr_id, **kwargs):
+    import downstream
+    sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+    if sync is None:
+        logger.error("No active sync for PR %s" % pr_id)
+        return
+    old_notified = None
+    if kwargs["force"]:
+        old_notified = sync.results_notified
+        sync.results_notified = False
+    try:
+        sync.try_notify()
+    finally:
+        # Reset the notification status if it was set before and isn't now
+        if not sync.results_notified and old_notified:
+            sync.results_notified = True
 
 def do_test(*args, **kwargs):
     args = kwargs["args"]
