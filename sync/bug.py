@@ -117,13 +117,13 @@ class Bugzilla(object):
                 logger.error("Failed to set component %s :: %s" % (bug.product, bug.component))
 
     def set_whiteboard(self, bug, whiteboard):
-        if not isinstance(bugsy.Bug, bug):
+        if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         bug._bug["whiteboard"] = whiteboard
         self.bugzilla.put(bug)
 
     def get_whiteboard(self, bug):
-        if not isinstance(bugsy.Bug, bug):
+        if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         return bug._bug.get("whiteboard", "")
 
