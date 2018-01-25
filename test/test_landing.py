@@ -57,7 +57,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 
     try_push = sync.latest_try_push
 
-    try_push.download_logs = lambda: []
+    try_push.download_raw_logs = lambda: []
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     assert sync.status == "complete"
@@ -154,7 +154,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     assert sync is not None
 
     try_push = sync.latest_try_push
-    try_push.download_logs = lambda: []
+    try_push.download_raw_logs = lambda: []
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
