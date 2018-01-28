@@ -148,14 +148,14 @@ To attempt reapplying a diff to gecko that comes from upstream, use a
 git command like
 
 ```
-git apply --reject --directory=testing/web-platform/tests <sha1.diff>
+git apply --binary --index --reject --directory=testing/web-platform/tests <sha1.diff>
 ```
 
 To attempt to reapply a diff to upstream that comes from gecko, use a
 git command like
 
 ```
-git apply --reject -p4 <sha1.diff>
+git apply --binary --index --reject -p4 <sha1.diff>
 ```
 
 When the patch is successfully applied to the index, the commit must be
