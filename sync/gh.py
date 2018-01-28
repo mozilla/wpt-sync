@@ -53,7 +53,7 @@ class GitHub(object):
             elif len(entries) > 1:
                 raise ValueError("Found multiple existing pulls for branch")
             pr = pulls[0]
-        self.add_labels(pr.id, "mozilla:gecko-sync")
+        self.add_labels(pr.number, "mozilla:gecko-sync")
         self.pr_cache[pr.number] = pr
         return pr.number
 
