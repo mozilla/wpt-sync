@@ -6,14 +6,14 @@ bugsy==0.10.1 \
     --hash=sha256:e42ef4a1f6f7e633bdb0f699b5f41ae94754101ca91682b376bd058478ef9456
 celery==4.1.0 \
     --hash=sha256:81a67f0d53a688ec2bc8557bd5d6d7218f925a6f2e6df80e01560de9e28997ec
-certifi==2017.11.5 \
-    --hash=sha256:244be0d93b71e93fc0a0a479862051414d0e00e16435707e5bf5000f92e04694
+certifi==2018.01.18 \
+    --hash=sha256:14131608ad2fd56836d33a71ee60fa1c82bc9d2c8d98b7bdbc631fe1b3cd1296
 chardet==3.0.4 \
     --hash=sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691
 enum34==1.1.6 \
     --hash=sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79
-filelock==2.0.13 \
-    --hash=sha256:d05079e7d7cae7576e192749d3461999ca6b0843d35b0f79f1fa956b0f6fc7d8
+filelock==3.0.0 \
+    --hash=sha256:b3ad481724adfb2280773edd95ce501e497e88fa4489c6e41e637ab3fd9a456c
 gitdb2==2.0.3 \
     --hash=sha256:cf9a4b68e8c4da8d42e48728c944ff7af2d8c9db303ac1ab32eac37aa4194b0e
 GitPython==2.1.8 \

@@ -25,7 +25,6 @@ setup(
         'enum34>=1.1.6',
         'GitPython>=2.1.8',
         'PyGithub>=1.35',
-        # git-cinnabar breaks with Mercurial 4.4
         'Mercurial>=4.4',
         'requests>=2.18',
         'filelock>=2.0.13',
