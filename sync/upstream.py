@@ -427,11 +427,12 @@ def wpt_commits(git_gecko, first_commit, head_commit):
     # List of syncs that have changed, so we can update them all as appropriate at the end
     revish = "%s..%s" % (first_commit.sha1, head_commit.sha1)
     logger.info("Getting commits in range %s" % revish)
-    return [sync_commit.GeckoCommit(git_gecko, item.hexsha) for item in
-            git_gecko.iter_commits(revish,
-                                   paths=env.config["gecko"]["path"]["wpt"],
-                                   reverse=True,
-                                   max_parents=1)]
+    commits = [sync_commit.GeckoCommit(git_gecko, item.hexsha) for item in
+               git_gecko.iter_commits(revish,
+                                      paths=env.config["gecko"]["path"]["wpt"],
+                                      reverse=True,
+                                      max_parents=1)]
+    return [item for item in commits if not item.metadata.get("wptsync-skip")]
 
 
 def remove_complete_backouts(commits):
