@@ -187,8 +187,6 @@ class GeckoCommit(Commit):
     def bug(self):
         bugs = commitparser.parse_bugs(self.commit.message.split("\n")[0])
         if len(bugs) > 1:
-            import traceback
-            traceback.print_stack()
             logger.warning("Got multiple bugs for commit %s: %s" %
                            (self.canonical_rev,  ", ".join(str(item) for item in bugs)))
         if not bugs:
