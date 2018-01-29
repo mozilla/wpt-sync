@@ -607,7 +607,7 @@ class SyncProcess(object):
     def wpt_commit_filter(self):
         return CommitFilter()
 
-    def update_status(self, action, merged):
+    def update_status(self, action, merged, wpt_base):
         """Update the status of the sync for a PR change"""
         pass
 

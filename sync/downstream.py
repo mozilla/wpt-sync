@@ -96,11 +96,13 @@ class DownstreamSync(base.SyncProcess):
         git_work = self.wpt_worktree.get()
         return WPT(os.path.join(git_work.working_dir))
 
-    def update_status(self, action, merge_sha=None):
+    def update_status(self, action, merge_sha=None, wpt_base=None):
         if action == "closed" and not merge_sha:
             self.pr_status = "closed"
             self.finish()
         elif action == "closed":
+            # We are storing the wpt base as a reference
+            self.data["wpt-base"] = wpt_base
             # If we can, try to add a notification to the bug
             self.try_notify()
         elif action == "reopened" or action == "open":

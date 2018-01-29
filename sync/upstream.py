@@ -133,7 +133,7 @@ class UpstreamSync(base.SyncProcess):
         return all(item in sync_commit.get_metadata(message)
                    for item in required_keys)
 
-    def update_status(self, action, merge_sha=None):
+    def update_status(self, action, merge_sha=None, base_sha=None):
         """Update the sync status for a PR event on github
 
         :param action string: Either a PR action or a PR status
