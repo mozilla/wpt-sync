@@ -1,6 +1,5 @@
 import downstream
 import log
-import tasks
 import taskcluster
 import upstream
 from env import Environment
@@ -124,8 +123,7 @@ def update_pr(git_gecko, git_wpt, pr):
                                      "state": "success",
                                      "description": None,
                                      "target_url": None,
-                                     "branches": []
-                                    })
+                                     "branches": []})
             args = ("github", event)
             handle_sync(*args)
     elif isinstance(sync, upstream.UpstreamSync):
@@ -158,7 +156,6 @@ def update_taskgroup_ids(git_gecko, git_wpt):
 
         if not try_push.taskgroup_id:
             taskgroup_id, status = taskcluster.get_taskgroup_id("try", try_push.try_rev)
-
             handle_sync("task", {"origin": {"revision": try_push.try_rev},
                                  "taskId": taskgroup_id,
                                  "result": status})

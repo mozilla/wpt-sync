@@ -71,7 +71,6 @@ class UpstreamSync(base.SyncProcess):
             wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
         except git.BadName:
             return None
-        head_matches = None
         for status in ["open", "complete", "incomplete"]:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
 
@@ -96,7 +95,7 @@ class UpstreamSync(base.SyncProcess):
 
         for gh_commit in commits:
             commit = sync_commit.WptCommit(git_wpt, gh_commit.sha)
-            if all(required_keys) in commit.metadata:
+            if cls.has_metadata(commit.message):
                 gecko_commits.append(git_gecko.cinnabar.hg2git(commit.metadata["gecko-commit"]))
                 commit_bug = env.bz.id_from_url(commit.metadata["bugzilla-url"])
                 if bug is not None and commit_bug != bug:
@@ -130,8 +129,8 @@ class UpstreamSync(base.SyncProcess):
         required_keys = ["gecko-commit",
                          "gecko-integration-branch",
                          "bugzilla-url"]
-        return all(item in sync_commit.get_metadata(message)
-                   for item in required_keys)
+        metadata = sync_commit.get_metadata(message)
+        return all(item in metadata for item in required_keys)
 
     def update_status(self, action, merge_sha=None, base_sha=None):
         """Update the sync status for a PR event on github
@@ -333,7 +332,10 @@ class UpstreamSync(base.SyncProcess):
                        "Created web-platform-tests PR %s for changes under "
                        "testing/web-platform/tests" %
                        env.gh_wpt.pr_url(pr_id))
-        #env.gh_wpt.approve_pull(pr_id)
+        try:
+            env.gh_wpt.approve_pull(pr_id)
+        except Exception:
+            logger.warning("Failed to mark upstream PR %s as approved" % pr_id)
         return pr_id
 
     def push_commits(self):
@@ -694,7 +696,7 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
 
     # TODO: check this name
     if git_gecko.is_ancestor(rev, env.config["gecko"]["refs"]["central"]):
-        landable_syncs = [item for item in wpt_syncs if not item in failed_syncs]
+        landable_syncs = [item for item in wpt_syncs if item not in failed_syncs]
         landed_syncs = try_land_syncs(landable_syncs)
     else:
         landed_syncs = set()

@@ -25,7 +25,7 @@ class TryCommit(object):
         self.worktree = worktree
         self.tests_by_type = tests_by_type
         self.rebuild = rebuild
-        self.hacks=hacks
+        self.hacks = hacks
         self.try_rev = None
         self.extra_args = kwargs
         self.reset = None
@@ -45,7 +45,6 @@ class TryCommit(object):
             logger.debug("Resetting working tree to %s" % self.reset)
             self.worktree.head.reset(self.reset, working_tree=True)
             self.reset = None
-
 
     def apply_hacks(self):
         # Some changes to forceably exclude certain default jobs that are uninteresting

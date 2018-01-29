@@ -93,7 +93,6 @@ class LandingSync(base.SyncProcess):
         return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
                                           self.branch_name)
 
-
     def add_pr(self, pr_id, wpt_commits):
         if len(wpt_commits) > 1:
             assert all(item.pr() == pr_id for item in wpt_commits)
@@ -189,7 +188,8 @@ Automatic update from web-platform-tests%s
                 commits.extend(branch_commits)
 
         # All the gecko commits that landed between the target sync point and master
-        unlanded_commits = self.git_wpt.iter_commits("%s..origin/master" % self.wpt_commits.head.sha1)
+        unlanded_commits = self.git_wpt.iter_commits("%s..origin/master" %
+                                                     self.wpt_commits.head.sha1)
         seen_bugs = set()
         for commit in unlanded_commits:
             wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
@@ -209,7 +209,7 @@ Automatic update from web-platform-tests%s
         # Order the commits according to the order in which they landed in gecko
         ordered_commits = []
         for commit in self.git_gecko.iter_commits(self.gecko_integration_branch(),
-                                                paths=env.config["gecko"]["path"]["wpt"]):
+                                                  paths=env.config["gecko"]["path"]["wpt"]):
             if commit.hexsha in commits:
                 ordered_commits.append(commit.hexsha)
                 commits.remove(commit.hexsha)
@@ -237,7 +237,8 @@ Automatic update from web-platform-tests%s
             raise AbortError(err_msg)
 
         gecko_commits = [sync_commit.GeckoCommit(self.git_gecko, item) for item in commits]
-        metadata = {"reapplied-commits": ", ".join(commit.canonical_rev for commit in gecko_commits)}
+        metadata = {"reapplied-commits": ", ".join(commit.canonical_rev
+                                                   for commit in gecko_commits)}
         new_message = sync_commit.Commit.make_commit_msg(landing_commit.msg, metadata)
         git_work_gecko.git.commit(amend=True, no_edit=True, message=new_message)
 

@@ -33,7 +33,7 @@ def get_parser():
     parser_update.set_defaults(func=do_update)
 
     parser_update_tasks = subparsers.add_parser("update-tasks",
-                                          help="Update the state of try pushes")
+                                                help="Update the state of try pushes")
     parser_update_tasks.add_argument("pr_id", nargs="?", help="Downstream PR id for sync to update")
     parser_update_tasks.set_defaults(func=do_update_tasks)
 
@@ -76,7 +76,7 @@ def get_parser():
     parser_upstream.set_defaults(func=do_upstream)
 
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
-    parser_delete.add_argument("sync_type",  help="Type of sync to delete")
+    parser_delete.add_argument("sync_type", help="Type of sync to delete")
     parser_delete.add_argument("obj_id", help="Bug or PR id for the sync")
     parser_delete.add_argument("--try", action="store_true", help="Delete try pushes for a sync")
     parser_delete.set_defaults(func=do_delete)
@@ -86,25 +86,30 @@ def get_parser():
                                help="Object type")
     parser_status.add_argument("sync_type", choices=["downstream", "upstream", "landing"],
                                help="Sync type")
-    parser_status.add_argument("obj_id",  help="Object id (pr number or bug)")
-    parser_status.add_argument("new_status",  help="Status to set")
+    parser_status.add_argument("obj_id", help="Object id (pr number or bug)")
+    parser_status.add_argument("new_status", help="Status to set")
     parser_status.add_argument("--old-status", default="*", help="Current status")
-    parser_status.add_argument("--seq-id",  nargs="?", default="*", help="Sequence number")
+    parser_status.add_argument("--seq-id", nargs="?", default="*", help="Sequence number")
     parser_status.set_defaults(func=do_status)
 
     parser_notify = subparsers.add_parser("notify", help="Run the tests with pytest")
     parser_notify.add_argument("pr_id", help="PR for which to run notification code")
-    parser_notify.add_argument("--force", action="store_true", help="Run even if the sync is already marked as notified")
+    parser_notify.add_argument("--force", action="store_true",
+                               help="Run even if the sync is already marked as notified")
     parser_notify.set_defaults(func=do_notify)
 
     parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
+    parser_test.add_argument("--no-flake8", dest="flake8", action="store_false",
+                             default=True, help="Arguments to pass to pytest")
     parser_test.add_argument("args", nargs="*", help="Arguments to pass to pytest")
     parser_test.set_defaults(func=do_test)
 
     parser_cleanup = subparsers.add_parser("cleanup", help="Run the cleanup code")
     parser_cleanup.set_defaults(func=do_cleanup)
 
-    parser_landable = subparsers.add_parser("landable", help="Display commits from upstream that are able to land")
+    parser_landable = subparsers.add_parser("landable",
+                                            help="Display commits from upstream "
+                                            "that are able to land")
     parser_landable.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landable.set_defaults(func=do_landable)
 
@@ -135,12 +140,9 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
     syncs = []
 
     def filter(sync):
-        return True
-
-    if kwargs["error"]:
-        def filter(sync):
+        if kwargs["error"]:
             return sync.error is not None
-
+        return True
 
     for cls in [upstream.UpstreamSync, downstream.DownstreamSync, landing.LandingSync]:
         if not sync_type or cls.sync_type in sync_type:
@@ -152,7 +154,8 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
         if sync.sync_type == "downstream":
             try_push = sync.latest_try_push
             if try_push:
-                extra.append("https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % sync.latest_try_push.try_rev)
+                extra.append("https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" %
+                             sync.latest_try_push.try_rev)
                 if try_push.taskgroup_id:
                     extra.append(try_push.taskgroup_id)
         error = sync.error
@@ -162,7 +165,8 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                                               sync.bug,
                                               sync.pr,
                                               " ".join(extra),
-                                            "ERROR: %s" % error["message"].split("\n", 1)[0] if error else ""))
+                                              "ERROR: %s" %
+                                              error["message"].split("\n", 1)[0] if error else ""))
 
 
 @with_lock
@@ -314,11 +318,18 @@ def do_notify(git_gecko, git_wpt, pr_id, **kwargs):
         if not sync.results_notified and old_notified:
             sync.results_notified = True
 
+
 def do_test(*args, **kwargs):
+    if kwargs.pop("flake8", True):
+        logger.info("Running flake8")
+        cmd = ["flake8"]
+        subprocess.check_call(cmd)
+
     args = kwargs["args"]
     if not any(item.startswith("test") for item in args):
         args.append("test")
 
+    logger.info("Running pytest")
     cmd = ["pytest", "-s", "-v", "-p no:cacheprovider"] + args
     subprocess.check_call(cmd)
 
@@ -347,7 +358,7 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         return
 
     wpt_head, commits = landable
-    print "Landing will update wpt head to %s" % wpt_head
+    print("Landing will update wpt head to %s" % wpt_head)
 
 
 def set_config(opts):

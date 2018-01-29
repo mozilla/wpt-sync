@@ -71,7 +71,7 @@ def test_parse_logs_multi(open_wptreport_path):
     details = notify.get_details(log_data)
 
     assert (notify.message(["test-1", "test-2"], summary, details) ==
-"""Ran 5 tests and 4 subtests
+            """Ran 5 tests and 4 subtests
 OK     : 1
 PASS   : 2[test-1], 4[test-2]
 CRASH  : 1[test-1]

@@ -44,4 +44,3 @@ def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status="*"):
     }
     cls = cls_types[sync_type]
     return cls.load_all(git_gecko, git_wpt, obj_id=obj_id, status=status)
-

@@ -36,7 +36,8 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     assert try_push.stability is False
     mach_command = mock_mach.get_log()[-1]
     assert mach_command["command"] == "mach"
-    assert mach_command["args"] == ("try", "fuzzy", "-q", "web-platform-tests !pgo !ccov", "--artifact")
+    assert mach_command["args"] == ("try", "fuzzy", "-q", "web-platform-tests !pgo !ccov",
+                                    "--artifact")
 
 
 def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
@@ -70,8 +71,8 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 
 
 def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                         hg_gecko_upstream, upstream_gecko_commit, upstream_wpt_commit, hg_gecko_try,
-                         mock_mach):
+                         hg_gecko_upstream, upstream_gecko_commit, upstream_wpt_commit,
+                         hg_gecko_try, mock_mach):
     # Test that we reapply the correct commits when landing patches on upstream
     # First we need to create 3 gecko commits:
     # Two that are landed
@@ -143,7 +144,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     # Add third gecko change
     test_changes = {"change3": "CHANGE3\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug="1113",
-                                  message="Add change3 file")
+                                message="Add change3 file")
     pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                  raise_on_error=True)
 

@@ -14,4 +14,4 @@ services:
      - ${DEV_PROJECT_ROOT:-.}:/app/wpt-sync
      - ${DEV_REPO_ROOT:-./repos}:/app/repos
      - ${DEV_WORKSPACE:-./workspace}:/app/workspace
-     - ${DEV_CREDS:-./credentials.ini}:/app/workspace/credentials.ini
+

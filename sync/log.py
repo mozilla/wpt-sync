@@ -2,13 +2,13 @@ import logging
 import os
 import sys
 from logging import handlers
-from celery.utils.log import get_task_logger
 
 import settings
 
 root = logging.getLogger()
 
 configured = set()
+
 
 @settings.configure
 def setup(config):

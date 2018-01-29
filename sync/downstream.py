@@ -16,7 +16,7 @@ import log
 import notify
 import commit as sync_commit
 from env import Environment
-from gitutils import pr_for_commit, update_repositories
+from gitutils import update_repositories
 from projectutil import Mach, WPT
 from trypush import TryPush
 

@@ -45,8 +45,8 @@ def parse_logs(job_logs, log_data, new=True):
         if not new and job_name not in log_data:
             continue
 
-        for log in logs:
-            with open(log) as f:
+        for log_path in logs:
+            with open(log_path) as f:
                 # Seems we sometimes get Access Denied messages; it's not clear what the
                 # right thing to do in this case is
                 try:
@@ -269,7 +269,7 @@ def details_message(job_names, details):
     msg_parts = []
 
     def new_results(results):
-        return {k: v.new_result for k,v in results.iteritems()}
+        return {k: v.new_result for k, v in results.iteritems()}
 
     for key, intro, include_result in [("crash", "These tests crash:", False),
                                        ("worse_result", "These tests have a worse result "

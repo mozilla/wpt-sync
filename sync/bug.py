@@ -145,8 +145,8 @@ class MockBugzilla(Bugzilla):
         self.output.write("\n")
 
     def new(self, summary, comment, product, component, whiteboard=None):
-        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\nWhiteboard: %s" % (
-            product, component, summary, comment, whiteboard))
+        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\nWhiteboard: %s" %
+                  (product, component, summary, comment, whiteboard))
         if self.known_bugs:
             bug_id = self.known_bugs[-1] + 1
         else:

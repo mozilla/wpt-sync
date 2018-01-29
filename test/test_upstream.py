@@ -94,7 +94,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
 
 
 def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
-                                  upstream_gecko_backout):
+                                       upstream_gecko_backout):
     bug = "1234"
     test_changes = {"README": "Change README\n"}
     rev0 = upstream_gecko_commit(test_changes=test_changes, bug=bug,
@@ -111,7 +111,8 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
     upstream_gecko_commit(other_changes=test_changes, bug="1235",
                           message="Change other file")
 
-    relanding_rev = upstream_gecko_commit(test_changes={"README": "Change README once more\n"}, bug=bug,
+    relanding_rev = upstream_gecko_commit(test_changes={"README": "Change README once more\n"},
+                                          bug=bug,
                                           message="Change README once more")
 
     upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
@@ -181,65 +182,3 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
 
     assert sync.gecko_landed()
     assert sync.status == "complete"
-
-
-
-# def test_create_pr_landing(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):
-#     path = os.path.join(hg_gecko_upstream.working_tree, config["gecko"]["path"]["wpt"], "README")
-#     with open(path, "w") as f:
-#         f.write("Example change\n")
-
-#     hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
-#     # This updates the bookmark for mozilla/inbound only
-#     hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
-#     upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
-#                                 hg_gecko_upstream.log("-l1", "--template={node}"),
-#                                 "mozilla-inbound")
-
-
-#     # Generate an empty merge commit between central and inbound
-#     # http://hgtip.com/tips/advanced/2010-04-23-debug-command-tricks/
-#     hg_gecko_upstream.checkout("mozilla/central")
-#     hg_gecko_upstream.debugsetparents("mozilla/central", "mozilla/inbound")
-#     hg_gecko_upstream.revert("-a", "-r", "mozilla/inbound")
-#     hg_gecko_upstream.commit("-m", "Merge mozilla/inbound to mozilla/central")
-
-#     upstream.landing_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
-#                             hg_gecko_upstream.log("-l1", "--template={node}"))
-
-#     session.commit()
-
-#     syncs = list(session.query(model.UpstreamSync))
-#     assert len(syncs) == 1
-#     sync = syncs[0]
-#     assert sync.repository.name == "central"
-#     assert "Merged PR with id %s" % sync.pr_id in gh_wpt.output.getvalue()
-#     assert "Merged associated web-platform-tests PR" in bz.output.getvalue()
-
-
-# def test_create_pr_backout_landing(config, session, hg_gecko_upstream, git_gecko, git_wpt, gh_wpt, bz):
-#     path = os.path.join(hg_gecko_upstream.working_tree, config["gecko"]["path"]["wpt"], "README")
-#     with open(path, "w") as f:
-#         f.write("Example change\n")
-
-#     hg_gecko_upstream.add(os.path.relpath(path, hg_gecko_upstream.working_tree))
-#     # This updates the bookmark for mozilla/inbound only
-#     commit = hg_gecko_upstream.commit("-m", "Bug 1111 - Change README")
-#     upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
-#                                 hg_gecko_upstream.log("-l1", "--template={node}"),
-#                                 "mozilla-inbound")
-
-#     head_rev = hg_gecko_upstream.log("-l1", "--template={node}").strip()
-
-#     hg_gecko_upstream.backout("-r", "tip", "-m", "Backed out changeset %s (Bug 1111)" % head_rev[:12])
-
-#     upstream.integration_commit(config, session, git_gecko, git_wpt, gh_wpt, bz,
-#                                 hg_gecko_upstream.log("-l1", "--template={node}"),
-#                                 "mozilla-inbound")
-
-#     session.commit()
-
-#     syncs = list(session.query(model.UpstreamSync))
-#     assert len(syncs) == 1
-#     sync = syncs[0]
-#     assert len(sync.gecko_commits) == 0

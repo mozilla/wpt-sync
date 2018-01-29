@@ -15,9 +15,9 @@ setup(
     ],
     packages=find_packages(),
     entry_points={
-       'console_scripts': [
-           'wptsync = sync.command:main'
-       ]
+        'console_scripts': [
+            'wptsync = sync.command:main'
+        ]
     },
     install_requires=[
         'bugsy>=0.10.1',

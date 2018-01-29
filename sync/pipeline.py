@@ -1,6 +1,3 @@
-import inspect
-import traceback
-
 import log
 
 logger = log.get_logger(__name__)

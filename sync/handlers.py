@@ -1,5 +1,4 @@
 import traceback
-import urlparse
 
 import downstream
 import log
@@ -8,7 +7,7 @@ import trypush
 import upstream
 import worktree
 from env import Environment
-from gitutils import is_ancestor, pr_for_commit, update_repositories, gecko_repo
+from gitutils import pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
 from taskcluster import normalize_task_id
 
@@ -86,7 +85,8 @@ def handle_status(git_gecko, git_wpt, event):
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
         # TODO: Handle this case
-        logger.info("Got a status update for PR %s which is unknown to us; starting downstreaming" % pr_id)
+        logger.info("Got a status update for PR %s which is unknown to us; starting downstreaming" %
+                    pr_id)
         from update import schedule_pr_task
         schedule_pr_task("opened", env.gh_wpt.get_pull(pr_id))
 
@@ -111,7 +111,6 @@ class GitHubHandler(Handler):
 
     def __call__(self, git_gecko, git_wpt, body):
         handler = self.dispatch_event[body["event"]]
-        print "Got GitHub Event %s %s" % (body["event"], handler)
         if handler:
             return handler(git_gecko, git_wpt, body["payload"])
         # TODO: other events to check if we can merge a PR

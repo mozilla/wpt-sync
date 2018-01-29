@@ -1,12 +1,10 @@
 import os
-
-import log
-import settings
 import socket
 import urlparse
 
 import kombu
 
+import log
 import handlers
 import tasks
 
@@ -212,8 +210,8 @@ class GitHubFilter(Filter):
 
     def accept(self, body):
         return (body["_meta"]["routing_key"].startswith(self.key_filter) and
-                body["event"] in self.event_filters
-                and self.event_filters[body["event"]](body))
+                body["event"] in self.event_filters and
+                self.event_filters[body["event"]](body))
 
 
 class PushFilter(Filter):
@@ -231,7 +229,6 @@ class PushFilter(Filter):
         repo = body["_meta"]["routing_key"]
         if "/" in repo:
             repo = repo.rsplit("/", 1)[1]
-        print body, repo, repo in self.repos
         return repo in self.repos
 
 
