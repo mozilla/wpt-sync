@@ -401,9 +401,10 @@ class TryPush(base.ProcessData):
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
         taskcluster.download_logs(wpt_tasks, dest, raw=raw, report=report)
+        return wpt_tasks
 
     def download_raw_logs(self):
-        self.download_logs(raw=True)
+        wpt_tasks = self.download_logs(raw=True)
         raw_logs = []
         for task in wpt_tasks:
             for run in task.get("status", {}).get("runs", []):

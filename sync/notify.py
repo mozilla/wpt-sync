@@ -79,9 +79,13 @@ def get_central_tasks(git_gecko, sync):
         git_gecko,
         git_gecko.merge_base(sync.gecko_commits.head.sha1,
                              env.config["gecko"]["refs"]["central"])[0])
-    taskgroup_id = taskcluster.get_taskgroup_id("mozilla-central",
-                                                central_commit.canonical_rev)
+    taskgroup_id, status = taskcluster.get_taskgroup_id("mozilla-central",
+                                                        central_commit.canonical_rev)
     if taskgroup_id is None:
+        return None
+
+    if status != "success":
+        logger.info("mozilla-central decision task has status %s" % status)
         return None
 
     taskgroup_id = taskcluster.normalize_task_id(taskgroup_id)

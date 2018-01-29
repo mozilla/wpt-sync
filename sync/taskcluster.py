@@ -176,6 +176,7 @@ def get_taskgroup_id(project, revision):
 
     if not jobs_data["results"]:
         logger.info("No decision task found for %s %s" % (project, revision))
+        return None, None
 
     if len(jobs_data["results"]) > 1:
         logger.warning("Multiple decision tasks found for %s" % revision)
@@ -186,4 +187,4 @@ def get_taskgroup_id(project, revision):
                                (project, job_id))
     job_data = fetch_json(job_url)
 
-    return normalize_task_id(job_data["taskcluster_metadata"]["task_id"])
+    return normalize_task_id(job_data["taskcluster_metadata"]["task_id"]), job_data["result"]
