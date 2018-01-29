@@ -355,7 +355,7 @@ def push(landing):
     Returns: Tuple of booleans (success, retry)"""
     success = False
 
-    landing_tree = env.config["sync"]["landing"].rsplit("/", 1)[-1]
+    landing_tree = env.config["gecko"]["landing"]
     if not tree.is_open(landing_tree):
             logger.info("%s is closed" % landing_tree)
             # TODO make this auto-retry

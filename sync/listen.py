@@ -211,7 +211,7 @@ class GitHubFilter(Filter):
         self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
     def accept(self, body):
-        return (body['_meta']['routing_key'].startswith(self.key_filter) and
+        return (body["_meta"]["routing_key"].startswith(self.key_filter) and
                 body["event"] in self.event_filters
                 and self.event_filters[body["event"]](body))
 
@@ -221,17 +221,18 @@ class PushFilter(Filter):
 
     def __init__(self, config):
         self.config = config
-
-        self.integration_repos = {}
-        for repo_name, url in config["sync"]["integration"].iteritems():
-            url_parts = urlparse.urlparse(url)
-            url = urlparse.urlunparse(("https",) + url_parts[1:])
-            self.integration_repos[url] = repo_name
-        self.landing_repo = config["sync"]["landing"]
+        self.repos = set(config["gecko"]["repo"].keys())
 
     def accept(self, body):
-        repo_url = body["payload"]["data"]["repo_url"]
-        return repo_url in self.integration_repos or repo_url == self.landing_repo
+        # Check that this has some commits pushed
+        if not body["payload"]["data"]["pushlog_pushes"]:
+            return False
+
+        repo = body["_meta"]["routing_key"]
+        if "/" in repo:
+            repo = repo.rsplit("/", 1)[1]
+        print body, repo, repo in self.repos
+        return repo in self.repos
 
 
 class TaskGroupFilter(Filter):

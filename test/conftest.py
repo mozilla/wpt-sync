@@ -144,7 +144,7 @@ username=test""")
 
 @pytest.fixture(scope="function")
 def hg_gecko_upstream(env, initial_gecko_content, initial_wpt_content, git_wpt_upstream):
-    repo_dir = os.path.join(env.config["root"], env.config["sync"]["landing"])
+    repo_dir = os.path.join(env.config["root"], env.config["gecko"]["landing"])
     sync_dir = os.path.join(repo_dir, env.config["gecko"]["path"]["wpt"])
     meta_dir = os.path.join(repo_dir, env.config["gecko"]["path"]["meta"])
 
@@ -180,7 +180,7 @@ def hg_gecko_upstream(env, initial_gecko_content, initial_wpt_content, git_wpt_u
 
 @pytest.fixture(scope="function")
 def hg_gecko_try(env, hg_gecko_upstream):
-    hg_gecko_upstream_dir = os.path.join(env.config["root"], env.config["sync"]["landing"])
+    hg_gecko_upstream_dir = os.path.join(env.config["root"], env.config["gecko"]["landing"])
     repo_dir = os.path.join(env.config["root"], env.config["sync"]["try"])
 
     os.makedirs(repo_dir)

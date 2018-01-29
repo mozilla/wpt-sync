@@ -117,22 +117,16 @@ class GitHubHandler(Handler):
 
 
 class PushHandler(Handler):
-    def __init__(self, config):
-        self.config = config
-        self.repos = {}
-        for repo_name, url in config["sync"]["integration"].iteritems():
-            url_parts = urlparse.urlparse(url)
-            url = urlparse.urlunparse(("https",) + url_parts[1:])
-            self.repos[url] = repo_name
-        self.repos[config["sync"]["landing"]] = "central"
-
     def __call__(self, git_gecko, git_wpt, body):
-        data = body["payload"]["data"]
-        repo_url = data["repo_url"]
+        repo = body["_meta"]["routing_key"]
+        if "/" in repo:
+            repo_name = repo.rsplit("/", 1)[1]
+        else:
+            repo_name = repo
         # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
-        rev = data["heads"][0]
-        logger.info("Handing commit %s to repo %s" % (rev, repo_url))
+        rev = body["payload"]["data"]["heads"][0]
+        logger.info("Handling commit %s to repo %s" % (rev, repo))
         update_repositories(git_gecko, None)
         try:
             git_rev = git_gecko.cinnabar.hg2git(rev)
@@ -142,12 +136,7 @@ class PushHandler(Handler):
             if gecko_repo(git_gecko, git_rev) is None:
                 logger.info("Skipping commit as it isn't in a branch we track")
                 return
-        if repo_url in self.repos:
-            repo_name = self.repos[repo_url]
-            logger.info("Got repository name %s" % repo_name)
-            upstream.push(git_gecko, git_wpt, repo_name, rev)
-        else:
-            logger.error("Unrecognised repo url")
+        upstream.push(git_gecko, git_wpt, repo_name, rev)
 
 
 class TaskHandler(Handler):

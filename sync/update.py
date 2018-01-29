@@ -78,16 +78,15 @@ def update_upstream(git_gecko, git_wpt, rev):
             raise ValueError("%s is not a valid git or hg rev" % (rev,))
         git_rev = rev
 
+    if not git_gecko.is_ancestor(git_rev, env.config["gecko"]["refs"]["central"]):
+        routing_key = "mozilla-central"
     if not git_gecko.is_ancestor(git_rev, env.config["gecko"]["refs"]["autoland"]):
-        repository_url = env.config["sync"]["integration"]["mozilla-inbound"]
+        routing_key = "integration/mozilla-inbound"
     else:
-        repository_url = env.config["sync"]["integration"]["autoland"]
-    repository_url = repository_url.replace("ssh://", "https://")
+        routing_key = "integration/autoland"
 
-    event = construct_event("push", {"data":
-                                     {"repo_url": repository_url,
-                                      "heads": [hg_rev],
-                                     }})
+    event = construct_event("push", {"data": {"heads": [hg_rev]}},
+                            _meta={"routing_key": routing_key})
 
     args = ("push", event)
     handle_sync(*args)
