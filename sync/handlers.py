@@ -55,7 +55,9 @@ def handle_pr(git_gecko, git_wpt, event):
         if event["action"] == "opened":
             downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"])
     else:
-        sync.update_status(event["action"], event["pull_request"]["merged"])
+        sync.update_status(event["action"],
+                           event["pull_request"]["merged"],
+                           event["pull_request"]["base"]["sha"])
 
 
 def handle_status(git_gecko, git_wpt, event):

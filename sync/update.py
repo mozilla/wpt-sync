@@ -168,7 +168,6 @@ def update_tasks(git_gecko, git_wpt, pr_id=None):
     for sync in downstream.DownstreamSync.load_all(git_gecko, git_wpt):
         if pr_id is not None and sync.pr != pr_id:
             continue
-        print sync._process_name
         try_push = sync.latest_try_push
         if try_push and try_push.taskgroup_id:
             try:

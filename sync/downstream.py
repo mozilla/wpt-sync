@@ -460,6 +460,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         sync.metadata_ready = True
     try_push.status = "complete"
 
-    pr = env.gh.get_pull(self.pr)
+    pr = env.gh_wpt.get_pull(sync.pr)
     if pr.merged:
         sync.try_notify()
