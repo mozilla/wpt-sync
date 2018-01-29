@@ -724,6 +724,8 @@ class SyncProcess(object):
     def set_bug_data(self, status=None):
         if self.bug:
             whiteboard = env.bz.get_whiteboard(self.bug)
+            if not whiteboard:
+                return
             current_subtype, current_status = bug.get_sync_data(whiteboard)
             if current_subtype != self.sync_type or current_status != status:
                 new_whiteboard = bug.set_sync_data(whiteboard, self.sync_type, status)

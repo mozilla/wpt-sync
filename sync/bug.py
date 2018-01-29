@@ -74,6 +74,7 @@ class Bugzilla(object):
             try:
                 bug = self.bugzilla.get(bug_id)
             except bugsy.BugsyException:
+                logger.error("Failed to retrieve bug with id %s" % bug_id)
                 return
             self.bug_cache[bug_id] = bug
         return self.bug_cache[bug_id]
@@ -119,12 +120,16 @@ class Bugzilla(object):
     def set_whiteboard(self, bug, whiteboard):
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
+        if not bug:
+            return None
         bug._bug["whiteboard"] = whiteboard
         self.bugzilla.put(bug)
 
     def get_whiteboard(self, bug):
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
+        if not bug:
+            return None
         return bug._bug.get("whiteboard", "")
 
 
@@ -158,5 +163,5 @@ class MockBugzilla(Bugzilla):
     def set_whiteboard(self, bug_id, whiteboard):
         self._log("Setting bug %s whiteboard: %s" % (bug_id, whiteboard))
 
-    def get_whiteboard(self, bug_id):
+    def get_whiteboard(self, bug):
         return "fake data"
