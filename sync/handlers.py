@@ -3,6 +3,7 @@ import traceback
 import downstream
 import log
 import landing
+import taskcluster
 import trypush
 import upstream
 import worktree
@@ -190,4 +191,5 @@ class LandingHandler(Handler):
 class CleanupHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
         logger.info("Running cleanup")
-        return worktree.cleanup(git_gecko, git_wpt)
+        worktree.cleanup(git_gecko, git_wpt)
+        taskcluster.cleanup()

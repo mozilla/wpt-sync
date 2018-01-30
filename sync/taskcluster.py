@@ -4,10 +4,12 @@ import shutil
 import traceback
 import urlparse
 import uuid
+from datetime import datetime, timedelta
 
 import slugid
 
 import log
+from env import Environment
 
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
@@ -15,6 +17,7 @@ TREEHERDER_BASE = "https://treeherder.mozilla.org/"
 
 logger = log.get_logger(__name__)
 
+env = Environment()
 
 def normalize_task_id(task_id):
     # For some reason, pulse doesn't get the real
@@ -188,3 +191,21 @@ def get_taskgroup_id(project, revision):
     job_data = fetch_json(job_url)
 
     return normalize_task_id(job_data["taskcluster_metadata"]["task_id"]), job_data["result"]
+
+
+def cleanup():
+    base_path = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
+    for repo_dir in os.listdir(base_path):
+        repo_path = os.path.join(base_path, repo_dir)
+        if not os.path.isdir(repo_path):
+            continue
+        for rev_dir in os.listdir(repo_path):
+            rev_path = os.path.join(repo_path, rev_dir)
+            if not os.path.isdir(rev_path):
+                continue
+            now = datetime.now()
+            # Data hasn't been touched in five days
+            if (datetime.fromtimestamp(os.stat(rev_path).st_mtime) <
+                now - timedelta(days=5)):
+                logger.info("Removing downloaded logs without recent activity %s" % rev_path)
+                shutil.rmtree(rev_path)
