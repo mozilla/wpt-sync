@@ -223,7 +223,7 @@ class PushFilter(Filter):
 
     def accept(self, body):
         # Check that this has some commits pushed
-        if not body["payload"]["data"]["pushlog_pushes"]:
+        if not body["payload"].get("data", {}).get("pushlog_pushes"):
             return False
 
         repo = body["_meta"]["routing_key"]
