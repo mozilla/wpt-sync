@@ -24,9 +24,10 @@ if [ "$1" != "--test" ]; then
     if [ -n "$WPTSYNC_CREDS" ]; then
         cp -v $WPTSYNC_CREDS /app/workspace/credentials.ini
     fi
-
-    /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/docker/wpt_config}
-    /app/venv/bin/wptsync repo-config gecko $FILE ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/docker/gecko_config}
+    if [ "$1" != "--shell" ]; then
+        /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/docker/wpt_config}
+        /app/venv/bin/wptsync repo-config gecko $FILE ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/docker/gecko_config}
+    fi
 fi
 
 env
