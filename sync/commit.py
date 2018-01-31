@@ -242,7 +242,7 @@ class WptCommit(Commit):
         try:
             int(pr)
             return pr
-        except ValueError:
+        except (TypeError, ValueError):
             return None
 
 
