@@ -54,7 +54,7 @@ class TryCommit(object):
         path = os.path.join(self.worktree.working_dir, tc_config)
         if os.path.exists(path):
             with open(path) as f:
-                data = yaml.load(f)
+                data = yaml.safe_load(f)
 
             if "try" in data and "ridealong-builds" in data["try"]:
                 data["try"]["ridealong-builds"] = {}
