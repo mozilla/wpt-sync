@@ -21,3 +21,4 @@ build
 .cache
 celerybeat-schedule
 *.egg-info
+devenv
