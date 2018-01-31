@@ -234,11 +234,16 @@ class WptCommit(Commit):
                 pr = tags[0]
             else:
                 pr = env.gh_wpt.pr_for_commit(self.sha1)
-
+            if not pr:
+                pr == ""
             logger.info("Setting PR to %s" % pr)
             self.notes["wpt_pr"] = pr
-        return self.notes["wpt_pr"]
-
+        pr = self.notes["wpt_pr"]
+        try:
+            int(pr)
+            return pr
+        except ValueError:
+            return None
 
 class Store(object):
     """Create a named file that is deleted if no exception is raised"""
