@@ -111,6 +111,8 @@ def get_parser():
                                             help="Display commits from upstream "
                                             "that are able to land")
     parser_landable.add_argument("--prev-wpt-head", help="First commit to use as the base")
+    parser_landable.add_argument("--all", action="store_true", default=False,
+                                 help="Print the status of all unlandable PRs")
     parser_landable.set_defaults(func=do_landable)
 
     return parser
@@ -342,7 +344,9 @@ def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
 
 @with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
-    from landing import load_sync_point, landable_commits
+    import downstream
+    import upstream
+    from landing import load_sync_point, landable_commits, unlanded_wpt_commits_by_pr
 
     update_repositories(git_gecko, git_wpt)
     if kwargs["prev_wpt_head"] is None:
@@ -355,10 +359,33 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
 
     if landable is None:
         print("Landing will not add any new commits")
-        return
+    else:
+        wpt_head, commits = landable
+        print("Landing will update wpt head to %s" % wpt_head)
 
-    wpt_head, commits = landable
-    print("Landing will update wpt head to %s" % wpt_head)
+    if kwargs["all"]:
+        print("Unlandable PRs:")
+        pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
+                                                git_wpt,
+                                                landable or prev_wpt_head,
+                                                "origin/master")
+        for pr, commits in pr_commits:
+            if pr is None:
+                print "%s: No PR" % ", ".join(item.sha1 for item in commits)
+            elif upstream.UpstreamSync.has_metadata(commits[0].msg):
+                print "%s: From upstream" % pr
+            else:
+                sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
+                if not sync:
+                    print "%s: No sync started" % pr
+                elif sync.metadata_ready:
+                    print "%s: Ready" % pr
+                elif sync.error:
+                    print "%s: Error" % pr
+                elif sync.latest_try_push:
+                    print "%s: Has try push" % pr
+                else:
+                    print "%s: No try push" % pr
 
 
 def set_config(opts):
