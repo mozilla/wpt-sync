@@ -6,7 +6,7 @@ services:
     user: app
     build:
       context: .
-      dockerfile: docker/dev/Dockerfile
+      dockerfile: docker/Dockerfile.dev
     extra_hosts:
       - "rabbitmq:127.0.0.1"
     volumes:

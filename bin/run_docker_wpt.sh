@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ $1 == "build" ]]; then
-    docker build -t wptsync_dev --file docker/dev/Dockerfile .
+    docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $1 == "test" ]]; then
     exec docker run -it wptsync_dev --test
 else
