@@ -92,7 +92,7 @@ def get_parser():
     parser_status.add_argument("--seq-id", nargs="?", default="*", help="Sequence number")
     parser_status.set_defaults(func=do_status)
 
-    parser_notify = subparsers.add_parser("notify", help="Run the tests with pytest")
+    parser_notify = subparsers.add_parser("notify", help="Generate notifications")
     parser_notify.add_argument("pr_id", help="PR for which to run notification code")
     parser_notify.add_argument("--force", action="store_true",
                                help="Run even if the sync is already marked as notified")

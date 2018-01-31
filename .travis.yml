@@ -1,24 +1,39 @@
-sudo: required
-
 language: python
 python:
   - "2.7.14"
 
-# Upgrade to newer docker version
-addons:
-  apt:
-    packages:
-      - docker-ce
+matrix:
+  include:
 
-services:
-  - docker
+    # Job 1: Linters
+    - env: python2-linters
+      sudo: false
+      language: python
+      python: "2.7.14"
+      script:
+        - pip install -r requirements/prod.txt --no-deps --require-hashes
+        - pip check
+        - pip install -r requirements/dev.txt --no-deps
+        - pip install -r requirements/mozautomation.txt --no-deps
+        - pip check
+        - flake8 --show-source
 
-install:
-  - docker build -t wptsync_dev --file docker/Dockerfile.dev .
-  - sudo chown -R 10001 .
+    # Job 2: Unit Tests in Docker env
+    - env: docker-wptsync-test
+      # Upgrade to newer docker version
+      addons:
+        apt:
+          packages:
+            - docker-ce
+      sudo: required
+      services:
+        - docker
+      install:
+        - docker build -t wptsync_dev --file docker/Dockerfile.dev .
+        - sudo chown -R 10001 .
+      script:
+        - docker run -it --add-host=rabbitmq:127.0.0.1 wptsync_dev --test --no-flake8
 
-script:
-  - docker run -it --add-host=rabbitmq:127.0.0.1 wptsync_dev --test
 
 notifications:
   irc:

@@ -12,7 +12,7 @@ We're somewhat following [mozilla-services' Dockerflow](https://github.com/mozil
 From repo root:
 
 ```
-docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker/dev/Dockerfile .
+docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker/Dockerfile.dev .
 ```
 
 The above sets the vct repo root as the build context for an image called `wptsync_dev`
