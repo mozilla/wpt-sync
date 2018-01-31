@@ -1,4 +1,10 @@
-# Setup
+# wpt-sync
+
+[![Build Status](https://travis-ci.org/mozilla/wpt-sync.svg?branch=master)](https://travis-ci.org/mozilla/wpt-sync)
+
+## Description
+
+Synchronize changes between gecko and web-platform-tests
 
 ## Dev environment
 

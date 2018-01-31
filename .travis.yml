@@ -34,6 +34,14 @@ matrix:
       script:
         - docker run -it --add-host=rabbitmq:127.0.0.1 wptsync_dev --test --no-flake8
 
+    # Job 3: Static Analysis
+    - env: static-analysis
+      sudo: false
+      language: python
+      python: "2.7.14"
+      script:
+        - pip install bandit
+        - bandit -r sync -ll
 
 notifications:
   irc:
