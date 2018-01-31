@@ -2,6 +2,7 @@
 import sys
 from ConfigParser import RawConfigParser
 
+
 def main():
     if len(sys.argv) != 4:
         raise ValueError("Required three arguments; path, section, option")
@@ -18,6 +19,7 @@ def main():
         raise ValueError("%s not loaded" % path)
     value = parser.get(section, option)
     print value
+
 
 if __name__ == "__main__":
     main()

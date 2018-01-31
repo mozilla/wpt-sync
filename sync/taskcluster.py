@@ -19,6 +19,7 @@ logger = log.get_logger(__name__)
 
 env = Environment()
 
+
 def normalize_task_id(task_id):
     # For some reason, pulse doesn't get the real
     # task ID, but some alternate encoding of it that doesn't

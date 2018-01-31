@@ -245,6 +245,7 @@ class WptCommit(Commit):
         except ValueError:
             return None
 
+
 class Store(object):
     """Create a named file that is deleted if no exception is raised"""
 

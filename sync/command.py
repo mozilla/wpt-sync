@@ -325,7 +325,7 @@ def do_test(*args, **kwargs):
     if kwargs.pop("flake8", True):
         logger.info("Running flake8")
         cmd = ["flake8"]
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/sync/")
 
     args = kwargs["args"]
     if not any(item.startswith("test") for item in args):
@@ -333,7 +333,7 @@ def do_test(*args, **kwargs):
 
     logger.info("Running pytest")
     cmd = ["pytest", "-s", "-v", "-p no:cacheprovider"] + args
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
 @with_lock
