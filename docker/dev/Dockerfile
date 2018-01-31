@@ -6,6 +6,9 @@ RUN groupadd --gid 10001 app && \
 COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
 RUN chmod +x /app/start_wptsync.sh
 
+COPY ./docker/get_ini.py /app/get_ini.py
+RUN chmod +x /app/get_ini.py
+
 # install/update git, rabbitmq and dependencies
 RUN set -ex; \
     apt-get update; \

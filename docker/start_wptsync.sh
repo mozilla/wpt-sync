@@ -11,6 +11,7 @@ trap "echo TRAPed signal" HUP INT QUIT TERM
 echo Args: $@
 
 cp -v ${WPTSYNC_CONFIG:-/app/wpt-sync/sync.ini} /app/workspace/sync.ini
+cp -v ${WPTSYNC_NEW_RELIC_CONFIG:-/app/wpt-sync/newrelic.ini} /app/workspace/newrelic.ini
 
 if [ "$1" != "--test" ]; then
     eval "$(ssh-agent -s)"
@@ -33,30 +34,33 @@ env
 if [ "$1" == "--shell" ]; then
     bash
 elif [ "$1" == "--worker" ]; then
-    /app/venv/bin/wptsync fetch web-platform-tests
-    /app/venv/bin/wptsync fetch gecko
-
     service --status-all
     sudo service rabbitmq-server start
     sudo service rabbitmq-server status
 
     echo "Starting celerybeat"
 
-    /app/venv/bin/celery beat --detach --app sync.worker \
-                         --schedule=${WPTSYNC_ROOT}/celerybeat-schedule \
-                         --pidfile=${WPTSYNC_ROOT}/celerybeat.pid \
-                         --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log --loglevel=DEBUG
+    export NEW_RELIC_LICENSE_KEY=$(/app/get_ini.py /app/workspace/credentials.ini newrelic license_key)
+    export NEW_RELIC_CONFIG_FILE=/app/workspace/newrelic.ini
+
+    newrelic-admin run-program \
+                   /app/venv/bin/celery beat --detach --app sync.worker \
+                   --schedule=${WPTSYNC_ROOT}/celerybeat-schedule \
+                   --pidfile=${WPTSYNC_ROOT}/celerybeat.pid \
+                   --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log --loglevel=DEBUG
 
     echo "Starting celery worker"
 
-    /app/venv/bin/celery multi start syncworker1 -A sync.worker \
-                         --concurrency=1 \
-                         --pidfile=${WPTSYNC_ROOT}/%n.pid \
-                         --logfile=${WPTSYNC_ROOT}/logs/%n%I.log --loglevel=DEBUG
+    newrelic-admin run-program \
+                   /app/venv/bin/celery multi start syncworker1 -A sync.worker \
+                   --concurrency=1 \
+                   --pidfile=${WPTSYNC_ROOT}/%n.pid \
+                   --logfile=${WPTSYNC_ROOT}/logs/%n%I.log --loglevel=DEBUG
 
     echo "Starting pulse listener"
 
-    exec /app/venv/bin/wptsync listen
+    exec newrelic-admin run-program \
+         /app/venv/bin/wptsync listen
 elif [ "$1" == "--test" ]; then
     exec /app/venv/bin/wptsync test
 else
