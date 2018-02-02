@@ -68,13 +68,18 @@ def handle_status(git_gecko, git_wpt, event):
     update_repositories(None, git_wpt, False)
 
     rev = event["sha"]
+    # First check if the PR is head of any pull request
     pr_id = pr_for_commit(git_wpt, rev)
 
     if not pr_id:
-        if not git_wpt.is_ancestor(rev, "origin/master"):
-            logger.error("Got status for commit %s, but that isn't the head of any PR\n"
-                         "context: %s url: %s state: %s" %
-                         (rev, event["context"], event["target_url"], event["state"]))
+        # This usually happens if we got behind, so the commit is no longer the latest one
+        # There are a few possibilities for what happened:
+        # * Something new was pushed. In that case ignoring this message is fine
+        # * The PR got merged in a way that changes the SHAs. In that case we assume that
+        #   the syncc will get triggered later like when there's a push for the commit
+        logger.warning("Got status for commit %s which is the current HEAD of any PR\n"
+                       "context: %s url: %s state: %s" %
+                       (rev, event["context"], event["target_url"], event["state"]))
         return
     else:
         logger.info("Got status for commit %s from PR %s\n"
@@ -85,7 +90,6 @@ def handle_status(git_gecko, git_wpt, event):
 
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
-        # TODO: Handle this case
         logger.info("Got a status update for PR %s which is unknown to us; starting downstreaming" %
                     pr_id)
         from update import schedule_pr_task
@@ -100,7 +104,8 @@ def handle_status(git_gecko, git_wpt, event):
 
 
 def handle_push(git_gecko, git_wpt, event):
-    landing.wpt_push(git_wpt, [item["id"] for item in event["commits"]])
+    update_repositories(None, git_wpt, False)
+    landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
 
 
 class GitHubHandler(Handler):

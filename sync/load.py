@@ -1,7 +1,4 @@
-import downstream
-import landing
 import log
-import upstream
 
 from env import Environment
 
@@ -11,6 +8,9 @@ logger = log.get_logger(__name__)
 
 
 def get_pr_sync(git_gecko, git_wpt, pr_id):
+    import downstream
+    import upstream
+
     sync = None
     sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if not sync:
@@ -23,6 +23,10 @@ def get_pr_sync(git_gecko, git_wpt, pr_id):
 
 
 def get_bug_sync(git_gecko, git_wpt, bug_number):
+    import downstream
+    import landing
+    import upstream
+
     sync = None
     sync = landing.LandingSync.for_bug(git_gecko, git_wpt, bug_number)
     if not sync:
@@ -37,6 +41,10 @@ def get_bug_sync(git_gecko, git_wpt, bug_number):
 
 
 def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status="*"):
+    import downstream
+    import landing
+    import upstream
+
     cls_types = {
         "downstream": downstream.DownstreamSync,
         "landing": landing.LandingSync,

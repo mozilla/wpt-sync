@@ -6,13 +6,14 @@ from env import Environment
 from load import get_bug_sync, get_pr_sync
 from gitutils import update_repositories
 from pipeline import AbortError
-from tasks import get_handlers, setup
 
 env = Environment()
 logger = log.get_logger(__name__)
 
 
 def handle_sync(task, body):
+    from tasks import get_handlers, setup
+
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
