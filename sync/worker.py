@@ -17,7 +17,5 @@ worker = celery.Celery('sync',
                        broker='pyamqp://guest:guest@rabbitmq',
                        include=['sync.tasks'])
 
-# a task should timeout after 5 minutes
-worker.conf.task_soft_time_limit = 300
 worker.conf.worker_hijack_root_logger = False
 worker.conf.beat_schedule = beat_schedule
