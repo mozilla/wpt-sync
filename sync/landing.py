@@ -451,22 +451,23 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head="origin/master"
 
 
 @base.entry_point("landing")
-def wpt_push(git_gecko, git_wpt, commits):
+def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
     prs = set()
     for commit in commits:
         # This causes the PR to be recorded as a note
         commit = sync_commit.WptCommit(git_wpt, commit)
         pr = commit.pr()
         pr = int(pr) if pr else None
-        if pr is not None and not upstream.UpstreamSync.has_metadata(commit):
+        if pr is not None and not upstream.UpstreamSync.has_metadata(commit.msg):
             prs.add(pr)
-    for pr in prs:
-        sync = load.get_pr_sync(git_gecko, git_wpt, pr)
-        if not sync:
-            # If we don't have a sync for this PR create one
-            # It's easiest just to go via the GH API here
-            pr_data = env.gh_wpt.get_pull(pr)
-            update.update_pr(git_gecko, git_wpt, pr_data)
+    if create_missing:
+        for pr in prs:
+            sync = load.get_pr_sync(git_gecko, git_wpt, pr)
+            if not sync:
+                # If we don't have a sync for this PR create one
+                # It's easiest just to go via the GH API here
+                pr_data = env.gh_wpt.get_pull(pr)
+                update.update_pr(git_gecko, git_wpt, pr_data)
 
 
 @base.entry_point("landing")

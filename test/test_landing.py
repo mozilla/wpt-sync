@@ -8,7 +8,8 @@ def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     pr = pull_request([("Test commit", {"README": "example_change"})])
     head_rev = pr._commits[0]["sha"]
     git_wpt_upstream.head.commit = head_rev
-    landing.wpt_push(git_wpt, [head_rev])
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
     assert sync_commit.WptCommit(git_wpt_upstream,
                                  git_wpt_upstream.head.commit).pr() == pr["number"]
 
@@ -23,7 +24,8 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     sync = set_pr_status(pr, "success")
 
     git_wpt_upstream.head.commit = head_rev
-    landing.wpt_push(git_wpt, [head_rev])
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
     sync.metadata_ready = True
 
@@ -49,7 +51,8 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     downstream_sync = set_pr_status(pr, "success")
 
     git_wpt_upstream.head.commit = head_rev
-    landing.wpt_push(git_wpt, [head_rev])
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
     downstream_sync.metadata_ready = True
 
