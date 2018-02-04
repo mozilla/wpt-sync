@@ -1,0 +1,2 @@
+[wptsync]
+54.172.8.13  ansible_ssh_user=mfrydrychowicz ansible_become=yes

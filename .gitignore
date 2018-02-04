@@ -22,3 +22,4 @@ build
 celerybeat-schedule
 *.egg-info
 devenv
+*.retry
