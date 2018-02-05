@@ -330,8 +330,12 @@ class DownstreamSync(base.SyncProcess):
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
         logger.debug("Updating metadata")
-        # TODO filter the output to only include list of disabled tests
-        disabled = mach.wpt_update(*args)
+        output = mach.wpt_update(*args)
+        prefix = "disabled:"
+        disabled = []
+        for line in output.split("\n"):
+            if line.startswith(prefix):
+                disabled.append(line[len(prefix):].strip())
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
             self.ensure_metadata_commit()
@@ -452,10 +456,10 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         TryPush.create(sync, sync.affected_tests(), stability=True)
     else:
         if disabled:
-            logger.debug("The following tests were disabled:\n%s" % disabled)
+            logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
             # TODO notify relevant people about test expectation changes, stability
             env.bz.comment(sync.bug, ("The following tests were disabled "
-                                      "based on stability try push:\n %s" % disabled))
+                                      "based on stability try push:\n %s" % "\n".join(disabled)))
         logger.info("Metadata is ready for PR %s" % (sync.pr))
         sync.metadata_ready = True
     try_push.status = "complete"
