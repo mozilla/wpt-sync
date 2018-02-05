@@ -3,6 +3,8 @@ import os
 import sys
 from logging import handlers
 
+from dockerflow.logging import JsonLogFormatter
+
 import settings
 
 root = logging.getLogger()
@@ -32,8 +34,16 @@ def setup(config):
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(basic_formatter)
 
+    json_formatter = JsonLogFormatter()
+
+    json_file_handler = handlers.TimedRotatingFileHandler(os.path.join(log_dir, "sync.json.log"),
+                                                          when="D", utc=True)
+    json_file_handler.setLevel(logging.DEBUG)
+    json_file_handler.setFormatter(json_formatter)
+
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(file_handler)
+    root_logger.addHandler(json_file_handler)
 
     lock_logger = logging.getLogger("filelock")
     lock_logger.setLevel(logging.INFO)
