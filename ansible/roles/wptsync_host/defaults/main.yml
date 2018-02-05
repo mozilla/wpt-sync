@@ -1,0 +1,2 @@
+wptsync_repo_path: {{ internal_volume }}/wptsync
+wptsync_repo_url: https://github.com/mozilla/wpt-sync.git

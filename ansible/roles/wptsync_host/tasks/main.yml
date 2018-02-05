@@ -1,3 +1,34 @@
 ---
-- name: echo
-  shell: echo Docker done!!
+- name: copy docker image to server
+  copy: 
+    src: "{{ tempdir | mandatory }}/{{ image_name }}.tar"
+    dest: "{{internal_volume}}/{{ image_name }}.tar"
+    owner: wpt_user
+    group: wpt
+    mode: 0644
+  become_user: wpt_user
+  async: 1800
+  poll: 60
+
+- name: load docker image from archive
+  command: "docker load -i {{internal_volume}}/{{ image_name }}.tar"
+  become_user: wpt_user
+
+- name: clone wpt-sync repo
+  command: "/usr/bin/git clone --branch master --depth 1 {{wptsync_repo_url}} {{ wptsync_repo_path | mandatory }}"
+    creates: "{{ wptsync_repo_path | mandatory }}"
+
+- name: checkout master in wpt-sync repo
+  command: /usr/bin/git checkout master
+    chdir: "{{ wptsync_repo_path | mandatory }}"
+
+- name: pull in latest changes to wpt-sync repo
+  command: /usr/bin/git pull origin master
+    chdir: "{{ wptsync_repo_path | mandatory }}"
+
+
+
+# clone wptsync repo in internal_volume
+# copy credentials/config to workspace
+# chown repo and workspace, repos, to user/group expected by docker container
+# run wptsync repo config and fetch via docker run

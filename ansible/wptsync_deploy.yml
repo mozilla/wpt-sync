@@ -1,21 +1,39 @@
 ---
-- name: prepare local files for deployment
+# assuming repo_root, tempdir, image_name variables are defined in call to ansible-playbook
+- name: reset local workspace
   hosts: localhost
   gather_facts: no
   tasks:
-  - name: echo
-    shell: echo Hello World!
+    - name: remove workspace
+      file:
+        path: "{{ tempdir | mandatory }}"
+        state: absent
+    - name: create workspace
+      file:
+        path: "{{ tempdir | mandatory }}"
+        state: directory
 
-- name: deploy web-platform-tests syncing service
+- name: prepare docker image for upload
+  hosts: localhost
+  gather_facts: no
+  tasks:
+  - name: docker build
+    command: "docker build -t {{ image_name }} --file docker/Dockerfile.dev ."
+    args:
+      chdir: "{{ repo_root | mandatory }}"
+  - name: docker save
+    command: "docker save -o {{ tempdir }}/{{ image_name }}.tar {{ image_name }}"
+  - name: check for image archive
+    file: 
+      path: "{{ tempdir }}/{{ image_name }}.tar"
+      state: file
+
+- name: provision server
   hosts: wptsync
-
-  pre_tasks:
-    - name: import wpt sync secrets
-      shell: echo "Do something with sync.ini maybe?"
-
+  gather_facts: no
   roles:
-    - { role: geerlingguy.docker,
-        docker_edition: "ce",
-        docker_package: "docker-{{ docker_edition }}",
-        docker_package_state: "latest"}
-    - wptsync_host
+  - { role: geerlingguy.docker,
+      docker_edition: "ce",
+      docker_package: "docker-{{ docker_edition }}",
+      docker_package_state: "latest" }
+  - role: wptsync_host
