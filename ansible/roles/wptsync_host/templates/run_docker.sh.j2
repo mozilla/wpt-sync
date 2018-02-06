@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [[ $1 == "build" ]]; then
-    docker build -t {{ _image_name | mandatory }} --file docker/Dockerfile.dev .
+    docker build -t {{ _image_name | mandatory }} --file {{ wptsync_repo_path }}/docker/Dockerfile.dev {{ wptsync_repo_path }}
 elif [[ $1 == "test" ]]; then
     exec docker run -it {{ _image_name | mandatory }} --test
 else
@@ -16,5 +16,3 @@ else
     --mount type=bind,source={{ mount_workspace | mandatory }},target={{ target_workspace | mandatory }} \
     {{ _image_name | mandatory }} $@
 fi
-
-#prod -d --rm??

@@ -1,5 +1,5 @@
 ---
-#assuming _repo_root, _tempdir, _image_name variables are defined in call to ansible-playbook
+# assuming _repo_root, _tempdir, _image_name variables are defined in call to ansible-playbook
 - name: reset local workspace
   hosts: localhost
   gather_facts: no

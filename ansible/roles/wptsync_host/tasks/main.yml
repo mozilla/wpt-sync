@@ -1,4 +1,12 @@
 ---
+# assuming _image_name, _ssh_hgmo, _ssh_github, _credentials variables are
+# defined in call to ansible-playbook
+- name: ensure wpt_user is in docker group
+  user:
+    name: "{{ wpt_user | mandatory }}"
+    groups: docker
+    append: yes
+
 - name: checkout latest master in wpt-sync repo
   git:
     repo: "{{ wptsync_repo_url | mandatory }}"
@@ -44,6 +52,13 @@
     - run_docker.sh
   become_user: wpt_user
 
+- name: chown mount directories to docker container's UID
+  command: "/usr/bin/chown -R {{ docker_uid }} {{ item }}"
+  with_items:
+    - "{{ mount_repos | mandatory }}"
+    - "{{ mount_workspace| mandatory }}"
+    - "{{ mount_data | mandatory }}"
+
 - name: install docker image
   copy:
     src: "{{ _tempdir | mandatory }}/{{ _image_name }}.tar.bz2"
@@ -51,6 +66,11 @@
     owner: wpt_user
     group: wpt
     mode: 0644
+
+- name: remove old docker image archive
+  file:
+    path: "{{ internal_volume }}/{{ _image_name }}.tar"
+    state: absent
 
 - name: decompress docker image
   command: "/usr/bin/bunzip2 {{internal_volume}}/{{ _image_name }}.tar.bz2"
