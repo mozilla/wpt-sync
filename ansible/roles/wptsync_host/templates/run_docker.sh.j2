@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+if [[ $1 == "build" ]]; then
+    docker build -t {{ _image_name | mandatory }} --file docker/Dockerfile.dev .
+elif [[ $1 == "test" ]]; then
+    exec docker run -it {{ _image_name | mandatory }} --test
+else
+    exec docker run --init -it --add-host=rabbitmq:127.0.0.1 \
+    --env WPTSYNC_CONFIG={{ wptsync_config | mandatory }} \
+    --env WPTSYNC_CREDS={{ wptsync_credentials }} \
+    --env WPTSYNC_GH_SSH_KEY={{ wptsync_github_key | mandatory }} \
+    --env WPTSYNC_HGMO_SSH_KEY={{ wptsync_hgmo_key | mandatory }} \
+    --mount type=bind,source={{ wptsync_repo_path | mandatory }},target={{ target_wptsync_repo | mandatory }} \
+    --mount type=bind,source={{ mount_data | mandatory}},target={{ target_data | mandatory }} \
+    --mount type=bind,source={{ mount_repos | mandatory }},target={{ target_repos | mandatory }} \
+    --mount type=bind,source={{ mount_workspace | mandatory }},target={{ target_workspace | mandatory }} \
+    {{ _image_name | mandatory }} $@
+fi
+
+#prod -d --rm??

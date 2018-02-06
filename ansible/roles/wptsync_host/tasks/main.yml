@@ -1,34 +1,63 @@
 ---
-- name: copy docker image to server
+- name: checkout latest master in wpt-sync repo
+  git:
+    repo: "{{ wptsync_repo_url | mandatory }}"
+    dest: "{{ wptsync_repo_path | mandatory }}"
+    version: origin/master
+    depth: 1
+    accept_hostkey: yes
+    force: yes
+  become_user: wpt_user
+
+- name: ensure directories expected by docker container
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: wpt_user
+    group: wpt
+    mode: 0775
+  with_items:
+    - "{{ mount_repos | mandatory }}"
+    - "{{ mount_workspace| mandatory }}"
+    - "{{ mount_data | mandatory }}"
+    - "{{ mount_data | mandatory }}/{{ ssh_dir | mandatory }}"
+
+- name: install credentials
   copy: 
-    src: "{{ tempdir | mandatory }}/{{ image_name }}.tar"
-    dest: "{{internal_volume}}/{{ image_name }}.tar"
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: wpt_user
+    mode: 0600
+  with_items:
+    - { src: "{{ _ssh_hgmo }}", dest: "{{ mount_data }}/{{ ssh_dir }}/id_hgmo" }
+    - { src: "{{ _ssh_hgmo }}.pub", dest: "{{ mount_data }}/{{ ssh_dir }}/id_hgmo.pub" }
+    - { src: "{{ _ssh_github }}", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github" }
+    - { src: "{{ _ssh_github }}.pub", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github.pub" }
+    - { src: "{{ _credentials }}", dest: "{{ mount_data }}/credentials_prod.ini" }
+
+- name: install docker-run helper script
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ internal_volume | mandatory }}/{{ item }}"
+    mode: 0755
+  with_items:
+    - run_docker.sh
+  become_user: wpt_user
+
+- name: install docker image
+  copy:
+    src: "{{ _tempdir | mandatory }}/{{ _image_name }}.tar.bz2"
+    dest: "{{ internal_volume }}/{{ _image_name }}.tar.bz2"
     owner: wpt_user
     group: wpt
     mode: 0644
+
+- name: decompress docker image
+  command: "/usr/bin/bunzip2 {{internal_volume}}/{{ _image_name }}.tar.bz2"
+  args:
+    chdir: "{{ internal_volume }}"
   become_user: wpt_user
-  async: 1800
-  poll: 60
 
 - name: load docker image from archive
-  command: "docker load -i {{internal_volume}}/{{ image_name }}.tar"
+  command: "/usr/bin/docker load -i {{internal_volume}}/{{ _image_name }}.tar"
   become_user: wpt_user
-
-- name: clone wpt-sync repo
-  command: "/usr/bin/git clone --branch master --depth 1 {{wptsync_repo_url}} {{ wptsync_repo_path | mandatory }}"
-    creates: "{{ wptsync_repo_path | mandatory }}"
-
-- name: checkout master in wpt-sync repo
-  command: /usr/bin/git checkout master
-    chdir: "{{ wptsync_repo_path | mandatory }}"
-
-- name: pull in latest changes to wpt-sync repo
-  command: /usr/bin/git pull origin master
-    chdir: "{{ wptsync_repo_path | mandatory }}"
-
-
-
-# clone wptsync repo in internal_volume
-# copy credentials/config to workspace
-# chown repo and workspace, repos, to user/group expected by docker container
-# run wptsync repo config and fetch via docker run

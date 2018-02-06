@@ -26,7 +26,7 @@ if [ "$1" != "--test" ]; then
     fi
     if [ "$1" != "--shell" ]; then
         /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/docker/wpt_config}
-        /app/venv/bin/wptsync repo-config gecko $FILE ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/docker/gecko_config}
+        /app/venv/bin/wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/docker/gecko_config}
     fi
 fi
 

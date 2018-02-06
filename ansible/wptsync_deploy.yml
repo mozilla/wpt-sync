@@ -1,16 +1,16 @@
 ---
-# assuming repo_root, tempdir, image_name variables are defined in call to ansible-playbook
+#assuming _repo_root, _tempdir, _image_name variables are defined in call to ansible-playbook
 - name: reset local workspace
   hosts: localhost
   gather_facts: no
   tasks:
     - name: remove workspace
       file:
-        path: "{{ tempdir | mandatory }}"
+        path: "{{ _tempdir | mandatory }}"
         state: absent
     - name: create workspace
       file:
-        path: "{{ tempdir | mandatory }}"
+        path: "{{ _tempdir | mandatory }}"
         state: directory
 
 - name: prepare docker image for upload
@@ -18,22 +18,21 @@
   gather_facts: no
   tasks:
   - name: docker build
-    command: "docker build -t {{ image_name }} --file docker/Dockerfile.dev ."
+    command: "docker build -t {{ _image_name }} --file docker/Dockerfile.dev ."
     args:
-      chdir: "{{ repo_root | mandatory }}"
-  - name: docker save
-    command: "docker save -o {{ tempdir }}/{{ image_name }}.tar {{ image_name }}"
+      chdir: "{{ _repo_root | mandatory }}"
+  - name: docker save and compress
+    shell: "docker save {{ _image_name }} | bzip2 > {{ _tempdir }}/{{ _image_name }}.tar.bz2"
   - name: check for image archive
     file: 
-      path: "{{ tempdir }}/{{ image_name }}.tar"
+      path: "{{ _tempdir }}/{{ _image_name }}.tar.bz2"
       state: file
 
 - name: provision server
   hosts: wptsync
-  gather_facts: no
   roles:
   - { role: geerlingguy.docker,
       docker_edition: "ce",
       docker_package: "docker-{{ docker_edition }}",
       docker_package_state: "latest" }
-  - role: wptsync_host
+  - wptsync_host

@@ -1,2 +1,17 @@
-wptsync_repo_path: {{ internal_volume }}/wptsync
+wptsync_repo_path: "{{ internal_volume }}/wpt-sync"
 wptsync_repo_url: https://github.com/mozilla/wpt-sync.git
+
+
+# docker run paths
+mount_data: "{{ internal_volume }}/data"
+target_data: "/app/data"
+mount_workspace: "{{ internal_volume }}/workspace"
+target_workspace: "/app/workspace"
+mount_repos: "{{ ebs_volume }}/repos"
+target_repos: "/app/repos"
+target_wptsync_repo: "/app/wpt-sync"
+ssh_dir: "ssh"
+wptsync_config: "{{ target_wptsync_repo }}/sync_prod.ini"
+wptsync_credentials: "{{ target_data }}/credentials_prod.ini"
+wptsync_github_key: "{{ target_data }}/{{ ssh_dir }}/id_github"
+wptsync_hgmo_key: "{{ target_data }}/{{ ssh_dir }}/id_hgmo"

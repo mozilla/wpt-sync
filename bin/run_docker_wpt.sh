@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Helper script for running docker in a dev environment. 
+# Use run_docker.sh instead in prod
+
 if [[ $1 == "build" ]]; then
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $1 == "test" ]]; then
@@ -15,4 +18,3 @@ else
     --mount type=bind,source=$(pwd)/repos,target=/app/repos \
     --mount type=bind,source=$(pwd)/workspace,target=/app/workspace wptsync_dev $@
 fi
-
