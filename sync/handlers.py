@@ -130,6 +130,9 @@ class PushHandler(Handler):
             repo_name = repo.rsplit("/", 1)[1]
         else:
             repo_name = repo
+        # Commands can override the base rev
+        base_rev = body.get("_wptsync", {}).get("base_rev")
+
         # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
         rev = body["payload"]["data"]["heads"][0]
@@ -143,7 +146,7 @@ class PushHandler(Handler):
             if gecko_repo(git_gecko, git_rev) is None:
                 logger.info("Skipping commit as it isn't in a branch we track")
                 return
-        upstream.push(git_gecko, git_wpt, repo_name, rev)
+        upstream.push(git_gecko, git_wpt, repo_name, rev, base_rev=base_rev)
 
 
 class TaskHandler(Handler):
