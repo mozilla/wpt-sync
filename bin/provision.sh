@@ -6,6 +6,9 @@ set -euo pipefail
 # WPT_SSH_GITHUB: path to private key; assuming pk is $WPT_SSH_GITHUB.pub
 # WPT_CREDENTIALS: path to production credentials ini
 
+# _repo_root: path to wpt-sync repo
+# _image_name: name of docker image
+# _tempdir: path to workspace for ansible
 
 ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     ansible/wptsync_deploy.yml -vvv \

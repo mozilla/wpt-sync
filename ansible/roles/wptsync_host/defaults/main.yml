@@ -1,5 +1,6 @@
 wptsync_repo_path: "{{ internal_volume }}/wpt-sync"
 wptsync_repo_url: https://github.com/mozilla/wpt-sync.git
+# uid of app user in docker image
 docker_uid: 10001
 wpt_user: wpt_user
 
