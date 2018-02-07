@@ -332,10 +332,6 @@ class UpstreamSync(base.SyncProcess):
                        "Created web-platform-tests PR %s for changes under "
                        "testing/web-platform/tests" %
                        env.gh_wpt.pr_url(pr_id))
-        try:
-            env.gh_wpt.approve_pull(pr_id)
-        except Exception:
-            logger.warning("Failed to mark upstream PR %s as approved" % pr_id)
         return pr_id
 
     def push_commits(self):
