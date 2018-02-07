@@ -29,7 +29,6 @@ Server:
 *   There is a user designated to run the wptsync service: `wpt_user`.
 *   There are paths as described in `ansible/hosts`; these should be
     writable by `wpt_user`.
-*   git is installed
 *   (optional) There is a bare git-cinnabar clone of mozilla-unified whose
     config matches `docker/gecko_config`. For example, you can scp an
     archive of a recent clone to the server, and extract it at the path that will be mounted to `/app/repos/gecko` in the Docker container. 
