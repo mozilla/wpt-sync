@@ -67,7 +67,7 @@ def update_for_status(pr):
             return
 
 
-def update_upstream(git_gecko, git_wpt, rev):
+def convert_rev(git_gecko, rev):
     try:
         git_rev = git_gecko.cinnabar.hg2git(rev)
         hg_rev = rev
@@ -78,6 +78,16 @@ def update_upstream(git_gecko, git_wpt, rev):
         except ValueError:
             raise ValueError("%s is not a valid git or hg rev" % (rev,))
         git_rev = rev
+    return git_rev, hg_rev
+
+
+def update_upstream(git_gecko, git_wpt, rev, base_rev=None):
+    git_rev, hg_rev = convert_rev(git_gecko, rev)
+
+    if base_rev is not None:
+        _, hg_rev_base = convert_rev(git_gecko, base_rev)
+    else:
+        hg_rev_base = None
 
     if not git_gecko.is_ancestor(git_rev, env.config["gecko"]["refs"]["central"]):
         routing_key = "mozilla-central"
@@ -86,8 +96,14 @@ def update_upstream(git_gecko, git_wpt, rev):
     else:
         routing_key = "integration/autoland"
 
+    kwargs = {}
+
+    if hg_rev_base is not None:
+        kwargs["_wptsync"] = {"base_rev": hg_rev_base}
+
     event = construct_event("push", {"data": {"heads": [hg_rev]}},
-                            _meta={"routing_key": routing_key})
+                            _meta={"routing_key": routing_key},
+                            **kwargs)
 
     args = ("push", event)
     handle_sync(*args)

@@ -643,7 +643,8 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
 
 
 @base.entry_point("upstream")
-def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
+def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
+         base_rev=None):
     i = 0
     while True:
         update_repositories(git_gecko, git_wpt, repository_name == "autoland")
@@ -667,9 +668,14 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
     else:
         logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
 
-    if git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
-        logger.info("Last sync point moved past commit")
-        return
+    if base_rev is None:
+        if git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+            logger.info("Last sync point moved past commit")
+            return
+        base_commit = last_sync_point.commit
+    else:
+        base_commit = sync_commit.GeckoCommit(git_gecko,
+                                              git_gecko.cinnabar.hg2git(base_rev))
 
     wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
 
@@ -677,7 +683,7 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False):
 
     updated = updated_syncs_for_push(git_gecko,
                                      git_wpt,
-                                     last_sync_point.commit,
+                                     base_commit,
                                      sync_commit.GeckoCommit(git_gecko, rev),
                                      syncs_by_bug)
 
