@@ -18,7 +18,7 @@ RUN adduser app sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # get logs to stdout
-ENV RABBITMQ_LOGS=- RABBITMQ_SASL_LOGS=-
+ENV RABBITMQ_LOG_BASE=/app/workspace/logs/
 
 COPY . /app/wpt-sync
 RUN chown -R app:app /app/wpt-sync
