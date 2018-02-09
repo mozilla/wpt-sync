@@ -703,7 +703,8 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
     else:
         landed_syncs = set()
 
-    last_sync_point.commit = rev
+    if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+        last_sync_point.commit = rev
 
     return pushed_syncs, landed_syncs, failed_syncs
 
