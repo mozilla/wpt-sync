@@ -1,8 +1,10 @@
-import bugsy
-import sys
-import urlparse
 import log
 import re
+import sys
+import traceback
+import urlparse
+
+import bugsy
 
 from env import Environment
 
@@ -123,7 +125,10 @@ class Bugzilla(object):
         if not bug:
             return None
         bug._bug["whiteboard"] = whiteboard
-        self.bugzilla.put(bug)
+        try:
+            self.bugzilla.put(bug)
+        except bugsy.errors.BugsyException:
+            logger.warning(traceback.format_exc())
 
     def get_whiteboard(self, bug):
         if not isinstance(bug, bugsy.Bug):
