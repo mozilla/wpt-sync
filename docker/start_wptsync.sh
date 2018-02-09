@@ -41,7 +41,9 @@ elif [ "$1" == "--worker" ]; then
 
     echo "Starting celerybeat"
 
+    set +x
     export NEW_RELIC_LICENSE_KEY=$(/app/get_ini.py /app/workspace/credentials.ini newrelic license_key)
+    set -x
     export NEW_RELIC_CONFIG_FILE=/app/workspace/newrelic.ini
 
     newrelic-admin run-program \
