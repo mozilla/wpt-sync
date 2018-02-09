@@ -30,9 +30,14 @@
 
 - name: provision server
   hosts: wptsync
+  pre_tasks:
+    - name: stop all docker containers
+      shell: if [ -f /usr/bin/docker ]; then /usr/bin/docker stop -t 30 $(docker ps -aq); fi
+      become_user: wpt_user
   roles:
   - { role: geerlingguy.docker,
       docker_edition: "ce",
       docker_package: "docker-{{ docker_edition }}",
-      docker_package_state: "latest" }
+      docker_package_state: "latest",
+      docker_install_compose: false }
   - wptsync_host

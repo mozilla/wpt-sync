@@ -1,0 +1,30 @@
+- name: install docker image
+  copy:
+    src: "{{ _tempdir | mandatory }}/{{ _image_name }}.tar.bz2"
+    dest: "{{ internal_volume }}/{{ _image_name }}.tar.bz2"
+    owner: wpt_user
+    group: wpt
+    mode: 0644
+
+- name: remove old docker image archive
+  file:
+    path: "{{ internal_volume }}/{{ _image_name }}.tar"
+    state: absent
+
+- name: decompress docker image
+  command: "/usr/bin/bunzip2 {{internal_volume}}/{{ _image_name }}.tar.bz2"
+  args:
+    chdir: "{{ internal_volume }}"
+  become_user: wpt_user
+
+- name: remove all docker containers
+  shell: /usr/bin/docker rm $(docker ps -aq)
+  become_user: wpt_user
+
+- name: remove all docker images
+  shell: /usr/bin/docker rmi $(docker images -q)
+  become_user: wpt_user
+
+- name: load new docker image from archive
+  command: "/usr/bin/docker load -i {{internal_volume}}/{{ _image_name }}.tar"
+  become_user: wpt_user

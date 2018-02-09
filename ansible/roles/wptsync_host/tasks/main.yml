@@ -35,7 +35,16 @@
     - "{{ mount_data | mandatory }}"
     - "{{ mount_data | mandatory }}/{{ ssh_dir | mandatory }}"
 
-- name: install credentials
+- name: install docker-run helper script
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ internal_volume | mandatory }}/{{ item }}"
+    mode: 0755
+  with_items:
+    - run_docker.sh
+  become_user: wpt_user
+
+- name: install credentials (if configured)
   copy: 
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
@@ -47,42 +56,13 @@
     - { src: "{{ _ssh_github }}", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github" }
     - { src: "{{ _ssh_github }}.pub", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github.pub" }
     - { src: "{{ _credentials }}", dest: "{{ mount_data }}/credentials_prod.ini" }
+  when: update_credentials
 
-- name: install docker-run helper script
-  template:
-    src: "{{ item }}.j2"
-    dest: "{{ internal_volume | mandatory }}/{{ item }}"
-    mode: 0755
-  with_items:
-    - run_docker.sh
-  become_user: wpt_user
-
-- name: chown mount directories to docker container's UID
+- name: chown mount-directories to docker container's UID (this make take a while)
   command: "/usr/bin/chown -R {{ docker_uid }} {{ item }}"
   with_items:
     - "{{ mount_repos | mandatory }}"
     - "{{ mount_workspace| mandatory }}"
-    - "{{ mount_data | mandatory }}"
 
-- name: install docker image
-  copy:
-    src: "{{ _tempdir | mandatory }}/{{ _image_name }}.tar.bz2"
-    dest: "{{ internal_volume }}/{{ _image_name }}.tar.bz2"
-    owner: wpt_user
-    group: wpt
-    mode: 0644
-
-- name: remove old docker image archive
-  file:
-    path: "{{ internal_volume }}/{{ _image_name }}.tar"
-    state: absent
-
-- name: decompress docker image
-  command: "/usr/bin/bunzip2 {{internal_volume}}/{{ _image_name }}.tar.bz2"
-  args:
-    chdir: "{{ internal_volume }}"
-  become_user: wpt_user
-
-- name: load docker image from archive
-  command: "/usr/bin/docker load -i {{internal_volume}}/{{ _image_name }}.tar"
-  become_user: wpt_user
+- import_tasks: push-docker-img.yml
+  when: rebuild

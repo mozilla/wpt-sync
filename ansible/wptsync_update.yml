@@ -1,0 +1,11 @@
+---
+- name: update code
+  hosts: wptsync
+  pre_tasks:
+    - name: stop all docker containers
+      shell: if [ -f /usr/bin/docker ]; then /usr/bin/docker stop -t 30 $(docker ps -aq); fi
+      become_user: wpt_user
+  roles:
+  - { role: wptsync_host,
+      rebuild: false,
+      update_credentials: false }

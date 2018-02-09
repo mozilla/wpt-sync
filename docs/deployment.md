@@ -3,7 +3,7 @@
 Deploying the wptsync service consists of two major steps:
 
 *   provision the server with our Docker image and dependencies: this uses an 
-    ansible playbook,
+    ansible playbook; the docker-build step may be skipped,
 *   ssh into the server to start the service, optionally seeding gecko and
     web-platform-test repositories first.
 
@@ -37,14 +37,26 @@ Server:
 
 ## Provisioning steps
 
-The provisioning steps are configured in an ansible playbook at `ansible/wptsync_deploy.yml` and the role at `ansible/roles/wptsync_host`. The playbook has been tested against a minimal Centos 7 host.
+The provisioning steps are configured in ansible playbooks at 
+`ansible/wptsync_deploy.yml`, `ansible/wptsync_update.yml` and the role at 
+`ansible/roles/wptsync_host`. The playbooks have been tested against a minimal 
+Centos 7 host.
 
 1.  Activate a virtualenv and `pip install -r ./requirements/deploy.txt`
-2.  From the repo root, run `./bin/provision.sh`
+2.  Do __one__ of the following from the repo root:
+    *   If you need to build and push a new Docker image or update credentials 
+        run `./bin/provision.sh`
+    *   If you only need to update the wpt-sync repo to the latest commit on
+        master, run `./bin/update_server.sh`
 
-This sets up the docker image on the server, the data it depends on as well as `run_docker.sh`, which is generated from `ansible/roles/wptsync_host/templates/run_docker.sh.j2` and runnable by `wpt_user`. Note where this script is installed.
+As a result, the following will be up-to-date: the docker image, the data it
+depends on as well as `run_docker.sh`, which is generated from `ansible/roles/
+wptsync_host/templates/run_docker.sh.j2` and runnable by `wpt_user`. Note 
+where this script is installed.
 
 ## Starting/stopping the wptsync service
+
+The ansible playbooks stop any running containers, so we need to restart them.
 
 1.  ssh into the server. If necessary, also `sudo su wpt_user`.
 2.  Optionally, `run_docker.sh --shell` and seed the repos:
@@ -61,7 +73,7 @@ This sets up the docker image on the server, the data it depends on as well as `
 3.  To start the service: 
 
     ```
-    screen -dmS wptsync_session run_docker.sh
+    screen -dmS wptsync run_docker.sh
     ```
 
 4. To stop the service use `docker stop -t 30 <container_name>`. `docker ps` will tell you the container names.

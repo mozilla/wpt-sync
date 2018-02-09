@@ -3,6 +3,9 @@ wptsync_repo_url: https://github.com/mozilla/wpt-sync.git
 # uid of app user in docker image
 docker_uid: 10001
 wpt_user: wpt_user
+# rebuild the docker image by default
+rebuild: true
+update_credentials: true
 
 # docker run paths
 mount_data: "{{ internal_volume }}/data"
