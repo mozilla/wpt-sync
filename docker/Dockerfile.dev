@@ -17,7 +17,7 @@ RUN set -ex; \
 RUN adduser app sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# get logs to stdout
+# Set up RabbitMQ log directory
 ENV RABBITMQ_LOG_BASE=/app/workspace/logs/
 
 COPY . /app/wpt-sync
