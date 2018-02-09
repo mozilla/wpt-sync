@@ -64,15 +64,6 @@ This sets up the docker image on the server, the data it depends on as well as `
     screen -dmS wptsync_session run_docker.sh
     ```
 
-4. To stop the service use `docker stop -t 30`
+4. To stop the service use `docker stop -t 30 <container_name>`. `docker ps` will tell you the container names.
 
-## Inspecting the service
-
-*   Access the paths on the server that are bind-mounted to the
-    container: e.g. the mount point for `/app/workspace` contains logs.
-*   There's a screen_output.log in the `wpt_user` home dir. 
-*   There are Docker commands to do some basic inspection on a running
-    container: `docker ps`, `docker logs`, `docker stats`.
-*   You can resume the screen session to interact with the running container 
-    directly: `screen -r`. See also `~/.screenrc` on the server.
-*   See the [user guide](./user-guide.md) for troubleshooting instructions. 
+See the [user guide](./user-guide.md) for troubleshooting instructions. 

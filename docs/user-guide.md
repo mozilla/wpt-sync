@@ -3,6 +3,37 @@
 This document is intended to document common scenarios encountered
 with the wptsync service and explain how to deal with each one.
 
+## Stopping the service
+
+If something is very broken and you just want to stop everything:
+
+```
+# list the container names
+docker ps
+docker stop -t 30 <container_name>...
+```
+
+## Logs and inspecting the service
+ 
+*   Access the paths on the server that are bind-mounted to the
+    container: e.g. the mount point for `/app/workspace` contains logs.
+    *    The sync logs are stored in `/app/workspace/logs/sync.log`. The
+         scheduling of periodic tasks is logged in
+         `/app/workspace/logs/celerybeat.log`, but note that the actual
+         operations performed will be in the `sync.log` file.
+*   There's a `screen_output.log` in the `wpt_user` home dir. 
+*   There are Docker commands to do some basic inspection on a running
+    container: `docker ps`, `docker logs <container_name>`, `docker stats`.
+*   You can resume the screen session to interact with the running container 
+    directly: `screen -x`. 
+
+### External Activity
+
+*   [wptsync try activity](https://treeherder.mozilla.org/#/jobs?repo=try&author=wptsync@mozilla.com)
+*   [wptsync-bot PRs](https://github.com/w3c/web-platform-tests/pulls/moz-wptsync-bot)
+*   [wptsync bugs marked as "error"](https://bugzilla.mozilla.org/buglist.cgi?status_whiteboard_type=regexp&status_whiteboard=.wptsync.%2Aerror.&query_format=advanced)
+*   [wptsync Bugzilla activity](https://bugzilla.mozilla.org/page.cgi?id=user_activity.html&action=run&who=wptsync%40mozilla.bugs&group=when)
+
 ## Notes
 
 Many of the workflows documented below involve running `wptsync`
@@ -11,20 +42,6 @@ because accessing to the git repositories are protected by a coarse
 lock, so only one task may run at a time. This means that `wptsync`
 commands have to wait for whatever the main sync process is currently
 running to end before they are able to operate.
-
-## External Activity
-
-*   [wptsync try activity](https://treeherder.mozilla.org/#/jobs?repo=try&author=wptsync@mozilla.com)
-*   [wptsync-bot PRs](https://github.com/w3c/web-platform-tests/pulls/moz-wptsync-bot)
-*   [wptsync bugs marked as "error"](https://bugzilla.mozilla.org/buglist.cgi?status_whiteboard_type=regexp&status_whiteboard=.wptsync.%2Aerror.&query_format=advanced)
-*   [wptsync Bugzilla activity](https://bugzilla.mozilla.org/page.cgi?id=user_activity.html&action=run&who=wptsync%40mozilla.bugs&group=when)
-
-## Logs
-
-The sync logs are stored in `/app/workspace/logs/sync.log`. The
-scheduling of periodic tasks is logged in
-`/app/workspace/logs/celerybeat.log`, but note that the actual
-operations performed will be in the `sync.log` file.
 
 ## Examining Status
 
