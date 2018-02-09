@@ -74,5 +74,5 @@ This sets up the docker image on the server, the data it depends on as well as `
 *   There are Docker commands to do some basic inspection on a running
     container: `docker ps`, `docker logs`, `docker stats`.
 *   You can resume the screen session to interact with the running container 
-    directly: `screen -r`. 
+    directly: `screen -r`. See also `~/.screenrc` on the server.
 *   See the [user guide](./user-guide.md) for troubleshooting instructions. 

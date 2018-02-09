@@ -12,6 +12,13 @@ lock, so only one task may run at a time. This means that `wptsync`
 commands have to wait for whatever the main sync process is currently
 running to end before they are able to operate.
 
+## External Activity
+
+*   [wptsync try activity](https://treeherder.mozilla.org/#/jobs?repo=try&author=wptsync@mozilla.com)
+*   [wptsync-bot PRs](https://github.com/w3c/web-platform-tests/pulls/moz-wptsync-bot)
+*   [wptsync bugs marked as "error"](https://bugzilla.mozilla.org/buglist.cgi?status_whiteboard_type=regexp&status_whiteboard=.wptsync.%2Aerror.&query_format=advanced)
+*   [wptsync Bugzilla activity](https://bugzilla.mozilla.org/page.cgi?id=user_activity.html&action=run&who=wptsync%40mozilla.bugs&group=when)
+
 ## Logs
 
 The sync logs are stored in `/app/workspace/logs/sync.log`. The
