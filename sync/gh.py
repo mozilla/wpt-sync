@@ -80,11 +80,11 @@ class GitHub(object):
         issue = self.repo.get_issue(pr_id)
         issue.add_to_labels(*labels)
 
-    def get_statuses(self, pr_id):
+    def get_combined_status(self, pr_id):
         pr = self.get_pull(pr_id)
         head_commit = self.repo.get_commit(pr.head.ref)
 
-        return head_commit.get_statuses()
+        return head_commit.get_combined_status()
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -125,17 +125,14 @@ class GitHub(object):
             input=post_parameters
         )
 
-    def status_checks_pass(self, pr_id):
-        pr = self.get_pull(pr_id)
-        if not pr.mergeable:
-            return False
-        statuses = self.get_statuses(pr_id)
-        latest = {}
-        for status in statuses:
-            if status.context not in latest:
-                latest[status.context] = status.state
-
-        return all(status == "success" for status in latest.itervalues())
+    def status_checks_pass(self, pr_id, exclude=None):
+        if exclude is None:
+            exclude = set()
+        statuses = {item.context: item for item in self.get_combined_statuses(pr_id)
+                    if item.context not in exclude}
+        non_success = {context: item for context, item in statuses.iteritems()
+                       if item.state != "success"}
+        return len(non_success) == 0, non_success
 
     def pr_for_commit(self, sha):
         logger.info("Looking up PR for commit %s" % sha)
@@ -234,11 +231,16 @@ class MockGitHub(GitHub):
     def add_labels(self, pr_id, *labels):
         self.get_pull(pr_id)["labels"].extend(labels)
 
-    def get_statuses(self, pr_id):
+    def get_combined_statuses(self, pr_id):
         pr = self.get_pull(pr_id)
         if pr:
             self._log("Got status for PR %s " % pr_id)
-            return pr["_commits"][-1]["_statuses"]
+            statuses = pr["_commits"][-1]["_statuses"]
+            latest = {}
+            for item in statuses:
+                if item.context not in latest:
+                    latest[item.context] = item
+            return latest.values()
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)
