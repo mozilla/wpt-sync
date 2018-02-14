@@ -2,6 +2,7 @@ import os
 
 from sync import landing, downstream, tree, trypush, upstream
 from sync import commit as sync_commit
+from sync.gitutils import update_repositories
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
@@ -105,6 +106,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     rev = upstream_gecko_commit(test_changes=test_changes, bug="1111",
                                 message="Add change1 file")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                  raise_on_error=True)
     sync_1 = pushed.pop()
@@ -126,6 +128,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     rev = upstream_gecko_commit(test_changes=test_changes, bug="1112",
                                 message="Add change2 file")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                  raise_on_error=True)
     sync_2 = pushed.pop()
@@ -164,6 +167,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     test_changes = {"change3": "CHANGE3\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug="1113",
                                 message="Add change3 file")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                  raise_on_error=True)
 

@@ -1,4 +1,5 @@
 from sync import upstream
+from sync.gitutils import update_repositories
 
 
 def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
@@ -7,6 +8,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
                                 message="Change README")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                            raise_on_error=True)
     assert len(pushed) == 1
@@ -42,6 +44,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
                                 message="Change README")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", rev,
                   raise_on_error=True)
 
@@ -54,6 +57,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
 
     backout_rev = upstream_gecko_backout(rev, bug)
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert sync.bug == "1234"
@@ -69,11 +73,13 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
                                 message="Change README")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", rev,
                   raise_on_error=True)
 
     backout_rev = upstream_gecko_backout(rev, bug)
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
@@ -88,6 +94,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     relanding_rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
                                           message="Reland: Change README")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
@@ -108,6 +115,7 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
     rev1 = upstream_gecko_commit(test_changes={"README": "Change README again\n"}, bug=bug,
                                  message="Change README again")
 
+    update_repositories(git_gecko, git_wpt)
     upstream.push(git_gecko, git_wpt, "inbound", rev1,
                   raise_on_error=True)
 
@@ -121,6 +129,7 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
                                           bug=bug,
                                           message="Change README once more")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=relanding_rev)
     upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
@@ -138,6 +147,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
                                 message="Change README")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                            raise_on_error=True)
 
@@ -147,6 +157,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
 
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
                                            raise_on_error=True)
 
@@ -165,6 +176,7 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
                                 message="Change README")
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                            raise_on_error=True)
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
@@ -178,6 +190,7 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     assert sync.last_pr_check == {"state": "failure", "sha": sync.wpt_commits.head.sha1}
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
                                            raise_on_error=True)
 
