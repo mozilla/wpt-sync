@@ -357,11 +357,6 @@ class UpstreamSync(base.SyncProcess):
                               description="Landed on mozilla-central",
                               context="upstream/gecko")
 
-    def is_mergeable(self):
-        return (self.gecko_landed() and
-                env.gh_wpt.status_checks_pass(self.pr) and
-                env.gh_wpt.is_mergeable(self.pr_id))
-
     def try_land_pr(self):
         logger.info("Checking if sync for bug %s can land" % self.bug)
         if not self.gecko_landed():
@@ -375,9 +370,19 @@ class UpstreamSync(base.SyncProcess):
         logger.info("Commit are landable; trying to land %s" % self.pr)
 
         msg = None
-        if not env.gh_wpt.status_checks_pass(self.pr):
-            # TODO: get some details in this message
-            msg = "Can't merge web-platform-tests PR due to failing upstream tests"
+        all_status_success, non_success = env.gh_wpt.status_checks_pass(
+            self.pr, exclude="upstream/gecko")
+        if not all_status_success:
+            if not any(item.state == "pending" for item in non_success.itervalues()):
+                details = []
+                for context, item in non_success.iteritems():
+                    if item.state == "pending":
+                        continue
+                    url_str = " (%s)" % item.target_url if item.target_url else ""
+                    details.append("* %s%s" % (item.context, url_str))
+                details = "\n".join(details)
+                msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
+                       details)
         elif not env.gh_wpt.is_mergeable(self.pr):
             msg = "Can't merge web-platform-tests PR because it has merge conflicts"
         else:
@@ -396,8 +401,9 @@ class UpstreamSync(base.SyncProcess):
                 self.merge_sha = merge_sha
                 self.finish()
                 return True
-        logger.error(msg)
-        env.bz.comment(self.bug, msg)
+        if msg is not None:
+            logger.error(msg)
+            env.bz.comment(self.bug, msg)
         return False
 
 
