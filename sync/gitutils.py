@@ -1,3 +1,5 @@
+import time
+
 import git
 import log
 from env import Environment
@@ -8,21 +10,53 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def update_repositories(git_gecko, git_wpt, include_autoland=False):
+def have_gecko_hg_commit(git_gecko, hg_rev):
+    try:
+        git_gecko.cinnabar.hg2git(hg_rev)
+    except ValueError:
+        return False
+    return True
 
+
+def update_repositories(git_gecko, git_wpt, include_autoland=False, wait_gecko_commit=None):
     if git_gecko is not None:
-        logger.info("Fetching mozilla-unified")
-        # Not using the built in fetch() function since that tries to parse the output
-        # and sometimes fails
-        git_gecko.git.fetch("mozilla")
-
-        if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
-            logger.info("Fetching autoland")
-            git_gecko.git.fetch("autoland")
+        if wait_gecko_commit is not None:
+            success = until(lambda: _update_gecko(git_gecko, include_autoland),
+                            lambda: have_gecko_hg_commit(git_gecko, wait_gecko_commit))
+            if not success:
+                raise ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit)
+        else:
+            _update_gecko(git_gecko, include_autoland)
 
     if git_wpt is not None:
-        logger.info("Fetching web-platform-tests")
-        git_wpt.git.fetch("origin")
+        _update_wpt(git_wpt)
+
+
+def until(func, cond, max_tries=5):
+    for i in xrange(max_tries):
+        func()
+        if cond():
+            break
+        time.sleep(1 * (i + 1))
+    else:
+        return False
+    return True
+
+
+def _update_gecko(git_gecko, include_autoland):
+    logger.info("Fetching mozilla-unified")
+    # Not using the built in fetch() function since that tries to parse the output
+    # and sometimes fails
+    git_gecko.git.fetch("mozilla")
+
+    if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
+        logger.info("Fetching autoland")
+        git_gecko.git.fetch("autoland")
+
+
+def _update_wpt(git_wpt):
+    logger.info("Fetching web-platform-tests")
+    git_wpt.git.fetch("origin")
 
 
 def is_ancestor(git_obj, rev, branch):

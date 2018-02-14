@@ -137,15 +137,11 @@ class PushHandler(Handler):
         # matters for us
         rev = body["payload"]["data"]["heads"][0]
         logger.info("Handling commit %s to repo %s" % (rev, repo))
-        update_repositories(git_gecko, None)
-        try:
-            git_rev = git_gecko.cinnabar.hg2git(rev)
-        except ValueError:
-            pass
-        else:
-            if gecko_repo(git_gecko, git_rev) is None:
-                logger.info("Skipping commit as it isn't in a branch we track")
-                return
+        update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+        git_rev = git_gecko.cinnabar.hg2git(rev)
+        if gecko_repo(git_gecko, git_rev) is None:
+            logger.info("Skipping commit as it isn't in a branch we track")
+            return
         upstream.push(git_gecko, git_wpt, repo_name, rev, base_rev=base_rev)
 
 

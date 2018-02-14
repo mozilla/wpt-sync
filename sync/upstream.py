@@ -645,21 +645,7 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
 @base.entry_point("upstream")
 def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
          base_rev=None):
-    i = 0
-    while True:
-        update_repositories(git_gecko, git_wpt, repository_name == "autoland")
-
-        try:
-            rev = git_gecko.cinnabar.hg2git(hg_rev)
-        except ValueError:
-            if i == 4:
-                raise
-            else:
-                i += 1
-                time.sleep(1 * (i + 1))
-        else:
-            break
-
+    rev = git_gecko.cinnabar.hg2git(hg_rev)
     last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
     if last_sync_point.commit is None:
         # If we are just starting, default to the current mozilla central
