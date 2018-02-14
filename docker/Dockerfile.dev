@@ -3,22 +3,84 @@ FROM python:2.7-stretch
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 
+ENV RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq
+COPY ./docker/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+
 COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
 RUN chmod +x /app/start_wptsync.sh
 
 COPY ./docker/get_ini.py /app/get_ini.py
 RUN chmod +x /app/get_ini.py
 
-# install/update git, rabbitmq and dependencies
-RUN set -ex; \
+# install/update git and erlang/rabbitmq dependencies
+RUN set -eux; \
     apt-get update; \
-    apt-get install -y erlang rabbitmq-server git sudo less emacs-nox
+    apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https
+
+# ### Install latest erlang
+# add buster sources.list
+RUN set -eux; \
+# add buster sources.list
+    sed 's/stretch/buster/g' /etc/apt/sources.list \
+        | tee /etc/apt/sources.list.d/buster.list; \
+        # update apt-preferences such that we get only erlang* from only buster 
+    { \
+        echo 'Package: *'; \
+        echo 'Pin: release n=buster*'; \
+        echo 'Pin-Priority: -10'; \
+        echo; \
+        echo 'Package: erlang*'; \
+        echo 'Pin: release n=buster*'; \
+        echo 'Pin-Priority: 999'; \
+        echo; \
+        echo 'Package: erlang*'; \
+        echo 'Pin: release n=stretch*'; \
+        echo 'Pin-Priority: -10'; \
+    } | tee /etc/apt/preferences.d/buster-erlang
+
+# install Erlang
+RUN set -eux; \
+    # start with "erlang-base-hipe" because it and "erlang-base" (non-hipe) are exclusive
+    apt-get update; \
+    if apt-cache show erlang-base-hipe 2>/dev/null | grep -q 'Package: erlang-base-hipe'; then \
+        apt-get install -y --no-install-recommends \
+        erlang-base-hipe \
+        ; \
+    fi; \
+    apt-get install -y --no-install-recommends \
+        erlang-asn1 \
+        erlang-crypto \
+        erlang-eldap \
+        erlang-inets \
+        erlang-mnesia \
+        erlang-nox \
+        erlang-os-mon \
+        erlang-public-key \
+        erlang-ssl \
+        erlang-xmerl \
+        ; \
+    rm -rf /var/lib/apt/lists/*
+# ### Done erlang
+
+# ### Install rabbitmq
+RUN set -eux; \
+    echo "deb https://dl.bintray.com/rabbitmq/debian stretch main"| \
+        sudo tee /etc/apt/sources.list.d/bintray.rabbitmq.list; \
+    wget -O- https://dl.bintray.com/rabbitmq/Keys/rabbitmq-release-signing-key.asc | \
+        sudo apt-key add - \
+        ; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        socat \
+        rabbitmq-server \
+        ; \
+    rm -rf /var/lib/apt/lists/*
+# ### Done rabbitmq
+
+RUN apt-get purge -y --auto-remove wget gnupg apt-transport-https
 
 RUN adduser app sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
-# Set up RabbitMQ log directory
-ENV RABBITMQ_LOG_BASE=/app/workspace/logs/
 
 COPY . /app/wpt-sync
 RUN chown -R app:app /app/wpt-sync
@@ -37,15 +99,12 @@ RUN mkdir /app/workspace \
 
 # Install git-cinnabar
 WORKDIR /app/git-cinnabar
-
-RUN git clone https://github.com/glandium/git-cinnabar.git . \
-    && git checkout bb45a922e9c7907ad6e101fbaa54cec5cb7b2434
-
 ENV PATH=/app/git-cinnabar:$PATH
 
-RUN pip install --user requests
-
-RUN git cinnabar download
+RUN git clone https://github.com/glandium/git-cinnabar.git . \
+    && git checkout bb45a922e9c7907ad6e101fbaa54cec5cb7b2434; \
+    pip install --user requests \
+    && git cinnabar download
 
 # Install fzf for mach try fuzzy
 WORKDIR /app/fzf
@@ -57,23 +116,20 @@ ENV PATH=/app/fzf/bin:$PATH
 
 WORKDIR /app/wpt-sync
 
-RUN git config --global user.name moz-wptsync-bot \
-    && git config --global user.email wptsync@mozilla.com
-
-# Copy test credentials as a temporary placeholder in workspace, and to testdata
-RUN cp /app/wpt-sync/test/testdata/credentials.ini /app/workspace/credentials.ini \
-    && cp /app/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini \
-    && cp /app/wpt-sync/test/testdata/credentials.ini /app/testdata/credentials.ini \
-    && cp /app/wpt-sync/test/testdata/sync.ini /app/testdata/sync.ini
-
-RUN cp /app/wpt-sync/docker/known_hosts /app/.ssh/known_hosts
-
-RUN mkdir -p /app/.ipython/profile_default/startup/
-RUN cp 00-startup.py /app/.ipython/profile_default/startup/
-
-# TODO make prod version that installs wheels?
-# Install the app in development mode
-RUN virtualenv /app/venv \
+RUN set -eux; \
+    git config --global user.name moz-wptsync-bot; \
+    git config --global user.email wptsync@mozilla.com; \
+    cp /app/wpt-sync/docker/known_hosts /app/.ssh/known_hosts; \
+    # Copy test credentials as a temporary placeholder in workspace, and to testdata
+    cp /app/wpt-sync/test/testdata/credentials.ini /app/workspace/credentials.ini; \
+    cp /app/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini; \
+    cp /app/wpt-sync/test/testdata/credentials.ini /app/testdata/credentials.ini; \
+    cp /app/wpt-sync/test/testdata/sync.ini /app/testdata/sync.ini; \
+    # Configure ipython
+    mkdir -p /app/.ipython/profile_default/startup/ \
+    && cp 00-startup.py /app/.ipython/profile_default/startup/; \
+    # Install the wptsync app in development mode
+    virtualenv /app/venv \
     && /app/venv/bin/pip install -r requirements/prod.txt --no-deps --require-hashes \
     && /app/venv/bin/pip install -r requirements/dev.txt --no-deps \
     && /app/venv/bin/pip install -r requirements/mozautomation.txt --no-deps
