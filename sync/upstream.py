@@ -153,7 +153,8 @@ class UpstreamSync(base.SyncProcess):
 
     def update_wpt_refs(self):
         # Check if the remote was updated under us
-        if self.remote_branch is None:
+        if (self.remote_branch is None or
+            self.remote_branch not in self.git_wpt.remotes.origin.refs):
             return
 
         remote_head = self.git_wpt.refs["origin/%s" % self.remote_branch]
@@ -396,6 +397,9 @@ class UpstreamSync(base.SyncProcess):
             else:
                 self.merge_sha = merge_sha
                 self.finish()
+                # Delete the remote branch after a merge
+                self.git_wpt.remotes.origin.push(self.remote_branch, delete=True)
+                self.remote_branch = None
                 return True
         if msg is not None:
             logger.error(msg)

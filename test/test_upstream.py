@@ -143,6 +143,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     env.gh_wpt.get_pull(sync.pr).mergeable = True
+    original_remote_branch = sync.remote_branch
 
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
@@ -152,6 +153,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert sync.gecko_landed()
     assert sync.status == "complete"
+    assert original_remote_branch not in git_wpt.remotes.origin.refs
     pr = env.gh_wpt.get_pull(sync.pr)
     assert pr.merged
 
