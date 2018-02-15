@@ -153,11 +153,10 @@ class UpstreamSync(base.SyncProcess):
 
     def update_wpt_refs(self):
         # Check if the remote was updated under us
-        remote_branch, _ = self.remote_branch(create=False)
-        if remote_branch is None:
+        if self.remote_branch is None:
             return
 
-        remote_head = self.git_wpt.refs["origin/%s" % remote_branch]
+        remote_head = self.git_wpt.refs["origin/%s" % self.remote_branch]
         if remote_head.commit.hexsha != self.wpt_commits.head.sha1:
             self.wpt_commits.head = sync_commit.WptCommit(self.git_wpt,
                                                           remote_head.commit.hexsha)
@@ -199,30 +198,36 @@ class UpstreamSync(base.SyncProcess):
     def merge_sha(self, value):
         self.data["merge-sha"] = value
 
-    def remote_branch(self, create=False):
-        local_branch = self.branch_name
+    @property
+    def remote_branch(self):
+        remote = self.data.get("remote-branch")
+        if remote is None:
+            remote = self.git_wpt.git.rev_parse("%s@{upstream}" % self.branch_name,
+                                                abbrev_ref=True,
+                                                with_exceptions=False)
+            if remote:
+                remote = remote[len("origin/"):]
+                self.remote_branch = remote
+            else:
+                # We get the empty string back, but want to always use None
+                # to indicate a missing remote
+                remote = None
+        return remote
 
-        if local_branch not in self.git_wpt.refs:
-            return None, False
+    @remote_branch.setter
+    def remote_branch(self, value):
+        self.data["remote-branch"] = value
 
-        remote = self.git_wpt.git.rev_parse("%s@{upstream}" % local_branch,
-                                            abbrev_ref=True,
-                                            with_exceptions=False)
-        if remote:
-            assert remote.startswith("origin/")
-            remote = remote[len("origin/"):]
-            return remote, True
-
-        if not create:
-            return None, False
-
-        count = 0
-        remote_refs = self.git_wpt.remotes.origin.refs
-        name = local_branch
-        while name in remote_refs:
-            count += 1
-            name = "gecko/%s/%s" % (local_branch, count)
-        return name, False
+    def get_or_create_remote_branch(self):
+        if not self.remote_branch:
+            count = 0
+            remote_refs = self.git_wpt.remotes.origin.refs
+            name = "gecko/%s" % self.bug
+            while name in remote_refs:
+                count += 1
+                name = "gecko/%s/%s" % (self.bug, count)
+            self.remote_branch = name
+        return self.remote_branch
 
     @property
     def upstreamed_gecko_commits(self):
@@ -310,8 +315,7 @@ class UpstreamSync(base.SyncProcess):
         if self.pr:
             return self.pr
 
-        remote_branch, _ = self.remote_branch()
-        while not env.gh_wpt.get_branch(remote_branch):
+        while not env.gh_wpt.get_branch(self.remote_branch):
             logger.debug("Waiting for branch")
             time.sleep(1)
 
@@ -320,12 +324,11 @@ class UpstreamSync(base.SyncProcess):
         body = self.wpt_commits[0].msg.split("\n", 1)
         body = body[1] if len(body) != 1 else ""
 
-        remote_branch, _ = self.remote_branch()
         pr_id = env.gh_wpt.create_pull(
             title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "", commit_summary),
             body=body.strip(),
             base="master",
-            head=remote_branch)
+            head=self.remote_branch)
         self.pr = pr_id
         # TODO: add label to bug
         env.bz.comment(self.bug,
@@ -335,7 +338,7 @@ class UpstreamSync(base.SyncProcess):
         return pr_id
 
     def push_commits(self):
-        remote_branch, _ = self.remote_branch(create=True)
+        remote_branch = self.get_or_create_remote_branch()
         logger.info("Pushing commits from bug %s to branch %s" % (self.bug, remote_branch))
         self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
                                          force=True, set_upstream=True)

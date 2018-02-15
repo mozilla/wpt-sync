@@ -99,7 +99,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     # Merge the upstream change
-    remote_branch, _ = sync_1.remote_branch()
+    remote_branch = sync_1.remote_branch
     git_wpt_upstream.git.checkout(remote_branch)
     git_wpt_upstream.git.rebase("master")
     git_wpt_upstream.git.checkout("master")
@@ -117,7 +117,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     # Merge the gecko change
-    remote_branch, _ = sync_2.remote_branch()
+    remote_branch = sync_2.remote_branch
     git_wpt_upstream.git.checkout(remote_branch)
     git_wpt_upstream.git.rebase("master")
     git_wpt_upstream.git.checkout("master")
