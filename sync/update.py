@@ -58,10 +58,8 @@ def schedule_status_task(commit, status):
 def update_for_status(pr):
     commits = pr.get_commits()
     head = commits.reversed[0]
-    status = None
-    for status in head.get_combined_status():
+    for status in head.get_combined_status().statuses:
         if (status.context != "upstream/gecko"):
-            status = status
             schedule_status_task(head, status)
             return
 

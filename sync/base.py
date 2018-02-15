@@ -702,6 +702,17 @@ class SyncProcess(object):
         self.data["pr"] = value
 
     @property
+    def last_pr_check(self):
+        return self.data.get("last-pr-check", {})
+
+    @last_pr_check.setter
+    def last_pr_check(self, value):
+        if value is not None:
+            self.data["last-pr-check"] = value
+        else:
+            del self.data["last-pr-check"]
+
+    @property
     def error(self):
         return self.data.get("error")
 

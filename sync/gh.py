@@ -35,8 +35,9 @@ class GitHub(object):
         return self._repo
 
     def get_pull(self, id):
+        id = int(id)
         if id not in self.pr_cache:
-            self.pr_cache[id] = self.repo.get_pull(int(id))
+            self.pr_cache[id] = self.repo.get_pull(id)
         return self.pr_cache[id]
 
     def create_pull(self, title, body, base, head):
@@ -80,11 +81,26 @@ class GitHub(object):
         issue = self.repo.get_issue(pr_id)
         issue.add_to_labels(*labels)
 
-    def get_combined_status(self, pr_id):
-        pr = self.get_pull(pr_id)
-        head_commit = self.repo.get_commit(pr.head.ref)
+    @staticmethod
+    def _summary_state(statuses):
+        states = {item.state for item in statuses}
+        overall = None
+        if states == {"success"}:
+            overall = "success"
+        elif "pending" in states or states == set():
+            overall = "pending"
+        if "failure" in states or "error" in states:
+            overall = "failure"
+        return overall
 
-        return head_commit.get_combined_status()
+    def get_combined_status(self, pr_id, exclude=None):
+        if exclude is None:
+            exclude = set()
+        pr = self.get_pull(pr_id)
+        combined = self.repo.get_commit(pr.head.sha).get_combined_status()
+        statuses = [item for item in combined.statuses if item.context not in exclude]
+        state = combined.state if not exclude else GitHub._summary_state(statuses)
+        return state, statuses
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -124,15 +140,6 @@ class GitHub(object):
             pr.url + "/reviews",
             input=post_parameters
         )
-
-    def status_checks_pass(self, pr_id, exclude=None):
-        if exclude is None:
-            exclude = set()
-        statuses = {item.context: item for item in self.get_combined_statuses(pr_id)
-                    if item.context not in exclude}
-        non_success = {context: item for context, item in statuses.iteritems()
-                       if item.state != "success"}
-        return len(non_success) == 0, non_success
 
     def pr_for_commit(self, sha):
         logger.info("Looking up PR for commit %s" % sha)
@@ -184,13 +191,13 @@ class MockGitHub(GitHub):
 
     def get_pull(self, id):
         self._log("Getting PR %s" % id)
-        return self.prs.get(id)
+        return self.prs.get(int(id))
 
     def create_pull(self, title, body, base, head, _commits=None, _id=None):
         if _id is None:
             id = self._id.next()
         else:
-            id = _id
+            id = int(_id)
         assert id not in self.prs
         if _commits is None:
             _commits = [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
@@ -231,7 +238,9 @@ class MockGitHub(GitHub):
     def add_labels(self, pr_id, *labels):
         self.get_pull(pr_id)["labels"].extend(labels)
 
-    def get_combined_statuses(self, pr_id):
+    def get_combined_status(self, pr_id, exclude=None):
+        if exclude is None:
+            exclude = set()
         pr = self.get_pull(pr_id)
         if pr:
             self._log("Got status for PR %s " % pr_id)
@@ -240,7 +249,9 @@ class MockGitHub(GitHub):
             for item in statuses:
                 if item.context not in latest:
                     latest[item.context] = item
-            return latest.values()
+            statuses = [item for item in latest.values() if item.context not in exclude]
+            state = GitHub._summary_state(statuses)
+            return state, statuses
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)

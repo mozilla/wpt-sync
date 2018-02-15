@@ -373,19 +373,12 @@ class UpstreamSync(base.SyncProcess):
         logger.info("Commit are landable; trying to land %s" % self.pr)
 
         msg = None
-        all_status_success, non_success = env.gh_wpt.status_checks_pass(
-            self.pr, exclude="upstream/gecko")
-        if not all_status_success:
-            if not any(item.state == "pending" for item in non_success.itervalues()):
-                details = ["Github PR %s" % env.gh_wpt.pr_url(self.pr)]
-                for context, item in non_success.iteritems():
-                    if item.state == "pending":
-                        continue
-                    url_str = " (%s)" % item.target_url if item.target_url else ""
-                    details.append("* %s%s" % (item.context, url_str))
-                details = "\n".join(details)
-                msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
-                       details)
+        check_state, statuses = env.gh_wpt.get_combined_status(
+            self.pr, exclude={"upstream/gecko"})
+        if check_state not in ["success", "pending"]:
+            details = ["Github PR %s" % env.gh_wpt.pr_url(self.pr)]
+            msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
+                   details)
         elif not env.gh_wpt.is_mergeable(self.pr):
             msg = "Can't merge web-platform-tests PR because it has merge conflicts"
         else:
@@ -406,7 +399,6 @@ class UpstreamSync(base.SyncProcess):
                 return True
         if msg is not None:
             logger.error(msg)
-            env.bz.comment(self.bug, msg)
         return False
 
 
@@ -728,17 +720,31 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     if status == "pending":
         # Never change anything for pending
         return landed
-
-    if status == "success":
+    previous_check = sync.last_pr_check
+    check_state, statuses = env.gh_wpt.get_combined_status(sync.pr, exclude={"upstream/gecko"})
+    sync.last_pr_check = {"state": check_state, "sha": sha}
+    if check_state == "success":
         sync.error = None
         if sync.gecko_landed():
             landed = sync.try_land_pr()
-        else:
-            env.bz.comment(sync.bug, "Upstream web-platform-tests status checked passed, "
+        elif previous_check != sync.last_pr_check:
+            env.bz.comment(sync.bug,
+                           "Upstream web-platform-tests status checks passed, "
                            "PR will merge once commit reaches central.")
     else:
-        env.bz.comment(sync.bug, "Upstream web-platform-tests status %s for %s. "
-                       "This will block the upstream PR from merging. "
-                       "See %s for more information" % (status, context, url))
-        sync.error = "Travis failed"
+        # Don't report anything until all checks have completed
+        if not any(item.state == "pending" for item in statuses):
+            details = ["Github PR %s" % env.gh_wpt.pr_url(sync.pr)]
+            for item in statuses:
+                if item.state == "success":
+                    continue
+                url_str = " (%s)" % item.target_url if item.target_url else ""
+                details.append("* %s%s" % (item.context, url_str))
+            details = "\n".join(details)
+            msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
+                   details)
+            env.bz.comment(sync.bug, msg)
+            sync.error = "Travis failed"
+        else:
+            logger.info("Some upstream web-platform-tests status checks still pending.")
     return landed

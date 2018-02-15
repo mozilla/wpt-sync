@@ -12,6 +12,7 @@ import pytest
 
 from sync import repos, settings, bugcomponents, downstream, landing
 from sync.env import Environment, set_env, clear_env
+from sync.gh import AttrDict
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -327,9 +328,9 @@ def pull_request(env, git_wpt_upstream):
 
         for message, file_data in commits:
             rev = git_commit(git_wpt_upstream, message, file_data)
-            gh_commits.append({"sha": rev.hexsha,
-                               "message": message,
-                               "_statuses": []})
+            gh_commits.append(AttrDict(**{"sha": rev.hexsha,
+                                          "message": message,
+                                          "_statuses": []}))
 
         pr_id = env.gh_wpt.create_pull(title,
                                        body,
@@ -399,13 +400,16 @@ def directory(request, env):
 
 
 @pytest.fixture
-def set_pr_status(git_gecko, git_wpt):
-    def inner(pr, status):
+def set_pr_status(git_gecko, git_wpt, env):
+    def inner(pr, status="success"):
         from sync import load
+        env.gh_wpt.set_status(pr["number"], status, "http://test/",
+                              "description",
+                              "continuous-integration/travis-ci/pr")
         sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
         downstream.status_changed(git_gecko, git_wpt, sync,
                                   "continuous-integration/travis-ci/pr",
-                                  "success", "http://test/", pr["head"])
+                                  status, "http://test/", pr["head"])
         return sync
     return inner
 

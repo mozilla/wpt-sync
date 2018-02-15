@@ -168,12 +168,12 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     env.gh_wpt.get_pull(sync.pr).mergeable = True
 
-    env.gh_wpt.set_status(sync.pr, "failed", "http://test/", "tests failed",
+    env.gh_wpt.set_status(sync.pr, "failure", "http://test/", "tests failed",
                           "continuous-integration/travis-ci/pr")
     upstream.status_changed(git_gecko, git_wpt, sync,
                             "continuous-integration/travis-ci/pr",
-                            "failed", "http://test/", sync.wpt_commits.head.sha1)
-
+                            "failure", "http://test/", sync.wpt_commits.head.sha1)
+    assert sync.last_pr_check == {"state": "failure", "sha": sync.wpt_commits.head.sha1}
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
@@ -185,6 +185,6 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     upstream.status_changed(git_gecko, git_wpt, sync,
                             "continuous-integration/travis-ci/pr",
                             "success", "http://test/", sync.wpt_commits.head.sha1)
-
+    assert sync.last_pr_check == {"state": "success", "sha": sync.wpt_commits.head.sha1}
     assert sync.gecko_landed()
     assert sync.status == "complete"
