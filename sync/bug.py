@@ -88,12 +88,16 @@ class Bugzilla(object):
             return
         bug.add_comment(text)
 
-    def new(self, summary, comment, product, component, whiteboard=None):
+    def new(self, summary, comment, product, component, whiteboard=None, priority=None):
         bug = bugsy.Bug(self.bugzilla,
                         summary=summary,
                         product=product,
                         component=component)
         bug.add_comment(comment)
+        if priority is not None:
+            if priority not in ("P1", "P2", "P3", "P4", "P5"):
+                raise ValueError("Invalid bug priority %s" % priority)
+            bug._bug["priority"] = priority
         if whiteboard:
             bug._bug["whiteboard"] = whiteboard
 
@@ -149,9 +153,10 @@ class MockBugzilla(Bugzilla):
         self.output.write(data)
         self.output.write("\n")
 
-    def new(self, summary, comment, product, component, whiteboard=None):
-        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\nWhiteboard: %s" %
-                  (product, component, summary, comment, whiteboard))
+    def new(self, summary, comment, product, component, whiteboard=None, priority=None):
+        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\n"
+                  "Whiteboard: %s\nPriority: %s" %
+                  (product, component, summary, comment, whiteboard, priority))
         if self.known_bugs:
             bug_id = self.known_bugs[-1] + 1
         else:
