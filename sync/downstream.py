@@ -38,17 +38,33 @@ class DownstreamSync(base.SyncProcess):
                                               gecko_head=DownstreamSync.gecko_landing_branch(),
                                               wpt_base=wpt_base,
                                               wpt_head="origin/pr/%s" % pr_id)
-        bug_comment = (env.gh_wpt.cleanup_pr_body(pr_body) +
-                       "\n\n(This bug will be closed when the upstream PR has"
-                       " landed and merged into mozilla-central)")
-        bug = env.bz.new(summary="[wpt-sync] PR %s - %s" % (pr_id, pr_title),
-                         comment=bug_comment,
+
+        comment = sync.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
+        bug = env.bz.new(summary="[wpt-sync] Sync PR %s - %s" % (pr_id, pr_title),
+                         comment=comment,
                          product="Testing",
                          component="web-platform-tests",
                          whiteboard="[wptsync downstream]",
                          priority="P3")
         sync.bug = bug
         return sync
+
+    def make_bug_comment(self, git_wpt, pr_id, pr_title, pr_body):
+        pr_msg = env.gh_wpt.cleanup_pr_body(pr_body)
+        author = self.wpt_commits[0].author
+
+        msg = ["Sync web-platform-tests PR %s into mozilla-central"
+               " (this bug is closed when the sync is complete)." % pr_id,
+               "",
+               "PR: %s" % env.gh_wpt.pr_url(pr_id),
+               ""
+               "Details from upstream follow.",
+               "",
+               "%s wrote:" % author,
+               ">  %s" % pr_title,
+               ">  "]
+        msg.extend((">  %s" % line for line in pr_msg.split("\n")))
+        return "\n".join(msg)
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
