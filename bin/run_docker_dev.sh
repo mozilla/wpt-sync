@@ -24,6 +24,10 @@ if [[ $1 == "build" ]]; then
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $1 == "test" ]]; then
     exec docker run -it wptsync_dev --test
+elif [[ $1 == "clean" ]]; then
+    rm -rf workspace
+    rm -rf repos
+    rm -rf devenv
 else
     exec docker run --init -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
