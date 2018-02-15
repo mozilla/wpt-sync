@@ -7,20 +7,21 @@ set -euo pipefail
 
 if [[ $1 == "build" ]]; then
     {
+      set +e
       echo "Creating devenv"
-      mkdir devenv/
-      echo "Copying configs to devenv"
-      cp test/testdata/* devenv/
-      cp docker/*_config devenv/
+      mkdir devenv \
+      && echo "Copying configs to devenv" \
+      && cp test/testdata/* devenv/ \
+      && cp docker/*_config devenv/ \
       echo "Creating workspace"
-      mkdir workspace
-      echo "Creating dev .ssh credentials for workspace"
-      mkdir workspace/ssh/
-      echo "Creating development credentials for Github"
-      ssh-keygen -f workspace/ssh/id_github -t rsa -b 4096
-      echo "Creating development credentials for hg.m.o"
-      ssh-keygen -f workspace/ssh/id_hgmo -t rsa -b 4096 -C wptsync@mozilla.com
-      echo "Creating repos directory"
+      mkdir workspace \
+      && echo "Creating dev .ssh credentials for workspace" \
+      && mkdir workspace/ssh \
+      && echo "Creating development credentials for Github" \
+      && ssh-keygen -f workspace/ssh/id_github -t rsa -b 4096 \
+      && echo "Creating development credentials for hg.m.o" \
+      && ssh-keygen -f workspace/ssh/id_hgmo -t rsa -b 4096 -C wptsync@mozilla.com \
+      && echo "Creating repos directory"
       mkdir repos
     }
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
