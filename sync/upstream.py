@@ -43,7 +43,7 @@ class BackoutCommitFilter(base.CommitFilter):
 class UpstreamSync(base.SyncProcess):
     sync_type = "upstream"
     obj_id = "bug"
-    statuses = ("open", "complete")
+    statuses = ("open", "complete", "incomplete")
 
     def __init__(self, *args, **kwargs):
         super(UpstreamSync, self).__init__(*args, **kwargs)
@@ -592,7 +592,10 @@ def update_modified_sync(sync):
     sync.update_wpt_commits()
 
     if len(sync.upstreamed_gecko_commits) == 0:
-        sync.finish()
+        logger.info("Sync has no commits, so marking as incomplete")
+        sync.status = "incomplete"
+    else:
+        sync.status = "open"
 
     sync.update_github()
 
@@ -686,7 +689,8 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
         base_commit = sync_commit.GeckoCommit(git_gecko,
                                               git_gecko.cinnabar.hg2git(base_rev))
 
-    wpt_syncs = UpstreamSync.load_all(git_gecko, git_wpt)
+    wpt_syncs = (UpstreamSync.load_all(git_gecko, git_wpt, status="open") +
+                 UpstreamSync.load_all(git_gecko, git_wpt, status="incomplete"))
 
     syncs_by_bug = {item.bug: item for item in wpt_syncs}
 
