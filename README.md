@@ -17,24 +17,54 @@ requires [Docker](https://www.docker.com/).
 
 We're _somewhat_ following [mozilla-services' Dockerflow](https://github.com/mozilla-services/Dockerflow).
 
+If you are on MacOS and have brew installed you can do
+
+```
+brew cask install docker
+```
+
 ### Prerequisites
 
 Depending on what command you want to run, (e.g. wptsync listen), you may need
-to provide custom configration files at docker run-time by placing them in 
+to provide custom configration files at docker run-time by placing them in
 locations that are bind-mounted to the container and setting container environment variables. See `Dockerfile.dev` and `start_wptsync.sh`
 
 You can include these customizations in a shell script or a docker-compose.yml:
 
-*   There's a dev-env convenience script for building the docker image and 
+*   There's a dev-env convenience script for building the docker image and
     running the wptsync command in a corresponding container: `./bin/
     run_docker_dev.sh`. It is similar to the script we use in production.
-*   Alternately you can use __docker-compose__ (see below) or run docker 
+*   Alternately you can use __docker-compose__ (see below) or run docker
     commands directly.
+
+### Quick Setup
+
+The following setup assumes you have already installed Docker and have it running.
+See Development Environment above.
+
+```
+./bin/run_docker_dev.sh build
+```
+This will setup the container and make sure the relevant configuration files are in the right place.
+You will be asked to enter in a passphrase when it creates development ssh keys, press enter
+to leave these blank.
+
+To run tests do the following
+
+```
+./bin/run_docker_dev.sh test
+```
 
 
 ### Raw docker commands
 
 From repo root:
+
+The following will need to be setup before running the raw docker commands
+
+```
+mkdir -p devenv
+cp test/testdata/* devenv/
 
 ```
 docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker/Dockerfile.dev .
@@ -46,11 +76,11 @@ To start all the services in the container:
 
 ```
 docker run --init -it --add-host=rabbitmq:127.0.0.1 \
---env WPTSYNC_CONFIG=/app/path/to/sync.ini \
---env WPTSYNC_CREDS=/app/path/to/credentials.ini \
---env WPTSYNC_SSH_CONFIG=/app/path/to/ssh_config \
---env WPTSYNC_GECKO_CONFIG=/app/path/to/gecko_config\
---env WPTSYNC_WPT_CONFIG=/app/path/to/wpt_config \
+--env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
+--env WPTSYNC_CREDS=/app/wpt-sync/devenv/credentials.ini \
+--env WPTSYNC_SSH_CONFIG=/app/wpt-sync/devenv/ssh_config \
+--env WPTSYNC_GECKO_CONFIG=/app/wpt-sync/devenv/gecko_config\
+--env WPTSYNC_WPT_CONFIG=/app/wpt-sync/devenv/wpt_config \
 --mount type=bind,source=$(pwd),target=/app/wpt-sync \
 --mount type=bind,source=$(pwd)/repos,target=/app/repos \
 --mount type=bind,source=$(pwd)/workspace,target=/app/workspace \
