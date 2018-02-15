@@ -13,6 +13,8 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, set_pr_status, mock_m
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+    env.gh_wpt.set_status(pr["number"], "success", "http://test/", "description",
+                          "continuous-integration/travis-ci/pr")
     assert sync is not None
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
@@ -33,6 +35,7 @@ def test_wpt_pr_status_success(git_gecko, git_wpt, pull_request, set_pr_status,
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
     try_push = sync.latest_try_push
+    assert sync.last_pr_check == {"state": "success", "sha": pr.head}
     assert try_push is not None
     assert try_push.status == "open"
     assert try_push.try_rev == hg_gecko_try.log("-l1", "--template={node}")

@@ -427,19 +427,17 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
 @base.entry_point("downstream")
 def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                    raise_on_error=False):
-    # TODO: seems like ignoring status that isn't our own would make more sense
-    if context != "continuous-integration/travis-ci/pr":
-        logger.info("Ignoring status for context %s." % context)
-        return
-
     update_repositories(git_gecko, git_wpt)
-
+    previous_check = sync.last_pr_check
     try:
         logger.debug("Got status %s for PR %s" % (status, sync.pr))
         if status == "pending":
             # We got new commits that we missed
             sync.update_commits()
-        elif status == "success":
+            return
+        check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
+        sync.last_pr_check = {"state": check_state, "sha": head_sha}
+        if check_state == "success" and previous_check != sync.last_pr_check:
             head_changed = sync.update_commits()
             if sync.latest_try_push and not head_changed:
                 logger.info("Commits on PR %s didn't change" % sync.pr)
