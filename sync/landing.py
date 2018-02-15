@@ -414,7 +414,9 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head="orig
     return commits_by_pr
 
 
-def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head="origin/master"):
+def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None):
+    if wpt_head is None:
+        wpt_head = "origin/master"
     pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head)
     landable_commits = []
     for pr, commits in pr_commits:
@@ -471,7 +473,7 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
 
 
 @base.entry_point("landing")
-def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
+def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None):
     update_repositories(git_gecko, git_wpt)
 
     landings = LandingSync.load_all(git_gecko, git_wpt)
@@ -485,7 +487,8 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
         if prev_wpt_head is None:
             prev_wpt_head = sync_point["upstream"]
 
-        landable = landable_commits(git_gecko, git_wpt, prev_wpt_head)
+        landable = landable_commits(git_gecko, git_wpt, prev_wpt_head,
+                                    wpt_head=new_wpt_head)
         if landable is None:
             return
         wpt_head, commits = landable
@@ -495,6 +498,10 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None):
             raise AbortError("Existing landing base commit %s doesn't match"
                              "supplied previous wpt head %s" % (landing.wpt_commits.base.sha1,
                                                                 prev_wpt_head))
+        elif new_wpt_head and landing.wpt_commits.head.sha1 != new_wpt_head:
+            raise AbortError("Existing landing head commit %s doesn't match"
+                             "supplied wpt head %s" % (landing.wpt_commits.head.sha1,
+                                                       new_wpt_head))
 
         wpt_head, commits = landable_commits(git_gecko,
                                              git_wpt,
