@@ -49,6 +49,7 @@ def get_parser():
 
     parser_landing = subparsers.add_parser("landing", help="Trigger the landing code")
     parser_landing.add_argument("--prev-wpt-head", help="First commit to use as the base")
+    parser_landing.add_argument("--wpt-head", help="wpt commit to land to")
     parser_landing.set_defaults(func=do_landing)
 
     parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
@@ -182,7 +183,7 @@ def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
 @with_lock
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
-    landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"])
+    landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"], kwargs["wpt_head"])
 
 
 @with_lock
