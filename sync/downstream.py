@@ -38,11 +38,15 @@ class DownstreamSync(base.SyncProcess):
                                               gecko_head=DownstreamSync.gecko_landing_branch(),
                                               wpt_base=wpt_base,
                                               wpt_head="origin/pr/%s" % pr_id)
+        bug_comment = (env.gh_wpt.cleanup_pr_body(pr_body) +
+                       "\n\n(This bug will be closed when the upstream PR has"
+                       " landed and merged into mozilla-central)")
         bug = env.bz.new(summary="[wpt-sync] PR %s - %s" % (pr_id, pr_title),
-                         comment=env.gh_wpt.cleanup_pr_body(pr_body),
+                         comment=bug_comment,
                          product="Testing",
                          component="web-platform-tests",
-                         whiteboard="[wptsync downstream]")
+                         whiteboard="[wptsync downstream]",
+                         priority="P3")
         sync.bug = bug
         return sync
 
