@@ -59,7 +59,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 0
-    assert sync.status == "complete"
+    assert sync.status == "incomplete"
 
 
 def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
@@ -76,6 +76,11 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
 
     upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
 
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert sync.status == "incomplete"
+    assert sync._process_name.seq_id is None
+    assert len(sync.upstreamed_gecko_commits) == 0
+
     # Make some unrelated commit in the root
     upstream_gecko_commit(other_changes=test_changes, bug="1235",
                           message="Change other file")
@@ -86,6 +91,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert sync._process_name.seq_id is None
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1

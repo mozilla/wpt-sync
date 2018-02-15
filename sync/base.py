@@ -94,7 +94,7 @@ class ProcessName(object):
 
     @property
     def seq_id(self):
-        return int(self._seq_id)
+        return int(self._seq_id) if self._seq_id is not None else None
 
     @property
     def status(self):
@@ -576,7 +576,10 @@ class SyncProcess(object):
     def __eq__(self, other):
         if not hasattr(other, "_process_name"):
             return False
-        str(self._process_name) == str(other._process_name)
+        for attr in ["obj_type", "subtype", "obj_id", "seq_id"]:
+            if getattr(self._process_name, attr) != getattr(other._process_name, attr):
+                return False
+        return True
 
     def __ne__(self, other):
         return not self == other
