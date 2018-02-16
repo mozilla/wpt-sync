@@ -334,7 +334,43 @@ def do_test(*args, **kwargs):
 
     logger.info("Running pytest")
     cmd = ["pytest", "-s", "-v", "-p no:cacheprovider"] + args
-    subprocess.check_call(cmd, cwd="/app/wpt-sync/")
+    proc = subprocess.Popen(cmd, cwd="/app/wpt-sync/")
+    time_subprocess(proc)
+
+
+def time_subprocess(proc):
+    import json
+    import psutil
+    import traceback
+    import time
+    from collections import defaultdict
+
+    results = defaultdict(lambda: defaultdict(float))
+
+    try:
+        parent = psutil.Process(proc.pid)
+        for child in parent.children(recursive=True):
+            print(child)
+        while proc.poll() is None:
+            for child in parent.children(recursive=True):
+                try:
+                    cmd = child.cmdline()
+                    key = " ".join(cmd)
+                    data = child.cpu_times()
+                    for field, value in data._asdict().iteritems():
+                        results[key][field] += value
+                except psutil.NoSuchProcess:
+                    continue
+        time.sleep(0.1)
+    except Exception:
+        print(traceback.format_exc())
+    finally:
+        if parent.is_running():
+            parent.terminate()
+        results_str = json.dumps(results)
+        print(results_str)
+        with open("/app/workspace/prof.data", "w") as f:
+            f.write(results_str)
 
 
 @with_lock
