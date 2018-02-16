@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -eo pipefail
 
 # Helper script for running docker in a dev environment.
 # Use run_docker.sh instead in prod
