@@ -271,12 +271,13 @@ def details_message(job_names, details):
     def new_results(results):
         return {k: v.new_result for k, v in results.iteritems()}
 
-    for key, intro, include_result in [("crash", "These tests crash:", False),
-                                       ("worse_result", "These tests have a worse result "
-                                        "after import (e.g. they used to PASS and now FAIL)", True),
-                                       ("new_not_pass", "These new tests don't PASS "
-                                        "on all platforms", True),
-                                       ("disabled", "These tests are disabled", False)]:
+    for key, intro, include_result in [("crash", "Tests that CRASH:", False),
+                                       ("worse_result", "Existing tests that now have a worse "
+                                        "result (e.g. they used to PASS and now FAIL):", True),
+                                       ("new_not_pass", "New tests that have failures "
+                                        "or other problems:", True),
+                                       ("disabled", "Tests that are disabled for instability:",
+                                        False)]:
         part_parts = [intro]
         data = details[key]
         if not data:
