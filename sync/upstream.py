@@ -359,6 +359,9 @@ class UpstreamSync(base.SyncProcess):
 
     def try_land_pr(self):
         logger.info("Checking if sync for bug %s can land" % self.bug)
+        if not self.status == "open":
+            logger.info("Sync is closed")
+            return
         if not self.gecko_landed():
             logger.info("Commits are not yet landed in gecko")
             return False
@@ -702,12 +705,8 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
                                                  create_endpoints, update_syncs,
                                                  raise_on_error=raise_on_error)
 
-    # TODO: check this name
-    if git_gecko.is_ancestor(rev, env.config["gecko"]["refs"]["central"]):
-        landable_syncs = [item for item in wpt_syncs if item not in failed_syncs]
-        landed_syncs = try_land_syncs(landable_syncs)
-    else:
-        landed_syncs = set()
+    landable_syncs = set(wpt_syncs) - failed_syncs
+    landed_syncs = try_land_syncs(landable_syncs)
 
     if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
         last_sync_point.commit = rev
