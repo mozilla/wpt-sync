@@ -26,7 +26,7 @@ if [[ $1 == "build" ]]; then
     }
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $1 == "test" ]]; then
-    exec docker run -it wptsync_dev --test
+    exec docker run -it --mount type=bind,source=$(pwd),target=/app/wpt-sync wptsync_dev --test
 elif [[ $1 == "clean" ]]; then
     rm -rf workspace
     rm -rf repos
