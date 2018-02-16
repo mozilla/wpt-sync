@@ -374,7 +374,7 @@ class UpstreamSync(base.SyncProcess):
             self.pr, exclude="upstream/gecko")
         if not all_status_success:
             if not any(item.state == "pending" for item in non_success.itervalues()):
-                details = []
+                details = ["Github PR %s" % env.gh_wpt.pr_url(self.pr)]
                 for context, item in non_success.iteritems():
                     if item.state == "pending":
                         continue
