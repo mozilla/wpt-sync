@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 
-if [[ $1 == "build" ]]; then
-    docker build -t {{ _image_name | mandatory }} --file {{ wptsync_repo_path }}/docker/Dockerfile.dev {{ wptsync_repo_path }}
-elif [[ $1 == "test" ]]; then
-    exec docker run -it {{ _image_name | mandatory }} --test
-else
+command="$1"
+shift
+img={{ _image_name | mandatory }}
+
+if [[ $1 == "--image" ]]; then
+    img="$2"
+    shift 2
+fi
+
+if [[ $command == "build" ]]; then
+    docker build -t $img --file {{ wptsync_repo_path }}/docker/Dockerfile.dev {{ wptsync_repo_path }}
+elif [[ $command == "test" ]]; then
+    exec docker run -it $img --test
+elif [[ $command == "run" ]]; then
     exec docker run --init -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG={{ wptsync_config | mandatory }} \
     --env WPTSYNC_CREDS={{ wptsync_credentials }} \
@@ -14,5 +23,7 @@ else
     --mount type=bind,source={{ mount_data | mandatory}},target={{ target_data | mandatory }} \
     --mount type=bind,source={{ mount_repos | mandatory }},target={{ target_repos | mandatory }} \
     --mount type=bind,source={{ mount_workspace | mandatory }},target={{ target_workspace | mandatory }} \
-    {{ _image_name | mandatory }} $@
+    $img $@
+else
+  echo "Usage: $0 build|test|run [--image image:tag] [optional args to for <run>...]"
 fi

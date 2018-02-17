@@ -5,7 +5,10 @@ set -eo pipefail
 # Helper script for running docker in a dev environment.
 # Use run_docker.sh instead in prod
 
-if [[ $1 == "build" ]]; then
+command=$1
+shift
+
+if [[ $command == "build" ]]; then
     {
       set +e
       echo "Creating devenv"
@@ -25,13 +28,13 @@ if [[ $1 == "build" ]]; then
       mkdir repos
     }
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
-elif [[ $1 == "test" ]]; then
+elif [[ $command == "test" ]]; then
     exec docker run -it --mount type=bind,source=$(pwd),target=/app/wpt-sync wptsync_dev --test
-elif [[ $1 == "clean" ]]; then
+elif [[ $command == "clean" ]]; then
     rm -rf workspace
     rm -rf repos
     rm -rf devenv
-else
+elif [[ $command == "run" ]]; then
     exec docker run --init -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
     --env WPTSYNC_CREDS=/app/wpt-sync/devenv/credentials.ini \
@@ -41,4 +44,6 @@ else
     --mount type=bind,source=$(pwd),target=/app/wpt-sync \
     --mount type=bind,source=$(pwd)/repos,target=/app/repos \
     --mount type=bind,source=$(pwd)/workspace,target=/app/workspace wptsync_dev $@
+else
+  echo "Usage: $0 build|test|clean|run [optional args to for <run>...]"
 fi
