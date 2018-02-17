@@ -59,7 +59,7 @@ where this script is installed.
 The ansible playbooks stop any running containers, so we need to restart them.
 
 1.  ssh into the server. If necessary, also `sudo su wpt_user`.
-2.  Optionally, `run_docker.sh --shell` and seed the repos:
+2.  Optionally, `run_docker.sh run --shell` and seed the repos:
 
     ```
     wptsync repo-config web-platform-tests /app/wpt-sync/docker/wpt_config
@@ -73,8 +73,16 @@ The ansible playbooks stop any running containers, so we need to restart them.
 3.  To start the service: 
 
     ```
-    screen -dmS wptsync run_docker.sh
+    screen -dmS wptsync run_docker.sh run
     ```
+
+    Or to start the service with a particular docker image:
+
+    ```
+    screen -dmS wptsync run_docker.sh run --image <imagename>:<tag>
+    ```
+
+    You can see what images are available with `docker images`.
 
 4. To stop the service use `docker stop -t 30 <container_name>`. `docker ps` will tell you the container names.
 
