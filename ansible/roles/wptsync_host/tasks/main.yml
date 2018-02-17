@@ -60,7 +60,7 @@
   when: update_credentials
 
 - name: chown mount-directories to docker container's UID (this make take a while)
-  command: "/usr/bin/chown -R {{ docker_uid }} {{ item }}"
+  command: "/usr/bin/chown -R {{ docker_uid }}:{{ docker_uid }} {{ item }}"
   with_items:
     - "{{ mount_repos | mandatory }}"
     - "{{ mount_workspace| mandatory }}"
