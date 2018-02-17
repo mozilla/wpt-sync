@@ -7,13 +7,15 @@ set -euo pipefail
 # WPT_CREDENTIALS: path to production credentials ini
 
 # _repo_root: path to wpt-sync repo
-# _image_name: name of docker image
+# _image_name: name of docker image, tagged with HEAD sha
 # _tempdir: path to workspace for ansible
+
+img="wptsync_dev:$(git rev-parse HEAD)"
 
 ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     ansible/wptsync_deploy.yml -vvv \
     --extra-vars _repo_root=$(pwd) \
-    --extra-vars _image_name=wptsync_dev \
+    --extra-vars _image_name=$img \
     --extra-vars _tempdir=$(pwd)/devenv/ansible_workspace \
     --extra-vars _ssh_hgmo=$WPT_SSH_HGMO \
     --extra-vars _ssh_github=$WPT_SSH_GITHUB \
