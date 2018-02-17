@@ -17,7 +17,7 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https
 
-# ### Install latest erlang
+### Install latest erlang
 # add buster sources.list
 RUN set -eux; \
 # add buster sources.list
@@ -60,9 +60,9 @@ RUN set -eux; \
         erlang-xmerl \
         ; \
     rm -rf /var/lib/apt/lists/*
-# ### Done erlang
+### Done erlang
 
-# ### Install rabbitmq
+### Install rabbitmq
 RUN set -eux; \
     echo "deb https://dl.bintray.com/rabbitmq/debian stretch main"| \
         sudo tee /etc/apt/sources.list.d/bintray.rabbitmq.list; \
@@ -75,12 +75,14 @@ RUN set -eux; \
         rabbitmq-server \
         ; \
     rm -rf /var/lib/apt/lists/*
-# ### Done rabbitmq
+### Done rabbitmq
 
 RUN apt-get purge -y --auto-remove wget gnupg apt-transport-https
 
-RUN adduser app sudo
-RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+RUN adduser app sudo; \
+    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers; \
+    # allow rabbmitmq to write to /app/workspace/logs
+    usermod -a -G app rabbitmq
 
 COPY . /app/wpt-sync
 RUN chown -R app:app /app/wpt-sync

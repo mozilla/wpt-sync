@@ -32,6 +32,7 @@
   with_items:
     - "{{ mount_repos | mandatory }}"
     - "{{ mount_workspace| mandatory }}"
+    - "{{ mount_workspace| mandatory }}/logs"
     - "{{ mount_data | mandatory }}"
     - "{{ mount_data | mandatory }}/{{ ssh_dir | mandatory }}"
 
