@@ -369,7 +369,13 @@ class DownstreamSync(base.SyncProcess):
             return
 
         if not self.bug:
-            logger.error("Sync has no associated bug")
+            logger.error("Sync for PR %s has no associated bug" % self.pr)
+            return
+
+        if not self.affected_tests():
+            logger.debug("PR %s doesn't have affected tests so skipping results notification" %
+                         self.pr)
+            return
 
         logger.info("Trying to generate results notification for PR %s" % self.pr)
 
