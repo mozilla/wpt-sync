@@ -193,12 +193,15 @@ class MockGitHub(GitHub):
         self._log("Getting PR %s" % id)
         return self.prs.get(int(id))
 
-    def create_pull(self, title, body, base, head, _commits=None, _id=None):
+    def create_pull(self, title, body, base, head, _commits=None, _id=None,
+                    _user=None):
         if _id is None:
             id = self._id.next()
         else:
             id = int(_id)
         assert id not in self.prs
+        if _user is None:
+            _user = env.config["web-platform-tests"]["github"]["user"]
         if _commits is None:
             _commits = [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
                                     "message": "Test commit",
@@ -214,6 +217,9 @@ class MockGitHub(GitHub):
             "mergeable": True,
             "approved": True,
             "_commits": _commits,
+            "user": {
+                "login": _user
+            },
             "labels": []
         })
         self.prs[id] = data

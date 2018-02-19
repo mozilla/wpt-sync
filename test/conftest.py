@@ -336,7 +336,8 @@ def pull_request(env, git_wpt_upstream):
                                        body,
                                        "master",
                                        gh_commits[-1]["sha"],
-                                       _commits=gh_commits)
+                                       _commits=gh_commits,
+                                       _user="test")
         pr = env.gh_wpt.get_pull(pr_id)
 
         git_wpt_upstream.git.update_ref("refs/pull/%s/head" % pr_id, "refs/heads/temp_pr")
