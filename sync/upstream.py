@@ -391,8 +391,8 @@ class UpstreamSync(base.SyncProcess):
             try:
                 merge_sha = env.gh_wpt.merge_pull(self.pr)
             except Exception as e:
-                # TODO: better exception type
-                msg = "Merging PR failed: %s" % e
+                msg = ("Merging PR %s failed.\nMessage: " %
+                       (env.gh_wpt.pr_url(self.pr), e["message"]))
             else:
                 self.merge_sha = merge_sha
                 self.finish()
