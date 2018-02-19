@@ -722,18 +722,20 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
         return landed
     previous_check = sync.last_pr_check
     check_state, statuses = env.gh_wpt.get_combined_status(sync.pr, exclude={"upstream/gecko"})
-    sync.last_pr_check = {"state": check_state, "sha": sha}
+    check = {"state": check_state, "sha": sha}
     if check_state == "success":
+        sync.last_pr_check = check
         sync.error = None
         if sync.gecko_landed():
             landed = sync.try_land_pr()
-        elif previous_check != sync.last_pr_check:
+        elif previous_check != check:
             env.bz.comment(sync.bug,
                            "Upstream web-platform-tests status checks passed, "
                            "PR will merge once commit reaches central.")
     else:
         # Don't report anything until all checks have completed
-        if not any(item.state == "pending" for item in statuses):
+        if (not any(item.state == "pending" for item in statuses) and
+            previous_check != check):
             details = ["Github PR %s" % env.gh_wpt.pr_url(sync.pr)]
             for item in statuses:
                 if item.state == "success":
@@ -745,6 +747,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
                    details)
             env.bz.comment(sync.bug, msg)
             sync.error = "Travis failed"
+            sync.last_pr_check = check
         else:
             logger.info("Some upstream web-platform-tests status checks still pending.")
     return landed
