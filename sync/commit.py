@@ -112,10 +112,17 @@ class Commit(object):
         return get_metadata(self.msg)
 
     @classmethod
-    def create(cls, repo, msg, metadata, author=None):
+    def create(cls, repo, msg, metadata, author=None, amend=False):
         msg = Commit.make_commit_msg(msg, metadata)
-        commit = repo.index.commit(message=msg, author=author)
-        return cls(repo, commit.hexsha)
+        commit_kwargs = {}
+        if amend:
+            commit_kwargs["amend"] = True
+            commit_kwargs["no_edit"] = True
+        else:
+            if author is not None:
+                commit_kwargs["author"] = author
+        repo.git.commit(message=msg, **commit_kwargs)
+        return cls(repo, repo.head.commit.hexsha)
 
     @staticmethod
     def make_commit_msg(msg, metadata):
@@ -132,7 +139,7 @@ class Commit(object):
                 if item.strip()]
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
-             dest_prefix=None):
+             dest_prefix=None, amend=False, three_way=False):
         if metadata is None:
             metadata = {}
 
@@ -168,8 +175,12 @@ class Commit(object):
                 apply_kwargs = {}
                 if dest_prefix:
                     apply_kwargs["directory"] = dest_prefix
+                if three_way:
+                    apply_kwargs["3way"] = True
+                else:
+                    apply_kwargs["reject"] = True
                 try:
-                    dest_repo.git.apply(patch_path, index=True, reject=True, binary=True,
+                    dest_repo.git.apply(patch_path, index=True, binary=True,
                                         p=strip_dirs, **apply_kwargs)
                 except git.GitCommandError as e:
                     err_msg = """git apply failed
@@ -179,7 +190,7 @@ class Commit(object):
          %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
                     raise AbortError(err_msg)
 
-                return Commit.create(dest_repo, msg, None, author=self.commit.author)
+                return Commit.create(dest_repo, msg, None, amend=amend)
 
 
 class GeckoCommit(Commit):

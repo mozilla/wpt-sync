@@ -105,6 +105,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     git_wpt_upstream.git.checkout("master")
     git_wpt_upstream.git.merge(remote_branch, ff_only=True)
 
+    sync_1.finish()
+
     # Add second gecko change
     test_changes = {"change2": "CHANGE2\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug="1112",
