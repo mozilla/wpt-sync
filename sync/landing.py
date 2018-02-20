@@ -225,24 +225,43 @@ Automatic update from web-platform-tests%s
             return
 
         landing_commit = self.gecko_commits[-1]
-        if "reapplied-commits" in landing_commit.metadata:
-            return
         logger.debug("Reapplying commits: %s" % " ".join(commits))
         git_work_gecko = self.gecko_worktree.get()
 
+        already_applied = landing_commit.metadata.get("reapplied-commits")
+        if already_applied:
+            already_applied = already_applied.split(",")
+        else:
+            already_applied = []
+        already_applied_set = set(already_applied)
+
+        gecko_commits = [sync_commit.GeckoCommit(self.git_gecko, sha1) for sha1 in commits]
+        unapplied_gecko_commits = [item for item in gecko_commits if item.canonical_rev
+                                   not in already_applied_set]
+
         try:
-            git_work_gecko.git.cherry_pick(no_commit=True, *commits)
-        except git.GitCommandError as e:
-            logger.error("Failed to reapply commits:\n%s" % (e))
-            err_msg = ("Landing wpt failed because reapplying commits failed:\n%s" % (e,))
+            for i, commit in enumerate(unapplied_gecko_commits):
+                def msg_filter(_):
+                    msg = landing_commit.msg
+                    reapplied_commits = (already_applied +
+                                         [commit.canonical_rev for commit in gecko_commits[:i + 1]])
+                    metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
+                    return msg, metadata
+                logger.info("Reapplying %s - %s" % (commit.sha1, commit.msg))
+                # Passing in a src_prefix here means that we only generate a patch for the
+                # part of the commit that affects wpt, but then we need to undo it by adding
+                # the same dest prefix
+                commit.move(git_work_gecko,
+                            msg_filter=msg_filter,
+                            src_prefix=env.config["gecko"]["path"]["wpt"],
+                            dest_prefix=env.config["gecko"]["path"]["wpt"],
+                            three_way=True,
+                            amend=True)
+
+        except AbortError as e:
+            err_msg = ("Landing wpt failed because reapplying commits failed:\n%s" % (e.message,))
             env.bz.comment(self.bug, err_msg)
             raise AbortError(err_msg)
-
-        gecko_commits = [sync_commit.GeckoCommit(self.git_gecko, item) for item in commits]
-        metadata = {"reapplied-commits": ", ".join(commit.canonical_rev
-                                                   for commit in gecko_commits)}
-        new_message = sync_commit.Commit.make_commit_msg(landing_commit.msg, metadata)
-        git_work_gecko.git.commit(amend=True, no_edit=True, message=new_message)
 
     def manifest_update(self):
         git_work = self.gecko_worktree.get()
