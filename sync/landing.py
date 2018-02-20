@@ -230,7 +230,7 @@ Automatic update from web-platform-tests%s
 
         already_applied = landing_commit.metadata.get("reapplied-commits")
         if already_applied:
-            already_applied = already_applied.split(",")
+            already_applied = [item.strip() for item in already_applied.split(",")]
         else:
             already_applied = []
         already_applied_set = set(already_applied)
@@ -272,7 +272,7 @@ Automatic update from web-platform-tests%s
             git_work.git.commit(amend=True, no_edit=True)
 
     def add_metadata(self, sync):
-        for item in sync.gecko_commits:
+        for item in self.gecko_commits:
             if (item.metadata.get("wpt-pr") == sync.pr and
                 item.metadata.get("wpt-type") == "metadata"):
                 return
