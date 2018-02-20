@@ -181,3 +181,41 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                            "upstream2"))
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["upstream"] == landing_rev
+
+
+def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
+                          hg_gecko_try, mock_mach):
+    from conftest import create_file_data, gecko_changes
+
+    trypush.Mach = mock_mach
+
+    pr = pull_request([("Test commit", {"example/test1.html": "example_change"})])
+    head_rev = pr._commits[0]["sha"]
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    downstream_sync = set_pr_status(pr, "success")
+
+    # Create a metadata commit
+    git_work = downstream_sync.gecko_worktree.get()
+    changes = gecko_changes(env, meta_changes={"example/test1.html":
+                                               "[test1.html]\n  expected: FAIL"})
+    file_data, _ = create_file_data(changes, git_work.working_dir)
+    downstream_sync.ensure_metadata_commit()
+    git_work.index.add(file_data)
+    downstream_sync._commit_metadata()
+
+    assert downstream_sync.metadata_commit is not None
+    downstream_sync.metadata_ready = True
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    tree.is_open = lambda x: True
+    landing_sync = landing.land_to_gecko(git_gecko, git_wpt)
+
+    assert len(landing_sync.gecko_commits) == 2
+    assert landing_sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
+    for item in file_data:
+        assert item in landing_sync.gecko_commits[-1].commit.stats.files

@@ -72,6 +72,10 @@ class TryCommit(object):
         raise NotImplementedError
 
     def read_treeherder(self, status, output):
+        if status != 0:
+            logger.error("Failed to push to try.")
+            # TODO retry
+            raise AbortError("Failed to push to try")
         rev_match = rev_re.search(output)
         if not rev_match:
             logger.warning("No revision found in string:\n\n{}\n".format(output))
@@ -84,10 +88,6 @@ class TryCommit(object):
                 return None
         else:
             try_rev = rev_match.group('rev')
-        if status != 0:
-            logger.error("Failed to push to try.")
-            # TODO retry
-            raise AbortError("Failed to push to try")
         return try_rev
 
 
