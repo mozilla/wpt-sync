@@ -105,6 +105,9 @@ class LandingSync(base.SyncProcess):
         git_work_wpt = self.wpt_worktree.get()
         git_work_gecko = self.gecko_worktree.get()
 
+        # Ensure we have anything in a wpt submodule
+        git_work_wpt.git.submodule("update", "--init", "--recursive")
+
         metadata = {
             "wpt-pr": pr_id,
             "wpt-commits": ", ".join(item.sha1 for item in wpt_commits)
