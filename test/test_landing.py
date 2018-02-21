@@ -16,7 +16,8 @@ def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
 def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                   hg_gecko_try, mock_mach):
-    pr = pull_request([("Test commit", {"README": "example_change"})])
+    pr = pull_request([("Test commit", {"README": "example_change",
+                                        "LICENSE": "Some change"})])
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -30,7 +31,17 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     sync.metadata_ready = True
 
     tree.is_open = lambda x: True
-    landing.land_to_gecko(git_gecko, git_wpt)
+    landing_sync = landing.land_to_gecko(git_gecko, git_wpt)
+
+    assert landing_sync is not None
+    worktree = landing_sync.gecko_worktree.get()
+    # Check that files we shouldn't move aren't
+    assert not os.path.exists(os.path.join(worktree.working_dir,
+                                           env.config["gecko"]["path"]["wpt"],
+                                           ".git"))
+    assert not os.path.exists(os.path.join(worktree.working_dir,
+                                           env.config["gecko"]["path"]["wpt"],
+                                           "LICENSE"))
 
     try_push = sync.latest_try_push
     assert try_push is not None

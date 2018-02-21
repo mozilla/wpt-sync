@@ -126,23 +126,15 @@ class LandingSync(base.SyncProcess):
         git_work_wpt.head.reference = wpt_commits[-1].commit
         git_work_wpt.head.reset(index=True, working_tree=True)
         shutil.rmtree(dest_path)
-        shutil.copytree(git_work_wpt.working_dir, dest_path)
+
+        # Some files we don't want to update on import ever
+        ignore_patterns = ["LICENSE", ".git", "resources/testdriver-vendor.js"]
+
+        shutil.copytree(git_work_wpt.working_dir, dest_path,
+                        ignore=shutil.ignore_patterns(*ignore_patterns))
 
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
-
-        # Some files we don't want to update on import ever
-        ignore_paths = ["LICENSE"]
-        all_paths = [item for item in git_work_gecko.git.ls_files().split("\n")
-                     if item.strip()]
-        for rel_path in ignore_paths:
-            path = os.path.join(env.config["gecko"]["path"]["wpt"], rel_path)
-            if path in all_paths:
-                logger.debug("Resetting %s" % path)
-                git_work_gecko.index.reset([path])
-                git_work_gecko.head.checkout(paths=[path])
-            else:
-                logger.debug("Path %s is not in the repository" % path)
 
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
