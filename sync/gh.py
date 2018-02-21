@@ -117,6 +117,17 @@ class GitHub(object):
         # issue.add_to_labels("mozilla:backed-out")
         pr.edit(state="closed")
 
+    def is_approved(self, pr_id):
+        pr = self.get_pull(pr_id)
+        reviews = pr.get_reviews()
+        # We get a chronological list of all reviews, so we want to
+        # check if the last review by any reviewer was in the approved
+        # state
+        review_by_reviewer = {}
+        for review in reviews:
+            review_by_reviewer[review.user.login] = review.state
+        return "APPROVED" in review_by_reviewer.values()
+
     def is_mergeable(self, pr_id):
         pr = self.get_pull(pr_id)
         return pr.mergeable
@@ -215,7 +226,7 @@ class MockGitHub(GitHub):
             "merged": False,
             "state": "open",
             "mergeable": True,
-            "approved": True,
+            "_approved": True,
             "_commits": _commits,
             "user": {
                 "login": _user
@@ -285,6 +296,10 @@ class MockGitHub(GitHub):
             # TODO: raise the right kind of error here
             raise ValueError
         self._log("Merged PR with id %s" % pr_id)
+
+    def is_approved(self, pr_id):
+        pr = self.get_pull(pr_id)
+        return pr._approved
 
     def approve_pull(self, pr_id):
         pr = self.get_pull(pr_id)

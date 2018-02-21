@@ -55,6 +55,7 @@ def handle_pr(git_gecko, git_wpt, event):
         if event["action"] == "opened":
             downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"])
     else:
+        env.gh_wpt.load_pull(env.gh_event["pull_request"])
         sync.update_status(event["action"],
                            event["pull_request"]["merged"],
                            event["pull_request"]["base"]["sha"])
@@ -108,11 +109,27 @@ def handle_push(git_gecko, git_wpt, event):
     landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
 
 
+def handle_pull_request_review(git_gecko, git_wpt, event):
+    if event["action"] != "submitted":
+        return
+    if event["review"]["state"] != "approved":
+        return
+    pr_id = event["pull_request"]["number"]
+
+    sync = get_pr_sync(git_gecko, git_wpt, pr_id)
+
+    if not sync or not isinstance(sync, downstream.DownstreamSync):
+        return
+
+    downstream.pull_request_approved(git_gecko, git_wpt, sync)
+
+
 class GitHubHandler(Handler):
     dispatch_event = {
         "pull_request": handle_pr,
         "status": handle_status,
         "push": handle_push,
+        "pull_request_review": handle_pull_request_review
     }
 
     def __call__(self, git_gecko, git_wpt, body):
