@@ -4,6 +4,7 @@ import time
 import traceback
 
 import git
+from github import GithubException
 from mozautomation import commitparser
 
 import base
@@ -394,9 +395,13 @@ class UpstreamSync(base.SyncProcess):
 
             try:
                 merge_sha = env.gh_wpt.merge_pull(self.pr)
+            except GithubException as e:
+                msg = ("Merging PR %s failed.\nMessage: %s" %
+                       (env.gh_wpt.pr_url(self.pr),
+                        e.data.get("message", "Unknown GitHub Error")))
             except Exception as e:
-                msg = ("Merging PR %s failed.\nMessage: " %
-                       (env.gh_wpt.pr_url(self.pr), e["message"]))
+                msg = ("Merging PR %s failed.\nMessage: %s" %
+                       (env.gh_wpt.pr_url(self.pr), e.message))
             else:
                 self.merge_sha = merge_sha
                 self.finish()
