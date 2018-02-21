@@ -297,6 +297,14 @@ class TryPush(base.ProcessData):
     def treeherder_url(try_rev):
         return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
 
+    def __eq__(self, other):
+        if not (hasattr(other, "_ref") and hasattr(other._ref, "_process_name")):
+            return False
+        for attr in ["obj_type", "subtype", "obj_id", "seq_id"]:
+            if getattr(self._ref._process_name, attr) != getattr(other._ref._process_name, attr):
+                return False
+        return True
+
     @property
     def try_rev(self):
         return self.get("try-rev")

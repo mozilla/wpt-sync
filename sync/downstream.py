@@ -515,13 +515,16 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             # TODO: consider marking the push an error here so that we can't land without manual
             # intervention
 
-    if sync.affected_tests() and not try_push.stability:
+    pr = env.gh_wpt.get_pull(sync.pr)
+    if (sync.affected_tests() and
+        (pr.merged or env.gh_wpt.is_approved(sync.pr)) and
+        not try_push.stability):
         logger.info("Creating a stability try push for PR %s" % sync.pr)
         # TODO check if tonnes of tests are failing -- don't want to update the
         # expectation data in that case
         # TODO decide whether to do another narrow push on mac
         TryPush.create(sync, sync.affected_tests(), stability=True)
-    else:
+    elif try_push.stability:
         if disabled:
             logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
             # TODO notify relevant people about test expectation changes, stability
@@ -534,3 +537,13 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     pr = env.gh_wpt.get_pull(sync.pr)
     if pr.merged:
         sync.try_notify()
+
+
+@base.entry_point("downstream")
+def pull_request_approved(git_gecko, git_wpt, sync):
+    pr = env.gh_wpt.get_pull(sync.pr)
+    if env.gh_wpt.is_approved(pr.number):
+        latest_try_push = sync.latest_try_push
+        if (latest_try_push and latest_try_push.status == "complete" and
+            not latest_try_push.stability):
+            TryPush.create(sync, sync.affected_tests(), stability=True)

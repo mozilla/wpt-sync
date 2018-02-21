@@ -1,4 +1,5 @@
-from sync import downstream, load
+from mock import patch
+from sync import downstream, handlers, load
 
 
 def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, set_pr_status, mock_mach, mock_wpt):
@@ -53,6 +54,36 @@ def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
     assert sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
+
+
+def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
+                         hg_gecko_try, mock_wpt):
+    mock_wpt.set_data("tests-affected", "")
+
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+    pr._approved = False
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr, "success")
+
+    sync.data["affected-tests"] = ["example"]
+
+    try_push = sync.latest_try_push
+    assert sync.last_pr_check == {"state": "success", "sha": pr.head}
+    try_push.success = lambda: True
+    with patch('sync.trypush.taskcluster.get_wpt_tasks',
+               return_value=([], [])):
+        downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    assert try_push.status == "complete"
+    assert sync.latest_try_push == try_push
+
+    pr._approved = True
+    handlers.handle_pull_request_review(git_gecko, git_wpt,
+                                        {"action": "submitted",
+                                         "review": {"state": "approved"},
+                                         "pull_request": {"number": pr.number}})
+    assert sync.latest_try_push != try_push
+    assert sync.latest_try_push.stability
 
 # def test_new_wpt_pr(config, session, git_gecko, git_wpt, bz):
 #     body = {
