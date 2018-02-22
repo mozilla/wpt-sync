@@ -14,12 +14,16 @@ logger = log.get_logger(__name__)
 
 
 def bz_url_from_api_url(api_url):
+    if api_url is None:
+        return None
     parts = urlparse.urlparse(api_url)
     bz_url = (parts.scheme, parts.netloc, "", "", "", "")
     return urlparse.urlunparse(bz_url)
 
 
 def bug_number_from_url(url):
+    if url is None:
+        return None
     return urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
 
 

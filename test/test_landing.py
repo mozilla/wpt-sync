@@ -54,9 +54,11 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
 
 
 def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                     hg_gecko_try):
+                     hg_gecko_try, mock_mach):
     pr = pull_request([("Test commit", {"README": "example_change"})])
     head_rev = pr._commits[0]["sha"]
+
+    trypush.Mach = mock_mach
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     downstream_sync = set_pr_status(pr, "success")

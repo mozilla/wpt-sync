@@ -5,6 +5,7 @@ import shutil
 import git
 
 import base
+import bug
 import commit as sync_commit
 import downstream
 import log
@@ -137,8 +138,13 @@ class LandingSync(base.SyncProcess):
         # Some files we don't want to update on import ever
         ignore_patterns = ["LICENSE", ".git", "resources/testdriver-vendor.js"]
 
-        shutil.copytree(git_work_wpt.working_dir, dest_path,
+        shutil.copytree(git_work_wpt.working_dir,
+                        dest_path,
                         ignore=shutil.ignore_patterns(*ignore_patterns))
+
+        if not git_work_gecko.is_dirty(untracked_files=True):
+            logger.info("PR %s didn't add any changes" % pr_id)
+            return None
 
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
@@ -156,7 +162,7 @@ Automatic update from web-platform-tests%s
         return gecko_commit
 
     def unlanded_gecko_commits(self):
-        """Get a list of gecko commit sha1s that correspond to commits which have
+        """Get a list of gecko commits that correspond to commits which have
         landed on the gecko integration branch, but are not yet merged into the
         upstream commit we are updating to.
 
@@ -165,7 +171,7 @@ Automatic update from web-platform-tests%s
           * Gecko PRs that landed between the wpt commit that we are syncing to
             and latest upstream master.
 
-        :return: List of sha1s in the order in which they originally landed in gecko"""
+        :return: List of commits in the order in which they originally landed in gecko"""
 
         if self._unlanded_gecko_commits is None:
             commits = []
@@ -174,7 +180,7 @@ Automatic update from web-platform-tests%s
                 # Calling this continually is O(N*M) where N is the number of unlanded commits
                 # and M is the average depth of the commit in the gecko tree
                 # If we need a faster implementation one approach would be to store all the
-                # commits not on the integration branch and check if
+                # commits not on the integration branch and check if this commit is in that set
                 return self.git_gecko.is_ancestor(commit.sha1, self.gecko_integration_branch())
 
             # All the commits from unlanded upstream syncs that are reachable from the
@@ -189,9 +195,11 @@ Automatic update from web-platform-tests%s
                                 (sync.bug, sync.pr))
                     commits.extend(branch_commits)
 
-            # All the gecko commits that landed between the target sync point and master
+            # All the gecko commits that landed between the base sync point and master
+            # We take the base here and then remove upstreamed commits that we are landing
+            # as we reach them so that we can get the right diffs for the other PRs
             unlanded_commits = self.git_wpt.iter_commits("%s..origin/master" %
-                                                         self.wpt_commits.head.sha1)
+                                                         self.wpt_commits.base.sha1)
             seen_bugs = set()
             for commit in unlanded_commits:
                 wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
@@ -199,12 +207,12 @@ Automatic update from web-platform-tests%s
                 if gecko_commit:
                     git_sha = self.git_gecko.cinnabar.hg2git(gecko_commit)
                     commit = sync_commit.GeckoCommit(self.git_gecko, git_sha)
-                    bug = commit.metadata.get("bugzilla-url")
+                    bug_number = bug.bug_number_from_url(commit.metadata.get("bugzilla-url"))
                     if on_integration_branch(commit):
-                        if bug and bug not in seen_bugs:
+                        if bug_number and bug_number not in seen_bugs:
                             logger.info("Commits from landed sync for bug %s will be reapplied" %
-                                        bug)
-                            seen_bugs.add(bug)
+                                        bug_number)
+                            seen_bugs.add(bug_number)
                         commits.append(commit.sha1)
 
             commits = set(commits)
@@ -219,17 +227,21 @@ Automatic update from web-platform-tests%s
                 if not commits:
                     break
 
-            self._unlanded_gecko_commits = list(reversed(ordered_commits))
+            self._unlanded_gecko_commits = list(reversed(
+                [sync_commit.GeckoCommit(self.git_gecko, item) for item in ordered_commits]))
         return self._unlanded_gecko_commits
 
-    def reapply_local_commits(self):
-        commits = self.unlanded_gecko_commits()
+    def reapply_local_commits(self, gecko_commits_landed):
+        # The local commits to apply are everything that hasn't been landed at this
+        # point in the process
+        commits = [item for item in self.unlanded_gecko_commits()
+                   if item.canonical_rev not in gecko_commits_landed]
 
         if not commits:
             return
 
         landing_commit = self.gecko_commits[-1]
-        logger.debug("Reapplying commits: %s" % " ".join(commits))
+        logger.debug("Reapplying commits: %s" % " ".join(item.canonical_rev for item in commits))
         git_work_gecko = self.gecko_worktree.get()
 
         already_applied = landing_commit.metadata.get("reapplied-commits")
@@ -239,8 +251,7 @@ Automatic update from web-platform-tests%s
             already_applied = []
         already_applied_set = set(already_applied)
 
-        gecko_commits = [sync_commit.GeckoCommit(self.git_gecko, sha1) for sha1 in commits]
-        unapplied_gecko_commits = [item for item in gecko_commits if item.canonical_rev
+        unapplied_gecko_commits = [item for item in commits if item.canonical_rev
                                    not in already_applied_set]
 
         try:
@@ -248,7 +259,7 @@ Automatic update from web-platform-tests%s
                 def msg_filter(_):
                     msg = landing_commit.msg
                     reapplied_commits = (already_applied +
-                                         [commit.canonical_rev for commit in gecko_commits[:i + 1]])
+                                         [commit.canonical_rev for commit in commits[:i + 1]])
                     metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
                     return msg, metadata
                 logger.info("Reapplying %s - %s" % (commit.sha1, commit.msg))
@@ -313,12 +324,24 @@ Automatic update from web-platform-tests%s
                 else:
                     prs_applied[pr_id] = item
 
+        gecko_commits_landed = set()
+
         for pr, sync, commits in landable_commits:
-            if pr not in prs_applied or prs_applied[pr_id] == self.gecko_commits[-1]:
-                # If we haven't applied it before, or if the pr is the last thing applied,
-                # which happens if something failed
-                self.add_pr(pr, commits)
-                self.reapply_local_commits()
+            if isinstance(sync, upstream.UpstreamSync):
+                for commit in commits:
+                    gecko_commit = commit.metadata.get("gecko-commit")
+                    if gecko_commit:
+                        gecko_commits_landed.add(gecko_commit)
+            if pr not in prs_applied:
+                # If we haven't applied it before then create the initial commit
+                commit = self.add_pr(pr, commits)
+                if commit is None:
+                    # This means the PR didn't change gecko
+                    continue
+            if pr not in prs_applied or prs_applied[pr] == self.gecko_commits[-1]:
+                # If the head commit is the changes from the PR then reapply all the
+                # local changes
+                self.reapply_local_commits(gecko_commits_landed)
                 self.manifest_update()
             if isinstance(sync, downstream.DownstreamSync) and pr not in metadata_applied:
                 self.add_metadata(sync)
