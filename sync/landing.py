@@ -370,26 +370,26 @@ Automatic update from web-platform-tests%s
                 self.add_metadata(sync)
 
     @property
-    def metadata_commit(self):
-        if self.gecko_commits[-1].metadata["wpt-type"] == "metadata":
-            return self.gecko_commits[-1]
+    def landing_commit(self):
+        head = self.gecko_commits.head
+        if (head.metadata.get("wpt-type") == "landing" and
+            head.metadata.get("wpt-head") == self.wpt_commits.head.sha1):
+            return head
 
-    def update_metadata_commit(self):
-        if not self.metadata_commit:
-            assert all(item.metadata.get("wpt-type") != "metadata" for item in self.gecko_commits)
-            git_work = self.gecko_worktree.get()
+    def update_landing_commit(self):
+        git_work = self.gecko_worktree.get()
+        if not self.landing_commit:
             metadata = {
-                "wpt-pr": self.pr,
-                "wpt-type": "metadata"
+                "wpt-type": "landing",
+                "wpt-head": self.wpt_commits.head.sha1
             }
             msg = sync_commit.Commit.make_commit_msg(
-                "Bug %s - Update wpt metadata for update to %s, a=testonly" %
+                "Bug %s - [wpt-sync] Update web-platform-tests to %s, a=testonly" %
                 (self.bug, self.wpt_commits.head.sha1), metadata)
             git_work.git.commit(message=msg, allow_empty=True)
         else:
             git_work.git.commit(allow_empty=True, amend=True, no_edit=True)
-        commit = git_work.commit("HEAD")
-        return sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
+        return self.gecko_commits[-1]
 
     def update_metadata(self, log_files):
         """Update the web-platform-tests metadata based on the logs
@@ -407,7 +407,7 @@ Automatic update from web-platform-tests%s
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
             gecko_work.git.add(meta_path, all=True)
-            self.update_metadata_commit()
+            self.update_landing_commit()
 
     def update_sync_point(self, sync_point):
         """Update the in-tree record of the last sync point."""
@@ -424,9 +424,7 @@ Automatic update from web-platform-tests%s
         if gecko_work.is_dirty():
             gecko_work.index.add([os.path.join(env.config["gecko"]["path"]["meta"],
                                                "mozilla-sync")])
-            gecko_work.index.commit(
-                message="Bug %s - [wpt-sync] Update web-platform-tests to %s" %
-                (self.bug, new_sha1))
+            self.update_landing_commit()
 
 
 def push(landing):

@@ -182,7 +182,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     assert (hg_gecko_upstream
             .log("-l1", "--template={desc|firstline}")
             .strip()
-            .endswith("[wpt-sync] Update web-platform-tests to %s" % landing_rev))
+            .endswith("[wpt-sync] Update web-platform-tests to %s, a=testonly" % landing_rev))
     for file in ["change1", "change2", "change3", "upstream1"]:
         path = os.path.join(gecko_root,
                             env.config["gecko"]["path"]["wpt"],
