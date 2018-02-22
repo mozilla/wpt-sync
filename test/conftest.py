@@ -110,7 +110,8 @@ def initial_wpt_content(env):
 test(() => assert_true(true), "Passing test");
 test(() => assert_true(false), "Failing test");
 </script>
-"""}
+""",
+            "LICENSE": "Initial license\n"}
 
 
 @pytest.fixture

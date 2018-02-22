@@ -1,6 +1,7 @@
 import re
 import os
 import shutil
+from collections import defaultdict
 
 import git
 
@@ -120,6 +121,7 @@ class LandingSync(base.SyncProcess):
 
         dest_path = os.path.join(git_work_gecko.working_dir,
                                  env.config["gecko"]["path"]["wpt"])
+        src_path = git_work_wpt.working_dir
 
         pr = env.gh_wpt.get_pull(int(pr_id))
 
@@ -130,17 +132,34 @@ class LandingSync(base.SyncProcess):
 
         logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
 
+        keep_files = {"LICENSE", "resources/testdriver_vendor.js"}
+        ignore_files = {".git"}
+
         logger.info("Setting wpt HEAD to %s" % wpt_commits[-1].sha1)
         git_work_wpt.head.reference = wpt_commits[-1].commit
         git_work_wpt.head.reset(index=True, working_tree=True)
+
+        # First remove all files so we handle deletion correctly
         shutil.rmtree(dest_path)
 
-        # Some files we don't want to update on import ever
-        ignore_patterns = ["LICENSE", ".git", "resources/testdriver-vendor.js"]
+        ignore_paths = defaultdict(set)
+        for name in keep_files | ignore_files:
+            src, name = os.path.split(os.path.join(src_path, name))
+            ignore_paths[src].add(name)
 
-        shutil.copytree(git_work_wpt.working_dir,
+        def ignore_names(src, names):
+            if src in ignore_paths:
+                return ignore_paths[src]
+            return []
+
+        shutil.copytree(src_path,
                         dest_path,
-                        ignore=shutil.ignore_patterns(*ignore_patterns))
+                        ignore=ignore_names)
+
+        # Now re-checkout the files we don't want to change
+        # checkout-index allows us to ignore files that don't exist
+        git_work_gecko.git.checkout_index(*(os.path.join(env.config["gecko"]["path"]["wpt"], item)
+                                            for item in keep_files), force=True, quiet=True)
 
         if not git_work_gecko.is_dirty(untracked_files=True):
             logger.info("PR %s didn't add any changes" % pr_id)

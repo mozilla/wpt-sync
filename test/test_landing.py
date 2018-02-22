@@ -39,9 +39,10 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     assert not os.path.exists(os.path.join(worktree.working_dir,
                                            env.config["gecko"]["path"]["wpt"],
                                            ".git"))
-    assert not os.path.exists(os.path.join(worktree.working_dir,
-                                           env.config["gecko"]["path"]["wpt"],
-                                           "LICENSE"))
+    with open(os.path.join(worktree.working_dir,
+                           env.config["gecko"]["path"]["wpt"],
+                           "LICENSE")) as f:
+        assert f.read() == "Initial license\n"
 
     try_push = sync.latest_try_push
     assert try_push is not None
