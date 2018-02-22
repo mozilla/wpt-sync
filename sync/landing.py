@@ -165,6 +165,10 @@ class LandingSync(base.SyncProcess):
             logger.info("PR %s didn't add any changes" % pr_id)
             return None
 
+        if not git_work_gecko.is_dirty(untracked_files=True):
+            logger.info("PR %s didn't add any changes" % pr_id)
+            return None
+
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
 
