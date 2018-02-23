@@ -443,6 +443,7 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
         if status == "pending":
             # We got new commits that we missed
             sync.update_commits()
+            sync.error = None
             return
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
@@ -452,14 +453,13 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                 logger.info("Commits on PR %s didn't change" % sync.pr)
                 return
             TryPush.create(sync, sync.affected_tests())
+            sync.error = None
     except Exception as e:
         sync.error = e
         if raise_on_error:
             raise
         traceback.print_exc()
         logger.error(e)
-    else:
-        sync.error = None
 
 
 @base.entry_point("downstream")
