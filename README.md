@@ -65,12 +65,14 @@ The following will need to be setup before running the raw docker commands
 ```
 mkdir -p devenv
 cp test/testdata/* devenv/
+```
+
+To build an image called `wptsync_dev` with the repo root as the build context:
 
 ```
 docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker/Dockerfile.dev .
 ```
 
-The above sets the repo root as the build context for an image called `wptsync_dev`
 
 To start all the services in the container:
 
