@@ -600,7 +600,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None):
 
 
 @base.entry_point("landing")
-def try_push_complete(git_gecko, git_wpt, try_push, sync):
+def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
     log_files = try_push.download_raw_logs()
     sync.update_metadata(log_files)
 
@@ -613,6 +613,13 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
     sync_point = load_sync_point(git_gecko, git_wpt)
     sync.update_sync_point(sync_point)
+
+    if not allow_push:
+        logger.info("Landing in bug %s is ready for push.\n"
+                    "Working copy is in %s" % (sync.bug,
+                                               sync.gecko_worktree.get().working_dir))
+        return
+
     push(sync)
     for _, sync, _ in commits:
         if sync is not None:

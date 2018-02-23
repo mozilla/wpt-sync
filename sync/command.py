@@ -50,6 +50,8 @@ def get_parser():
     parser_landing = subparsers.add_parser("landing", help="Trigger the landing code")
     parser_landing.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landing.add_argument("--wpt-head", help="wpt commit to land to")
+    parser_landing.add_argument("--no-push", dest="push", action="store_false", default=True,
+                                help="Don't actually push anything to gecko")
     parser_landing.set_defaults(func=do_landing)
 
     parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
@@ -195,7 +197,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
             landing.try_push_complete(git_gecko,
                                       git_wpt,
                                       try_push,
-                                      current_landing)
+                                      current_landing,
+                                      allow_push=kwargs["push"])
         elif try_push.status == "infra-fail":
             land_to_gecko()
         else:
