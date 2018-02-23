@@ -398,11 +398,11 @@ Automatic update from web-platform-tests%s
 
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
-        logger.debug("Updating metadata")
+        logger.info("Updating metadata")
         mach.wpt_update(*log_files)
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
-            gecko_work.index.add([meta_path])
+            gecko_work.git.add(meta_path, all=True)
             self.update_metadata_commit()
 
     def update_sync_point(self, sync_point):

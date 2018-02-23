@@ -359,7 +359,7 @@ class DownstreamSync(base.SyncProcess):
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
             self.ensure_metadata_commit()
-            gecko_work.index.add([meta_path])
+            gecko_work.git.add(meta_path, all=True)
             self._commit_metadata()
 
         return disabled
