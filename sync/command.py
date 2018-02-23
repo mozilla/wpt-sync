@@ -183,7 +183,25 @@ def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
 @with_lock
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
-    landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"], kwargs["wpt_head"])
+    landings = landing.LandingSync.load_all(git_gecko, git_wpt)
+    current_landing = landings[0] if landings else None
+
+    def land_to_gecko():
+        landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"], kwargs["wpt_head"])
+
+    if current_landing and current_landing.latest_try_push:
+        try_push = current_landing.latest_try_push
+        if try_push.status == "complete":
+            landing.try_push_complete(git_gecko,
+                                      git_wpt,
+                                      try_push,
+                                      current_landing)
+        elif try_push.status == "infra-fail":
+            land_to_gecko()
+        else:
+            logger.info("Landing in bug %s is waiting for try results" % landing.bug)
+    else:
+        land_to_gecko()
 
 
 @with_lock
