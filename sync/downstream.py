@@ -181,7 +181,7 @@ class DownstreamSync(base.SyncProcess):
             "wpt-type": "metadata"
         }
         msg = sync_commit.Commit.make_commit_msg(
-            "Bug %s [wpt PR %s]- Update wpt metadata, a=testonly" %
+            "Bug %s [wpt PR %s] - Update wpt metadata, a=testonly" %
             (self.bug, self.pr), metadata)
         git_work.git.commit(message=msg, allow_empty=True)
         commit = git_work.commit("HEAD")

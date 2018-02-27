@@ -101,7 +101,7 @@ class LandingSync(base.SyncProcess):
         return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
                                           self.branch_name)
 
-    def add_pr(self, pr_id, wpt_commits):
+    def add_pr(self, pr_id, sync, wpt_commits):
         if len(wpt_commits) > 1:
             assert all(item.pr() == pr_id for item in wpt_commits)
 
@@ -175,7 +175,7 @@ class LandingSync(base.SyncProcess):
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
 Automatic update from web-platform-tests%s
-""" % (self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
+""" % (sync.bug or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
         message = sync_commit.Commit.make_commit_msg(message, metadata)
         commit = git_work_gecko.index.commit(message=message, author=author)
         logger.debug("Gecko files changed: \n%s" % "\n".join(commit.stats.files.keys()))
@@ -357,7 +357,7 @@ Automatic update from web-platform-tests%s
                         gecko_commits_landed.add(gecko_commit)
             if pr not in prs_applied:
                 # If we haven't applied it before then create the initial commit
-                commit = self.add_pr(pr, commits)
+                commit = self.add_pr(pr, sync, commits)
                 if commit is None:
                     # This means the PR didn't change gecko
                     continue
