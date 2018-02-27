@@ -467,13 +467,19 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
     # Ensure we don't have some old set of tasks
     try_push.wpt_tasks(force_update=True)
+    disabled = []
     if not try_push.success():
-        log_files = try_push.download_raw_logs()
-        if not log_files:
-            raise ValueError("No log files found for try push %r" % try_push)
-        disabled = sync.update_metadata(log_files, stability=try_push.stability)
-    else:
-        disabled = []
+        if sync.affected_tests:
+            log_files = try_push.download_raw_logs()
+            if not log_files:
+                raise ValueError("No log files found for try push %r" % try_push)
+            disabled = sync.update_metadata(log_files, stability=try_push.stability)
+        else:
+            env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, but the try "
+                                      "push wasn't a success. Check the try results for "
+                                      "infrastructure issues"))
+            # TODO: consider marking the push an error here so that we can't land without manual
+            # intervention
 
     if sync.affected_tests() and not try_push.stability:
         logger.info("Creating a stability try push for PR %s" % sync.pr)
