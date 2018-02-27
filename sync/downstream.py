@@ -83,6 +83,13 @@ class DownstreamSync(base.SyncProcess):
 
         return syncs[0]
 
+    @classmethod
+    def has_metadata(cls, message):
+        required_keys = ["wpt-commits",
+                         "wpt-pr"]
+        metadata = sync_commit.get_metadata(message)
+        return all(item in metadata for item in required_keys)
+
     @property
     def pr_head(self):
         return sync_commit.WptCommit(self.git_wpt, "origin/pr/%s" % self.pr)

@@ -10,6 +10,7 @@ from mozautomation import commitparser
 import base
 import log
 import commit as sync_commit
+from downstream import DownstreamSync
 from gitutils import update_repositories, gecko_repo
 from pipeline import AbortError
 from env import Environment
@@ -26,6 +27,10 @@ class BackoutCommitFilter(base.CommitFilter):
 
     def filter_commit(self, commit):
         if commit.is_empty(env.config["gecko"]["path"]["wpt"]):
+            return False
+        if commit.metadata.get("wptsync-skip"):
+            return False
+        if DownstreamSync.has_metadata(commit.msg):
             return False
         if commit.is_backout:
             commits, bugs = commit.wpt_commits_backed_out()
@@ -443,7 +448,9 @@ def wpt_commits(git_gecko, first_commit, head_commit):
                                       paths=env.config["gecko"]["path"]["wpt"],
                                       reverse=True,
                                       max_parents=1)]
-    return [item for item in commits if not item.metadata.get("wptsync-skip")]
+    return [commit for commit in commits
+            if not commit.metadata.get("wptsync-skip") or
+            DownstreamSync.has_metadata(commit.msg)]
 
 
 def remove_complete_backouts(commits):
