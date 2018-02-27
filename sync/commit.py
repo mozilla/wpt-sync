@@ -139,7 +139,7 @@ class Commit(object):
                 if item.strip()]
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
-             dest_prefix=None, amend=False, three_way=False):
+             dest_prefix=None, amend=False, three_way=True):
         if metadata is None:
             metadata = {}
 
