@@ -382,6 +382,7 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
 
     if landable is None:
         print("Landing will not add any new commits")
+        wpt_head = None
     else:
         wpt_head, commits = landable
         print("Landing will update wpt head to %s" % wpt_head)
@@ -390,7 +391,7 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         print("Unlandable PRs:")
         pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
                                                 git_wpt,
-                                                landable or prev_wpt_head,
+                                                wpt_head or prev_wpt_head,
                                                 "origin/master")
         for pr, commits in pr_commits:
             if pr is None:
