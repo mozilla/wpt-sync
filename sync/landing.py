@@ -319,8 +319,24 @@ Automatic update from web-platform-tests%s
     def add_metadata(self, sync):
         if self.has_metadata(sync):
             return
-        if sync.metadata_commit:
-            self.gecko_worktree.get().git.cherry_pick(sync.metadata_commit.sha1)
+        if sync.metadata_commit and not sync.metadata_commit.is_empty():
+            worktree = self.gecko_worktree.get()
+            try:
+                worktree.git.cherry_pick(sync.metadata_commit.sha1)
+            except git.GitCommandError as e:
+                # If git exits with return code 1 and mentions an empty
+                # cherry pick, then we tried to cherry pick something
+                # that results in an empty commit so reset the index and
+                # continue. gitpython doesn't really enforce anything about
+                # the type of status, so just convert it to a string to be
+                # sure
+                if (str(e.status) == "1" and
+                    "The previous cherry-pick is now empty" in e.stderr):
+                    # If the cherry pick would result in an empty commit,
+                    # just reset and continue
+                    worktree.git.reset()
+                else:
+                    raise
 
     def apply_prs(self, landable_commits):
         """Main entry point to setting the commits for landing.
