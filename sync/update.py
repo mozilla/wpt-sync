@@ -122,6 +122,8 @@ def update_pr(git_gecko, git_wpt, pr):
             schedule_pr_task("opened", pr)
             update_for_status(pr)
     elif isinstance(sync, downstream.DownstreamSync):
+        if not sync.bug and not (pr.state == "closed" and not pr.merged):
+            sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
         if pr.state == "open":
             if pr.head.sha != sync.wpt_commits.head:
                 # Upstream has different commits, so run a push handler

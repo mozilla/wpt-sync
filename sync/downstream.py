@@ -39,14 +39,7 @@ class DownstreamSync(base.SyncProcess):
                                               wpt_base=wpt_base,
                                               wpt_head="origin/pr/%s" % pr_id)
 
-        comment = sync.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
-        bug = env.bz.new(summary="[wpt-sync] Sync PR %s - %s" % (pr_id, pr_title),
-                         comment=comment,
-                         product="Testing",
-                         component="web-platform-tests",
-                         whiteboard="[wptsync downstream]",
-                         priority="P3")
-        sync.bug = bug
+        sync.create_bug(git_wpt, pr_id, pr_title, pr_body)
         return sync
 
     def make_bug_comment(self, git_wpt, pr_id, pr_title, pr_body):
@@ -122,6 +115,18 @@ class DownstreamSync(base.SyncProcess):
     def wpt(self):
         git_work = self.wpt_worktree.get()
         return WPT(os.path.join(git_work.working_dir))
+
+    def create_bug(self, git_wpt, pr_id, pr_title, pr_body):
+        if self.bug is not None:
+            return
+        comment = self.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
+        bug = env.bz.new(summary="[wpt-sync] Sync PR %s - %s" % (pr_id, pr_title),
+                         comment=comment,
+                         product="Testing",
+                         component="web-platform-tests",
+                         whiteboard="[wptsync downstream]",
+                         priority="P3")
+        self.bug = bug
 
     def update_status(self, action, merge_sha=None, wpt_base=None):
         if action == "closed" and not merge_sha:
