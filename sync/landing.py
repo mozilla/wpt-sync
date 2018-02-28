@@ -132,7 +132,9 @@ class LandingSync(base.SyncProcess):
 
         logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
 
-        keep_files = {"LICENSE", "resources/testdriver_vendor.js"}
+        # Specific paths that should be re-checked out
+        keep_paths = {"LICENSE", "resources/testdriver_vendor.js"}
+        # file names that are ignored in any part of the tree
         ignore_files = {".git"}
 
         logger.info("Setting wpt HEAD to %s" % wpt_commits[-1].sha1)
@@ -143,14 +145,18 @@ class LandingSync(base.SyncProcess):
         shutil.rmtree(dest_path)
 
         ignore_paths = defaultdict(set)
-        for name in keep_files | ignore_files:
+        for name in keep_paths:
             src, name = os.path.split(os.path.join(src_path, name))
             ignore_paths[src].add(name)
 
         def ignore_names(src, names):
+            rv = []
+            for item in names:
+                if item in ignore_files:
+                    rv.append(item)
             if src in ignore_paths:
-                return ignore_paths[src]
-            return []
+                rv.extend(ignore_paths[src])
+            return rv
 
         shutil.copytree(src_path,
                         dest_path,
@@ -159,7 +165,7 @@ class LandingSync(base.SyncProcess):
         # Now re-checkout the files we don't want to change
         # checkout-index allows us to ignore files that don't exist
         git_work_gecko.git.checkout_index(*(os.path.join(env.config["gecko"]["path"]["wpt"], item)
-                                            for item in keep_files), force=True, quiet=True)
+                                            for item in keep_paths), force=True, quiet=True)
 
         if not git_work_gecko.is_dirty(untracked_files=True):
             logger.info("PR %s didn't add any changes" % pr_id)
