@@ -167,7 +167,7 @@ class TaskHandler(Handler):
             try_push.status = "infra-fail"
             sync = try_push.sync(git_gecko, git_wpt)
             logger.error("Decision task got status %s for task %s%s" %
-                         (sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
+                         (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
             if sync and sync.bug:
                 env.bz.comment(sync.bug,
                                "Try push failed: decision task returned error")
