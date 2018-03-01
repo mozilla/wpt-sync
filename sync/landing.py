@@ -489,7 +489,15 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head="orig
     return commits_by_pr
 
 
-def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None):
+def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_incomplete=False):
+    """Get the list of commits that are able to land.
+
+    :param prev_wpt_head: The sha1 of the previous wpt commit landed to gecko.
+    :param wpt_head: The sha1 of the latest possible commit to land to gecko,
+                     or None to use the head of the master branch"
+    :param include_incomplete: By default we don't attempt to land anything that
+                               hasn't completed a metadata update. This flag disables
+                               that and just lands everything up to the specified commit."""
     if wpt_head is None:
         wpt_head = "origin/master"
     pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head)
@@ -506,15 +514,16 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None):
                                                  commits[0].metadata["bugzilla-url"])
         else:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-            if not sync:
-                # TODO: schedule a downstream sync for this pr
-                logger.info("PR %s has no corresponding sync" % pr)
-                last = True
-            elif not sync.metadata_ready:
-                logger.info("Metadata pending for PR %s" % pr)
-                last = True
-            if last:
-                break
+            if not include_incomplete:
+                if not sync:
+                    # TODO: schedule a downstream sync for this pr
+                    logger.info("PR %s has no corresponding sync" % pr)
+                    last = True
+                elif not sync.metadata_ready:
+                    logger.info("Metadata pending for PR %s" % pr)
+                    last = True
+                if last:
+                    break
         landable_commits.append((pr, sync, commits))
 
     if not landable_commits:
@@ -548,7 +557,16 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
 
 
 @base.entry_point("landing")
-def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None):
+def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
+                  include_incomplete=False):
+    """Create or continue a landing of wpt commits to gecko.
+
+    :param prev_wpt_head: The sha1 of the previous wpt commit landed to gecko.
+    :param wpt_head: The sha1 of the latest possible commit to land to gecko,
+                     or None to use the head of the master branch"
+    :param include_incomplete: By default we don't attempt to land anything that
+                               hasn't completed a metadata update. This flag disables
+                               that and just lands everything up to the specified commit."""
     update_repositories(git_gecko, git_wpt)
 
     landings = LandingSync.load_all(git_gecko, git_wpt)
@@ -562,8 +580,10 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None):
         if prev_wpt_head is None:
             prev_wpt_head = sync_point["upstream"]
 
-        landable = landable_commits(git_gecko, git_wpt, prev_wpt_head,
-                                    wpt_head=new_wpt_head)
+        landable = landable_commits(git_gecko, git_wpt,
+                                    prev_wpt_head,
+                                    wpt_head=new_wpt_head,
+                                    include_incomplete=include_incomplete)
         if landable is None:
             return
         wpt_head, commits = landable
