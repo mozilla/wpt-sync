@@ -117,6 +117,9 @@ def get_parser():
     parser_landable.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landable.add_argument("--all", action="store_true", default=False,
                                  help="Print the status of all unlandable PRs")
+    parser_landable.add_argument("--retrigger", action="store_true", default=False,
+                                 help="Try to update all unlanded PRs that aren't Ready "
+                                 "(requires --all)")
     parser_landable.set_defaults(func=do_landable)
 
     return parser
@@ -368,6 +371,7 @@ def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
 @with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import downstream
+    import update
     import upstream
     from landing import load_sync_point, landable_commits, unlanded_wpt_commits_by_pr
 
@@ -393,23 +397,58 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                                                 git_wpt,
                                                 wpt_head or prev_wpt_head,
                                                 "origin/master")
+        start = []
+        retry = []
+        update_tasks = []
         for pr, commits in pr_commits:
             if pr is None:
                 print "%s: No PR" % ", ".join(item.sha1 for item in commits)
             elif upstream.UpstreamSync.has_metadata(commits[0].msg):
-                print "%s: From upstream" % pr
+                print "%s: From mozilla-central" % pr
             else:
                 sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 if not sync:
                     print "%s: No sync started" % pr
+                    start.append(pr)
                 elif sync.metadata_ready:
                     print "%s: Ready" % pr
                 elif sync.error:
                     print "%s: Error" % pr
+                    retry.append(sync)
                 elif sync.latest_try_push:
                     print "%s: Has try push" % pr
+                    if sync.latest_try_push.taskgroup_id:
+                        update_tasks.append(sync)
                 else:
                     print "%s: No try push" % pr
+                    retry.append(sync)
+
+        if kwargs["retrigger"]:
+            errors = []
+            for pr_id in start:
+                pr = env.gh_wpt.get_pull(int(pr_id))
+                try:
+                    update.update_pr(git_gecko, git_wpt, pr)
+                except Exception:
+                    errors.append(pr_id)
+            if update_tasks:
+                update.update_taskgroup_ids(git_gecko, git_wpt)
+            for sync in update_tasks:
+                if sync.latest_try_push.taskgroup_id:
+                    try:
+                        update.handle_sync("taskgroup",
+                                           {"taskGroupId": sync.latest_try_push.taskgroup_id})
+                    except Exception:
+                        errors.append(sync.pr)
+            for sync in retry:
+                pr = env.gh_wpt.get_pull(sync.pr)
+                try:
+                    update.update_pr(git_gecko, git_wpt, pr)
+                except Exception:
+                    errors.append(sync.pr)
+
+            if errors:
+                print("Got errors for PRs:\n%s" % "\n".join(errors))
 
 
 def set_config(opts):

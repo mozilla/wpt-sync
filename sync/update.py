@@ -124,6 +124,8 @@ def update_pr(git_gecko, git_wpt, pr):
     elif isinstance(sync, downstream.DownstreamSync):
         if not sync.bug and not (pr.state == "closed" and not pr.merged):
             sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
+        if sync.latest_try_push and not sync.latest_try_push.taskgroup_id:
+            update_taskgroup_ids(git_gecko, git_wpt)
         if pr.state == "open":
             if pr.head.sha != sync.wpt_commits.head:
                 # Upstream has different commits, so run a push handler
@@ -180,8 +182,10 @@ def update_taskgroup_ids(git_gecko, git_wpt):
 
 def update_tasks(git_gecko, git_wpt, pr_id=None):
     logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
+
+    obj_id = str(pr_id) or "*"
     for sync in (landing.LandingSync.load_all(git_gecko, git_wpt) +
-                 downstream.DownstreamSync.load_all(git_gecko, git_wpt)):
+                 downstream.DownstreamSync.load_all(git_gecko, git_wpt, obj_id=obj_id)):
         if pr_id is not None and sync.pr != pr_id:
             continue
         try_push = sync.latest_try_push
