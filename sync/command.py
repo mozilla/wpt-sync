@@ -52,6 +52,8 @@ def get_parser():
     parser_landing.add_argument("--wpt-head", help="wpt commit to land to")
     parser_landing.add_argument("--no-push", dest="push", action="store_false", default=True,
                                 help="Don't actually push anything to gecko")
+    parser_landing.add_argument("--include-incomplete", action="store_true", default=False,
+                                help="Consider PRs with incomplete syncs as landable.")
     parser_landing.set_defaults(func=do_landing)
 
     parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
@@ -126,6 +128,8 @@ def get_parser():
     parser_landable.add_argument("--retrigger", action="store_true", default=False,
                                  help="Try to update all unlanded PRs that aren't Ready "
                                  "(requires --all)")
+    parser_landable.add_argument("--include-incomplete", action="store_true", default=False,
+                                 help="Consider PRs with incomplete syncs as landable.")
     parser_landable.set_defaults(func=do_landable)
 
     return parser
@@ -198,7 +202,10 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
     current_landing = landings[0] if landings else None
 
     def land_to_gecko():
-        landing.land_to_gecko(git_gecko, git_wpt, kwargs["prev_wpt_head"], kwargs["wpt_head"])
+        landing.land_to_gecko(git_gecko, git_wpt,
+                              kwargs["prev_wpt_head"],
+                              kwargs["wpt_head"],
+                              kwargs["include_incomplete"])
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
@@ -398,7 +405,7 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         print("Last sync was to commit %s" % sync_point["upstream"])
     else:
         prev_wpt_head = kwargs["prev_wpt_head"]
-    landable = landable_commits(git_gecko, git_wpt, prev_wpt_head)
+    landable = landable_commits(git_gecko, git_wpt, prev_wpt_head, kwargs["include_incomplete"])
 
     if landable is None:
         print("Landing will not add any new commits")
