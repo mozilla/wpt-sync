@@ -165,6 +165,8 @@ class DownstreamSync(base.SyncProcess):
 
     @property
     def metadata_commit(self):
+        if len(self.gecko_commits) == 0:
+            return
         if self.gecko_commits[-1].metadata.get("wpt-type") == "metadata":
             return self.gecko_commits[-1]
 
