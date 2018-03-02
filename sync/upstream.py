@@ -384,7 +384,7 @@ class UpstreamSync(base.SyncProcess):
             details = ["Github PR %s" % env.gh_wpt.pr_url(self.pr)]
             msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
                    details)
-        elif not env.gh_wpt.is_mergeable(self.pr):
+        elif not env.gh_wpt.is_mergeable(self.pr) and env.gh_wpt.is_approved(self.pr):
             msg = "Can't merge web-platform-tests PR because it has merge conflicts"
         else:
             # First try to rebase the PR
