@@ -532,7 +532,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None):
                 # TODO: schedule a downstream sync for this pr
                 logger.info("PR %s has no corresponding sync" % pr)
                 last = True
-            elif not sync.metadata_ready:
+            elif not (sync.skip or sync.metadata_ready):
                 logger.info("Metadata pending for PR %s" % pr)
                 last = True
             if last:

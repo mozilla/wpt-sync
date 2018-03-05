@@ -112,6 +112,14 @@ class DownstreamSync(base.SyncProcess):
         self.data["results-notified"] = value
 
     @property
+    def skip(self):
+        return self.data.get("skip", False)
+
+    @skip.setter
+    def skip(self, value):
+        self.data["skip"] = value
+
+    @property
     def wpt(self):
         git_work = self.wpt_worktree.get()
         return WPT(os.path.join(git_work.working_dir))

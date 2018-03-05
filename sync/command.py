@@ -111,6 +111,12 @@ def get_parser():
     parser_cleanup = subparsers.add_parser("cleanup", help="Run the cleanup code")
     parser_cleanup.set_defaults(func=do_cleanup)
 
+    parser_skip = subparsers.add_parser("skip",
+                                        help="Mark the sync for a PR as skip so that "
+                                        "it doesn't have to complete before a landing")
+    parser_skip.add_argument("pr_id", help="PR for which to skip")
+    parser_skip.set_defaults(func=do_skip)
+
     parser_landable = subparsers.add_parser("landable",
                                             help="Display commits from upstream "
                                             "that are able to land")
@@ -369,6 +375,16 @@ def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
 
 
 @with_lock
+def do_skip(git_gecko, git_wpt, pr_id, *args, **kwargs):
+    import downstream
+    sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+    if sync is None:
+        logger.error("No active sync for PR %s" % pr_id)
+        return
+    sync.skip = True
+
+
+@with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import downstream
     import update
@@ -412,6 +428,8 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                     start.append(pr)
                 elif sync.metadata_ready:
                     print "%s: Ready" % pr
+                elif sync.skip:
+                    print "%s: Skip" % pr
                 elif sync.error:
                     print "%s: Error" % pr
                     retry.append(sync)
