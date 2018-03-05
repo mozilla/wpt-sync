@@ -42,7 +42,7 @@ def schedule_pr_task(action, pr):
     handle_sync(*args)
 
 
-def schedule_status_task(commit, status):
+def schedule_status_task(commit, status, **kwargs):
     event = construct_event("status",
                             {"sha": commit.sha,
                              "context": status.context,
@@ -50,18 +50,21 @@ def schedule_status_task(commit, status):
                              "description": status.description,
                              "target_url": status.target_url,
                              "branches": []  # Hopefully we don't use this
-                             })
+                             },
+                            **kwargs)
     logger.info("Status changed for commit %s" % commit.sha)
     args = ("github", event)
     handle_sync(*args)
 
 
-def update_for_status(pr):
+def update_for_status(pr, event_extras=None):
+    if event_extras is None:
+        event_extras = {}
     commits = pr.get_commits()
     head = commits.reversed[0]
     for status in head.get_combined_status().statuses:
         if (status.context != "upstream/gecko"):
-            schedule_status_task(head, status)
+            schedule_status_task(head, status, **event_extras)
             return
 
 
@@ -130,7 +133,7 @@ def update_pr(git_gecko, git_wpt, pr):
             if pr.head.sha != sync.wpt_commits.head:
                 # Upstream has different commits, so run a push handler
                 schedule_pr_task("push", pr)
-            update_for_status(pr)
+            update_for_status(pr, event_extras={"_wptsync": {"force_update": True}})
         elif pr.state == "closed" and not pr.merged:
             sync.state = "closed"
         elif pr.merged and not sync.latest_try_push:

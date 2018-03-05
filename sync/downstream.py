@@ -449,7 +449,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
 
 @base.entry_point("downstream")
 def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
-                   raise_on_error=False):
+                   raise_on_error=False, force_update=False):
     update_repositories(git_gecko, git_wpt)
     previous_check = sync.last_pr_check
     try:
@@ -461,7 +461,8 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
             return
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
-        if check_state == "success" and previous_check != sync.last_pr_check:
+        if (check_state == "success" and
+            (force_update or previous_check != sync.last_pr_check)):
             head_changed = sync.update_commits()
             if sync.latest_try_push and not head_changed:
                 logger.info("Commits on PR %s didn't change" % sync.pr)

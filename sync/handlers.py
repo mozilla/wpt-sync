@@ -40,7 +40,8 @@ class Handler(object):
         raise NotImplementedError
 
 
-def handle_pr(git_gecko, git_wpt, event):
+def handle_pr(git_gecko, git_wpt, body):
+    event = body["payload"]
     pr_id = event["number"]
 
     env.gh_wpt.load_pull(event["pull_request"])
@@ -60,7 +61,8 @@ def handle_pr(git_gecko, git_wpt, event):
                            event["pull_request"]["base"]["sha"])
 
 
-def handle_status(git_gecko, git_wpt, event):
+def handle_status(git_gecko, git_wpt, body):
+    event = body["payload"]
     if event["context"] == "upstream/gecko":
         # Never handle changes to our own status
         return
@@ -70,6 +72,8 @@ def handle_status(git_gecko, git_wpt, event):
     rev = event["sha"]
     # First check if the PR is head of any pull request
     pr_id = pr_for_commit(git_wpt, rev)
+
+    force_update = body.get("_wptsync", {}).get("force_update", False)
 
     if not pr_id:
         # This usually happens if we got behind, so the commit is no longer the latest one
@@ -100,10 +104,11 @@ def handle_status(git_gecko, git_wpt, event):
                                 event["target_url"], event["sha"])
     elif isinstance(sync, downstream.DownstreamSync):
         downstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
-                                  event["target_url"], event["sha"])
+                                  event["target_url"], event["sha"], force_update=force_update)
 
 
-def handle_push(git_gecko, git_wpt, event):
+def handle_push(git_gecko, git_wpt, body):
+    event = body["payload"]
     update_repositories(None, git_wpt, False)
     landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
 
@@ -118,7 +123,7 @@ class GitHubHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
         handler = self.dispatch_event[body["event"]]
         if handler:
-            return handler(git_gecko, git_wpt, body["payload"])
+            return handler(git_gecko, git_wpt, body)
         # TODO: other events to check if we can merge a PR
         # because of some update
 
