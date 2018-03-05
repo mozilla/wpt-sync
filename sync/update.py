@@ -145,6 +145,9 @@ def update_pr(git_gecko, git_wpt, pr):
                                      "branches": []})
             args = ("github", event)
             handle_sync(*args)
+        if sync.latest_try_push:
+            update_tasks(git_gecko, git_wpt, sync=sync)
+
     elif isinstance(sync, upstream.UpstreamSync):
         sync.update_status(pr.state, pr.merged)
         sync.try_land_pr()
@@ -180,14 +183,19 @@ def update_taskgroup_ids(git_gecko, git_wpt):
                                  "result": status})
 
 
-def update_tasks(git_gecko, git_wpt, pr_id=None):
+def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
     logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
 
-    obj_id = str(pr_id) or "*"
-    for sync in (landing.LandingSync.load_all(git_gecko, git_wpt) +
-                 downstream.DownstreamSync.load_all(git_gecko, git_wpt, obj_id=obj_id)):
-        if pr_id is not None and sync.pr != pr_id:
-            continue
+    if not sync:
+        obj_id = str(pr_id) or "*"
+        syncs = [item for item in
+                 landing.LandingSync.load_all(git_gecko, git_wpt) +
+                 downstream.DownstreamSync.load_all(git_gecko, git_wpt, obj_id=obj_id)
+                 if pr_id is None or sync.pr == pr_id]
+    else:
+        syncs = [sync]
+
+    for sync in syncs:
         try_push = sync.latest_try_push
         if try_push and try_push.taskgroup_id:
             try:
