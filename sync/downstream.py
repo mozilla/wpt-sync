@@ -149,9 +149,22 @@ class DownstreamSync(base.SyncProcess):
             self.status = "open"
             self.pr_status = "open"
 
-    def update_wpt_head(self):
+    def update_wpt_commits(self):
         if not self.wpt_commits.head or self.wpt_commits.head.sha1 != self.pr_head.sha1:
             self.wpt_commits.head = self.pr_head
+        if len(self.wpt_commits) == 0 and self.git_wpt.is_ancestor(self.wpt_commits.head.sha1,
+                                                                   "origin/master"):
+            # The commits landed on master so we need to change the commit
+            # range to not use origin/master as a base
+            base_commit = None
+            assert self.wpt_commits.head.pr() == self.pr
+            for commit in self.git_wpt.iter_commits(self.wpt_commits.head.sha1):
+                wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
+                if wpt_commit.pr() != self.pr:
+                    base_commit = wpt_commit
+                    break
+
+            self.wpt_commits.base = self.data["wpt-base"] = base_commit.sha1
 
     def files_changed(self):
         # TODO: Would be nice to do this from mach with a gecko worktree
@@ -270,7 +283,7 @@ class DownstreamSync(base.SyncProcess):
             gecko_work.git.commit(amend=True, no_edit=True)
 
     def update_commits(self):
-        self.update_wpt_head()
+        self.update_wpt_commits()
         old_gecko_head = self.gecko_commits.head.sha1
         logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
         self.wpt_to_gecko_commits()

@@ -122,6 +122,8 @@ def update_pr(git_gecko, git_wpt, pr):
             schedule_pr_task("opened", pr)
             update_for_status(pr)
     elif isinstance(sync, downstream.DownstreamSync):
+        if len(sync.wpt_commits) == 0:
+            sync.update_wpt_commits()
         if not sync.bug and not (pr.state == "closed" and not pr.merged):
             sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
         if sync.latest_try_push and not sync.latest_try_push.taskgroup_id:
