@@ -133,7 +133,7 @@ class DownstreamSync(base.SyncProcess):
                          product="Testing",
                          component="web-platform-tests",
                          whiteboard="[wptsync downstream]",
-                         priority="P3")
+                         priority="P4")
         self.bug = bug
 
     def update_status(self, action, merge_sha=None, wpt_base=None):
