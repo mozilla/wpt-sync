@@ -425,8 +425,13 @@ class CommitRange(object):
     def base(self):
         return self._base
 
-    # Base doesn't have a setter here because we don't have a good way to update
-    # the ref where it's stored
+    @base.setter
+    def base(self, value):
+        # Note that this doesn't actually update the stored value of the base
+        # anywhere, unlike the head setter which will update the associated ref
+        self._commits = None
+        self._base_sha = value
+        self._base = self.commit_cls(self.repo, value)
 
     @property
     def head(self):
