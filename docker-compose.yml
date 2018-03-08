@@ -1,8 +1,6 @@
 version: '3'
 services:
   sync:
-#   --init option of docker run not supported in docker-compose scheme v3
-#   init: true
     user: app
     build:
       context: .

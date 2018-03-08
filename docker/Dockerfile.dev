@@ -17,6 +17,11 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https
 
+# install tini for process management so we can use its -g option
+ENV TINI_VERSION v0.17.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
 ### Install latest erlang
 # add buster sources.list
 RUN set -eux; \
@@ -160,5 +165,5 @@ WORKDIR /app/wpt-sync
 # /app/repos: bind mount to ebs volume for gecko and wpt repos (or local dev repos)
 VOLUME ["/app/wpt-sync", "/app/workspace", "/app/repos", "/app/data"]
 
-ENTRYPOINT ["/app/start_wptsync.sh"]
+ENTRYPOINT ["/tini", "-v", "-g", "--", "/app/start_wptsync.sh"]
 CMD ["--worker"]

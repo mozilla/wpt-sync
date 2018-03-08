@@ -35,7 +35,7 @@ elif [[ $command == "clean" ]]; then
     rm -rf repos
     rm -rf devenv
 elif [[ $command == "run" ]]; then
-    exec docker run --init -it --add-host=rabbitmq:127.0.0.1 \
+    exec docker run -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
     --env WPTSYNC_CREDS=/app/wpt-sync/devenv/credentials.ini \
     --env WPTSYNC_SSH_CONFIG=/app/wpt-sync/devenv/ssh_config \
