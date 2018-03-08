@@ -104,7 +104,7 @@ WORKDIR /app/git-cinnabar
 ENV PATH=/app/git-cinnabar:$PATH
 
 RUN git clone https://github.com/glandium/git-cinnabar.git . \
-    && git checkout bb45a922e9c7907ad6e101fbaa54cec5cb7b2434; \
+    && git checkout c5a4aa78d11426350ec880a54b944cc802116642; \
     pip install --user requests \
     && git cinnabar download
 
