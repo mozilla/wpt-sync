@@ -454,7 +454,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
                               wpt_base,
                               pr_id,
                               pr_data["title"],
-                              pr_data["body"])
+                              pr_data["body"] or "")
     try:
         sync.update_commits()
     except Exception as e:
