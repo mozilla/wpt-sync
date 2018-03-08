@@ -14,7 +14,7 @@ if [[ $command == "build" ]]; then
 elif [[ $command == "test" ]]; then
     exec docker run -it $img --test
 elif [[ $command == "run" ]]; then
-    exec docker run --init -it --add-host=rabbitmq:127.0.0.1 \
+    exec docker run -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG={{ wptsync_config | mandatory }} \
     --env WPTSYNC_CREDS={{ wptsync_credentials }} \
     --env WPTSYNC_GH_SSH_KEY={{ wptsync_github_key | mandatory }} \

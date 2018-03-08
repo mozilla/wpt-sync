@@ -77,7 +77,7 @@ docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker
 To start all the services in the container:
 
 ```
-docker run --init -it --add-host=rabbitmq:127.0.0.1 \
+docker run -it --add-host=rabbitmq:127.0.0.1 \
 --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
 --env WPTSYNC_CREDS=/app/wpt-sync/devenv/credentials.ini \
 --env WPTSYNC_SSH_CONFIG=/app/wpt-sync/devenv/ssh_config \
