@@ -24,8 +24,8 @@ kombu==4.1.0 \
     --hash=sha256:01f0da9fe222a2183345004243d1518c0fbe5875955f1b24842f2d9c65709ade
 Mercurial==4.4.2 \
     --hash=sha256:dc2f72caccd6b760226753d48c2f4e8889fe176a6b23ef50775caac55ce28b85
-newrelic==2.100.0.84 \
-    --hash=sha256:b75123173ac5e8a20aa9d8120e20a7bf45c38a5aa5a4672fac6ce4c3e0c8046e
+newrelic==2.106.1.88 \
+    --hash=sha256:0594dd63d7883d30c560e292d063a8dbc7b2ae11b889bec1e8eb9d0f11ab73a6
 PyGithub==1.35 \
     --hash=sha256:fea1c5adedb0b2c641422efa7d22ad1af1b538a499faf25da14c0bb57e2cfefe
 PyJWT==1.5.3 \
