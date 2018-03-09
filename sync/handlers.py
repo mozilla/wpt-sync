@@ -78,7 +78,7 @@ def handle_status(git_gecko, git_wpt, event):
         # * Something new was pushed. In that case ignoring this message is fine
         # * The PR got merged in a way that changes the SHAs. In that case we assume that
         #   the syncc will get triggered later like when there's a push for the commit
-        logger.warning("Got status for commit %s which is the current HEAD of any PR\n"
+        logger.warning("Got status for commit %s which is not the current HEAD of any PR\n"
                        "context: %s url: %s state: %s" %
                        (rev, event["context"], event["target_url"], event["state"]))
         return
