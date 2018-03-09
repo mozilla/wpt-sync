@@ -5,6 +5,7 @@ RUN groupadd --gid 10001 app && \
 
 ENV RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq
 COPY ./docker/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+RUN echo LOG_BASE=/app/workspace/logs > /etc/rabbitmq/rabbitmq-env.conf
 
 COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
 RUN chmod +x /app/start_wptsync.sh
