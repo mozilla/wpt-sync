@@ -10,7 +10,7 @@ If something is very broken and you just want to stop everything:
 ```
 # list the container names
 docker ps
-docker stop -t 30 <container_name>...
+docker stop -t 60 <container_name>...
 ```
 
 ## Logs and inspecting the service
