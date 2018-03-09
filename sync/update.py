@@ -128,25 +128,13 @@ def update_pr(git_gecko, git_wpt, pr):
             sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
         if sync.latest_try_push and not sync.latest_try_push.taskgroup_id:
             update_taskgroup_ids(git_gecko, git_wpt)
-        if pr.state == "open":
+        if pr.state == "open" or pr.merged:
             if pr.head.sha != sync.wpt_commits.head:
                 # Upstream has different commits, so run a push handler
                 schedule_pr_task("push", pr)
             update_for_status(pr)
         elif pr.state == "closed" and not pr.merged:
             sync.state = "closed"
-        elif pr.merged and not sync.latest_try_push:
-            # We need to act as if this has a passing status
-            # TODO: some bad code reuse here
-            event = construct_event("status",
-                                    {"sha": sync.wpt_commits.head.sha1,
-                                     "context": "continuous-integration/travis-ci/pr",
-                                     "state": "success",
-                                     "description": None,
-                                     "target_url": None,
-                                     "branches": []})
-            args = ("github", event)
-            handle_sync(*args)
         if sync.latest_try_push:
             update_tasks(git_gecko, git_wpt, sync=sync)
 
