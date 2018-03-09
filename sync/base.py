@@ -227,15 +227,20 @@ class VcsRefObject(object):
         ref.set_object(commit)
 
     def rename(self):
+        path = self.path
         ref = self.ref
         if not ref:
             return
-        logger.debug("Renaming ref %s to %s" % (ref, self.path))
-        # Pretty sure there is an easier way to do this
+        # This implicitly updates self.path
         self._ref = str(self._process_name)
+        if self.path == path:
+            return
+        logger.debug("Renaming ref %s to %s" % (path, self.path))
         new_ref = git.Reference(self.repo, self.path)
         new_ref.set_object(ref.commit.hexsha)
-        logger.debug("Deleting ref %s" % (ref.path))
+        logger.debug("Deleting ref %s pointing at %s.\n"
+                     "To recreate this ref run `git update-ref %s %s`" %
+                     (ref.path, ref.commit.hexsha, ref.path, ref.commit.hexsha))
         ref.delete(self.repo, ref.path)
 
     @classmethod
