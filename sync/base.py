@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import traceback
+from collections import defaultdict
 
 import git
 
@@ -40,11 +41,22 @@ class ProcessName(object):
     "attach" every VcsRefObject representing a concrete use of a ref to this
     class and when changing the status propogate out the change to all users.
     """
+
+    _data = defaultdict(dict)
+
     def __init__(self, obj_type, subtype, status, obj_id, seq_id=None):
         assert obj_type is not None
         assert subtype is not None
         assert status is not None
         assert obj_id is not None
+
+        # Some madness. We want to share the data between different ProcessName
+        # instances that are for the same sync. This allows us to perform updates
+        # and have it reflected on all instances. In particular the status field is
+        # mutable and so we need to update all instances if it's changed.
+        key = (obj_type, subtype, obj_id, seq_id)
+        self.__dict__ = self._data[key]
+
         self._obj_type = obj_type
         self._subtype = subtype
         self._status = status
@@ -208,6 +220,7 @@ class VcsRefObject(object):
     @classmethod
     def create(cls, repo, process_name, obj):
         path = cls.process_path(process_name)
+        logger.debug("Creating ref %s" % path)
         ref = git.Reference(repo, path)
         ref.set_object(obj)
         return cls(repo, process_name)
