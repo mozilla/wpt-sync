@@ -21,37 +21,42 @@ cleanup() {
     /app/venv/bin/celery multi stopwait ${CELERY_WORKER} \
         --pidfile=${CELERY_PID_FILE} \
         --logfile=${CELERY_LOG_FILE}
-    echo -n "Stopping celery beat..."
+    echo "Stopping celery beat..."
     if [ -f "$CELERYBEAT_PID_FILE" ]; then
+       set +e
        kill -0 $(cat "$CELERYBEAT_PID_FILE") 1>/dev/null 2>&1
-       if [ $? -eq 1 ]; then
-            echo "Already stopped."
-            rm $CELERYBEAT_PID_FILE
+       result=$?
+       set -e
+       if [ $result -eq 1 ]; then
+            echo "The celerybeat process is not running in this container, but it may be
+            running in another. Leaving $CELERYBEAT_PID_FILE in place."
        else
             kill -TERM $(cat "$CELERYBEAT_PID_FILE")
+            rm $CELERYBEAT_PID_FILE
        fi
     else
-        echo "celery beat not running? (no pid file)"
+        echo "$CELERYBEAT_PID_FILE does not exist. celerybeat already stopped?"
     fi
+    echo "Stopping rabbitmq-server..."
     sudo service rabbitmq-server stop
 }
 
 clean_pid() {
     pidfile=$1
     if [ -f $pidfile ]; then
+        set +e
         kill -0 $(cat "$pidfile") 1>/dev/null 2>&1
-        if [ $? -eq 1 ]; then
-            echo "Removing stale pid file: $pidfile"
-            rm $pidfile
+        result=$?
+        set -e
+        if [ $result -eq 1 ]; then
+            echo "The specified process is not running in this container, but it may be
+            running in another. Remove $pidfile if it is truly stale and try again."
         else
-            echo "Process for $pidfile is running!"
-            exit 1
+            echo "Process for $pidfile is running! Stop it and try again."
         fi
+        exit 1
     fi
 }
-
-clean_pid "${WPTSYNC_ROOT}/${CELERY_WORKER}.pid"
-clean_pid "$CELERYBEAT_PID_FILE"
 
 cp -v ${WPTSYNC_CONFIG:-/app/wpt-sync/sync.ini} /app/workspace/sync.ini
 cp -v ${WPTSYNC_NEW_RELIC_CONFIG:-/app/wpt-sync/newrelic.ini} /app/workspace/newrelic.ini
@@ -78,6 +83,8 @@ env
 if [ "$1" == "--shell" ]; then
     bash
 elif [ "$1" == "--worker" ]; then
+    clean_pid "${WPTSYNC_ROOT}/${CELERY_WORKER}.pid"
+    clean_pid "$CELERYBEAT_PID_FILE"
     service --status-all
     sudo service rabbitmq-server start
     sudo service rabbitmq-server status
