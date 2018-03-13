@@ -1,11 +1,6 @@
 import celery
-from celery.schedules import crontab
 
 beat_schedule = {
-    'attempt-landing': {
-        "task": "sync.tasks.land",
-        "schedule": crontab(hour=10, minute=30),
-    },
     # Try to cleanup once an hour
     'cleanup': {
         "task": "sync.tasks.cleanup",
