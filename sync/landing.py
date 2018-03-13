@@ -97,6 +97,14 @@ class LandingSync(base.SyncProcess):
             if len(syncs) == 1:
                 return syncs[0]
 
+    @classmethod
+    def has_metadata(cls, message):
+        required_keys = ["wpt-head",
+                         "wpt-type"]
+        metadata = sync_commit.get_metadata(message)
+        return (all(item in metadata for item in required_keys) and
+                metadata["wpt-type"] == "landing")
+
     def check_finished(self):
         return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
                                           self.branch_name)
@@ -315,7 +323,7 @@ Automatic update from web-platform-tests%s
             git_work.git.add("testing/web-platform/meta")
             git_work.git.commit(amend=True, no_edit=True)
 
-    def has_metadata(self, sync):
+    def has_metadata_for_sync(self, sync):
         for item in self.gecko_commits:
             if (item.metadata.get("wpt-pr") == sync.pr and
                 item.metadata.get("wpt-type") == "metadata"):
@@ -323,7 +331,7 @@ Automatic update from web-platform-tests%s
         return False
 
     def add_metadata(self, sync):
-        if self.has_metadata(sync):
+        if self.has_metadata_for_sync(sync):
             return
         if sync.metadata_commit and not sync.metadata_commit.is_empty():
             worktree = self.gecko_worktree.get()
@@ -461,9 +469,7 @@ Automatic update from web-platform-tests%s
 
 
 def push(landing):
-    """Push from git_work_gecko to inbound.
-
-    Returns: Tuple of booleans (success, retry)"""
+    """Push from git_work_gecko to inbound."""
     success = False
 
     landing_tree = env.config["gecko"]["landing"]

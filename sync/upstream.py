@@ -35,10 +35,10 @@ class BackoutCommitFilter(base.CommitFilter):
         if commit.is_backout:
             commits, bugs = commit.wpt_commits_backed_out()
             for backout_commit in commits:
-                if backout_commit in self.seen:
+                if backout_commit.sha1 in self.seen:
                     return True
         if commit.bug == self.bug:
-            self.seen.add(commit.canonical_rev)
+            self.seen.add(commit.sha1)
             return True
         return False
 
@@ -448,9 +448,18 @@ def wpt_commits(git_gecko, first_commit, head_commit):
                                       paths=env.config["gecko"]["path"]["wpt"],
                                       reverse=True,
                                       max_parents=1)]
-    return [commit for commit in commits
-            if not commit.metadata.get("wptsync-skip") or
-            DownstreamSync.has_metadata(commit.msg)]
+    return filter_commits(commits)
+
+
+def filter_commits(commits):
+    rv = []
+    for commit in commits:
+        if (commit.metadata.get("wptsync-skip") or
+            DownstreamSync.has_metadata(commit.msg) or
+            (commit.is_backout and not commit.wpt_commits_backed_out())):
+            continue
+        rv.append(commit)
+    return rv
 
 
 def remove_complete_backouts(commits):
@@ -460,7 +469,7 @@ def remove_complete_backouts(commits):
     for commit in commits:
         if commit.is_backout:
             backed_out, _ = commit.wpt_commits_backed_out()
-            backed_out = set(backed_out)
+            backed_out = {item.sha1 for item in backed_out}
             if backed_out.issubset(commits_remaining):
                 commits_remaining -= backed_out
                 continue
@@ -493,8 +502,8 @@ class Endpoints(object):
 
 
 def updates_for_backout(syncs_by_bug, commit):
-    backout_commit_shas, bugs = commit.wpt_commits_backed_out()
-    backout_commit_shas = set(backout_commit_shas)
+    backout_commits, bugs = commit.wpt_commits_backed_out()
+    backout_commit_shas = {item.sha1 for item in backout_commits}
 
     create_syncs = {}
     update_syncs = {}

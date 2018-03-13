@@ -212,7 +212,17 @@ class GeckoCommit(Commit):
     def is_backout(self):
         return commitparser.is_backout(self.commit.message)
 
-    def wpt_commits_backed_out(self):
+    @property
+    def is_downstream(self):
+        import downstream
+        return downstream.DownstreamSync.has_metadata(self.msg)
+
+    @property
+    def is_landing(self):
+        import landing
+        return landing.LandingSync.has_metadata(self.msg)
+
+    def commits_backed_out(self):
         commits = []
         bugs = None
         if self.is_backout:
@@ -225,13 +235,31 @@ class GeckoCommit(Commit):
 
             nodes, bugs = nodes_bugs
             # Assuming that all commits are listed.
-
-            # Add all backouts that affect wpt commits to the list
             for node in nodes:
                 git_sha = self.repo.cinnabar.hg2git(node)
-                commit = GeckoCommit(self.repo, git_sha)
-                if commit.has_wpt_changes():
-                    commits.append(git_sha)
+                commits.append(GeckoCommit(self.repo, git_sha))
+
+        return commits, set(bugs)
+
+    def wpt_commits_backed_out(self, exclude_downstream=True):
+        """Get a list of all the wpt commits backed out by the current commit.
+
+        :param exclude_downstream: Exclude commits that were downstreamed
+        """
+
+        all_commits, bugs = self.commits_backed_out()
+        commits = []
+        for commit in all_commits:
+            if commit.has_wpt_changes() and not (exclude_downstream and commit.is_downstream):
+                commits.append(commit)
+        return commits, set(bugs)
+
+    def landing_commits_backed_out(self):
+        all_commits, bugs = self.commits_backed_out()
+        commits = []
+        for commit in all_commits:
+            if commit.is_landing:
+                commits.append(commit)
         return commits, set(bugs)
 
 
