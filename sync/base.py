@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import traceback
 from collections import defaultdict
+from fnmatch import fnmatch
 
 import git
 
@@ -80,6 +81,15 @@ class ProcessName(object):
         if seq_id is not None:
             rv = "%s/%s" % (rv, seq_id)
         return rv
+
+    def name_filter(self):
+        """Return a string that can be passed to git for-each-ref to determine
+        if a ProcessName matching the current name already exists"""
+        return self.name(self._obj_type,
+                         self._subtype,
+                         "*",
+                         self._obj_id,
+                         self._seq_id)
 
     def attach_ref(self, ref):
         # This two-way binding is kind of nasty, but we want the
@@ -221,6 +231,11 @@ class VcsRefObject(object):
     def create(cls, repo, process_name, obj):
         path = cls.process_path(process_name)
         logger.debug("Creating ref %s" % path)
+        for ref in repo.refs:
+            if fnmatch(ref.path, "refs/%s/%s" % (cls.ref_prefix,
+                                                 process_name.name_filter())):
+                raise ValueError("Ref %s exists which conflicts with %s" %
+                                 (ref.path, path))
         ref = git.Reference(repo, path)
         ref.set_object(obj)
         return cls(repo, process_name)
