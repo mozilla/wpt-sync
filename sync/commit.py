@@ -241,7 +241,7 @@ class GeckoCommit(Commit):
 
         return commits, set(bugs)
 
-    def wpt_commits_backed_out(self, exclude_downstream=True):
+    def wpt_commits_backed_out(self, exclude_downstream=True, exclude_landing=True):
         """Get a list of all the wpt commits backed out by the current commit.
 
         :param exclude_downstream: Exclude commits that were downstreamed
@@ -250,7 +250,9 @@ class GeckoCommit(Commit):
         all_commits, bugs = self.commits_backed_out()
         commits = []
         for commit in all_commits:
-            if commit.has_wpt_changes() and not (exclude_downstream and commit.is_downstream):
+            if (commit.has_wpt_changes() and
+                not (exclude_downstream and commit.is_downstream) and
+                not (exclude_landing and commit.is_landing)):
                 commits.append(commit)
         return commits, set(bugs)
 
