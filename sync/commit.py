@@ -132,7 +132,11 @@ class Commit(object):
         return msg
 
     def is_empty(self, prefix=None):
-        return self.repo.git.show(self.sha1, format="", patch=True).strip() == ""
+        if prefix:
+            args = ("--", prefix)
+        else:
+            args = ()
+        return self.repo.git.show(self.sha1, format="", patch=True, *args).strip() == ""
 
     def tags(self):
         return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n")
