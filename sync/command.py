@@ -81,10 +81,14 @@ def get_parser():
     parser_bug.add_argument("bug", default=None, nargs="?", help="Bug number")
     parser_bug.set_defaults(func=do_bug)
 
-    parser_upstream = subparsers.add_parser("upstream", help="Run the upstreaming code")
-    parser_upstream.add_argument("--base-rev", help="Base revision for upstreaming")
-    parser_upstream.add_argument("--rev", help="Revision to upstream to")
-    parser_upstream.set_defaults(func=do_upstream)
+    parser_push = subparsers.add_parser("push", help="Run the push handler")
+    parser_push.add_argument("--base-rev", help="Base revision for push or landing")
+    parser_push.add_argument("--rev", help="Revision pushed")
+    parser_push.add_argument("--process", dest="processes", action="append",
+                             choices=["landing", "upstream"],
+                             default=None,
+                             help="Select process to run on push (default: landing, upstream)")
+    parser_push.set_defaults(func=do_push)
 
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
     parser_delete.add_argument("sync_type", help="Type of sync to delete")
@@ -269,14 +273,15 @@ def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
 
 
 @with_lock
-def do_upstream(git_gecko, git_wpt, *args, **kwargs):
+def do_push(git_gecko, git_wpt, *args, **kwargs):
     import update
     rev = kwargs["rev"]
     base_rev = kwargs["base_rev"]
+    processes = kwargs["processes"]
     if rev is None:
         rev = git_gecko.commit(env.config["gecko"]["refs"]["mozilla-inbound"]).hexsha
 
-    update.update_upstream(git_gecko, git_wpt, rev, base_rev=base_rev)
+    update.update_push(git_gecko, git_wpt, rev, base_rev=base_rev, processes=processes)
 
 
 @with_lock

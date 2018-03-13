@@ -76,19 +76,30 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     tree.is_open = lambda x: True
     sync = landing.land_to_gecko(git_gecko, git_wpt)
 
+    # Set the landing sync point to current central
+    sync.last_sync_point(git_gecko, "mozilla-central",
+                         env.config["gecko"]["refs"]["central"])
+
     try_push = sync.latest_try_push
 
     try_push.download_raw_logs = Mock(return_value=[])
     tc.get_wpt_tasks = Mock(return_value=mock_tasks(completed=["foo"]))
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
-    assert sync.status == "complete"
+    assert sync.status == "open"
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/inbound"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
     assert new_head.tree["testing/web-platform/tests/README"].data_stream.read() == "example_change"
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["local"] == new_head.parents[0].hexsha
     assert sync_point["upstream"] == head_rev
+    # Update central to contain the landing
+    git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
+    with patch("sync.landing.tasks.land.apply_async") as mock_apply:
+        landing.gecko_push(git_gecko, git_wpt, "mozilla-central",
+                           git_gecko.cinnabar.git2hg(new_head))
+        assert mock_apply.call_count == 1
+    assert sync.status == "complete"
 
 
 def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, try_push, mock_tasks):
@@ -122,7 +133,7 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, m
     try_push.download_raw_logs = Mock(return_value=[])
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
     try_push.download_raw_logs.assert_called_with(exclude=["foo"])
-    assert sync.status == "complete"
+    assert sync.status == "open"
     assert try_push.status == "complete"
 
 
@@ -133,7 +144,7 @@ def test_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_push,
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
     # no intermittents in the try push
     try_push.download_raw_logs.assert_called_with(exclude=[])
-    assert sync.status == "complete"
+    assert sync.status == "open"
     assert try_push.status == "complete"
 
 
@@ -156,8 +167,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                 message="Add change1 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
-                                 raise_on_error=True)
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+                                       raise_on_error=True)
     sync_1 = pushed.pop()
 
     # Update central
@@ -178,8 +189,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                 message="Add change2 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
-                                 raise_on_error=True)
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+                                       raise_on_error=True)
     sync_2 = pushed.pop()
 
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
@@ -217,8 +228,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                 message="Add change3 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
-                                 raise_on_error=True)
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+                                       raise_on_error=True)
 
     # Now start a landing
     tree.is_open = lambda x: True

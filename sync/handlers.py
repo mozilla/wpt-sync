@@ -156,19 +156,27 @@ class PushHandler(Handler):
             repo_name = repo.rsplit("/", 1)[1]
         else:
             repo_name = repo
-        # Commands can override the base rev
+        # Commands can override the base rev and select only certain processses
         base_rev = body.get("_wptsync", {}).get("base_rev")
+        processes = body.get("_wptsync", {}).get("processes")
 
         # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
         rev = body["payload"]["data"]["heads"][0]
         logger.info("Handling commit %s to repo %s" % (rev, repo))
         update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-        git_rev = git_gecko.cinnabar.hg2git(rev)
-        if gecko_repo(git_gecko, git_rev) is None:
-            logger.info("Skipping commit as it isn't in a branch we track")
-            return
-        upstream.push(git_gecko, git_wpt, repo_name, rev, base_rev=base_rev)
+        try:
+            git_rev = git_gecko.cinnabar.hg2git(rev)
+        except ValueError:
+            pass
+        else:
+            if gecko_repo(git_gecko, git_rev) is None:
+                logger.info("Skipping commit as it isn't in a branch we track")
+                return
+        if processes is None or "upstream" in processes:
+            upstream.gecko_push(git_gecko, git_wpt, repo_name, rev, base_rev=base_rev)
+        if processes is None or "landing" in processes:
+            landing.gecko_push(git_gecko, git_wpt, repo_name, rev, base_rev=base_rev)
 
 
 class TaskHandler(Handler):

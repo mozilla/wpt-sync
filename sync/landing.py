@@ -12,6 +12,7 @@ import commit as sync_commit
 import downstream
 import gitutils
 import log
+import tasks
 import tc
 import tree
 import load
@@ -90,16 +91,6 @@ class LandingSync(base.SyncProcess):
                                            wpt_base=wpt_base,
                                            wpt_head=wpt_head,
                                            bug=bug)
-
-    @classmethod
-    def for_bug(cls, git_gecko, git_wpt, bug, statuses=None):
-        """Get the landing for a specific Gecko bug number"""
-        statuses = statuses if statuses is not None else cls.statuses
-        rv = {}
-        for status in statuses:
-            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
-            rv[status] = syncs
-        return rv
 
     @classmethod
     def has_metadata(cls, message):
@@ -641,7 +632,7 @@ def push(landing):
                 landing.bz.comment(landing.bug, err)
                 raise AbortError(err)
         success = True
-    landing.finish()
+    # The landing is marked as finished when it reaches central
 
 
 def load_sync_point(git_gecko, git_wpt):
@@ -877,3 +868,44 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
                 if not sync.results_notified:
                     env.bz.comment(sync.bug, "Result changes from PR not available.")
             sync.finish()
+
+
+@base.entry_point("landing")
+def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
+               base_rev=None):
+    rev = git_gecko.cinnabar.hg2git(hg_rev)
+    central_ref = env.config["gecko"]["refs"]["central"]
+    last_sync_point, base_commit = LandingSync.prev_gecko_commit(git_gecko,
+                                                                 repository_name,
+                                                                 base_rev,
+                                                                 default=central_ref)
+
+    if base_rev is None and git_gecko.is_ancestor(rev, base_commit.sha1):
+        logger.info("Last sync point moved past commit")
+        return
+
+    landed_central = git_gecko.is_ancestor(rev, central_ref)
+
+    revish = "%s..%s" % (base_commit.sha1, rev)
+
+    landing_sync = current(git_gecko, git_wpt)
+    for commit in git_gecko.iter_commits(revish,
+                                         reverse=True,
+                                         first_parent=True):
+        commit = sync_commit.GeckoCommit(git_gecko, commit.hexsha)
+        if landed_central and commit.is_landing:
+            syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug, flat=True)
+            if syncs:
+                syncs[0].finish()
+        elif commit.is_backout:
+            for backed_out, _ in commit.landing_commits_backed_out():
+                syncs = LandingSync.for_bug(git_gecko, git_wpt, backed_out.bug, flat=True)
+                if syncs:
+                    syncs[0].status = "open"
+                    syncs[0].error = "Landing was backed out"
+
+    if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+        last_sync_point.commit = rev
+
+    if landing_sync and landing_sync.status == "complete":
+        tasks.land.apply_async()

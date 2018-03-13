@@ -1,4 +1,3 @@
-import itertools
 import os
 import re
 import time
@@ -76,16 +75,6 @@ class UpstreamSync(base.SyncProcess):
         sync = super(UpstreamSync, cls).load(git_gecko, git_wpt, branch_name)
         sync.update_wpt_refs()
         return sync
-
-    @classmethod
-    def for_bug(cls, git_gecko, git_wpt, bug, statuses=None):
-        statuses = statuses if statuses is not None else cls.statuses
-        rv = {}
-        for status in statuses:
-            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
-            if syncs:
-                rv[status] = syncs
-        return rv
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
@@ -169,22 +158,6 @@ class UpstreamSync(base.SyncProcess):
         if remote_head.commit.hexsha != self.wpt_commits.head.sha1:
             self.wpt_commits.head = sync_commit.WptCommit(self.git_wpt,
                                                           remote_head.commit.hexsha)
-
-    @classmethod
-    def last_sync_point(cls, git_gecko, repository_name, default=None):
-        assert "/" not in repository_name
-        name = base.SyncPointName(cls.sync_type,
-                                  repository_name)
-        try:
-            return base.BranchRefObject(git_gecko,
-                                        name,
-                                        commit_cls=sync_commit.GeckoCommit)
-        except ValueError:
-            if default:
-                return base.BranchRefObject.create(git_gecko,
-                                                   name,
-                                                   default,
-                                                   commit_cls=sync_commit.GeckoCommit)
 
     @property
     def bug(self):
@@ -530,9 +503,7 @@ def updates_for_backout(git_gecko, git_wpt, commit):
 
     for backed_out_commit in backed_out_commits:
         syncs = UpstreamSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug,
-                                     statuses=["open", "incomplete"])
-        sync = None
-        syncs = list(itertools.chain.from_iterable(syncs.itervalues()))
+                                     statuses=["open", "incomplete"], flat=True)
         assert len(syncs) in (0, 1)
         if syncs:
             sync = syncs[0]
@@ -596,9 +567,9 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
                 sync, _ = update_syncs[bug]
             else:
                 statuses = ["open", "incomplete"]
-                unfinished_syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug, statuses=statuses)
+                syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug, statuses=statuses,
+                                             flat=True)
                 sync = None
-                syncs = list(itertools.chain.from_iterable(unfinished_syncs.itervalues()))
                 assert len(syncs) in (0, 1)
                 if syncs:
                     sync = syncs[0]
@@ -731,25 +702,20 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
 
 
 @base.entry_point("upstream")
-def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
-         base_rev=None):
+def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
+               base_rev=None):
     rev = git_gecko.cinnabar.hg2git(hg_rev)
-    last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name,
-                                                   default=env.config["gecko"]["refs"]["central"])
-    logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
-
-    if base_rev is None:
-        if git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
-            logger.info("Last sync point moved past commit")
-            return
-        base_commit = last_sync_point.commit
-    else:
-        base_commit = sync_commit.GeckoCommit(git_gecko,
-                                              git_gecko.cinnabar.hg2git(base_rev))
+    central_ref = env.config["gecko"]["refs"]["central"]
+    last_sync_point, prev_commit = UpstreamSync.prev_gecko_commit(git_gecko,
+                                                                  repository_name,
+                                                                  default=central_ref)
+    if base_rev is None and git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+        logger.info("Last sync point moved past commit")
+        return
 
     updated = updated_syncs_for_push(git_gecko,
                                      git_wpt,
-                                     base_commit,
+                                     prev_commit,
                                      sync_commit.GeckoCommit(git_gecko, rev))
 
     if updated is None:

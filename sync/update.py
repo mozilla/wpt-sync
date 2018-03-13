@@ -88,7 +88,7 @@ def convert_rev(git_gecko, rev):
     return git_rev, hg_rev
 
 
-def update_upstream(git_gecko, git_wpt, rev, base_rev=None):
+def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
     git_rev, hg_rev = convert_rev(git_gecko, rev)
 
     if base_rev is not None:
@@ -103,10 +103,13 @@ def update_upstream(git_gecko, git_wpt, rev, base_rev=None):
     else:
         routing_key = "integration/autoland"
 
-    kwargs = {}
+    kwargs = {"_wptsync": {}}
 
     if hg_rev_base is not None:
-        kwargs["_wptsync"] = {"base_rev": hg_rev_base}
+        kwargs["_wptsync"]["base_rev"] = hg_rev_base
+
+    if processes is not None:
+        kwargs["_wptsync"]["processes"] = processes
 
     event = construct_event("push", {"data": {"heads": [hg_rev]}},
                             _meta={"routing_key": routing_key},

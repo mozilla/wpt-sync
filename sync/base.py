@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import re
@@ -711,6 +712,72 @@ class SyncProcess(object):
         return "<%s %s %s>" % (self.__class__.__name__,
                                self.sync_type,
                                self._process_name)
+
+    @classmethod
+    def prev_gecko_commit(cls, git_gecko, repository_name, base_rev=None, default=None):
+        """Get the last gecko commit processed by a sync process.
+
+        :param str repository_name: The name of the gecko branch being processed
+        :param base_rev: The SHA1 for a commit to use as the previous commit, overriding
+                         the stored value
+        :returns: Tuple of (LastSyncPoint, GeckoCommit) for the previous gecko commit. In
+                  case the base_rev override is passed in the LastSyncPoint may be pointing
+                  at a different commit to the returned gecko commit"""
+
+        last_sync_point = cls.last_sync_point(git_gecko, repository_name,
+                                              default=default)
+
+        logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
+
+        if base_rev is None:
+            prev_commit = last_sync_point.commit
+        else:
+            prev_commit = sync_commit.GeckoCommit(git_gecko,
+                                                  git_gecko.cinnabar.hg2git(base_rev))
+        return last_sync_point, prev_commit
+
+    @classmethod
+    def last_sync_point(cls, git_gecko, repository_name, default=None):
+        assert "/" not in repository_name
+        name = SyncPointName(cls.sync_type,
+                             repository_name)
+        try:
+            return BranchRefObject(git_gecko,
+                                   name,
+                                   commit_cls=sync_commit.GeckoCommit)
+        except ValueError:
+            if default:
+                return BranchRefObject.create(git_gecko,
+                                              name,
+                                              default,
+                                              commit_cls=sync_commit.GeckoCommit)
+
+    @classmethod
+    def for_bug(cls, git_gecko, git_wpt, bug, statuses=None, flat=False):
+        """Get the syncs for a specific bug.
+
+        :param bug: The bug number for which to find syncs.
+        :param statuses: An optional list of sync statuses to include.
+                         Defaults to all statuses.
+        :param flat: Return a flat list of syncs instead of a dictionary.
+
+        :returns: By default a dictionary of {status: [syncs]}, but if flat
+                  is true, just returns a list of matching syncs.
+        """
+        statuses = statuses if statuses is not None else cls.statuses
+        rv = {}
+        for status in statuses:
+            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
+            if syncs:
+                rv[status] = syncs
+                if not cls.multiple_syncs:
+                    if len(syncs) != 1:
+                        raise ValueError("Found multiple %s syncs for bug %s, expected at most 1" %
+                                         (cls.sync_type, bug))
+                    break
+        if flat:
+            rv = list(itertools.chain.from_iterable(rv.itervalues()))
+        return rv
 
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
