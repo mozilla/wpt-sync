@@ -190,3 +190,24 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     assert sync.last_pr_check == {"state": "success", "sha": sync.wpt_commits.head.sha1}
     assert sync.gecko_landed()
     assert sync.status == "complete"
+
+
+def test_no_upstream_downstream(env, git_gecko, git_wpt, upstream_gecko_commit,
+                                upstream_gecko_backout):
+
+    hg_rev = upstream_gecko_commit(test_changes={"README": "Example change"},
+                                   message="""Example change
+
+wpt-pr: 1
+wpt-commits: 0000000000000000000000000000000000000000""")
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "mozilla-inbound",
+                                           hg_rev, raise_on_error=True)
+    assert not pushed
+    assert not landed
+    assert not failed
+    backout_rev = upstream_gecko_backout(hg_rev, "1234")
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "mozilla-inbound",
+                                           backout_rev, raise_on_error=True)
+    assert not pushed
+    assert not landed
+    assert not failed
