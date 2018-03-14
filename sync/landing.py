@@ -312,8 +312,13 @@ Automatic update from web-platform-tests%s
         mach = Mach(git_work.working_dir)
         mach.wpt_manifest_update()
         if git_work.is_dirty():
-            git_work.git.add("testing/web-platform/meta")
+            manifest_path = os.path.join(env.config["gecko"]["path"]["meta"],
+                                         "MANIFEST.json")
+            git_work.git.add(manifest_path)
             git_work.git.commit(amend=True, no_edit=True)
+        if git_work.is_dirty():
+            # This can happen if the mozilla/meta/MANIFEST.json is updated
+            git_work.git.reset(hard=True)
 
     def has_metadata(self, sync):
         for item in self.gecko_commits:

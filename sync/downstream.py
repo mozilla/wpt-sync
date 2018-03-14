@@ -175,7 +175,9 @@ class DownstreamSync(base.SyncProcess):
         mach = Mach(gecko_work.working_dir)
         mach.wpt_manifest_update()
         if gecko_work.is_dirty():
-            gecko_work.index.add(["testing/web-platform/meta/MANIFEST.json"])
+            manifest_path = os.path.join(env.config["gecko"]["path"]["meta"],
+                                         "MANIFEST.json")
+            gecko_work.index.add([manifest_path])
             metadata = {
                 "wpt-pr": self.pr,
                 "wpt-type": "manifest"
@@ -183,6 +185,9 @@ class DownstreamSync(base.SyncProcess):
             msg = sync_commit.Commit.make_commit_msg("Bug %s [wpt PR %s] - Update wpt manifest" %
                                                      (self.bug, self.pr), metadata)
             gecko_work.index.commit(message=msg)
+        if gecko_work.is_dirty():
+            # This can happen if the mozilla/meta/MANIFEST.json is updated
+            gecko_work.git.reset(hard=True)
 
     @property
     def metadata_commit(self):
