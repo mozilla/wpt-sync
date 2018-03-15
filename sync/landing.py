@@ -191,7 +191,8 @@ class LandingSync(base.SyncProcess):
 Automatic update from web-platform-tests%s
 """ % (sync.bug or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
         message = sync_commit.Commit.make_commit_msg(message, metadata)
-        commit = git_work_gecko.index.commit(message=message, author=author)
+        commit = git_work_gecko.index.commit(message=message,
+                                             author=git.Actor._from_string(author))
         logger.debug("Gecko files changed: \n%s" % "\n".join(commit.stats.files.keys()))
         gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
         self.gecko_commits.head = commit
