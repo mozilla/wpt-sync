@@ -198,7 +198,7 @@ class Commit(object):
          %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
                     raise AbortError(err_msg)
 
-                return Commit.create(dest_repo, msg, None, amend=amend)
+                return Commit.create(dest_repo, msg, None, amend=amend, author=self.author)
 
 
 class GeckoCommit(Commit):
