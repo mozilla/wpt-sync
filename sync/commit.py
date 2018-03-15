@@ -105,7 +105,15 @@ class Commit(object):
 
     @property
     def author(self):
-        return self.commit.author
+        author = self.commit.author
+        if not isinstance(author, (str, unicode)):
+            # This is presumably a gitpython Actor object
+            rv = author.name
+            if author.email:
+                rv = "%s <%s>" % (rv, author.email)
+        else:
+            rv = author
+        return rv
 
     @property
     def metadata(self):
@@ -206,6 +214,7 @@ class Commit(object):
                 dest_repo.git.reset("HEAD^")
                 return None
             raise
+
 
 class GeckoCommit(Commit):
     @property
