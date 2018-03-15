@@ -109,7 +109,7 @@ class LandingSync(base.SyncProcess):
         return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
                                           self.branch_name)
 
-    def add_pr(self, pr_id, sync, wpt_commits):
+    def add_pr(self, pr_id, sync, wpt_commits, copy=True):
         if len(wpt_commits) > 1:
             assert all(item.pr() == pr_id for item in wpt_commits)
 
@@ -119,19 +119,18 @@ class LandingSync(base.SyncProcess):
         git_work_wpt = self.wpt_worktree.get()
         git_work_gecko = self.gecko_worktree.get()
 
-        # Ensure we have anything in a wpt submodule
-        git_work_wpt.git.submodule("update", "--init", "--recursive")
+        pr = env.gh_wpt.get_pull(int(pr_id))
 
         metadata = {
             "wpt-pr": pr_id,
             "wpt-commits": ", ".join(item.sha1 for item in wpt_commits)
         }
 
-        dest_path = os.path.join(git_work_gecko.working_dir,
-                                 env.config["gecko"]["path"]["wpt"])
-        src_path = git_work_wpt.working_dir
+        message = """Bug %s [wpt PR %s] - %s, a=testonly
 
-        pr = env.gh_wpt.get_pull(int(pr_id))
+Automatic update from web-platform-tests%s
+""" % (sync.bug or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
+        message = sync_commit.Commit.make_commit_msg(message, metadata)
 
         upstream_changed = set()
         for commit in wpt_commits:
@@ -139,6 +138,26 @@ class LandingSync(base.SyncProcess):
             upstream_changed |= set(stats.files.keys())
 
         logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
+
+        if copy:
+            commit = self.copy_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
+                                  message, author)
+        else:
+            commit = self.move_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
+                                  message, author)
+
+        if commit is not None:
+            self.gecko_commits.head = commit
+
+        return commit
+
+    def copy_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author):
+        # Ensure we have anything in a wpt submodule
+        git_work_wpt.git.submodule("update", "--init", "--recursive")
+
+        dest_path = os.path.join(git_work_gecko.working_dir,
+                                 env.config["gecko"]["path"]["wpt"])
+        src_path = git_work_wpt.working_dir
 
         # Specific paths that should be re-checked out
         keep_paths = {"LICENSE", "resources/testdriver_vendor.js"}
@@ -176,28 +195,40 @@ class LandingSync(base.SyncProcess):
                                             for item in keep_paths), force=True, quiet=True)
 
         if not git_work_gecko.is_dirty(untracked_files=True):
-            logger.info("PR %s didn't add any changes" % pr_id)
-            return None
-
-        if not git_work_gecko.is_dirty(untracked_files=True):
-            logger.info("PR %s didn't add any changes" % pr_id)
+            logger.info("PR %s didn't add any changes" % pr.number)
             return None
 
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
 
-        message = """Bug %s [wpt PR %s] - %s, a=testonly
-
-Automatic update from web-platform-tests%s
-""" % (sync.bug or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
-        message = sync_commit.Commit.make_commit_msg(message, metadata)
         commit = git_work_gecko.index.commit(message=message,
                                              author=git.Actor._from_string(author))
         logger.debug("Gecko files changed: \n%s" % "\n".join(commit.stats.files.keys()))
         gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
-        self.gecko_commits.head = commit
 
         return gecko_commit
+
+    def move_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author):
+        head = sync_commit.GeckoCommit(self.git_gecko, git_work_gecko.head.commit)
+        if head.is_downstream and head.metadata.get("wpt-pr") == str(pr.number):
+            dest_commit = head
+        else:
+            dest_commit = None
+        applied_commits = []
+        for commit in wpt_commits:
+            if (dest_commit is None or
+                commit.sha1 not in dest_commit.metadata["applied_commits"].split(", ")):
+                metadata = {
+                    "wpt-pr": pr.number,
+                    "wpt-commits": ", ".join(applied_commits)
+                }
+                dest_commit = commit.move(git_work_gecko,
+                                          dest_prefix=env.config["gecko"]["path"]["wpt"],
+                                          amend=(dest_commit is not None),
+                                          metadata=metadata)
+            applied_commits.append(commit.sha1)
+        git_work_gecko.git.commit(amend=True, message=message)
+        commit = sync_commit.GeckoCommit(self.git_gecko, git_work_gecko.head.commit)
 
     def unlanded_gecko_commits(self):
         """Get a list of gecko commits that correspond to commits which have
@@ -269,18 +300,28 @@ Automatic update from web-platform-tests%s
                 [sync_commit.GeckoCommit(self.git_gecko, item) for item in ordered_commits]))
         return self._unlanded_gecko_commits
 
-    def reapply_local_commits(self, gecko_commits_landed):
+    def reapply_local_commits(self, gecko_commits_landed, metadata_only=False):
         # The local commits to apply are everything that hasn't been landed at this
         # point in the process
         commits = [item for item in self.unlanded_gecko_commits()
                    if item.canonical_rev not in gecko_commits_landed]
 
-        if not commits:
+        landing_commit = self.gecko_commits[-1]
+        git_work_gecko = self.gecko_worktree.get()
+
+        if metadata_only:
+            if landing_commit.metadata.get("reapplied-commits"):
+                return
+            new_message = sync_commit.Commit.make_commit_msg(
+                landing_commit.msg,
+                {"reapplied-commits": ", ".join(item.canonical_rev for item in commits)})
+            git_work_gecko.git.commit(amend=True, message=new_message)
             return
 
-        landing_commit = self.gecko_commits[-1]
         logger.debug("Reapplying commits: %s" % " ".join(item.canonical_rev for item in commits))
-        git_work_gecko = self.gecko_worktree.get()
+
+        if not commits:
+            return
 
         already_applied = landing_commit.metadata.get("reapplied-commits")
         if already_applied:
@@ -398,22 +439,24 @@ Automatic update from web-platform-tests%s
 
         gecko_commits_landed = set()
 
-        for pr, sync, commits in landable_commits:
+        for i, (pr, sync, commits) in enumerate(landable_commits):
+            logger.info("Applying PR %i of %i" % (i + 1, len(landable_commits)))
             if isinstance(sync, upstream.UpstreamSync):
                 for commit in commits:
                     gecko_commit = commit.metadata.get("gecko-commit")
                     if gecko_commit:
                         gecko_commits_landed.add(gecko_commit)
+            copy = i == 0
             if pr not in prs_applied:
                 # If we haven't applied it before then create the initial commit
-                commit = self.add_pr(pr, sync, commits)
+                commit = self.add_pr(pr, sync, commits, copy=copy)
                 if commit is None:
                     # This means the PR didn't change gecko
                     continue
             if pr not in prs_applied or prs_applied[pr] == self.gecko_commits[-1]:
                 # If the head commit is the changes from the PR then reapply all the
                 # local changes
-                self.reapply_local_commits(gecko_commits_landed)
+                self.reapply_local_commits(gecko_commits_landed, metadata_only=not copy)
                 self.manifest_update()
             if isinstance(sync, downstream.DownstreamSync) and pr not in metadata_applied:
                 self.add_metadata(sync)
