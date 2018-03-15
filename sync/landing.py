@@ -109,7 +109,7 @@ class LandingSync(base.SyncProcess):
         return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
                                           self.branch_name)
 
-    def add_pr(self, pr_id, sync, wpt_commits, copy=True):
+    def add_pr(self, pr_id, sync, wpt_commits, copy=True, prev_wpt_head=None):
         if len(wpt_commits) > 1:
             assert all(item.pr() == pr_id for item in wpt_commits)
 
@@ -144,7 +144,7 @@ Automatic update from web-platform-tests%s
                                   message, author)
         else:
             commit = self.move_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
-                                  message, author)
+                                  message, author, prev_wpt_head)
 
         if commit is not None:
             self.gecko_commits.head = commit
@@ -208,27 +208,26 @@ Automatic update from web-platform-tests%s
 
         return gecko_commit
 
-    def move_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author):
+    def move_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author,
+                prev_wpt_head):
+        if prev_wpt_head is None:
+            prev_wpt_head = wpt_commits[0].sha1 + "^"
+
         head = sync_commit.GeckoCommit(self.git_gecko, git_work_gecko.head.commit)
         if head.is_downstream and head.metadata.get("wpt-pr") == str(pr.number):
-            dest_commit = head
-        else:
-            dest_commit = None
-        applied_commits = []
-        for commit in wpt_commits:
-            if (dest_commit is None or
-                commit.sha1 not in dest_commit.metadata["applied_commits"].split(", ")):
-                metadata = {
-                    "wpt-pr": pr.number,
-                    "wpt-commits": ", ".join(applied_commits)
-                }
-                dest_commit = commit.move(git_work_gecko,
-                                          dest_prefix=env.config["gecko"]["path"]["wpt"],
-                                          amend=(dest_commit is not None),
-                                          metadata=metadata)
-            applied_commits.append(commit.sha1)
-        git_work_gecko.git.commit(amend=True, message=message)
-        commit = sync_commit.GeckoCommit(self.git_gecko, git_work_gecko.head.commit)
+            return
+
+        applied_commits = [commit.sha1 for commit in wpt_commits]
+        metadata = {
+            "wpt-pr": pr.number,
+            "wpt-commits": ", ".join(applied_commits)
+        }
+        return sync_commit.move_commits("%s..%s" % (prev_wpt_head, wpt_commits[-1].sha1),
+                                        message="\n--\n".join(item.msg for item in wpt_commits),
+                                        git_work_gecko,
+                                        dest_prefix=env.config["gecko"]["path"]["wpt"],
+                                        amend=False,
+                                        metadata=metadata)
 
     def unlanded_gecko_commits(self):
         """Get a list of gecko commits that correspond to commits which have
@@ -412,7 +411,7 @@ Automatic update from web-platform-tests%s
                                             metadata_commit.message[len("Bug None"):])
                 worktree.git.commit(message=new_message, amend=True)
 
-    def apply_prs(self, landable_commits):
+    def apply_prs(self, prev_wpt_head, landable_commits):
         """Main entry point to setting the commits for landing.
 
         For each upstream PR we want to create a separate commit in the
@@ -447,16 +446,12 @@ Automatic update from web-platform-tests%s
                     if gecko_commit:
                         gecko_commits_landed.add(gecko_commit)
 
-            # If this is the first commit, or contains merge commits, do a full
-            # copy. We have to do this for merge commits because we currently move
-            # the commits one at a time, and that  doesn't work for a merge. But
-            # there's no reason not to take the full diff between the current wpt
-            # head and the new head and apply that all  in one go, which should be
-            # both faster and handle merges
-            copy = i == 0 or all(len(item.commit.parents == 1) for item in commits)
+            # If this is the first commit, do a full copy from upstream
+            copy = i == 0
             if pr not in prs_applied:
                 # If we haven't applied it before then create the initial commit
-                commit = self.add_pr(pr, sync, commits, copy=copy)
+                commit = self.add_pr(pr, sync, commits, prev_wpt_head=prev_wpt_head,
+                                     copy=copy)
                 if commit is None:
                     # This means the PR didn't change gecko
                     continue
@@ -467,6 +462,7 @@ Automatic update from web-platform-tests%s
                 self.manifest_update()
             if isinstance(sync, downstream.DownstreamSync) and pr not in metadata_applied:
                 self.add_metadata(sync)
+            prev_wpt_head = commits[-1].sha1
 
     @property
     def landing_commit(self):
@@ -703,7 +699,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                                              include_incomplete=include_incomplete)
         assert wpt_head == landing.wpt_commits.head.sha1
 
-    landing.apply_prs(commits)
+    landing.apply_prs(prev_wpt_head, commits)
 
     if landing.latest_try_push is None:
         trypush.TryPush.create(landing, hacks=False,
