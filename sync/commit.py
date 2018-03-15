@@ -198,8 +198,14 @@ class Commit(object):
          %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
                     raise AbortError(err_msg)
 
-                return Commit.create(dest_repo, msg, None, amend=amend, author=self.author)
-
+        try:
+            return Commit.create(dest_repo, msg, None, amend=amend, author=self.author)
+        except git.GitCommandError as e:
+            if amend and e.status == 1 and "--allow-empty" in e.stdout:
+                logger.warning("Amending commit made it empty, resetting")
+                dest_repo.git.reset("HEAD^")
+                return None
+            raise
 
 class GeckoCommit(Commit):
     @property

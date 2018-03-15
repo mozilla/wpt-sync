@@ -303,12 +303,14 @@ Automatic update from web-platform-tests%s
                 # Passing in a src_prefix here means that we only generate a patch for the
                 # part of the commit that affects wpt, but then we need to undo it by adding
                 # the same dest prefix
-                commit.move(git_work_gecko,
-                            msg_filter=msg_filter,
-                            src_prefix=env.config["gecko"]["path"]["wpt"],
-                            dest_prefix=env.config["gecko"]["path"]["wpt"],
-                            three_way=True,
-                            amend=True)
+                commit = commit.move(git_work_gecko,
+                                     msg_filter=msg_filter,
+                                     src_prefix=env.config["gecko"]["path"]["wpt"],
+                                     dest_prefix=env.config["gecko"]["path"]["wpt"],
+                                     three_way=True,
+                                     amend=True)
+                if commit is None:
+                    break
 
         except AbortError as e:
             err_msg = ("Landing wpt failed because reapplying commits failed:\n%s" % (e.message,))
