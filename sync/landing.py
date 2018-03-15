@@ -557,7 +557,8 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
         if upstream.UpstreamSync.has_metadata(commits[0].msg):
             sync = upstream.UpstreamSync.for_bug(git_gecko,
                                                  git_wpt,
-                                                 commits[0].metadata["bugzilla-url"])
+                                                 bug.bug_number_from_url(
+                                                     commits[0].metadata["bugzilla-url"]))
         else:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if not include_incomplete:
