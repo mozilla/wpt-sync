@@ -24,7 +24,9 @@ def bz_url_from_api_url(api_url):
 def bug_number_from_url(url):
     if url is None:
         return None
-    return urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
+    bugs = urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
+    if bugs:
+        return bugs[0]
 
 
 status_re = re.compile("\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
