@@ -187,6 +187,10 @@ class Commit(object):
                     dest_repo.git.apply(patch_path, index=True, binary=True,
                                         p=strip_dirs, **apply_kwargs)
                 except git.GitCommandError as e:
+                    if amend and e.status == 1 and "--allow-empty" in e.stdout:
+                        logger.warning("Amending commit made it empty, resetting")
+                        dest_repo.git.reset("HEAD^")
+                        return None
                     err_msg = """git apply failed
         %s returned status %s
         Patch saved as :%s

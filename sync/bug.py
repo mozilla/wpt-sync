@@ -92,7 +92,8 @@ class Bugzilla(object):
             return
         bug.add_comment(text)
 
-    def new(self, summary, comment, product, component, whiteboard=None, priority=None):
+    def new(self, summary, comment, product, component, whiteboard=None, priority=None,
+            url=None):
         bug = bugsy.Bug(self.bugzilla,
                         summary=summary,
                         product=product,
@@ -104,6 +105,8 @@ class Bugzilla(object):
             bug._bug["priority"] = priority
         if whiteboard:
             bug._bug["whiteboard"] = whiteboard
+        if url:
+            bug._bug["url"] = url
 
         self.bugzilla.put(bug)
         self.bug_cache[bug.id] = bug
@@ -157,10 +160,11 @@ class MockBugzilla(Bugzilla):
         self.output.write(data)
         self.output.write("\n")
 
-    def new(self, summary, comment, product, component, whiteboard=None, priority=None):
+    def new(self, summary, comment, product, component, whiteboard=None, priority=None,
+            url=None):
         self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\n"
-                  "Whiteboard: %s\nPriority: %s" %
-                  (product, component, summary, comment, whiteboard, priority))
+                  "Whiteboard: %s\nPriority: %s URL: %s" %
+                  (product, component, summary, comment, whiteboard, priority, url))
         if self.known_bugs:
             bug_id = self.known_bugs[-1] + 1
         else:
