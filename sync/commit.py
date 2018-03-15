@@ -152,69 +152,87 @@ class Commit(object):
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
              dest_prefix=None, amend=False, three_way=True):
-        if metadata is None:
-            metadata = {}
 
-        if msg_filter:
-            msg, metadata_extra = msg_filter(self.msg)
-        else:
-            msg, metadata_extra = self.msg, None
+        return _apply_patch(self.show(src_prefix), self.msg, dest_repo, skip_empty=True,
+                            msg_filter, metadata, src_prefix, dest_prefix, amend, three_way)
 
-        if metadata_extra:
-            metadata.update(metadata_extra)
-
-        msg = Commit.make_commit_msg(msg, metadata)
-
-        with Store(dest_repo, self.canonical_rev + ".message", msg) as message_path:
-            show_args = ()
-            if src_prefix:
-                show_args = ("--", src_prefix)
-            try:
-                patch = self.repo.git.show(self.sha1, binary=True, pretty="email",
-                                           *show_args) + "\n"
-            except git.GitCommandError as e:
-                raise AbortError(e.message)
-
-            if skip_empty and patch.endswith("\n\n\n"):
-                return None
-
-            strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
-
-            with Store(dest_repo, self.canonical_rev + ".diff", patch) as patch_path:
-
-                # Without this tests were failing with "Index does not match"
-                dest_repo.git.update_index(refresh=True)
-                apply_kwargs = {}
-                if dest_prefix:
-                    apply_kwargs["directory"] = dest_prefix
-                if three_way:
-                    apply_kwargs["3way"] = True
-                else:
-                    apply_kwargs["reject"] = True
-                try:
-                    dest_repo.git.apply(patch_path, index=True, binary=True,
-                                        p=strip_dirs, **apply_kwargs)
-                except git.GitCommandError as e:
-                    if amend and e.status == 1 and "--allow-empty" in e.stdout:
-                        logger.warning("Amending commit made it empty, resetting")
-                        dest_repo.git.reset("HEAD^")
-                        return None
-                    err_msg = """git apply failed
-        %s returned status %s
-        Patch saved as :%s
-        Commit message saved as: %s
-         %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
-                    raise AbortError(err_msg)
-
+    def show(self, src_prefix):
+        show_args = ()
+        if src_prefix:
+            show_args = ("--", src_prefix)
         try:
-            return Commit.create(dest_repo, msg, None, amend=amend, author=self.author)
+            return self.repo.git.show(self.sha1, binary=True, pretty="email",
+                                      *show_args) + "\n"
         except git.GitCommandError as e:
-            if amend and e.status == 1 and "--allow-empty" in e.stdout:
-                logger.warning("Amending commit made it empty, resetting")
-                dest_repo.git.reset("HEAD^")
-                return None
-            raise
+            raise AbortError(e.message)
 
+
+def move_range(revish, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
+               src_prefix=None, dest_prefix=None, amend=False, three_way=True):
+    diff_args = ()
+    if src_prefix:
+        diff_args = ("--", src_prefix)
+    try:
+        patch = self.repo.git.diff(revish, binary=True, pretty="email",
+                                   *show_args) + "\n"
+    except git.GitCommandError as e:
+        raise AbortError(e.message)
+
+    return _apply_patch(patch, message, dest_repo, skip_empty=True, msg_filter, metadata, src_prefix,
+                        dest_prefix, amend, three_way)
+
+
+def _apply_patch(patch, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
+                 src_prefix=None, dest_prefix=None, amend=False, three_way=True):
+    if skip_empty and patch.endswith("\n\n\n"):
+        return None
+
+    if metadata is None:
+        metadata = {}
+
+    if msg_filter:
+        msg, metadata_extra = msg_filter(message)
+    else:
+        msg, metadata_extra = self.msg, None
+
+    if metadata_extra:
+        metadata.update(metadata_extra)
+
+    msg = Commit.make_commit_msg(msg, metadata)
+
+    with Store(dest_repo, self.canonical_rev + ".message", msg) as message_path:
+        strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
+
+        with Store(dest_repo, self.canonical_rev + ".diff", patch) as patch_path:
+
+            # Without this tests were failing with "Index does not match"
+            dest_repo.git.update_index(refresh=True)
+            apply_kwargs = {}
+            if dest_prefix:
+                apply_kwargs["directory"] = dest_prefix
+            if three_way:
+                apply_kwargs["3way"] = True
+            else:
+                apply_kwargs["reject"] = True
+            try:
+                dest_repo.git.apply(patch_path, index=True, binary=True,
+                                    p=strip_dirs, **apply_kwargs)
+            except git.GitCommandError as e:
+                err_msg = """git apply failed
+    %s returned status %s
+    Patch saved as :%s
+    Commit message saved as: %s
+     %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
+                raise AbortError(err_msg)
+
+            try:
+                return Commit.create(dest_repo, msg, None, amend=amend, author=self.author)
+            except git.GitCommandError as e:
+                if amend and e.status == 1 and "--allow-empty" in e.stdout:
+                    logger.warning("Amending commit made it empty, resetting")
+                    dest_repo.git.reset("HEAD^")
+                    return None
+                raise
 
 class GeckoCommit(Commit):
     @property
