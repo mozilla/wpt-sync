@@ -446,7 +446,14 @@ Automatic update from web-platform-tests%s
                     gecko_commit = commit.metadata.get("gecko-commit")
                     if gecko_commit:
                         gecko_commits_landed.add(gecko_commit)
-            copy = i == 0
+
+            # If this is the first commit, or contains merge commits, do a full
+            # copy. We have to do this for merge commits because we currently move
+            # the commits one at a time, and that  doesn't work for a merge. But
+            # there's no reason not to take the full diff between the current wpt
+            # head and the new head and apply that all  in one go, which should be
+            # both faster and handle merges
+            copy = i == 0 or all(len(item.commit.parents == 1) for item in commits)
             if pr not in prs_applied:
                 # If we haven't applied it before then create the initial commit
                 commit = self.add_pr(pr, sync, commits, copy=copy)
