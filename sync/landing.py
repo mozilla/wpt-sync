@@ -809,7 +809,32 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
 @base.entry_point("landing")
 def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
-    log_files = try_push.download_raw_logs()
+    # min rate of job success to proceed with metadata update
+    target_rate = 0.7
+    retriggered = try_push.retriggered_wpt_states(force_update=True)
+    intermittents = []
+    if not try_push.success and not retriggered:
+        if try_push.success_rate < target_rate:
+            sync.error = (
+                "Latest try push for bug %s has too many failures.\n"
+                "See %s"
+            ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
+            try_push.status = "complete"
+            return
+        num_new_jobs = try_push.retrigger_failures()
+        logger.info("%s new tasks scheduled on try for %s" (num_new_jobs, sync.bug))
+        if num_new_jobs:
+            env.bz.comment(sync.bug,
+                           ("Retriggered failing web-platform-test tasks on "
+                            "try before final metadata update."))
+            return
+    for name, data in retriggered.iteritems():
+        total = sum(data["states"].itervalues()) * 1.0
+        # assuming that only failures cause metadata updates
+        if data["states"]["success"] / total >= target_rate:
+            intermittents.append(name)
+
+    log_files = try_push.download_raw_logs(exclude=intermittents)
     sync.update_metadata(log_files)
 
     try_push.status = "complete"

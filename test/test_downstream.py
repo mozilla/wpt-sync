@@ -1,5 +1,5 @@
 from mock import patch
-from sync import downstream, handlers, load
+from sync import downstream, handlers, load, tree
 
 
 def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, set_pr_status, mock_mach, mock_wpt):
@@ -63,6 +63,7 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
     pr = pull_request([("Test commit", {"README": "Example change\n"})],
                       "Test PR")
     pr._approved = False
+    tree.is_open = lambda x: True
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
 

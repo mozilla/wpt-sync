@@ -4,9 +4,11 @@ import shutil
 import traceback
 import urlparse
 import uuid
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 import slugid
+import taskcluster
 
 import log
 from env import Environment
@@ -18,6 +20,53 @@ TREEHERDER_BASE = "https://treeherder.mozilla.org/"
 logger = log.get_logger(__name__)
 
 env = Environment()
+
+
+class TaskclusterClient(object):
+
+    def __init__(self):
+        self._queue = None
+
+    @property
+    def queue(self):
+        if not self._queue:
+            self._queue = taskcluster.Queue({"credentials": {
+                "clientId": env.config["taskcluster"]["client_id"],
+                "accessToken": env.config["taskcluster"]["token"]
+            }})
+        return self._queue
+
+    def retrigger(self, task_id, count=1, retries=5):
+        _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
+        payload = self.queue.task(task_id)
+        del payload["routes"]
+        now = taskcluster.fromNow("0 days")
+        created = datetime.strptime(payload["created"], _DATE_FMT)
+        deadline = datetime.strptime(payload["deadline"], _DATE_FMT)
+        expiration = datetime.strptime(payload["expires"], _DATE_FMT)
+        to_dead = deadline - created
+        to_expire = expiration - created
+        payload["deadline"] = taskcluster.stringDate(
+            taskcluster.fromNow("%d days %d seconds" % (to_dead.days, to_dead.seconds), now)
+        )
+        payload["expires"] = taskcluster.stringDate(
+            taskcluster.fromNow("%d days %d seconds" % (to_expire.days, to_expire.seconds), now)
+        )
+        payload["created"] = taskcluster.stringDate(now)
+        payload["retries"] = 0
+        rv = []
+        while count > 0:
+            new_id = slugid.nice()
+            r = retries
+            while r > 0:
+                try:
+                    rv.append(self.queue.createTask(new_id, payload))
+                    break
+                except Exception as e:
+                    r -= 1
+                    logger.warning(traceback.format_exc(e))
+            count -= 1
+        return rv or None
 
 
 def normalize_task_id(task_id):
@@ -79,6 +128,26 @@ def get_wpt_tasks(taskgroup_id):
     tasks = get_tasks_in_group(taskgroup_id)
     wpt_tasks = filter_suite(tasks, "web-platform-tests")
     return wpt_tasks
+
+
+def count_task_state_by_name(tasks):
+    # e.g. {"test-linux32-stylo-disabled/opt-web-platform-tests-e10s-6": {
+    #           "task_id": "abc123"
+    #           "states": {
+    #               "completed": 5,
+    #               "failed": 1
+    #           }
+    #       }}
+    rv = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    for task in tasks:
+        name = task.get("task", {}).get("metadata", {}).get("name")
+        state = task.get("status", {}).get("state")
+        task_id = task.get("status", {}).get("taskId")
+        if name:
+            rv[name]["states"][state] += 1
+            # need one task_id per job group for retriggering
+            rv[name]["task_id"] = task_id
+    return rv
 
 
 def download_logs(tasks, destination, retry=5, raw=True, report=True):

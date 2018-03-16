@@ -1,8 +1,24 @@
 import os
 
-from sync import landing, downstream, tree, trypush, upstream
+from mock import Mock
+
+from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
+from sync import tc
 from sync.gitutils import update_repositories
+
+mock_task = {
+    "status": {
+        "state": "completed",
+        "taskGroupId": "abaaaaaaaaaaaaaaaaaaaa",
+        "taskId": "cdaaaaaaaaaaaaaaaaaaaa",
+    },
+    "task": {
+        "metadata": {
+            "name": "test-linux64-stylo-disabled/debug-web-platform-tests-reftests-e10s-2"
+        }
+    }
+}
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
@@ -76,7 +92,8 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 
     try_push = sync.latest_try_push
 
-    try_push.download_raw_logs = lambda: []
+    try_push.download_raw_logs = Mock(return_value=[])
+    tc.get_wpt_tasks = Mock(return_value=[mock_task])
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     assert sync.status == "complete"
@@ -179,7 +196,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     assert sync is not None
 
     try_push = sync.latest_try_push
-    try_push.download_raw_logs = lambda: []
+    try_push.download_raw_logs = Mock(return_value=[])
+    tc.get_wpt_tasks = Mock(return_value=[mock_task])
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
