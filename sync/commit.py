@@ -153,8 +153,9 @@ class Commit(object):
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
              dest_prefix=None, amend=False, three_way=True):
 
-        return _apply_patch(self.show(src_prefix), self.msg, dest_repo, skip_empty=True,
-                            msg_filter, metadata, src_prefix, dest_prefix, amend, three_way)
+        return _apply_patch(self.show(src_prefix), self.msg, self.canonical_rev, dest_repo,
+                            skip_empty, msg_filter, metadata, src_prefix, dest_prefix, amend,
+                            three_way, author=self.author)
 
     def show(self, src_prefix):
         show_args = ()
@@ -167,23 +168,27 @@ class Commit(object):
             raise AbortError(e.message)
 
 
-def move_range(revish, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
-               src_prefix=None, dest_prefix=None, amend=False, three_way=True):
+def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
+                 src_prefix=None, dest_prefix=None, amend=False, three_way=True, rev_name=None,
+                 author=None):
+    if rev_name is None:
+        rev_name = revish
     diff_args = ()
     if src_prefix:
         diff_args = ("--", src_prefix)
     try:
-        patch = self.repo.git.diff(revish, binary=True, pretty="email",
-                                   *show_args) + "\n"
+        patch = repo.git.diff(revish, binary=True, pretty="email",
+                              *diff_args) + "\n"
     except git.GitCommandError as e:
         raise AbortError(e.message)
 
-    return _apply_patch(patch, message, dest_repo, skip_empty=True, msg_filter, metadata, src_prefix,
-                        dest_prefix, amend, three_way)
+    return _apply_patch(patch, message, rev_name, dest_repo, skip_empty, msg_filter, metadata,
+                        src_prefix, dest_prefix, amend, three_way, author=author)
 
 
-def _apply_patch(patch, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
-                 src_prefix=None, dest_prefix=None, amend=False, three_way=True):
+def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filter=None,
+                 metadata=None, src_prefix=None, dest_prefix=None, amend=False, three_way=True,
+                 author=None):
     if skip_empty and patch.endswith("\n\n\n"):
         return None
 
@@ -193,17 +198,17 @@ def _apply_patch(patch, message, dest_repo, skip_empty=True, msg_filter=None, me
     if msg_filter:
         msg, metadata_extra = msg_filter(message)
     else:
-        msg, metadata_extra = self.msg, None
+        msg, metadata_extra = message, None
 
     if metadata_extra:
         metadata.update(metadata_extra)
 
     msg = Commit.make_commit_msg(msg, metadata)
 
-    with Store(dest_repo, self.canonical_rev + ".message", msg) as message_path:
+    with Store(dest_repo, rev_name + ".message", msg) as message_path:
         strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
 
-        with Store(dest_repo, self.canonical_rev + ".diff", patch) as patch_path:
+        with Store(dest_repo, rev_name + ".diff", patch) as patch_path:
 
             # Without this tests were failing with "Index does not match"
             dest_repo.git.update_index(refresh=True)
@@ -226,13 +231,14 @@ def _apply_patch(patch, message, dest_repo, skip_empty=True, msg_filter=None, me
                 raise AbortError(err_msg)
 
             try:
-                return Commit.create(dest_repo, msg, None, amend=amend, author=self.author)
+                return Commit.create(dest_repo, msg, None, amend=amend, author=author)
             except git.GitCommandError as e:
                 if amend and e.status == 1 and "--allow-empty" in e.stdout:
                     logger.warning("Amending commit made it empty, resetting")
                     dest_repo.git.reset("HEAD^")
                     return None
                 raise
+
 
 class GeckoCommit(Commit):
     @property
@@ -326,6 +332,11 @@ class WptCommit(Commit):
             return pr
         except (TypeError, ValueError):
             return None
+
+    @property
+    def is_upstream(self):
+        import upstream
+        return upstream.UpstreamSync.has_metadata(self.msg)
 
 
 class Store(object):
