@@ -7,7 +7,7 @@ import yaml
 
 import base
 import log
-import taskcluster
+import tc
 import tree
 from env import Environment
 from load import get_syncs
@@ -368,13 +368,13 @@ class TryPush(base.ProcessData):
             return self._data["tasks"]
 
         try:
-            wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+            wpt_tasks = tc.get_wpt_tasks(self.taskgroup_id)
         except ValueError:
             # If this happens we may have the wrong taskgroup id
-            task_id = taskcluster.normalize_task_id(self.taskgroup_id)
+            task_id = tc.normalize_task_id(self.taskgroup_id)
             if task_id != self.taskgroup_id:
                 self.taskgroup_id = task_id
-                wpt_completed, wpt_tasks = taskcluster.get_wpt_tasks(self.taskgroup_id)
+                wpt_completed, wpt_tasks = tc.get_wpt_tasks(self.taskgroup_id)
         err = None
         if not len(wpt_tasks):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
@@ -416,7 +416,7 @@ class TryPush(base.ProcessData):
         logger.info("Downloading logs for try revision %s" % self.try_rev)
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
-        taskcluster.download_logs(wpt_tasks, dest, raw=raw, report=report)
+        tc.download_logs(wpt_tasks, dest, raw=raw, report=report)
         return wpt_tasks
 
     def download_raw_logs(self):

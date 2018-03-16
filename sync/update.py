@@ -1,7 +1,7 @@
 import downstream
 import landing
 import log
-import taskcluster
+import tc
 import upstream
 from env import Environment
 from load import get_bug_sync, get_pr_sync
@@ -195,7 +195,7 @@ def update_taskgroup_ids(git_gecko, git_wpt):
             continue
 
         if not try_push.taskgroup_id:
-            taskgroup_id, status = taskcluster.get_taskgroup_id("try", try_push.try_rev)
+            taskgroup_id, status = tc.get_taskgroup_id("try", try_push.try_rev)
             handle_sync("task", {"origin": {"revision": try_push.try_rev},
                                  "taskId": taskgroup_id,
                                  "result": status})
