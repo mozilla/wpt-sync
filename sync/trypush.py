@@ -16,6 +16,8 @@ from projectutil import Mach
 
 logger = log.get_logger(__name__)
 env = Environment()
+
+auth_tc = tc.TaskclusterClient()
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 
 
@@ -233,6 +235,7 @@ class TryPush(base.ProcessData):
     statuses = ("open", "complete", "infra-fail")
     status_transitions = [("open", "complete"),
                           ("open", "infra-fail")]
+    _retrigger_count = 9
 
     @classmethod
     def create(cls, sync, affected_tests=None, stability=False, hacks=True,
@@ -357,7 +360,7 @@ class TryPush(base.ProcessData):
         return self["stability"]
 
     def wpt_tasks(self, force_update=False):
-        """Get a list of all the taskcluster tasks for web-paltform-tests
+        """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
         :param bool force_update: Force the tasks to be refreshed from the
@@ -374,7 +377,7 @@ class TryPush(base.ProcessData):
             task_id = tc.normalize_task_id(self.taskgroup_id)
             if task_id != self.taskgroup_id:
                 self.taskgroup_id = task_id
-                wpt_completed, wpt_tasks = tc.get_wpt_tasks(self.taskgroup_id)
+            wpt_tasks = tc.get_wpt_tasks(self.taskgroup_id)
         err = None
         if not len(wpt_tasks):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
@@ -398,29 +401,67 @@ class TryPush(base.ProcessData):
         self._data["tasks"] = wpt_tasks
         return wpt_tasks
 
+    def retrigger_failures(self, count=_retrigger_count):
+        wpt_tasks = self.wpt_tasks()
+        failures = [task.get("status", {}).get("state", None) != "success" for task in wpt_tasks]
+        count = 0
+        for task_id in failures:
+            jobs = auth_tc.retrigger(task_id, count=count)
+            if jobs:
+                count += len(jobs)
+        return count
+
+    def wpt_states(self, force_update=False):
+        if not force_update and "task_states" in self._data:
+            return self._data["task_states"]
+
+        task_states = tc.count_task_state_by_name(self.wpt_tasks(force_update))
+        self._data["task_states"] = task_states
+        return task_states
+
+    def retriggered_wpt_states(self, force_update=False):
+        # some retrigger requests may have failed, and we try to ignore
+        # manual/automatic retriggers made outside of wptsync
+        threshold = max(1, self._retrigger_count / 2)
+        task_counts = self.wpt_states(force_update)
+        return {name: data for name, data in task_counts.iteritems()
+                if sum(data["states"].itervalues()) > threshold}
+
     def success(self):
         """Check if all the wpt tasks in a try push ended with a successful status"""
         wpt_tasks = self.wpt_tasks()
         return all(task.get("status", {}).get("state", None) == "success" for task in wpt_tasks)
 
-    def download_logs(self, raw=True, report=True):
+    def success_rate(self):
+        wpt_tasks = self.wpt_tasks()
+        success = [task.get("status", {}).get("state", None) == "success" for task in wpt_tasks]
+        return len(success) * 1.0 / len(wpt_tasks)
+
+    def download_logs(self, raw=True, report=True, exclude=None):
         """Download all the logs for the current try push
 
         :return: List of paths to raw logs
         """
+        if exclude is None:
+            exclude = []
+
+        def excluded(t):
+            return t.get("task", {}).get("metadata", {}).get("name") in exclude
+
         wpt_tasks = self.wpt_tasks()
         if self.try_rev is None:
             if wpt_tasks:
                 logger.info("Got try push with no rev; setting it from a task")
                 self._data["try-rev"] = wpt_tasks[0]["task"]["payload"]["env"]["GECKO_HEAD_REV"]
+        wpt_tasks = [t for t in wpt_tasks if not excluded(t)]
         logger.info("Downloading logs for try revision %s" % self.try_rev)
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
         tc.download_logs(wpt_tasks, dest, raw=raw, report=report)
         return wpt_tasks
 
-    def download_raw_logs(self):
-        wpt_tasks = self.download_logs(raw=True)
+    def download_raw_logs(self, exclude=None):
+        wpt_tasks = self.download_logs(raw=True, exclude=exclude)
         raw_logs = []
         for task in wpt_tasks:
             for run in task.get("status", {}).get("runs", []):

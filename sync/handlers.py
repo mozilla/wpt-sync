@@ -10,8 +10,6 @@ import worktree
 from env import Environment
 from gitutils import pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
-from tc import normalize_task_id
-
 
 env = Environment()
 
@@ -164,7 +162,7 @@ class PushHandler(Handler):
 class TaskHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
         sha1 = body["origin"]["revision"]
-        task_id = normalize_task_id(body["taskId"])
+        task_id = tc.normalize_task_id(body["taskId"])
         result = body["result"]
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
@@ -187,7 +185,7 @@ class TaskHandler(Handler):
 
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
-        taskgroup_id = normalize_task_id(body["taskGroupId"])
+        taskgroup_id = tc.normalize_task_id(body["taskGroupId"])
 
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
         if not try_push:
