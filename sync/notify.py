@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 
 import log
-import taskcluster
+import tc
 import commit as sync_commit
 from env import Environment
 
@@ -79,8 +79,8 @@ def get_central_tasks(git_gecko, sync):
         git_gecko,
         git_gecko.merge_base(sync.gecko_commits.head.sha1,
                              env.config["gecko"]["refs"]["central"])[0])
-    taskgroup_id, status = taskcluster.get_taskgroup_id("mozilla-central",
-                                                        central_commit.canonical_rev)
+    taskgroup_id, status = tc.get_taskgroup_id("mozilla-central",
+                                               central_commit.canonical_rev)
     if taskgroup_id is None:
         return None
 
@@ -88,10 +88,10 @@ def get_central_tasks(git_gecko, sync):
         logger.info("mozilla-central decision task has status %s" % status)
         return None
 
-    taskgroup_id = taskcluster.normalize_task_id(taskgroup_id)
-    tasks = taskcluster.get_tasks_in_group(taskgroup_id)
+    taskgroup_id = tc.normalize_task_id(taskgroup_id)
+    tasks = tc.get_tasks_in_group(taskgroup_id)
 
-    wpt_tasks = taskcluster.filter_suite(tasks, "web-platform-tests")
+    wpt_tasks = tc.filter_suite(tasks, "web-platform-tests")
 
     if not wpt_tasks:
         return None
@@ -105,7 +105,7 @@ def get_central_tasks(git_gecko, sync):
     dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                         "central", central_commit.sha1)
 
-    taskcluster.download_logs(wpt_tasks, dest, raw=False)
+    tc.download_logs(wpt_tasks, dest, raw=False)
 
     return wpt_tasks
 
@@ -113,7 +113,7 @@ def get_central_tasks(git_gecko, sync):
 def get_logs(tasks):
     logs = defaultdict(list)
     for task in tasks:
-        job_name = taskcluster.parse_job_name(
+        job_name = tc.parse_job_name(
             task.get("task", {}).get("metadata", {}).get("name", "unknown"))
         runs = task.get("status", {}).get("runs", [])
         if not runs:

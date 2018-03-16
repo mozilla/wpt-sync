@@ -3,14 +3,14 @@ import traceback
 import downstream
 import log
 import landing
-import taskcluster
+import tc
 import trypush
 import upstream
 import worktree
 from env import Environment
 from gitutils import pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
-from taskcluster import normalize_task_id
+from tc import normalize_task_id
 
 
 env = Environment()
@@ -212,4 +212,4 @@ class CleanupHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
         logger.info("Running cleanup")
         worktree.cleanup(git_gecko, git_wpt)
-        taskcluster.cleanup()
+        tc.cleanup()

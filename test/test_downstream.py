@@ -71,7 +71,7 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
     try_push = sync.latest_try_push
     assert sync.last_pr_check == {"state": "success", "sha": pr.head}
     try_push.success = lambda: True
-    with patch('sync.trypush.taskcluster.get_wpt_tasks',
+    with patch('sync.trypush.tc.get_wpt_tasks',
                return_value=([], [])):
         downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
     assert try_push.status == "complete"
@@ -337,7 +337,7 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
 #     task_id = "a" * 22
 #     try_push = model.TryPush(rev="b" * 40, kind=model.TryKind.initial, taskgroup_id=task_id)
 #     session.add(try_push)
-#     with patch('sync.downstream.taskcluster.get_wpt_tasks',
+#     with patch('sync.downstream.tc.get_wpt_tasks',
 #                return_value=([], [])) as get_wpt_tasks:
 #         assert not downstream.on_taskgroup_resolved(config, session, None, None, task_id)
 #         get_wpt_tasks.assert_called_once()
@@ -351,7 +351,7 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
 #     session.add(try_push)
 #     complete = []
 #     all_tasks = [0]
-#     with patch('sync.downstream.taskcluster.get_wpt_tasks',
+#     with patch('sync.downstream.tc.get_wpt_tasks',
 #                return_value=(complete, all_tasks)) as get_wpt_tasks:
 #         assert not downstream.on_taskgroup_resolved(config, session, None, None, task_id)
 #         get_wpt_tasks.assert_called_once()
