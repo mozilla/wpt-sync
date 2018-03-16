@@ -213,12 +213,14 @@ def test_no_upstream_downstream(env, git_gecko, git_wpt, upstream_gecko_commit,
 
 wpt-pr: 1
 wpt-commits: 0000000000000000000000000000000000000000""")
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=hg_rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "mozilla-inbound",
                                            hg_rev, raise_on_error=True)
     assert not pushed
     assert not landed
     assert not failed
     backout_rev = upstream_gecko_backout(hg_rev, "1234")
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "mozilla-inbound",
                                            backout_rev, raise_on_error=True)
     assert not pushed
