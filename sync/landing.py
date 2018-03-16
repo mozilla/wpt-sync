@@ -222,12 +222,22 @@ Automatic update from web-platform-tests%s
             "wpt-pr": pr.number,
             "wpt-commits": ", ".join(applied_commits)
         }
-        return sync_commit.move_commits("%s..%s" % (prev_wpt_head, wpt_commits[-1].sha1),
-                                        message="\n--\n".join(item.msg for item in wpt_commits),
+        # Skip any commits that came from upstream since they should have been reapplied
+        for commit in wpt_commits:
+            if not commit.is_upstream:
+                break
+            prev_wpt_head = commit.sha1
+        else:
+            return
+        return sync_commit.move_commits(self.git_wpt,
+                                        "%s..%s" % (prev_wpt_head, wpt_commits[-1].sha1),
+                                        "\n--\n".join(item.msg for item in wpt_commits),
                                         git_work_gecko,
                                         dest_prefix=env.config["gecko"]["path"]["wpt"],
                                         amend=False,
-                                        metadata=metadata)
+                                        metadata=metadata,
+                                        rev_name="pr-%s" % pr.number,
+                                        author=wpt_commits[0].author)
 
     def unlanded_gecko_commits(self):
         """Get a list of gecko commits that correspond to commits which have
@@ -448,21 +458,19 @@ Automatic update from web-platform-tests%s
 
             # If this is the first commit, do a full copy from upstream
             copy = i == 0
+            commit = None
             if pr not in prs_applied:
                 # If we haven't applied it before then create the initial commit
                 commit = self.add_pr(pr, sync, commits, prev_wpt_head=prev_wpt_head,
                                      copy=copy)
-                if commit is None:
-                    # This means the PR didn't change gecko
-                    continue
-            if pr not in prs_applied or prs_applied[pr] == self.gecko_commits[-1]:
+            prev_wpt_head = commits[-1].sha1
+            if commit or prs_applied.get(pr) == self.gecko_commits[-1]:
                 # If the head commit is the changes from the PR then reapply all the
                 # local changes
                 self.reapply_local_commits(gecko_commits_landed, metadata_only=not copy)
                 self.manifest_update()
             if isinstance(sync, downstream.DownstreamSync) and pr not in metadata_applied:
                 self.add_metadata(sync)
-            prev_wpt_head = commits[-1].sha1
 
     @property
     def landing_commit(self):
