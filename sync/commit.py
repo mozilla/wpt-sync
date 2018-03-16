@@ -62,6 +62,9 @@ class GitNotes(object):
         else:
             self.commit.repo.git.notes("append", "-m", data, self.commit.sha1)
 
+    def get(self, key, default=None):
+        self._data.get(key, default)
+
 
 class Commit(object):
     def __init__(self, repo, commit):

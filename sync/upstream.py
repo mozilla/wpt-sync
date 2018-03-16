@@ -258,6 +258,11 @@ class UpstreamSync(base.SyncProcess):
             if upstream_commit != gecko_commit:
                 break
             else:
+                wpt_commit = gecko_commit.notes.get("wpt-commit")
+                if wpt_commit is None:
+                    gecko_commit.notes["wpt-commit"] = upstream_commit.sha1
+                else:
+                    assert wpt_commit == upstream_commit.sha1
                 matching_commits.append(upstream_commit)
 
         if len(matching_commits) == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
@@ -316,7 +321,9 @@ class UpstreamSync(base.SyncProcess):
                                        src_prefix=env.config["gecko"]["path"]["wpt"])
         self.wpt_commits.head = wpt_commit
 
-        return wpt_commit, True
+        gecko_commit.notes["wpt-commit"] = wpt_commit.sha1
+
+        return wpt_commit
 
     def create_pr(self):
         if self.pr:
@@ -456,7 +463,8 @@ def filter_commits(commits):
     for commit in commits:
         if (commit.metadata.get("wptsync-skip") or
             DownstreamSync.has_metadata(commit.msg) or
-            (commit.is_backout and not commit.wpt_commits_backed_out())):
+            (commit.is_backout and not commit.wpt_commits_backed_out()) or
+            commit.notes.get("wpt-commit")):
             continue
         rv.append(commit)
     return rv
