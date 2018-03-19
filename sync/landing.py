@@ -661,8 +661,6 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
     :param include_incomplete: By default we don't attempt to land anything that
                                hasn't completed a metadata update. This flag disables
                                that and just lands everything up to the specified commit."""
-    update_repositories(git_gecko, git_wpt)
-
     landings = LandingSync.load_all(git_gecko, git_wpt)
     if len(landings) > 1:
         raise ValueError("Multiple open landing branches")
@@ -671,6 +669,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
     sync_point = load_sync_point(git_gecko, git_wpt)
 
     if landing is None:
+        update_repositories(git_gecko, git_wpt)
         if prev_wpt_head is None:
             prev_wpt_head = sync_point["upstream"]
 
