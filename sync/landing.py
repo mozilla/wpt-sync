@@ -309,7 +309,7 @@ Automatic update from web-platform-tests%s
                 [sync_commit.GeckoCommit(self.git_gecko, item) for item in ordered_commits]))
         return self._unlanded_gecko_commits
 
-    def reapply_local_commits(self, gecko_commits_landed, metadata_only=False):
+    def reapply_local_commits(self, gecko_commits_landed):
         # The local commits to apply are everything that hasn't been landed at this
         # point in the process
         commits = [item for item in self.unlanded_gecko_commits()
@@ -317,15 +317,6 @@ Automatic update from web-platform-tests%s
 
         landing_commit = self.gecko_commits[-1]
         git_work_gecko = self.gecko_worktree.get()
-
-        if metadata_only:
-            if landing_commit.metadata.get("reapplied-commits"):
-                return
-            new_message = sync_commit.Commit.make_commit_msg(
-                landing_commit.msg,
-                {"reapplied-commits": ", ".join(item.canonical_rev for item in commits)})
-            git_work_gecko.git.commit(amend=True, message=new_message)
-            return
 
         logger.debug("Reapplying commits: %s" % " ".join(item.canonical_rev for item in commits))
 
@@ -467,7 +458,8 @@ Automatic update from web-platform-tests%s
             if commit or prs_applied.get(pr) == self.gecko_commits[-1]:
                 # If the head commit is the changes from the PR then reapply all the
                 # local changes
-                self.reapply_local_commits(gecko_commits_landed, metadata_only=not copy)
+                if not copy:
+                    self.reapply_local_commits(gecko_commits_landed)
                 self.manifest_update()
             if isinstance(sync, downstream.DownstreamSync) and pr not in metadata_applied:
                 self.add_metadata(sync)
