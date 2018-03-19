@@ -229,8 +229,10 @@ Automatic update from web-platform-tests%s
             prev_wpt_head = commit.sha1
         else:
             return
+        revish = "%s..%s" % (prev_wpt_head, wpt_commits[-1].sha1)
+        logger.info("Moving wpt commits %s" % revish)
         return sync_commit.move_commits(self.git_wpt,
-                                        "%s..%s" % (prev_wpt_head, wpt_commits[-1].sha1),
+                                        revish,
                                         "\n--\n".join(item.msg for item in wpt_commits),
                                         git_work_gecko,
                                         dest_prefix=env.config["gecko"]["path"]["wpt"],
@@ -426,42 +428,54 @@ Automatic update from web-platform-tests%s
         3) Apply any updated metadata from the downstream sync for the PR.
         """
 
-        prs_applied = {}
-        metadata_applied = {}
-        # Check if this was previously applied
-        for item in self.gecko_commits:
-            pr_id = item.metadata.get("wpt-pr")
-            if pr_id is not None:
-                if item.metadata.get("wpt-type") == "metadata":
-                    metadata_applied[pr_id] = item
-                else:
-                    prs_applied[pr_id] = item
+        last_pr = None
+        has_metadata = False
+        if len(self.gecko_commits):
+            last_commit = self.gecko_commits[-1]
+            if last_commit.is_landing:
+                return
+            last_pr = last_commit.metadata["wpt-pr"]
+            has_metadata = last_commit.metadata.get("wpt-type") == "metadata"
 
         gecko_commits_landed = set()
 
-        for i, (pr, sync, commits) in enumerate(landable_commits):
-            logger.info("Applying PR %i of %i" % (i + 1, len(landable_commits)))
+        def update_gecko_landed(sync, commits):
             if isinstance(sync, upstream.UpstreamSync):
                 for commit in commits:
                     gecko_commit = commit.metadata.get("gecko-commit")
                     if gecko_commit:
                         gecko_commits_landed.add(gecko_commit)
 
+        unapplied_commits = []
+        last_applied_seen = last_pr is None
+        for i, (pr, sync, commits) in enumerate(landable_commits):
+            if last_applied_seen:
+                unapplied_commits.append((i, (pr, sync, commits, False)))
+            else:
+                prev_wpt_head = commits[-1].sha1
+                if pr == last_pr:
+                    last_applied_seen = True
+                    if not has_metadata:
+                        unapplied_commits.append((i, (pr, sync, commits, True)))
+            update_gecko_landed(sync, commits)
+
+        for i, (pr, sync, commits, meta_only) in unapplied_commits:
+            logger.info("Applying PR %i of %i" % (i + 1, len(landable_commits)))
+            update_gecko_landed(sync, commits)
+
             # If this is the first commit, do a full copy from upstream
             copy = i == 0
             commit = None
-            if pr not in prs_applied:
+            if not meta_only:
                 # If we haven't applied it before then create the initial commit
                 commit = self.add_pr(pr, sync, commits, prev_wpt_head=prev_wpt_head,
                                      copy=copy)
             prev_wpt_head = commits[-1].sha1
-            if commit or prs_applied.get(pr) == self.gecko_commits[-1]:
-                # If the head commit is the changes from the PR then reapply all the
-                # local changes
-                if not copy:
+            if commit:
+                if copy:
                     self.reapply_local_commits(gecko_commits_landed)
                 self.manifest_update()
-            if isinstance(sync, downstream.DownstreamSync) and pr not in metadata_applied:
+            if isinstance(sync, downstream.DownstreamSync):
                 self.add_metadata(sync)
 
     @property
