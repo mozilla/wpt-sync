@@ -26,6 +26,8 @@ def get_parser():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
     parser.add_argument("--pdb", action="store_true", help="Run in pdb")
+    parser.add_argument("--profile", action="store", help="Run in profile, dump stats to "
+                        "specified filename")
     parser.add_argument("--config", action="append", help="Set a config option")
 
     parser_update = subparsers.add_parser("update",
@@ -492,6 +494,11 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
+    if args.profile:
+        import cProfile
+        prof = cProfile.Profile()
+        prof.enable()
+
     try:
         func_name = args.func.__name__
     except AttributeError as e:
@@ -513,7 +520,10 @@ def main():
             pdb.post_mortem()
         else:
             raise
-
+    finally:
+        if args.profile:
+            profile.dump_stats(args.profile)
+            profile.print_stats()
 
 if __name__ == "__main__":
     main()
