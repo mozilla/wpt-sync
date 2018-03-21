@@ -431,11 +431,13 @@ Automatic update from web-platform-tests%s
         last_pr = None
         has_metadata = False
         if len(self.gecko_commits):
-            last_commit = self.gecko_commits[-1]
-            if last_commit.is_landing:
-                return
-            last_pr = last_commit.metadata["wpt-pr"]
-            has_metadata = last_commit.metadata.get("wpt-type") == "metadata"
+            for commit in reversed(self.gecko_commits):
+                if commit.is_landing:
+                    return
+                if commit.metadata.get("wpt-pr") is not None:
+                    last_pr = commit.metadata["wpt-pr"]
+                    has_metadata = commit.metadata.get("wpt-type") == "metadata"
+                    break
 
         gecko_commits_landed = set()
 
