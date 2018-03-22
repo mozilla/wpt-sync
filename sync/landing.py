@@ -9,6 +9,7 @@ import base
 import bug
 import commit as sync_commit
 import downstream
+import gitutils
 import log
 import tree
 import load
@@ -384,24 +385,58 @@ Automatic update from web-platform-tests%s
     def add_metadata(self, sync):
         if self.has_metadata_for_sync(sync):
             return
-        if sync.metadata_commit and not sync.metadata_commit.is_empty():
-            worktree = self.gecko_worktree.get()
+
+        if not sync.metadata_commit or sync.metadata_commit.is_empty():
+            return
+
+        worktree = self.gecko_worktree.get()
+
+        def handle_empty_commit(e):
+            # If git exits with return code 1 and mentions an empty
+            # cherry pick, then we tried to cherry pick something
+            # that results in an empty commit so reset the index and
+            # continue. gitpython doesn't really enforce anything about
+            # the type of status, so just convert it to a string to be
+            # sure
+            if (str(e.status) == "1" and
+                "The previous cherry-pick is now empty" in e.stderr):
+                # If the cherry pick would result in an empty commit,
+                # just reset and continue
+                worktree.git.reset()
+                return True
+            return False
+
+        try:
+            worktree.git.cherry_pick(sync.metadata_commit.sha1)
+            success = True
+        except git.GitCommandError as e:
+            if handle_empty_commit(e):
+                return
+            success = False
+
+        if not success:
+            logger.info("Cherry-pick failed, trying again with only test-related changes")
+            # Try to reset all metadata files that aren't related to an affected test.
+            affected_metadata = {os.path.join(env.config["gecko"]["path"]["meta"], item) + ".ini"
+                                 for item in sync.affected_tests()}
+            checkout = []
+            status = gitutils.status(worktree)
+            for head_path, data in status.iteritems():
+                if data["code"] not in {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}:
+                    # Only try to reset merge conflicts
+                    continue
+                path = data["rename"] if data["rename"] else head_path
+                if path not in affected_metadata:
+                    logger.debug("Resetting changes to %s" % head_path)
+                    checkout.append(head_path)
+            worktree.git.checkout("HEAD", "--", *checkout)
+            # Now try to commit again
             try:
-                worktree.git.cherry_pick(sync.metadata_commit.sha1)
+                worktree.git.commit(c="CHERRY_PICK_HEAD", no_edit=True)
             except git.GitCommandError as e:
-                # If git exits with return code 1 and mentions an empty
-                # cherry pick, then we tried to cherry pick something
-                # that results in an empty commit so reset the index and
-                # continue. gitpython doesn't really enforce anything about
-                # the type of status, so just convert it to a string to be
-                # sure
-                if (str(e.status) == "1" and
-                    "The previous cherry-pick is now empty" in e.stderr):
-                    # If the cherry pick would result in an empty commit,
-                    # just reset and continue
-                    worktree.git.reset()
-                else:
-                    raise
+                if handle_empty_commit(e):
+                    return
+                raise
 
             metadata_commit = worktree.head.commit
             if metadata_commit.message.startswith("Bug None"):

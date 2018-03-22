@@ -59,14 +59,6 @@ def _update_wpt(git_wpt):
     git_wpt.git.fetch("origin")
 
 
-def is_ancestor(git_obj, rev, branch):
-    try:
-        git_obj.git.merge_base(rev, branch, is_ancestor=True)
-    except git.GitCommandError:
-        return False
-    return True
-
-
 def refs(git, prefix=None):
     rv = {}
     refs = git.git.show_ref().split("\n")
@@ -93,3 +85,19 @@ def gecko_repo(git_gecko, head):
     for name, ref in repos:
         if git_gecko.is_ancestor(head, ref):
             return name
+
+
+def status(repo):
+    status_entries = repo.git.status(z=True).split("\0")
+    rv = {}
+    for item in status_entries:
+        if not item.strip():
+            continue
+        code = item[:2]
+        filenames = item[3:].rsplit(" -> ", 1)
+        if len(filenames) == 2:
+            filename, rename = filenames
+        else:
+            filename, rename = filenames[0], None
+        rv[filename] = {"code": code, "rename": rename}
+    return rv
