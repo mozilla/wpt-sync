@@ -759,7 +759,10 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
     for _, sync, _ in commits:
         if isinstance(sync, downstream.DownstreamSync):
-            sync.try_notify()
+            try:
+                sync.try_notify()
+            except AbortError as e:
+                logger.error(e.message)
 
     return landing
 
@@ -791,7 +794,10 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
             if isinstance(sync, downstream.DownstreamSync):
                 # If we can't perform a notification by now it isn't ever going
                 # to work
-                sync.try_notify()
+                try:
+                    sync.try_notify()
+                except AbortError as e:
+                    logger.error(e.message)
                 if not sync.results_notified:
                     env.bz.comment(sync.bug, "Result changes from PR not available.")
             sync.finish()
