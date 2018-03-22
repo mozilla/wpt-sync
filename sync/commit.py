@@ -177,7 +177,7 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
     if src_prefix:
         diff_args = ("--", src_prefix)
     try:
-        patch = repo.git.diff(revish, binary=True, pretty="email",
+        patch = repo.git.diff(revish, binary=True, pretty="email", submodule="diff",
                               *diff_args) + "\n"
     except git.GitCommandError as e:
         raise AbortError(e.message)
