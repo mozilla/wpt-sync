@@ -130,7 +130,7 @@ class LandingSync(base.SyncProcess):
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
 Automatic update from web-platform-tests%s
-""" % (sync.bug or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
+""" % ((sync and sync.bug) or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
         message = sync_commit.Commit.make_commit_msg(message, metadata)
 
         upstream_changed = set()
