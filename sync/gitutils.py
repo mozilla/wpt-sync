@@ -1,6 +1,5 @@
 import time
 
-import git
 import log
 from env import Environment
 

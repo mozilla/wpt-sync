@@ -522,8 +522,9 @@ def main():
             raise
     finally:
         if args.profile:
-            profile.dump_stats(args.profile)
-            profile.print_stats()
+            prof.dump_stats(args.profile)
+            prof.print_stats()
+
 
 if __name__ == "__main__":
     main()
