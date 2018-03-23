@@ -267,8 +267,11 @@ Automatic update from web-platform-tests%s
 
             # All the commits from unlanded upstream syncs that are reachable from the
             # integration branch
-            unlanded_syncs = set(upstream.UpstreamSync.load_all(self.git_gecko, self.git_wpt,
-                                                                status="open"))
+            unlanded_syncs = set()
+            for status in ["open", "wpt-merged"]:
+                unlanded_syncs |= set(upstream.UpstreamSync.load_all(self.git_gecko, self.git_wpt,
+                                                                     status=status))
+
             for sync in unlanded_syncs:
                 branch_commits = [commit.sha1 for commit in sync.gecko_commits if
                                   on_integration_branch(commit)]

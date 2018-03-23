@@ -163,7 +163,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert sync.gecko_landed()
-    assert sync.status == "complete"
+    assert sync.status == "wpt-merged"
     assert original_remote_branch not in git_wpt.remotes.origin.refs
     pr = env.gh_wpt.get_pull(sync.pr)
     assert pr.merged
@@ -202,7 +202,7 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
                             "success", "http://test/", sync.wpt_commits.head.sha1)
     assert sync.last_pr_check == {"state": "success", "sha": sync.wpt_commits.head.sha1}
     assert sync.gecko_landed()
-    assert sync.status == "complete"
+    assert sync.status == "wpt-merged"
 
 
 def test_no_upstream_downstream(env, git_gecko, git_wpt, upstream_gecko_commit,
