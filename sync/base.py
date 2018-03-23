@@ -806,10 +806,10 @@ class SyncProcess(object):
             try_pushes = sorted(try_pushes, key=lambda x: x._ref._process_name.seq_id)
             return try_pushes[-1]
 
-    def finish(self):
+    def finish(self, status="complete"):
         # TODO: cancel related try pushes &c.
         logger.info("Marking sync %s as complete" % (self._process_name))
-        self.status = "complete"
+        self.status = status
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
         for repo in [self.git_gecko, self.git_wpt]:
