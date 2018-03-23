@@ -110,6 +110,8 @@ def update_upstream(git_gecko, git_wpt, rev, base_rev=None):
 def update_pr(git_gecko, git_wpt, pr):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
+    sync_point = landing.load_sync_point(git_gecko, git_wpt)
+
     if not sync:
         # If this looks like something that came from gecko, create
         # a corresponding sync
@@ -139,8 +141,20 @@ def update_pr(git_gecko, git_wpt, pr):
             update_tasks(git_gecko, git_wpt, sync=sync)
 
     elif isinstance(sync, upstream.UpstreamSync):
-        sync.update_status(pr.state, pr.merged)
+        merge_sha = pr.merge_commit_sha if pr.merged else None
+        sync.update_status(pr.state, merge_sha)
         sync.try_land_pr()
+        if merge_sha:
+            if git_wpt.is_ancestor(merge_sha, sync_point["upstream"]):
+                # This sync already landed, so it should be finished
+                sync.finish()
+            else:
+                if sync.status == "complete":
+                    # We bypass the setter here because we have some cases where the
+                    # status must go from complete to wpt-merged which is otherwise forbidden
+                    sync._process_name.status = "wpt-merged"
+                else:
+                    sync.status = "wpt-merged"
 
 
 def update_bug(git_gecko, git_wpt, bug):
