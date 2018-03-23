@@ -231,6 +231,8 @@ class TryPush(base.ProcessData):
     """
     obj_type = "try"
     statuses = ("open", "complete", "infra-fail")
+    status_transitions = [("open", "complete"),
+                          ("open", "infra-fail")]
 
     @classmethod
     def create(cls, sync, affected_tests=None, stability=False, hacks=True,
@@ -323,6 +325,13 @@ class TryPush(base.ProcessData):
 
     @status.setter
     def status(self, value):
+        if value not in self.statuses:
+            raise ValueError("Unrecognised status %s" % value)
+        current = self._ref._process_name.status
+        if current == value:
+            return
+        if (current, value) not in self.status_transitions:
+            raise ValueError("Tried to change status from %s to %s" % (current, value))
         self._ref._process_name.status = value
 
     def delete(self):
