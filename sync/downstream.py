@@ -222,15 +222,6 @@ class DownstreamSync(base.SyncProcess):
                                           default=("Testing", "web-platform-tests"))
         env.bz.set_component(self.bug, *new_component)
 
-    def renames(self):
-        renames = {}
-        diff_blobs = self.wpt_commits.head.commit.diff(
-            self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1))
-        for item in diff_blobs:
-            if item.rename_from:
-                renames[item.rename_from] = item.rename_to
-        return renames
-
     def move_metadata(self, renames):
         if not renames:
             return
@@ -261,26 +252,7 @@ class DownstreamSync(base.SyncProcess):
         self.ensure_metadata_commit()
 
         gecko_work = self.gecko_worktree.get()
-        mozbuild_path = os.path.join(gecko_work.working_dir,
-                                     env.config["gecko"]["path"]["wpt"],
-                                     os.pardir,
-                                     "moz.build")
-
-        tests_base = os.path.split(env.config["gecko"]["path"]["wpt"])[1]
-
-        def tests_rel_path(path):
-            return os.path.join(tests_base, path)
-
-        mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
-                                for old, new in renames.iteritems()}
-
-        if os.path.exists(mozbuild_path):
-            new_data = bugcomponents.remove_obsolete(mozbuild_path,
-                                                     moves=mozbuild_rel_renames)
-            with open(mozbuild_path, "w") as f:
-                f.write(new_data)
-        else:
-            logger.warning("Can't find moz.build file to update")
+        bugcomponents.update(gecko_work, renames)
 
         self._commit_metadata()
 
@@ -303,7 +275,7 @@ class DownstreamSync(base.SyncProcess):
 
         self.commit_manifest_update()
 
-        renames = self.renames()
+        renames = self.wpt_renames()
         self.move_metadata(renames)
         self.update_bug_components(renames)
 
