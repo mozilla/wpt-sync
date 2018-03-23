@@ -818,6 +818,15 @@ class SyncProcess(object):
         git_worktree.git.rebase(ref)
         self.set_wpt_base(ref)
 
+    def wpt_renames(self):
+        renames = {}
+        diff_blobs = self.wpt_commits.head.commit.diff(
+            self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1))
+        for item in diff_blobs:
+            if item.rename_from:
+                renames[item.rename_from] = item.rename_to
+        return renames
+
 
 class entry_point(object):
     def __init__(self, task):

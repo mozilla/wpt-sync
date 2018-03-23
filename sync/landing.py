@@ -7,6 +7,7 @@ import git
 
 import base
 import bug
+import bugcomponents
 import commit as sync_commit
 import downstream
 import gitutils
@@ -537,6 +538,22 @@ Automatic update from web-platform-tests%s
             git_work.git.commit(allow_empty=True, amend=True, no_edit=True)
         return self.gecko_commits[-1]
 
+    def update_bug_components(self):
+        renames = self.wpt_renames()
+        if renames is None:
+            return
+
+        gecko_work = self.gecko_worktree.get()
+        mozbuild_path = bugcomponents.mozbuild_path(gecko_work)
+        if not os.path.exists(mozbuild_path):
+            return
+
+        bugcomponents.update(gecko_work, renames)
+
+        if gecko_work.is_dirty(path=mozbuild_path):
+            gecko_work.git.add(mozbuild_path, all=True)
+            self.update_landing_commit()
+
     def update_metadata(self, log_files):
         """Update the web-platform-tests metadata based on the logs
         generated in a try run.
@@ -681,6 +698,13 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
     return wpt_head, landable_commits
 
 
+def current(git_gecko, git_wpt):
+    landings = LandingSync.load_all(git_gecko, git_wpt)
+    if len(landings) > 1:
+        raise ValueError("Multiple open landing branches")
+    return landings[0] if landings else None
+
+
 @base.entry_point("landing")
 def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
     prs = set()
@@ -712,11 +736,7 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
     :param include_incomplete: By default we don't attempt to land anything that
                                hasn't completed a metadata update. This flag disables
                                that and just lands everything up to the specified commit."""
-    landings = LandingSync.load_all(git_gecko, git_wpt)
-    if len(landings) > 1:
-        raise ValueError("Multiple open landing branches")
-    landing = landings[0] if landings else None
-
+    landing = current(git_gecko, git_wpt)
     sync_point = load_sync_point(git_gecko, git_wpt)
 
     if landing is None:
@@ -750,6 +770,8 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
         assert wpt_head == landing.wpt_commits.head.sha1
 
     landing.apply_prs(prev_wpt_head, commits)
+
+    landing.update_bug_components()
 
     if landing.latest_try_push is None:
         trypush.TryPush.create(landing, hacks=False,
