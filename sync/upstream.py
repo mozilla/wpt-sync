@@ -49,10 +49,12 @@ class BackoutCommitFilter(base.CommitFilter):
 class UpstreamSync(base.SyncProcess):
     sync_type = "upstream"
     obj_id = "bug"
-    statuses = ("open", "complete", "incomplete")
-    status_transitions = [("open", "complete"),
+    statuses = ("open", "wpt-merged", "complete", "incomplete")
+    status_transitions = [("open", "wpt-merged"),
+                          ("open", "complete"),
                           ("open", "incomplete"),
-                          ("incomplete", "open")]
+                          ("incomplete", "open"),
+                          ("wpt-merged", "complete")]
 
     def __init__(self, *args, **kwargs):
         super(UpstreamSync, self).__init__(*args, **kwargs)
@@ -154,6 +156,7 @@ class UpstreamSync(base.SyncProcess):
             else:
                 self.merge_sha = merge_sha
                 env.bz.comment(self.bug, "Upstream PR merged")
+                self.finish("wpt-merged")
         elif action == "reopened" or action == "open":
             self.pr_status = "open"
 
@@ -373,7 +376,7 @@ class UpstreamSync(base.SyncProcess):
     def try_land_pr(self):
         logger.info("Checking if sync for bug %s can land" % self.bug)
         if not self.status == "open":
-            logger.info("Sync is closed")
+            logger.info("Sync is %s" % self.status)
             return
         if not self.gecko_landed():
             logger.info("Commits are not yet landed in gecko")
@@ -412,7 +415,7 @@ class UpstreamSync(base.SyncProcess):
                        (env.gh_wpt.pr_url(self.pr), e.message))
             else:
                 self.merge_sha = merge_sha
-                self.finish()
+                self.finish("wpt-merged")
                 # Delete the remote branch after a merge
                 self.git_wpt.remotes.origin.push(self.remote_branch, delete=True)
                 self.remote_branch = None
