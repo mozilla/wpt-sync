@@ -150,13 +150,14 @@ class UpstreamSync(base.SyncProcess):
         :param merge_sha boolean: SHA of the new head if the PR merged or None if it didn't
         """
         if action == "closed":
-            if not merge_sha:
+            if not merge_sha and self.pr_status != "closed":
                 env.bz.comment(self.bug, "Upstream PR was closed without merging")
                 self.pr_status = "closed"
             else:
                 self.merge_sha = merge_sha
-                env.bz.comment(self.bug, "Upstream PR merged")
-                self.finish("wpt-merged")
+                if self.status != "complete":
+                    env.bz.comment(self.bug, "Upstream PR merged")
+                    self.finish("wpt-merged")
         elif action == "reopened" or action == "open":
             self.pr_status = "open"
 
