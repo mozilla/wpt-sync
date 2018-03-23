@@ -50,6 +50,9 @@ class UpstreamSync(base.SyncProcess):
     sync_type = "upstream"
     obj_id = "bug"
     statuses = ("open", "complete", "incomplete")
+    status_transitions = [("open", "complete"),
+                          ("open", "incomplete"),
+                          ("incomplete", "open")]
 
     def __init__(self, *args, **kwargs):
         super(UpstreamSync, self).__init__(*args, **kwargs)
@@ -77,7 +80,7 @@ class UpstreamSync(base.SyncProcess):
             wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
         except git.BadName:
             return None
-        for status in ["open", "complete", "incomplete"]:
+        for status in cls.statuses:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
 
             for sync in syncs:

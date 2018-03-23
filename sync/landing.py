@@ -60,6 +60,7 @@ class LandingSync(base.SyncProcess):
     sync_type = "landing"
     obj_id = "bug"
     statuses = ("open", "complete")
+    status_transitions = [("open", "complete")]
 
     def __init__(self, *args, **kwargs):
         super(LandingSync, self).__init__(*args, **kwargs)
