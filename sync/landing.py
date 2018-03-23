@@ -384,7 +384,7 @@ Automatic update from web-platform-tests%s
             git_work.git.reset(hard=True)
 
     def has_metadata_for_sync(self, sync):
-        for item in self.gecko_commits:
+        for item in reversed(self.gecko_commits):
             if (item.metadata.get("wpt-pr") == sync.pr and
                 item.metadata.get("wpt-type") == "metadata"):
                 return True
@@ -395,6 +395,7 @@ Automatic update from web-platform-tests%s
             return
 
         if not sync.metadata_commit or sync.metadata_commit.is_empty():
+            logger.info("No metadata commit available for PR %s" % sync.pr)
             return
 
         worktree = self.gecko_worktree.get()
@@ -408,6 +409,7 @@ Automatic update from web-platform-tests%s
             # sure
             if (str(e.status) == "1" and
                 "The previous cherry-pick is now empty" in e.stderr):
+                logger.info("Cherry pick resulted in an empty commit")
                 # If the cherry pick would result in an empty commit,
                 # just reset and continue
                 worktree.git.reset()
@@ -437,6 +439,7 @@ Automatic update from web-platform-tests%s
                 if path not in affected_metadata:
                     logger.debug("Resetting changes to %s" % head_path)
                     checkout.append(head_path)
+            logger.debug("Resetting changes to %s" % " ".join(checkout))
             worktree.git.checkout("HEAD", "--", *checkout)
             # Now try to commit again
             try:
