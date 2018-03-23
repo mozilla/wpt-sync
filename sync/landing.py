@@ -132,7 +132,10 @@ class LandingSync(base.SyncProcess):
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
 Automatic update from web-platform-tests%s
-""" % ((sync and sync.bug) or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
+""" % ((sync and sync.bug) or self.bug,
+       pr.number,
+       pr.title,
+       "\n--\n".join(item.msg for item in wpt_commits))
         message = sync_commit.Commit.make_commit_msg(message, metadata)
 
         upstream_changed = set()
@@ -236,7 +239,7 @@ Automatic update from web-platform-tests%s
         logger.info("Moving wpt commits %s" % revish)
         return sync_commit.move_commits(self.git_wpt,
                                         revish,
-                                        "\n--\n".join(item.msg for item in wpt_commits),
+                                        message,
                                         git_work_gecko,
                                         dest_prefix=env.config["gecko"]["path"]["wpt"],
                                         amend=False,
