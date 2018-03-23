@@ -149,3 +149,29 @@ def get(git_gecko, files_changed, default):
         return default
 
     return component.split(" :: ")
+
+
+def mozbuild_path(worktree):
+    return os.path.join(worktree.working_dir,
+                        env.config["gecko"]["path"]["wpt"],
+                        os.pardir,
+                        "moz.build")
+
+
+def update(worktree, renames):
+    mozbuild_file_path = mozbuild_path(worktree)
+    tests_base = os.path.split(env.config["gecko"]["path"]["wpt"])[1]
+
+    def tests_rel_path(path):
+        return os.path.join(tests_base, path)
+
+    mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
+                            for old, new in renames.iteritems()}
+
+    if os.path.exists(mozbuild_file_path):
+        new_data = remove_obsolete(mozbuild_file_path,
+                                   moves=mozbuild_rel_renames)
+        with open(mozbuild_file_path, "w") as f:
+            f.write(new_data)
+    else:
+        logger.warning("Can't find moz.build file to update")
