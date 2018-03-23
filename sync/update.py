@@ -153,10 +153,24 @@ def update_bug(git_gecko, git_wpt, bug):
         raise ValueError("Updating sync type for bug not yet supported")
 
 
-def update_from_github(git_gecko, git_wpt):
+def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
+    if statuses is None:
+        statuses = ["*"]
     update_repositories(git_gecko, git_wpt, True)
-    for pr in env.gh_wpt.get_pulls():
-        update_pr(git_gecko, git_wpt, pr)
+    for cls in sync_classes:
+        for status in statuses:
+            if status != "*" and status not in cls.statuses:
+                continue
+            syncs = cls.load_all(git_gecko,
+                                 git_wpt,
+                                 status=status,
+                                 obj_id="*")
+            for sync in syncs:
+                if not sync.pr:
+                    continue
+                logger.info("Updating sync for PR %s" % sync.pr)
+                pr = env.gh_wpt.get_pull(sync.pr)
+                update_pr(git_gecko, git_wpt, pr)
 
 
 def update_taskgroup_ids(git_gecko, git_wpt):
