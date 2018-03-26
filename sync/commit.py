@@ -237,6 +237,9 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
                     logger.warning("Amending commit made it empty, resetting")
                     dest_repo.git.reset("HEAD^")
                     return None
+                elif not amend and e.status == 1 and "nothing added to commit" in e.stdout:
+                    logger.warning("Commit added no changes to destination repo")
+                    return None
                 raise
 
 

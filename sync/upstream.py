@@ -260,17 +260,22 @@ class UpstreamSync(base.SyncProcess):
         if len(self.gecko_commits) == 0:
             self.wpt_commits.head = self.wpt_commits.base
 
-        for gecko_commit, upstream_commit in zip(self.gecko_commits, self.upstreamed_gecko_commits):
-            if upstream_commit != gecko_commit:
+        # Find the commits that were already upstreamed. Some gecko commits may not
+        # result in an upstream commit, if the patch has no effect. But if we find
+        # the last commit that was previously upstreamed then all earlier ones must
+        # also match.
+        upstreamed_commits = {item.sha1 for item in self.upstreamed_gecko_commits}
+        matching_commits = self.gecko_commits[:]
+        for gecko_commit in reversed(self.gecko_commits):
+            if gecko_commit.sha1 in upstreamed_commits:
                 break
-            else:
-                matching_commits.append(upstream_commit)
+            matching_commits.pop()
 
         if len(matching_commits) == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
             return False
 
         if len(matching_commits) == 0:
-            self.wpt_commits.head == self.wpt_commits.base
+            self.wpt_commits.head = self.wpt_commits.base
         elif len(matching_commits) < len(self.upstreamed_gecko_commits):
             self.wpt_commits.head = self.wpt_commits[len(matching_commits) - 1]
 
@@ -279,10 +284,9 @@ class UpstreamSync(base.SyncProcess):
         wpt_work.git.clean(f=True, d=True, x=True)
 
         for commit in self.gecko_commits[len(matching_commits):]:
-            self.add_commit(commit)
+            commit = self.add_commit(commit)
 
-        assert (len(self.gecko_commits) ==
-                len(self.wpt_commits) ==
+        assert (len(self.wpt_commits) ==
                 len(self.upstreamed_gecko_commits))
 
         return True
@@ -320,7 +324,8 @@ class UpstreamSync(base.SyncProcess):
                                        metadata=metadata,
                                        msg_filter=commit_message_filter,
                                        src_prefix=env.config["gecko"]["path"]["wpt"])
-        self.wpt_commits.head = wpt_commit
+        if wpt_commit:
+            self.wpt_commits.head = wpt_commit
 
         return wpt_commit, True
 

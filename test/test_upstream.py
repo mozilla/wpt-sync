@@ -226,3 +226,52 @@ wpt-commits: 0000000000000000000000000000000000000000""")
     assert not pushed
     assert not landed
     assert not failed
+
+
+def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstream_wpt_commit):
+    bug = "1234"
+    test_changes_1 = {"README": "Change README\n"}
+    upstream_gecko_commit(test_changes=test_changes_1, bug=bug,
+                          message="Change README")
+    test_changes_2 = {"OTHER": "Add other file\n"}
+    gecko_rev_2 = upstream_gecko_commit(test_changes=test_changes_2, bug=bug,
+                                        message="Add other")
+
+    upstream_wpt_commit(file_data=test_changes_1)
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=gecko_rev_2)
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", gecko_rev_2,
+                                           raise_on_error=True)
+    assert len(pushed) == 1
+    assert len(landed) == 0
+    assert len(failed) == 0
+
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert sync is not None
+    assert sync.bug == "1234"
+    assert sync.status == "open"
+    assert len(sync.gecko_commits) == 2
+    assert len(sync.wpt_commits) == 1
+    assert sync.gecko_commits.head.sha1 == git_gecko.cinnabar.hg2git(gecko_rev_2)
+
+    wpt_commit = sync.wpt_commits[0]
+
+    assert wpt_commit.msg.split("\n")[0] == "Add other"
+    assert "OTHER" in wpt_commit.commit.tree
+    assert wpt_commit.metadata == {
+        'gecko-integration-branch': 'mozilla-inbound',
+        'bugzilla-url': 'https://bugzilla-dev.allizom.org/show_bug.cgi?id=1234',
+        'gecko-commit': gecko_rev_2
+    }
+
+    # Now make another push to the same bug and check we handle it correctly
+
+    test_changes_3 = {"YET_ANOTHER": "Add more files\n"}
+    gecko_rev_3 = upstream_gecko_commit(test_changes=test_changes_3, bug=bug,
+                                        message="Add more")
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=gecko_rev_3)
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", gecko_rev_3,
+                                           raise_on_error=True)
+    assert len(sync.gecko_commits) == 3
+    assert len(sync.wpt_commits) == 2
+    assert ([item.metadata.get("gecko-commit") for item in sync.wpt_commits] ==
+            [gecko_rev_2, gecko_rev_3])
