@@ -280,10 +280,9 @@ class UpstreamSync(base.SyncProcess):
         wpt_work.git.clean(f=True, d=True, x=True)
 
         for commit in self.gecko_commits[len(matching_commits):]:
-            self.add_commit(commit)
+            commit = self.add_commit(commit)
 
-        assert (len(self.gecko_commits) ==
-                len(self.wpt_commits) ==
+        assert (len(self.wpt_commits) ==
                 len(self.upstreamed_gecko_commits))
 
         return True
@@ -321,7 +320,8 @@ class UpstreamSync(base.SyncProcess):
                                        metadata=metadata,
                                        msg_filter=commit_message_filter,
                                        src_prefix=env.config["gecko"]["path"]["wpt"])
-        self.wpt_commits.head = wpt_commit
+        if wpt_commit:
+            self.wpt_commits.head = wpt_commit
 
         return wpt_commit, True
 
