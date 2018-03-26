@@ -500,8 +500,14 @@ Automatic update from web-platform-tests%s
             logger.info("Applying PR %i of %i" % (i + 1, len(landable_commits)))
             update_gecko_landed(sync, commits)
 
-            # If this is the first commit, do a full copy from upstream
-            copy = i == 0
+            # If copy is set then we copy the commits and reapply in-progress upstream
+            # syncs. This is currently always disabled, but the intent was to do this for
+            # the first commit to ensure that the possible drift from upstream was limited.
+            # However there were some difficulties reapplying all the right commits, so it's
+            # disabled until this is worked out.
+            # To reenable it change the below line to
+            # copy = i == 0
+            copy = False
             commit = None
             if not meta_only:
                 # If we haven't applied it before then create the initial commit
