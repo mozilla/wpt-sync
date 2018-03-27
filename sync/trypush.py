@@ -403,9 +403,15 @@ class TryPush(base.ProcessData):
 
     def retrigger_failures(self, count=_retrigger_count):
         wpt_tasks = self.wpt_tasks()
-        failures = [task.get("status", {}).get("state", None) != "success" for task in wpt_tasks]
+
+        def is_failure(task):
+            state = task.get("status", {}).get("state", None)
+            return state in ["failure", "exception"]
+
+        failures = [task for task in wpt_tasks if is_failure(task)]
         count = 0
-        for task_id in failures:
+        for task in failures:
+            task_id = task.get("status", {}).get("taskId", None)
             jobs = auth_tc.retrigger(task_id, count=count)
             if jobs:
                 count += len(jobs)
@@ -430,12 +436,16 @@ class TryPush(base.ProcessData):
     def success(self):
         """Check if all the wpt tasks in a try push ended with a successful status"""
         wpt_tasks = self.wpt_tasks()
-        return all(task.get("status", {}).get("state", None) == "success" for task in wpt_tasks)
+        return all(task.get("status", {}).get("state") == "success" for task in wpt_tasks)
 
     def success_rate(self):
         wpt_tasks = self.wpt_tasks()
-        success = [task.get("status", {}).get("state", None) == "success" for task in wpt_tasks]
-        return len(success) * 1.0 / len(wpt_tasks)
+
+        def is_success(task):
+            return task.get("status", {}).get("state") == "success"
+
+        success = [task for task in wpt_tasks if is_success(task)]
+        return float(len(success)) / len(wpt_tasks)
 
     def download_logs(self, raw=True, report=True, exclude=None):
         """Download all the logs for the current try push
