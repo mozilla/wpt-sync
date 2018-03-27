@@ -829,7 +829,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
                             "try before final metadata update."))
             return
     for name, data in retriggered.iteritems():
-        total = sum(data["states"].itervalues()) * 1.0
+        total = float(sum(data["states"].itervalues()))
         # assuming that only failures cause metadata updates
         if data["states"]["success"] / total >= target_rate:
             intermittents.append(name)
