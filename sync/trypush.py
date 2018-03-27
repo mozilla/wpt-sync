@@ -456,7 +456,10 @@ class TryPush(base.ProcessData):
             exclude = []
 
         def excluded(t):
-            return t.get("task", {}).get("metadata", {}).get("name") in exclude
+            # if a name is on the excluded list, only download "success" logs
+            name = t.get("task", {}).get("metadata", {}).get("name")
+            state = t.get("status", {}).get("state")
+            return name in exclude and state != "success"
 
         wpt_tasks = self.wpt_tasks()
         if self.try_rev is None:
