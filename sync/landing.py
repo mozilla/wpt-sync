@@ -815,10 +815,12 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
     intermittents = []
     if not try_push.success and not retriggered:
         if try_push.success_rate < target_rate:
-            sync.error = (
+            message = (
                 "Latest try push for bug %s has too many failures.\n"
                 "See %s"
             ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
+            sync.error = message
+            env.bz.comment(sync.bug, message)
             try_push.status = "complete"
             return
         num_new_jobs = try_push.retrigger_failures()
