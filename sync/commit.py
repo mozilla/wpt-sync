@@ -151,11 +151,11 @@ class Commit(object):
                 if item.strip()]
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
-             dest_prefix=None, amend=False, three_way=True):
+             dest_prefix=None, amend=False, three_way=True, exclude=None):
 
         return _apply_patch(self.show(src_prefix), self.msg, self.canonical_rev, dest_repo,
                             skip_empty, msg_filter, metadata, src_prefix, dest_prefix, amend,
-                            three_way, author=self.author)
+                            three_way, author=self.author, exclude=exclude)
 
     def show(self, src_prefix):
         show_args = ()
@@ -170,7 +170,7 @@ class Commit(object):
 
 def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
                  src_prefix=None, dest_prefix=None, amend=False, three_way=True, rev_name=None,
-                 author=None):
+                 author=None, exclude=None):
     if rev_name is None:
         rev_name = revish
     diff_args = ()
@@ -183,12 +183,12 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
         raise AbortError(e.message)
 
     return _apply_patch(patch, message, rev_name, dest_repo, skip_empty, msg_filter, metadata,
-                        src_prefix, dest_prefix, amend, three_way, author=author)
+                        src_prefix, dest_prefix, amend, three_way, author=author, exclude=exclude)
 
 
 def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filter=None,
                  metadata=None, src_prefix=None, dest_prefix=None, amend=False, three_way=True,
-                 author=None):
+                 author=None, exclude=None):
     if skip_empty and patch.endswith("\n\n\n"):
         return None
 
@@ -230,6 +230,17 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
      %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
                 raise AbortError(err_msg)
 
+            if exclude:
+                excluded = []
+                for path in exclude:
+                    if dest_prefix:
+                        path = os.path.join(dest_prefix, path)
+                    if (path, 0) in dest_repo.index.entries:
+                        excluded.append(path)
+                        dest_repo.index.reset(paths=[path], working_tree=True)
+                    if excluded:
+                        logger.info("Excluded changes to %s" % ", ".join(excluded))
+                        dest_repo.index.write()
             try:
                 return Commit.create(dest_repo, msg, None, amend=amend, author=author)
             except git.GitCommandError as e:

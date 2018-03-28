@@ -245,7 +245,8 @@ Automatic update from web-platform-tests%s
                                         amend=False,
                                         metadata=metadata,
                                         rev_name="pr-%s" % pr.number,
-                                        author=wpt_commits[0].author)
+                                        author=wpt_commits[0].author,
+                                        exclude={"LICENSE", "resources/testdriver_vendor.js"})
 
     def unlanded_gecko_commits(self):
         """Get a list of gecko commits that correspond to commits which have
