@@ -225,7 +225,7 @@ class TryFuzzyCommit(TryCommit):
 
 
 class TryPush(base.ProcessData):
-    """A try push is represented by a an annotated tag with a path like
+    """A try push is represented by an annotated tag with a path like
 
     try/<pr_id>/<status>/<id>
 
@@ -235,7 +235,7 @@ class TryPush(base.ProcessData):
     statuses = ("open", "complete", "infra-fail")
     status_transitions = [("open", "complete"),
                           ("open", "infra-fail")]
-    _retrigger_count = 9
+    _retrigger_count = 6
 
     @classmethod
     def create(cls, sync, affected_tests=None, stability=False, hacks=True,
@@ -402,16 +402,15 @@ class TryPush(base.ProcessData):
         return wpt_tasks
 
     def retrigger_failures(self, count=_retrigger_count):
-        wpt_tasks = self.wpt_tasks()
+        task_states = self.wpt_states()
 
-        def is_failure(task):
-            state = task.get("status", {}).get("state", None)
-            return state in ["failure", "exception"]
+        def is_failure(task_data):
+            states = task_data["states"]
+            return states[tc.FAIL] > 0 or states[tc.EXCEPTION] > 0
 
-        failures = [task for task in wpt_tasks if is_failure(task)]
+        failures = [data["task_id"] for name, data in task_states.iteritems() if is_failure(data)]
         count = 0
-        for task in failures:
-            task_id = task.get("status", {}).get("taskId", None)
+        for task_id in failures:
             jobs = auth_tc.retrigger(task_id, count=count)
             if jobs:
                 count += len(jobs)
@@ -436,13 +435,13 @@ class TryPush(base.ProcessData):
     def success(self):
         """Check if all the wpt tasks in a try push ended with a successful status"""
         wpt_tasks = self.wpt_tasks()
-        return all(task.get("status", {}).get("state") == "success" for task in wpt_tasks)
+        return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
 
     def success_rate(self):
         wpt_tasks = self.wpt_tasks()
 
         def is_success(task):
-            return task.get("status", {}).get("state") == "success"
+            return task.get("status", {}).get("state") == tc.SUCCESS
 
         success = [task for task in wpt_tasks if is_success(task)]
         return float(len(success)) / len(wpt_tasks)
@@ -456,10 +455,10 @@ class TryPush(base.ProcessData):
             exclude = []
 
         def excluded(t):
-            # if a name is on the excluded list, only download "success" logs
+            # if a name is on the excluded list, only download SUCCESS job logs
             name = t.get("task", {}).get("metadata", {}).get("name")
             state = t.get("status", {}).get("state")
-            return name in exclude and state != "success"
+            return name in exclude and state != tc.SUCCESS
 
         wpt_tasks = self.wpt_tasks()
         if self.try_rev is None:

@@ -10,7 +10,7 @@ from cStringIO import StringIO
 import git
 import pytest
 
-from sync import repos, settings, bugcomponents, downstream, landing
+from sync import repos, settings, bugcomponents, downstream, landing, trypush, tree
 from sync.env import Environment, set_env, clear_env
 from sync.gh import AttrDict
 
@@ -470,3 +470,51 @@ def open_wptreport_path(wptreport_json_data):
             return io.BytesIO(wptreport_json_data[path])
         return open(path, *args)
     return mock_open
+
+
+@pytest.fixture
+def mock_tasks():
+    def wpt_tasks(**kwargs):
+        tasks = []
+        for state, names in kwargs.iteritems():
+            for name in names:
+                t = {}
+                t["status"] = {
+                    "state": state,
+                    "taskGroupId": "abaaaaaaaaaaaaaaaaaaaa",
+                    "taskId": "cdaaaaaaaaaaaaaaaaaaaa",
+                }
+                t["task"] = {
+                    "metadata": {
+                        "name": name
+                    },
+                    "extra": {
+                        "suite": {
+                            "name": "web-platform-tests"
+                        }
+                    }
+                }
+                tasks.append(t)
+        return tasks
+    return wpt_tasks
+
+
+@pytest.fixture
+def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
+             hg_gecko_try, mock_mach):
+    pr = pull_request([("Test commit", {"README": "example_change",
+                                        "LICENSE": "Some change"})])
+    head_rev = pr._commits[0]["sha"]
+
+    trypush.Mach = mock_mach
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr, "success")
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    sync.metadata_ready = True
+
+    tree.is_open = lambda x: True
+    return sync.latest_try_push

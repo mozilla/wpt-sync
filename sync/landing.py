@@ -11,6 +11,7 @@ import commit as sync_commit
 import downstream
 import gitutils
 import log
+import tc
 import tree
 import load
 import trypush
@@ -791,8 +792,8 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
     target_rate = 0.7
     retriggered = try_push.retriggered_wpt_states(force_update=True)
     intermittents = []
-    if not try_push.success and not retriggered:
-        if try_push.success_rate < target_rate:
+    if not try_push.success() and not retriggered:
+        if try_push.success_rate() < target_rate:
             message = (
                 "Latest try push for bug %s has too many failures.\n"
                 "See %s"
@@ -802,7 +803,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
             try_push.status = "complete"
             return
         num_new_jobs = try_push.retrigger_failures()
-        logger.info("%s new tasks scheduled on try for %s" (num_new_jobs, sync.bug))
+        logger.info("%s new tasks scheduled on try for %s" % (num_new_jobs, sync.bug))
         if num_new_jobs:
             env.bz.comment(sync.bug,
                            ("Retriggered failing web-platform-test tasks on "
@@ -811,7 +812,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
     for name, data in retriggered.iteritems():
         total = float(sum(data["states"].itervalues()))
         # assuming that only failures cause metadata updates
-        if data["states"]["success"] / total >= target_rate:
+        if data["states"][tc.SUCCESS] / total >= target_rate:
             intermittents.append(name)
 
     log_files = try_push.download_raw_logs(exclude=intermittents)
