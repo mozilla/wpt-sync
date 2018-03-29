@@ -1,24 +1,10 @@
 import os
 
-from mock import Mock
+from mock import Mock, patch
 
 from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
-from sync import tc
 from sync.gitutils import update_repositories
-
-mock_task = {
-    "status": {
-        "state": "completed",
-        "taskGroupId": "abaaaaaaaaaaaaaaaaaaaa",
-        "taskId": "cdaaaaaaaaaaaaaaaaaaaa",
-    },
-    "task": {
-        "metadata": {
-            "name": "test-linux64-stylo-disabled/debug-web-platform-tests-reftests-e10s-2"
-        }
-    }
-}
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
@@ -72,7 +58,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
 
 
 def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                     hg_gecko_try, mock_mach):
+                     hg_gecko_try, mock_mach, mock_tasks):
     pr = pull_request([("Test commit", {"README": "example_change"})])
     head_rev = pr._commits[0]["sha"]
 
@@ -93,7 +79,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     try_push = sync.latest_try_push
 
     try_push.download_raw_logs = Mock(return_value=[])
-    tc.get_wpt_tasks = Mock(return_value=[mock_task])
+    tc.get_wpt_tasks = Mock(return_value=mock_tasks(completed=["foo"]))
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     assert sync.status == "complete"
@@ -105,9 +91,55 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     assert sync_point["upstream"] == head_rev
 
 
+def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, try_push, mock_tasks):
+    # 50% failure rate, too high
+    tc.get_wpt_tasks = Mock(return_value=mock_tasks(failed=["foo"], completed=["bar"]))
+    sync = try_push.sync(git_gecko, git_wpt)
+    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    assert try_push.status == "complete"
+    assert "too many failures" in sync.error["message"]
+
+
+def test_try_push_retriggers_failures(git_gecko, git_wpt, try_push, mock_tasks, env):
+    # 25% failure rate, okay
+    tc.get_wpt_tasks = Mock(return_value=mock_tasks(
+        failed=["foo"], completed=["bar", "baz", "boo"])
+    )
+    sync = try_push.sync(git_gecko, git_wpt)
+    with patch('sync.trypush.auth_tc.retrigger', return_value=["job"] * try_push._retrigger_count):
+        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
+    assert try_push.status != "complete"
+
+
+def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, mock_tasks, env):
+    # > 70% of retriggered "foo" tasks pass, so we consider the "foo" failure intermittent
+    tc.get_wpt_tasks = Mock(return_value=mock_tasks(
+        failed=["foo", "foo", "bar"],
+        completed=["bar", "bar", "bar" "baz", "boo", "foo", "foo", "foo", "foo", "foo"])
+    )
+    sync = landing.land_to_gecko(git_gecko, git_wpt)
+    try_push.download_raw_logs = Mock(return_value=[])
+    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    try_push.download_raw_logs.assert_called_with(exclude=["foo"])
+    assert sync.status == "complete"
+    assert try_push.status == "complete"
+
+
+def test_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_push, mock_tasks, env):
+    tc.get_wpt_tasks = Mock(return_value=mock_tasks(completed=["bar", "baz", "boo"]))
+    sync = landing.land_to_gecko(git_gecko, git_wpt)
+    try_push.download_raw_logs = Mock(return_value=[])
+    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    # no intermittents in the try push
+    try_push.download_raw_logs.assert_called_with(exclude=[])
+    assert sync.status == "complete"
+    assert try_push.status == "complete"
+
+
 def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                          hg_gecko_upstream, upstream_gecko_commit, upstream_wpt_commit,
-                         hg_gecko_try, mock_mach):
+                         hg_gecko_try, mock_mach, mock_tasks):
     # Test that we reapply the correct commits when landing patches on upstream
     # First we need to create 3 gecko commits:
     # Two that are landed
@@ -197,7 +229,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     try_push = sync.latest_try_push
     try_push.download_raw_logs = Mock(return_value=[])
-    tc.get_wpt_tasks = Mock(return_value=[mock_task])
+    tc.get_wpt_tasks = Mock(return_value=mock_tasks(completed=["foo"]))
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()

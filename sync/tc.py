@@ -17,6 +17,13 @@ QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
 TREEHERDER_BASE = "https://treeherder.mozilla.org/"
 
+SUCCESS = "completed"
+FAIL = "failed"
+EXCEPTION = "exception"
+UNSCHEDULED = "unscheduled"
+RUNNING = "running"
+PENDING = "pending"
+
 logger = log.get_logger(__name__)
 
 env = Environment()
@@ -101,7 +108,7 @@ def filter_suite(tasks, suite):
 
 
 def is_complete(tasks):
-    return not any(task.get("status", {}).get("state", "pending") in ("pending", "running")
+    return not any(task.get("status", {}).get("state", PENDING) in (PENDING, RUNNING)
                    for task in tasks)
 
 
