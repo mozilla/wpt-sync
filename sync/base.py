@@ -454,6 +454,12 @@ class CommitRange(object):
     def __len__(self):
         return len(self.commits)
 
+    def __contains__(self, other_commit):
+        for commit in self:
+            if commit == other_commit:
+                return True
+        return False
+
     @property
     def base(self):
         return self._base
