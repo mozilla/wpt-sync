@@ -8,6 +8,7 @@ from github import GithubException
 from mozautomation import commitparser
 
 import base
+import load
 import log
 import commit as sync_commit
 from downstream import DownstreamSync
@@ -521,32 +522,27 @@ class Endpoints(object):
         return "<Endpoints %s:%s>" % (self.base, self.head)
 
 
-def updates_for_backout(syncs_by_bug, commit):
-    backout_commits, bugs = commit.wpt_commits_backed_out()
-    backout_commit_shas = {item.sha1 for item in backout_commits}
+def updates_for_backout(git_gecko, git_wpt, commit):
+    backed_out_commits, bugs = commit.wpt_commits_backed_out()
+    backed_out_commit_shas = {item.sha1 for item in backed_out_commits}
 
     create_syncs = {}
     update_syncs = {}
 
-    # Check each sync for the backed-out commits
-    for target_sync in sorted(syncs_by_bug.values(),
-                              key=lambda x: 0 if x.bug in bugs else 1):
-        for landing_commit in reversed(target_sync.upstreamed_gecko_commits):
-            if landing_commit.sha1 in backout_commit_shas.copy():
-                # This will set the sync to include the backout commit
-                update_syncs[target_sync.bug] = commit.sha1
-                backout_commit_shas.remove(landing_commit.sha1)
-        if not backout_commit_shas:
-            break
+    for backed_out_commit in backed_out_commits:
+        sync = UpstreamSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug)
+        if sync and backed_out_commit in sync.upstreamed_gecko_commits:
+            backed_out_commit_shas.remove(backed_out_commit.sha1)
+            update_syncs[sync.bug] = (sync, commit.sha1)
 
-    if backout_commit_shas:
+    if backed_out_commit_shas:
         # This backout covers something other than known open syncs, so we need to
         # create a new sync especially for it
         # TODO: we should check for this already existing before we process the backout
         # Need to create a bug for this backout
         backout_bug = None
         for bug in bugs:
-            if bug not in syncs_by_bug:
+            if bug not in update_syncs and UpstreamSync.for_bug(git_gecko, git_wpt, bug) is None:
                 backout_bug = bug
                 break
         if backout_bug is None:
@@ -556,7 +552,7 @@ def updates_for_backout(syncs_by_bug, commit):
     return create_syncs, update_syncs
 
 
-def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit, syncs_by_bug):
+def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
     # TODO: Check syncs with pushes that no longer exist on autoland
     commits = wpt_commits(git_gecko, first_commit, head_commit)
     if not commits:
@@ -576,13 +572,18 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit, syncs_
 
     for commit in commits:
         if commit.is_backout:
-            create, update = updates_for_backout(syncs_by_bug, commit)
+            create, update = updates_for_backout(git_gecko, git_wpt, commit)
             create_syncs.update(create)
             update_syncs.update(update)
         else:
             bug = commit.bug
-            if bug in syncs_by_bug:
-                update_syncs[bug] = commit
+            if bug in update_syncs:
+                sync, _ = update_syncs[bug]
+            else:
+                sync = load.get_bug_sync(git_gecko, git_wpt, bug)
+            if sync:
+                if isinstance(sync, UpstreamSync) and commit not in sync.gecko_commits:
+                    update_syncs[bug] = (sync, commit.sha1)
             else:
                 if bug is None:
                     create_syncs[None].append(Endpoints(commit))
@@ -619,10 +620,13 @@ def create_syncs(git_gecko, git_wpt, create_endpoints):
     return rv
 
 
-def update_sync_heads(syncs_by_bug, heads_by_bug):
+def update_sync_heads(syncs_by_bug):
     rv = []
-    for bug, commit in heads_by_bug.iteritems():
-        sync = syncs_by_bug[bug]
+    for bug, (sync, commit) in syncs_by_bug.iteritems():
+        if sync.status not in ("open", "incomplete"):
+            # TODO: Create a new sync with a non-zero seq-id in this case
+            raise ValueError("Tried to modify a closed sync for bug %s with commit %s" %
+                             (bug, commit.canonical_rev))
         sync.gecko_commits.head = commit
         rv.append(sync)
     return rv
@@ -640,13 +644,13 @@ def update_modified_sync(sync):
     sync.update_github()
 
 
-def update_sync_prs(git_gecko, git_wpt, syncs_by_bug, create_endpoints, update_syncs,
+def update_sync_prs(git_gecko, git_wpt, create_endpoints, update_syncs,
                     raise_on_error=False):
     pushed_syncs = set()
     failed_syncs = set()
 
     to_push = create_syncs(git_gecko, git_wpt, create_endpoints)
-    to_push.extend(update_sync_heads(syncs_by_bug, update_syncs))
+    to_push.extend(update_sync_heads(update_syncs))
 
     for sync in to_push:
         try:
@@ -677,11 +681,9 @@ def try_land_syncs(syncs):
 def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
     update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
     assert isinstance(sync, UpstreamSync)
-    syncs_by_bug = {sync.bug: sync}
-    update_syncs = {sync.bug: sync.gecko_commits.head.sha1}
+    update_syncs = {sync.bug: (sync, sync.gecko_commits.head.sha1)}
     pushed_syncs, failed_syncs = update_sync_prs(git_gecko,
                                                  git_wpt,
-                                                 syncs_by_bug,
                                                  {},
                                                  update_syncs,
                                                  raise_on_error=raise_on_error)
@@ -715,27 +717,24 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
         base_commit = sync_commit.GeckoCommit(git_gecko,
                                               git_gecko.cinnabar.hg2git(base_rev))
 
-    wpt_syncs = (UpstreamSync.load_all(git_gecko, git_wpt, status="open") +
-                 UpstreamSync.load_all(git_gecko, git_wpt, status="incomplete"))
-
-    syncs_by_bug = {item.bug: item for item in wpt_syncs}
-
     updated = updated_syncs_for_push(git_gecko,
                                      git_wpt,
                                      base_commit,
-                                     sync_commit.GeckoCommit(git_gecko, rev),
-                                     syncs_by_bug)
+                                     sync_commit.GeckoCommit(git_gecko, rev))
 
     if updated is None:
         return set(), set(), set()
 
     create_endpoints, update_syncs = updated
 
-    pushed_syncs, failed_syncs = update_sync_prs(git_gecko, git_wpt, syncs_by_bug,
-                                                 create_endpoints, update_syncs,
+    pushed_syncs, failed_syncs = update_sync_prs(git_gecko,
+                                                 git_wpt,
+                                                 create_endpoints,
+                                                 update_syncs,
                                                  raise_on_error=raise_on_error)
 
-    landable_syncs = set(wpt_syncs) - failed_syncs
+    landable_syncs = {item for item in UpstreamSync.load_all(git_gecko, git_wpt, status="open")
+                      if item.error is None}
     landed_syncs = try_land_syncs(landable_syncs)
 
     if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
