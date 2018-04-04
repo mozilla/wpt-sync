@@ -30,7 +30,6 @@ env = Environment()
 
 
 class TaskclusterClient(object):
-
     def __init__(self):
         self._queue = None
 
