@@ -34,7 +34,7 @@ def get_parser():
                                           help="Update the local state by reading from GH + etc.")
     parser_update.add_argument("--sync-type", nargs="*", help="Type of sync to update",
                                choices=["upstream", "downstream"])
-    parser_update.add_argument("--status", nargs="*", help="Statuses of syncs to update")
+    parser_update.add_argument("--status", nargs="*", help="Statuses of syncs to update e.g. open")
     parser_update.set_defaults(func=do_update)
 
     parser_update_tasks = subparsers.add_parser("update-tasks",
