@@ -116,7 +116,7 @@ class ProcessName(object):
 
     @property
     def seq_id(self):
-        return int(self._seq_id) if self._seq_id is not None else None
+        return int(self._seq_id) if self._seq_id is not None else 0
 
     @property
     def status(self):
@@ -141,10 +141,15 @@ class ProcessName(object):
 
     @classmethod
     def with_seq_id(cls, repo, ref_type, obj_type, subtype, status, obj_id):
+        existing_no_id = cls.commit_refs(repo, ref_type, obj_type, subtype, status="*",
+                                         obj_id=obj_id, seq_id=None)
         existing = cls.commit_refs(repo, ref_type, obj_type, subtype, status="*",
                                    obj_id=obj_id, seq_id="*")
-        last_id = -1
+        last_id = 0 if existing_no_id else -1
         for branch in existing.itervalues():
+            if len(branch.split("/")) == 6:
+                # This doesn't have a trailing seq_id
+                continue
             seq_id = int(branch.rsplit("/", 1)[-1])
             if seq_id > last_id:
                 last_id = seq_id
@@ -153,14 +158,20 @@ class ProcessName(object):
 
     @classmethod
     def commit_refs(cls, repo, ref_type, obj_type, subtype, status="open", obj_id="*", seq_id=None):
-        branch_filter = "refs/%s/%s/%s/%s/%s" % (ref_type, obj_type, subtype, status, obj_id)
-        if seq_id is not None:
-            branch_filter = "%s/%s" % (branch_filter, seq_id)
-        commits_refs = repo.git.for_each_ref("--format", "%(objectname) %(refname)",
-                                             branch_filter)
+        base_filter = "refs/%s/%s/%s/%s/%s" % (ref_type, obj_type, subtype, status, obj_id)
+        branch_filters = []
+        if seq_id in (None, "*"):
+            seq_id = "*"
+            branch_filters.append(base_filter)
+        branch_filters.append("%s/%s" % (base_filter, seq_id))
+
+        commits_refs = []
+        for branch_filter in branch_filters:
+            commits_refs.extend(repo.git.for_each_ref("--format", "%(objectname) %(refname)",
+                                                      branch_filter).splitlines())
 
         commit_refs = {}
-        for line in commits_refs.split("\n"):
+        for line in commits_refs:
             line = line.strip()
             if not line:
                 continue
@@ -332,6 +343,7 @@ class ProcessData(object):
     """Wrapper object for providing a dictionary-like API over data
     stored in a git tag object, which automatically updates the
     object whenever the data is changed"""
+
     path = "data"
 
     def __init__(self, repo, process_name):
@@ -565,6 +577,7 @@ class SyncProcess(object):
     obj_id = None  # Either "bug" or "pr"
     statuses = ()
     status_transitions = []
+    multiple_syncs = False  # Can multiple syncs have the same obj_id
 
     def __init__(self, git_gecko, git_wpt, process_name):
         self.git_gecko = git_gecko
@@ -598,6 +611,13 @@ class SyncProcess(object):
         return "<%s %s %s>" % (self.__class__.__name__,
                                self.sync_type,
                                self._process_name)
+
+    def __hash__(self):
+        # This means that two SyncProcess for the same underlying process will
+        # hash equal, which is a bit of a hack; really we want to arrange things
+        # so that there's a 1:1 correspondence between SyncProcess objects
+        # and specific process names
+        return hash(repr(self))
 
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
@@ -682,7 +702,11 @@ class SyncProcess(object):
                 "bug": bug}
 
         # This is pretty ugly
-        process_name = ProcessName(cls.obj_type, cls.sync_type, status, obj_id)
+        process_name = ProcessName.with_seq_id(git_gecko, "syncs", cls.obj_type,
+                                               cls.sync_type, status, obj_id)
+        if not cls.multiple_syncs and process_name.seq_id != 0:
+            raise ValueError("Tried to create new %s sync for %s %s but one already exists" % (
+                cls.obj_id, cls.sync_type, obj_id))
         ProcessData.create(git_gecko, process_name, data)
         BranchRefObject.create(git_gecko, process_name, gecko_head)
         BranchRefObject.create(git_wpt, process_name, wpt_head)
@@ -698,14 +722,15 @@ class SyncProcess(object):
         return cls(git_gecko, git_wpt, process_name)
 
     @classmethod
-    def load_all(cls, git_gecko, git_wpt, status="open", obj_id="*"):
+    def load_all(cls, git_gecko, git_wpt, status="open", obj_id="*", seq_id=None):
         rv = []
         for branch_name in ProcessName.commit_refs(git_gecko,
                                                    ref_type="heads",
                                                    obj_type=cls.obj_type,
                                                    subtype=cls.sync_type,
                                                    status=status,
-                                                   obj_id=obj_id).itervalues():
+                                                   obj_id=obj_id,
+                                                   seq_id=seq_id).itervalues():
             rv.append(cls.load(git_gecko, git_wpt, branch_name))
         return rv
 

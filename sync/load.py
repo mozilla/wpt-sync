@@ -22,22 +22,28 @@ def get_pr_sync(git_gecko, git_wpt, pr_id):
     return sync
 
 
-def get_bug_sync(git_gecko, git_wpt, bug_number):
+def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
     import downstream
     import landing
     import upstream
 
-    sync = None
-    sync = landing.LandingSync.for_bug(git_gecko, git_wpt, bug_number)
-    if not sync:
-        sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_number)
-    if not sync:
-        sync = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number)
-    if sync:
-        logger.info("Got sync %r for bug %s" % (sync, bug_number))
+    syncs = None
+    syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, bug_number,
+                                        statuses=statuses)
+    if not syncs:
+        syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_number,
+                                              statuses=statuses)
+    if not syncs:
+        syncs = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number,
+                                                  statuses=statuses)
+    if syncs:
+        all_syncs = []
+        for item in syncs.itervalues():
+            all_syncs.extend(item)
+        logger.info("Got syncs %r for bug %s" % (all_syncs, bug_number))
     else:
         logger.info("No sync found for bug %s" % bug_number)
-    return sync
+    return syncs
 
 
 def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status="*"):

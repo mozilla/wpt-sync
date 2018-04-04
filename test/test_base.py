@@ -43,3 +43,13 @@ def test_ref_duplicate(git_gecko):
     assert q._refs == []
     with pytest.raises(ValueError):
         base.DataRefObject.create(git_gecko, q, commit)
+
+
+def test_process_name(git_gecko, local_gecko_commit):
+    commit = local_gecko_commit(test_changes={"README": "Example change"})
+    process_name_no_seq_id = base.ProcessName("sync", "upstream", "open", "1234")
+    base.DataRefObject.create(git_gecko, process_name_no_seq_id, commit)
+
+    process_name_seq_id = base.ProcessName.with_seq_id(git_gecko, "syncs", "sync",
+                                                       "upstream", "open", "1234")
+    assert process_name_seq_id.seq_id == 1
