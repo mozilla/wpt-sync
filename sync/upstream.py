@@ -447,6 +447,12 @@ def commit_message_filter(msg):
         metadata["gecko-reviewers"] = reviewers
     msg = commitparser.replace_reviewers(msg, "")
     msg = commitparser.strip_commit_metadata(msg)
+    description = msg.splitlines()
+    if description:
+        summary = description.pop(0)
+        summary = summary.rstrip("!#$%&(*+,-/:;<=>@[\\^_`{|~")
+        description = "\n".join(description)
+        msg = summary + ("\n" + description if description else "")
 
     return msg, metadata
 
