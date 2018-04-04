@@ -92,14 +92,14 @@ class LandingSync(base.SyncProcess):
                                            bug=bug)
 
     @classmethod
-    def for_bug(cls, git_gecko, git_wpt, bug):
+    def for_bug(cls, git_gecko, git_wpt, bug, statuses=None):
         """Get the landing for a specific Gecko bug number"""
-
-        for status in cls.statuses:
+        statuses = statuses if statuses is not None else cls.statuses
+        rv = {}
+        for status in statuses:
             syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
-            assert len(syncs) <= 1
-            if len(syncs) == 1:
-                return syncs[0]
+            rv[status] = syncs
+        return rv
 
     @classmethod
     def has_metadata(cls, message):
@@ -689,10 +689,16 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
             continue
         # Only check the first commit since later ones could be added upstream in the PR
         if upstream.UpstreamSync.has_metadata(commits[0].msg):
-            sync = upstream.UpstreamSync.for_bug(git_gecko,
-                                                 git_wpt,
-                                                 bug.bug_number_from_url(
-                                                     commits[0].metadata["bugzilla-url"]))
+            syncs = upstream.UpstreamSync.for_bug(git_gecko,
+                                                  git_wpt,
+                                                  bug.bug_number_from_url(
+                                                      commits[0].metadata["bugzilla-url"]))
+            for key, values in syncs.iteritems():
+                for sync in syncs:
+                    if commits[0] in sync.gecko_commits:
+                        break
+                else:
+                    sync = None
         else:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if not include_incomplete:
