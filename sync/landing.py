@@ -64,8 +64,8 @@ class LandingSync(base.SyncProcess):
     statuses = ("open", "complete")
     status_transitions = [("open", "complete")]
 
-    def __init__(self, *args, **kwargs):
-        super(LandingSync, self).__init__(*args, **kwargs)
+    def __init__(self, git_gecko, git_wpt, process_name):
+        super(LandingSync, self).__init__(git_gecko, git_wpt, process_name)
         self._unlanded_gecko_commits = None
 
     @classmethod
