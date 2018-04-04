@@ -60,6 +60,7 @@ class LandingSync(base.SyncProcess):
     sync_type = "landing"
     obj_id = "bug"
     statuses = ("open", "complete")
+    status_transitions = [("open", "complete")]
 
     def __init__(self, *args, **kwargs):
         super(LandingSync, self).__init__(*args, **kwargs)
@@ -130,7 +131,11 @@ class LandingSync(base.SyncProcess):
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
 Automatic update from web-platform-tests%s
-""" % ((sync and sync.bug) or self.bug, pr.number, pr.title, "\n%s" % pr.body if pr.body else "")
+"""
+        message = message % ((sync and sync.bug) or self.bug,
+                             pr.number,
+                             pr.title,
+                             "\n--\n".join(item.msg for item in wpt_commits) + "\n--")
         message = sync_commit.Commit.make_commit_msg(message, metadata)
 
         upstream_changed = set()
@@ -234,7 +239,7 @@ Automatic update from web-platform-tests%s
         logger.info("Moving wpt commits %s" % revish)
         return sync_commit.move_commits(self.git_wpt,
                                         revish,
-                                        "\n--\n".join(item.msg for item in wpt_commits),
+                                        message,
                                         git_work_gecko,
                                         dest_prefix=env.config["gecko"]["path"]["wpt"],
                                         amend=False,
@@ -266,8 +271,11 @@ Automatic update from web-platform-tests%s
 
             # All the commits from unlanded upstream syncs that are reachable from the
             # integration branch
-            unlanded_syncs = set(upstream.UpstreamSync.load_all(self.git_gecko, self.git_wpt,
-                                                                status="open"))
+            unlanded_syncs = set()
+            for status in ["open", "wpt-merged"]:
+                unlanded_syncs |= set(upstream.UpstreamSync.load_all(self.git_gecko, self.git_wpt,
+                                                                     status=status))
+
             for sync in unlanded_syncs:
                 branch_commits = [commit.sha1 for commit in sync.gecko_commits if
                                   on_integration_branch(commit)]
@@ -376,7 +384,7 @@ Automatic update from web-platform-tests%s
             git_work.git.reset(hard=True)
 
     def has_metadata_for_sync(self, sync):
-        for item in self.gecko_commits:
+        for item in reversed(self.gecko_commits):
             if (item.metadata.get("wpt-pr") == sync.pr and
                 item.metadata.get("wpt-type") == "metadata"):
                 return True
@@ -387,6 +395,7 @@ Automatic update from web-platform-tests%s
             return
 
         if not sync.metadata_commit or sync.metadata_commit.is_empty():
+            logger.info("No metadata commit available for PR %s" % sync.pr)
             return
 
         worktree = self.gecko_worktree.get()
@@ -400,6 +409,7 @@ Automatic update from web-platform-tests%s
             # sure
             if (str(e.status) == "1" and
                 "The previous cherry-pick is now empty" in e.stderr):
+                logger.info("Cherry pick resulted in an empty commit")
                 # If the cherry pick would result in an empty commit,
                 # just reset and continue
                 worktree.git.reset()
@@ -429,6 +439,7 @@ Automatic update from web-platform-tests%s
                 if path not in affected_metadata:
                     logger.debug("Resetting changes to %s" % head_path)
                     checkout.append(head_path)
+            logger.debug("Resetting changes to %s" % " ".join(checkout))
             worktree.git.checkout("HEAD", "--", *checkout)
             # Now try to commit again
             try:

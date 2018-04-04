@@ -557,6 +557,8 @@ class SyncProcess(object):
     obj_type = "sync"
     sync_type = "*"
     obj_id = None  # Either "bug" or "pr"
+    statuses = ()
+    status_transitions = []
 
     def __init__(self, git_gecko, git_wpt, process_name):
         self.git_gecko = git_gecko
@@ -711,6 +713,13 @@ class SyncProcess(object):
 
     @status.setter
     def status(self, value):
+        if value not in self.statuses:
+            raise ValueError("Unrecognised status %s" % value)
+        current = self._process_name.status
+        if current == value:
+            return
+        if (current, value) not in self.status_transitions:
+            raise ValueError("Tried to change status from %s to %s" % (current, value))
         self._process_name.status = value
 
     @property
