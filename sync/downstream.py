@@ -69,14 +69,16 @@ class DownstreamSync(base.SyncProcess):
         return items[0] if items else None
 
     @classmethod
-    def for_bug(cls, git_gecko, git_wpt, bug):
-        syncs = cls.load_all(git_gecko, git_wpt, status="*", obj_id="*")
-        syncs = [item for item in syncs if item.bug == bug]
+    def for_bug(cls, git_gecko, git_wpt, bug, statuses=None):
+        if statuses is None:
+            statuses = "*"
+        for status in statuses:
+            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
+            for item in syncs:
+                if item.bug == bug:
+                    return {item.status: [item]}
 
-        if len(syncs) == 0:
-            return None
-
-        return syncs[0]
+        return {}
 
     @classmethod
     def has_metadata(cls, message):

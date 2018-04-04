@@ -158,13 +158,19 @@ def update_pr(git_gecko, git_wpt, pr):
 
 
 def update_bug(git_gecko, git_wpt, bug):
-    sync = get_bug_sync(git_gecko, git_wpt, bug)
-    if not sync:
+    syncs = get_bug_sync(git_gecko, git_wpt, bug)
+    if not syncs:
         raise ValueError("No sync for bug %s" % bug)
-    elif isinstance(sync, upstream.UpstreamSync):
-        upstream.update_sync(git_gecko, git_wpt, sync)
-    else:
-        raise ValueError("Updating sync type for bug not yet supported")
+
+    for status in upstream.UpstreamSync.statuses:
+        syncs_for_status = syncs.get(status)
+        if not syncs_for_status:
+            continue
+        for sync in syncs_for_status:
+            if isinstance(sync, upstream.UpstreamSync):
+                upstream.update_sync(git_gecko, git_wpt, sync)
+            else:
+                logger.warning("Can't update sync %s" % sync)
 
 
 def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
