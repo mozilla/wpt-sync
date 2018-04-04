@@ -28,6 +28,7 @@ setup(
         'Mercurial>=4.4',
         'requests>=2.18',
         'filelock>=2.0.13',
-        'slugid>=1.0.7'
+        'slugid>=1.0.7',
+        'taskcluster>=3.0.0'
     ],
 )
