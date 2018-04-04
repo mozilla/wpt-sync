@@ -32,6 +32,9 @@ def get_parser():
 
     parser_update = subparsers.add_parser("update",
                                           help="Update the local state by reading from GH + etc.")
+    parser_update.add_argument("--sync-type", nargs="*", help="Type of sync to update",
+                               choices=["upstream", "downstream"])
+    parser_update.add_argument("--status", nargs="*", help="Statuses of syncs to update e.g. open")
     parser_update.set_defaults(func=do_update)
 
     parser_update_tasks = subparsers.add_parser("update-tasks",
@@ -227,8 +230,16 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
 
 @with_lock
 def do_update(git_gecko, git_wpt, *args, **kwargs):
+    import downstream
     import update
-    update.update_from_github(git_gecko, git_wpt)
+    import upstream
+    sync_classes = []
+    if not kwargs["sync_type"]:
+        kwargs["sync_type"] = ["upstream", "downstream"]
+    for key in kwargs["sync_type"]:
+        sync_classes.append({"upstream": upstream.UpstreamSync,
+                             "downstream": downstream.DownstreamSync}[key])
+    update.update_from_github(git_gecko, git_wpt, sync_classes, kwargs["status"])
 
 
 @with_lock
