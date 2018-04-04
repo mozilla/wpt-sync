@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import traceback
+import weakref
 from collections import defaultdict
 from fnmatch import fnmatch
 
@@ -43,27 +44,32 @@ class ProcessName(object):
     class and when changing the status propogate out the change to all users.
     """
 
+    _instances = weakref.WeakValueDictionary()
     _data = defaultdict(dict)
 
     def __init__(self, obj_type, subtype, status, obj_id, seq_id=None):
+        key = (obj_type, subtype, str(obj_id), str(seq_id))
         assert obj_type is not None
         assert subtype is not None
         assert status is not None
         assert obj_id is not None
-
-        # Some madness. We want to share the data between different ProcessName
-        # instances that are for the same sync. This allows us to perform updates
-        # and have it reflected on all instances. In particular the status field is
-        # mutable and so we need to update all instances if it's changed.
-        key = (obj_type, subtype, obj_id, seq_id)
-        self.__dict__ = self._data[key]
+        assert key not in self._instances
 
         self._obj_type = obj_type
         self._subtype = subtype
         self._status = status
         self._obj_id = str(obj_id)
         self._seq_id = str(seq_id) if seq_id is not None else None
-        self._refs = []
+        self._refs = set()
+        self._instances[key] = self
+
+    @classmethod
+    def get_instance(cls, obj_type, subtype, status, obj_id, seq_id=None):
+        key = (obj_type, subtype, str(obj_id), str(seq_id))
+        obj = cls._instances.get(key)
+        if obj is not None:
+            return obj
+        return cls(obj_type, subtype, status, obj_id, seq_id)
 
     def __str__(self):
         return self.name(self._obj_type,
@@ -71,6 +77,12 @@ class ProcessName(object):
                          self._status,
                          self._obj_id,
                          self._seq_id)
+
+    def key(self):
+        return (self._obj_type, self._subtype, self._obj_id, self._seq_id)
+
+    def __hash__(self):
+        return hash(self.key())
 
     @staticmethod
     def name(obj_type, subtype, status, obj_id, seq_id=None):
@@ -95,7 +107,7 @@ class ProcessName(object):
         # This two-way binding is kind of nasty, but we want the
         # refs to update every time we update the property here
         # and that makes it easy to achieve
-        self._refs.append(ref)
+        self._refs.add(ref)
         return self
 
     def delete(self):
@@ -137,7 +149,7 @@ class ProcessName(object):
             parts = parts[2:]
         if parts[0] not in ["sync", "try"]:
             return None
-        return cls(*parts)
+        return cls.get_instance(*parts)
 
     @classmethod
     def with_seq_id(cls, repo, ref_type, obj_type, subtype, status, obj_id):
@@ -154,7 +166,7 @@ class ProcessName(object):
             if seq_id > last_id:
                 last_id = seq_id
         seq_id = last_id + 1
-        return cls(obj_type, subtype, status, obj_id, seq_id)
+        return cls.get_instance(obj_type, subtype, status, obj_id, seq_id)
 
     @classmethod
     def commit_refs(cls, repo, ref_type, obj_type, subtype, status="open", obj_id="*", seq_id=None):
@@ -190,6 +202,9 @@ class SyncPointName(object):
     def attach_ref(self, ref):
         return self
 
+    def key(self):
+        return (self._obj_type, self._obj_id)
+
     def __str__(self):
         return self.name(self._obj_type,
                          self._obj_id)
@@ -206,14 +221,40 @@ class VcsRefObject(object):
 
     This is typically either a tag or a head (i.e. branch), but can be any
     git object."""
+    _instances = weakref.WeakValueDictionary()
 
     ref_prefix = None
 
     def __init__(self, repo, process_name, commit_cls=sync_commit.Commit):
+        key = (self.__class__, repo, process_name.key())
+        assert key not in self._instances
         self.repo = repo
+        self._ref = str(process_name)
         self._process_name = process_name.attach_ref(self)
         self.commit_cls = commit_cls
-        self._ref = str(process_name)
+        self._instances[key] = self
+
+    @classmethod
+    def get_instance(cls, repo, process_name, commit_cls=sync_commit.Commit):
+        key = (cls, repo, process_name.key())
+        obj = cls._instances.get(key)
+        if obj:
+            if obj.commit_cls != commit_cls:
+                obj.commit_cls = commit_cls
+            assert obj in process_name._refs
+            return obj
+        elif git.Reference(repo, cls.process_path(process_name)).is_valid():
+            return cls(repo, process_name, commit_cls)
+        raise ValueError("No ref found in %s with path %s" % (repo.working_dir,
+                                                              cls.process_path(process_name)))
+
+    @classmethod
+    def create(cls, repo, process_name, obj, commit_cls=sync_commit.Commit):
+        path = cls.process_path(process_name)
+        if git.Reference(repo, cls.process_path(process_name)).is_valid():
+            raise ValueError("Ref %s already exists" % path)
+
+        return cls._create(repo, process_name, obj, commit_cls)
 
     def __str__(self):
         return self._ref
@@ -237,7 +278,7 @@ class VcsRefObject(object):
         return None
 
     @classmethod
-    def create(cls, repo, process_name, obj):
+    def _create(cls, repo, process_name, obj, commit_cls=sync_commit.Commit):
         path = cls.process_path(process_name)
         logger.debug("Creating ref %s" % path)
         for ref in repo.refs:
@@ -247,7 +288,7 @@ class VcsRefObject(object):
                                  (ref.path, path))
         ref = git.Reference(repo, path)
         ref.set_object(obj)
-        return cls(repo, process_name)
+        return cls(repo, process_name, commit_cls)
 
     @property
     def commit(self):
@@ -291,7 +332,7 @@ class VcsRefObject(object):
                                                        status=status,
                                                        obj_id=obj_id,
                                                        seq_id=seq_id).itervalues()):
-            rv.append(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
+            rv.append(cls.get_instance(repo, ProcessName.from_ref(ref_name), commit_cls))
         return rv
 
 
@@ -342,11 +383,16 @@ class ProcessData(object):
     stored in a git tag object, which automatically updates the
     object whenever the data is changed"""
 
+    _instances = weakref.WeakValueDictionary()
+
     path = "data"
 
     def __init__(self, repo, process_name):
-        self._ref = DataRefObject(repo, process_name)
+        key = (self.__class__, repo, process_name.key())
+        assert key not in self._instances
+        self._ref = DataRefObject.get_instance(repo, process_name)
         self._data = self._load()
+        self._instances[key] = self
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self._ref)
@@ -356,11 +402,18 @@ class ProcessData(object):
         return self._ref.repo
 
     @classmethod
+    def get_instance(cls, repo, process_name):
+        obj = cls._instances.get((cls, repo, process_name.key()))
+        if obj is None:
+            obj = cls(repo, process_name)
+        return obj
+
+    @classmethod
     def load(cls, repo, branch_name):
         process_name = ProcessName.from_ref(branch_name)
         if not process_name:
             return None
-        return cls(repo, process_name)
+        return cls.get_instance(repo, process_name)
 
     @classmethod
     def create(cls, repo, process_name, data, message="Sync data"):
@@ -570,6 +623,8 @@ class Worktree(object):
 
 
 class SyncProcess(object):
+    _instances = weakref.WeakValueDictionary()
+
     obj_type = "sync"
     sync_type = "*"
     obj_id = None  # Either "bug" or "pr"
@@ -578,25 +633,31 @@ class SyncProcess(object):
     multiple_syncs = False  # Can multiple syncs have the same obj_id
 
     def __init__(self, git_gecko, git_wpt, process_name):
+        key = (self.__class__, process_name.key())
+        assert key not in self._instances
         self.git_gecko = git_gecko
         self.git_wpt = git_wpt
 
         self._process_name = process_name
 
-        self.data = ProcessData(git_gecko, self._process_name)
+        self.data = ProcessData.get_instance(git_gecko, self._process_name)
+
+        assert self.data._ref in self._process_name._refs
 
         self.gecko_commits = CommitRange(git_gecko,
                                          self.data["gecko-base"],
-                                         BranchRefObject(git_gecko,
-                                                         self._process_name,
-                                                         commit_cls=sync_commit.GeckoCommit),
+                                         BranchRefObject.get_instance(
+                                             git_gecko,
+                                             self._process_name,
+                                             commit_cls=sync_commit.GeckoCommit),
                                          commit_cls=sync_commit.GeckoCommit,
                                          commit_filter=self.gecko_commit_filter())
         self.wpt_commits = CommitRange(git_wpt,
                                        self.data["wpt-base"],
-                                       BranchRefObject(git_wpt,
-                                                       self._process_name,
-                                                       commit_cls=sync_commit.WptCommit),
+                                       BranchRefObject.get_instance(
+                                           git_wpt,
+                                           self._process_name,
+                                           commit_cls=sync_commit.WptCommit),
                                        commit_cls=sync_commit.WptCommit,
                                        commit_filter=self.wpt_commit_filter())
 
@@ -604,18 +665,19 @@ class SyncProcess(object):
                                        self._process_name)
         self.wpt_worktree = Worktree(git_wpt,
                                      self._process_name)
+        self._instances[key] = self
+
+    @classmethod
+    def get_instance(cls, git_gecko, git_wpt, process_name):
+        obj = cls._instances.get((cls, process_name.key()))
+        if obj is None:
+            obj = cls(git_gecko, git_wpt, process_name)
+        return obj
 
     def __repr__(self):
         return "<%s %s %s>" % (self.__class__.__name__,
                                self.sync_type,
                                self._process_name)
-
-    def __hash__(self):
-        # This means that two SyncProcess for the same underlying process will
-        # hash equal, which is a bit of a hack; really we want to arrange things
-        # so that there's a 1:1 correspondence between SyncProcess objects
-        # and specific process names
-        return hash(repr(self))
 
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
@@ -717,7 +779,7 @@ class SyncProcess(object):
         process_name = ProcessName.from_ref(branch_name)
         if not process_name:
             return None
-        return cls(git_gecko, git_wpt, process_name)
+        return cls.get_instance(git_gecko, git_wpt, process_name)
 
     @classmethod
     def load_all(cls, git_gecko, git_wpt, status="open", obj_id="*", seq_id=None):

@@ -10,7 +10,7 @@ from cStringIO import StringIO
 import git
 import pytest
 
-from sync import repos, settings, bugcomponents, downstream, landing, trypush, tree
+from sync import repos, settings, bugcomponents, base, downstream, landing, trypush, tree
 from sync.env import Environment, set_env, clear_env
 from sync.gh import AttrDict
 
@@ -75,7 +75,7 @@ def cleanup(config):
 
 
 @pytest.fixture(scope="function")
-def env(mock_mach, mock_wpt):
+def env(request, mock_mach, mock_wpt):
     clear_env()
     config = settings.load()
     cleanup(config)
@@ -92,6 +92,13 @@ def env(mock_mach, mock_wpt):
     downstream.WPT = mock_wpt
 
     set_env(config, bz, gh_wpt)
+
+    def empty_caches():
+        for cls in [base.ProcessName, base.VcsRefObject, base.SyncProcess,
+                    base.ProcessData]:
+            cls._instances.clear()
+
+    request.addfinalizer(empty_caches)
 
     return Environment()
 
