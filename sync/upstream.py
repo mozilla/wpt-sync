@@ -58,8 +58,8 @@ class UpstreamSync(base.SyncProcess):
                           ("wpt-merged", "complete")]
     multiple_syncs = True
 
-    def __init__(self, *args, **kwargs):
-        super(UpstreamSync, self).__init__(*args, **kwargs)
+    def __init__(self, git_gecko, git_wpt, process_name):
+        super(UpstreamSync, self).__init__(git_gecko, git_wpt, process_name)
 
         self._upstreamed_gecko_commits = None
         self._upstreamed_gecko_head = None

@@ -182,9 +182,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
                                            raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    assert syncs.keys() == ["complete"]
-    assert len(syncs["complete"]) == 1
-    sync = syncs["complete"][0]
+    assert syncs == {"wpt-merged": [sync]}
     assert sync.gecko_landed()
     assert sync.status == "wpt-merged"
     assert original_remote_branch not in git_wpt.remotes.origin.refs
@@ -270,8 +268,9 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     assert len(landed) == 0
     assert len(failed) == 0
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    assert sync is not None
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    sync = pushed.pop()
+    assert syncs == {"open": [sync]}
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 2

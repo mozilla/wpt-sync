@@ -17,7 +17,7 @@ def test_processname_update(git_gecko):
     assert p.obj_id == "1"
 
     ref = base.DataRefObject.create(git_gecko, p, commit)
-    assert p._refs == [ref]
+    assert p._refs == set([ref])
 
     assert ref.path == "refs/syncs/test/subtype/open/1"
     assert ref.ref is not None
@@ -26,7 +26,7 @@ def test_processname_update(git_gecko):
     p.status = "complete"
     assert str(p) == "test/subtype/complete/1"
     assert ref.path == "refs/syncs/test/subtype/complete/1"
-    assert p._refs == [ref]
+    assert p._refs == set([ref])
 
 
 def test_ref_duplicate(git_gecko):
@@ -40,7 +40,7 @@ def test_ref_duplicate(git_gecko):
     gc.collect()
 
     q = base.ProcessName("test", "subtype", "closed", "1")
-    assert q._refs == []
+    assert q._refs == set()
     with pytest.raises(ValueError):
         base.DataRefObject.create(git_gecko, q, commit)
 
