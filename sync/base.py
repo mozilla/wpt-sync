@@ -265,6 +265,10 @@ class SyncPointName(object):
         return "sync/%s/%s" % (obj_type,
                                obj_id)
 
+    def name_filter(self):
+        return self.name(self._obj_type,
+                         self._obj_id)
+
 
 class VcsRefObject(object):
     """Representation of a named reference to a git object associated with a
