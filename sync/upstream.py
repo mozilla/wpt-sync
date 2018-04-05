@@ -450,7 +450,7 @@ def commit_message_filter(msg):
     description = msg.splitlines()
     if description:
         summary = description.pop(0)
-        summary = summary.rstrip("!#$%&(*+,-/:;<=>@[\\^_`{|~")
+        summary = summary.rstrip("!#$%&(*+,-/:;<=>@[\\^_`{|~").rstrip()
         description = "\n".join(description)
         msg = summary + ("\n" + description if description else "")
 
