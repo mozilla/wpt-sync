@@ -1,6 +1,8 @@
 import os
 import socket
 import urlparse
+import traceback
+from time import sleep
 
 import kombu
 
@@ -39,26 +41,26 @@ class Consumer(object):
             for callbacks in self.callbacks.itervalues():
                 callbacks.append(func)
 
-    def drain_events(self, timeout=0.1):
-        """Drain all active events and call callbacks."""
-        if not self._entered:
-            raise Exception('must enter context manager before calling')
-
-        try:
-            self._conn.drain_events(timeout=timeout)
-        except socket.timeout:
-            pass
-
-    def listen_forever(self):
+    def listen_forever(self, retries=5):
         """Listen for and handle messages until interrupted."""
         if not self._entered:
             raise Exception('must enter context manager before calling')
-
-        while True:
+        pause = 1
+        count = retries
+        while True and count > 0:
             try:
                 self._conn.drain_events(timeout=1.0)
-            except socket.timeout:
+                pause = 1
+                count = retries
+            except socket.timeout as e:
                 pass
+            except socket.error as e:
+                logger.warning(traceback.format_exc(e))
+                sleep(pause)
+                count -= 1
+                pause *= 2
+                self._conn.release()
+                self._conn.connect()
 
     def on_message(self, body, message):
         exchange = message.delivery_info['exchange']
