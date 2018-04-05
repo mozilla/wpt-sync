@@ -94,9 +94,7 @@ def env(request, mock_mach, mock_wpt):
     set_env(config, bz, gh_wpt)
 
     def empty_caches():
-        for cls in [base.ProcessName, base.VcsRefObject, base.SyncProcess,
-                    base.ProcessData]:
-            cls._instances.clear()
+        base.IdentityMap._cache.clear()
 
     request.addfinalizer(empty_caches)
 
