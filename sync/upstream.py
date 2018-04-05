@@ -182,13 +182,20 @@ class UpstreamSync(base.SyncProcess):
                                                           remote_head.commit.hexsha)
 
     @classmethod
-    def last_sync_point(cls, git_gecko, repository_name):
+    def last_sync_point(cls, git_gecko, repository_name, default=None):
         assert "/" not in repository_name
         name = base.SyncPointName(cls.sync_type,
                                   repository_name)
-        return base.BranchRefObject(git_gecko,
-                                    name,
-                                    commit_cls=sync_commit.GeckoCommit)
+        try:
+            return base.BranchRefObject(git_gecko,
+                                        name,
+                                        commit_cls=sync_commit.GeckoCommit)
+        except ValueError:
+            if default:
+                return base.BranchRefObject.create(git_gecko,
+                                                   name,
+                                                   default,
+                                                   commit_cls=sync_commit.GeckoCommit)
 
     @property
     def bug(self):
@@ -722,13 +729,9 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
 def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
          base_rev=None):
     rev = git_gecko.cinnabar.hg2git(hg_rev)
-    last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name)
-    if last_sync_point.commit is None:
-        # If we are just starting, default to the current mozilla central
-        logger.info("No existing sync point for %s found, using the latest mozilla-central")
-        last_sync_point.commit = env.config["gecko"]["refs"]["central"]
-    else:
-        logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
+    last_sync_point = UpstreamSync.last_sync_point(git_gecko, repository_name,
+                                                   default=env.config["gecko"]["refs"]["central"])
+    logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
 
     if base_rev is None:
         if git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
