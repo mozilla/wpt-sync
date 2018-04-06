@@ -88,7 +88,9 @@ class UpstreamSync(base.SyncProcess):
             for sync in syncs:
                 if sync.pr == pr_id:
                     return sync
-                elif sync.pr is None and sync.wpt_commits.head.sha1 == wpt_head:
+                elif (sync.pr is None and
+                      sync.wpt_commits.head and
+                      sync.wpt_commits.head.sha1 == wpt_head):
                     # This is to handle cases where the pr was not correctly stored
                     sync.pr = pr_id
                     return sync
