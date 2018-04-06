@@ -418,7 +418,8 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         print("Last sync was to commit %s" % sync_point["upstream"])
     else:
         prev_wpt_head = kwargs["prev_wpt_head"]
-    landable = landable_commits(git_gecko, git_wpt, prev_wpt_head, kwargs["include_incomplete"])
+    landable = landable_commits(git_gecko, git_wpt, prev_wpt_head,
+                                include_incomplete=kwargs["include_incomplete"])
 
     if landable is None:
         print("Landing will not add any new commits")
