@@ -26,11 +26,13 @@ class ApplyError(Exception):
 def get_metadata(text):
     data = {}
     for line in reversed(text.splitlines()):
-        if line:
+        if line.strip():
             m = METADATA_RE.match(line)
             if m:
                 key, value = m.groups()
                 data[key] = value
+            else:
+                break
     return data
 
 
@@ -134,10 +136,38 @@ class Commit(object):
 
     @staticmethod
     def make_commit_msg(msg, metadata):
+        if metadata is None:
+            metadata = {}
+
+        msg_lines = msg.splitlines()
+        metadata_seen = []
+        keep_lines = None
+        for i, line in enumerate(reversed(msg_lines)):
+            if line.strip() == "":
+                continue
+            m = METADATA_RE.match(line)
+            if m:
+                metadata_seen.append(m.groups()[0])
+            else:
+                keep_lines = len(msg_lines) - i
+                break
+
+        msg_lines = msg_lines[:max(keep_lines, 1)]
+
         if metadata:
-            metadata_str = "\n".join("%s: %s" % item for item in sorted(metadata.items()))
-            msg = "%s\n%s" % (msg, metadata_str)
-        return msg
+            msg_lines.append("")
+
+        metadata_added = set()
+        for name in reversed(metadata_seen):
+            if metadata.get(name):
+                msg_lines.append("%s: %s" % (name, metadata[name]))
+                metadata_added.add(name)
+
+        for name, value in metadata.iteritems():
+            if name not in metadata_added:
+                msg_lines.append("%s: %s" % (name, value))
+
+        return "\n".join(msg_lines) + "\n"
 
     def is_empty(self, prefix=None):
         if prefix:
