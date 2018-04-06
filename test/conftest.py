@@ -312,6 +312,21 @@ def gecko_worktree(env, git_gecko):
 
 
 @pytest.fixture
+def wpt_worktree(env, git_wpt):
+    def inner(branch="test"):
+        path = os.path.join(env.config["root"],
+                            env.config["paths"]["worktrees"],
+                            "web-platform-tests"
+                            "test")
+        git_wpt.git.worktree("add",
+                             path,
+                             "origin/master")
+        return git.Repo(path)
+    inner.__name__ = "wpt_worktree"
+    return inner
+
+
+@pytest.fixture
 def local_gecko_commit(env, gecko_worktree):
     def inner(test_changes=None, meta_changes=None, other_changes=None,
               bug="1234", message="Example changes"):
@@ -323,19 +338,17 @@ def local_gecko_commit(env, gecko_worktree):
 
 
 @pytest.fixture
-def pull_request(env, git_wpt_upstream):
-    def inner(commits, title="Example PR", body="", pr_id=None):
+def pull_request_fn(env, git_wpt_upstream):
+    def inner(pr_branch_fn, title="Example PR", body="", pr_id=None):
 
         git_wpt_upstream.heads.master.checkout()
-        pr_branch = git_wpt_upstream.create_head("temp_pr")
-        pr_branch.checkout()
-
         gh_commits = []
 
-        for message, file_data in commits:
-            rev = git_commit(git_wpt_upstream, message, file_data)
-            gh_commits.append(AttrDict(**{"sha": rev.hexsha,
-                                          "message": message,
+        branch = pr_branch_fn()
+        git_wpt_upstream.branches[branch].checkout()
+        for commit in git_wpt_upstream.iter_commits("master..%s" % branch):
+            gh_commits.append(AttrDict(**{"sha": commit.hexsha,
+                                          "message": commit.message,
                                           "_statuses": []}))
 
         pr_id = env.gh_wpt.create_pull(title,
@@ -346,11 +359,29 @@ def pull_request(env, git_wpt_upstream):
                                        _user="test")
         pr = env.gh_wpt.get_pull(pr_id)
 
-        git_wpt_upstream.git.update_ref("refs/pull/%s/head" % pr_id, "refs/heads/temp_pr")
+        git_wpt_upstream.git.update_ref("refs/pull/%s/head" % pr_id, "refs/heads/%s" % branch)
         git_wpt_upstream.heads.master.checkout()
-        git_wpt_upstream.delete_head(pr_branch, force=True)
+        git_wpt_upstream.delete_head(branch, force=True)
 
         return pr
+    inner.__name__ = "pull_request_fn"
+    return inner
+
+
+@pytest.fixture
+def pull_request(git_wpt_upstream, pull_request_fn):
+    def inner(commit_data, title="Example PR", body="", pr_id=None):
+
+        def commit_fn():
+            pr_branch = git_wpt_upstream.create_head("temp_pr")
+            git_wpt_upstream.branches["temp_pr"].checkout()
+            for message, file_data in commit_data:
+                git_commit(git_wpt_upstream, message, file_data)
+            git_wpt_upstream.branches.master.checkout()
+            return pr_branch.name
+
+        return pull_request_fn(commit_fn, title, body, pr_id)
+
     inner.__name__ = "pull_request"
     return inner
 

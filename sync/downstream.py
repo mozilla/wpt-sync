@@ -7,8 +7,11 @@ from __future__ import print_function
 """Functionality to support VCS syncing for WPT."""
 
 import os
+import re
 import traceback
 from collections import defaultdict
+
+import git
 
 import base
 import bugcomponents
@@ -266,6 +269,25 @@ class DownstreamSync(base.SyncProcess):
 
     def update_commits(self):
         self.update_wpt_commits()
+
+        # Check if this sync reverts some unlanded earlier PR and if so mark both
+        # as skip and don't try to apply the commits here
+        reverts = self.reverts_syncs()
+        if reverts:
+            all_open = all(item.status == "open" for item in reverts)
+            for revert_sync in reverts:
+                if revert_sync.status == "open":
+                    logger.info("Skipping sync for PR %s because it is later reverted" %
+                                revert_sync.pr)
+                    revert_sync.skip = True
+            # TODO: If this commit reverts some closed syncs, then set the metadata
+            # commit of this commit to the revert of the metadata commit from that
+            # sync
+            if all_open:
+                logger.info("Sync was a revert of other open syncs, skipping")
+                self.skip = True
+                return
+
         old_gecko_head = self.gecko_commits.head.sha1
         logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
         self.wpt_to_gecko_commits()
@@ -419,6 +441,40 @@ class DownstreamSync(base.SyncProcess):
         env.bz.comment(self.bug, msg)
         self.results_notified = True
 
+    def reverts_syncs(self):
+        """Return a set containing the previous syncs reverted by this one, if any"""
+        revert_re = re.compile("This reverts commit ([0-9A-Fa-f]+)")
+        unreverted_commits = defaultdict(set)
+        for commit in self.wpt_commits:
+            if not commit.msg.startswith("Revert "):
+                # If not everything is a revert then return
+                return set()
+            revert_shas = revert_re.findall(commit.msg)
+            if len(revert_shas) == 0:
+                return set()
+            # Just use the first match for now
+            sha = revert_shas[0]
+            try:
+                self.git_wpt.rev_parse(sha)
+            except git.BadName:
+                # Commit isn't in this repo (could be upstream)
+                return set()
+            pr = env.gh_wpt.pr_for_commit(sha)
+            if pr is None:
+                return set()
+            sync = DownstreamSync.for_pr(self.git_gecko, self.git_wpt, pr)
+            if sync is None:
+                return set()
+            if sync not in unreverted_commits:
+                # Ensure we have the latest commits for the reverted sync
+                sync.update_wpt_commits()
+                unreverted_commits[sync] = {item.sha1 for item in sync.wpt_commits}
+            unreverted_commits[sync].remove(sha)
+
+        rv = {sync for sync, unreverted in unreverted_commits.iteritems()
+              if not unreverted}
+        return rv
+
 
 @base.entry_point("downstream")
 def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
@@ -454,6 +510,8 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
 def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                    raise_on_error=False):
     update_repositories(git_gecko, git_wpt)
+    if sync.skip:
+        return
     try:
         logger.debug("Got status %s for PR %s" % (status, sync.pr))
         if status == "pending":
@@ -481,11 +539,13 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
 @base.entry_point("downstream")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
+    if sync.skip:
+        return
     # Ensure we don't have some old set of tasks
     try_push.wpt_tasks(force_update=True)
     disabled = []
     if not try_push.success():
-        if sync.affected_tests:
+        if sync.affected_tests():
             log_files = try_push.download_raw_logs()
             if not log_files:
                 raise ValueError("No log files found for try push %r" % try_push)

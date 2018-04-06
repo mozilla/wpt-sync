@@ -394,6 +394,9 @@ Automatic update from web-platform-tests%s
         return False
 
     def add_metadata(self, sync):
+        if sync.skip:
+            return
+
         if self.has_metadata_for_sync(sync):
             return
 
