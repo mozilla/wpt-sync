@@ -769,7 +769,7 @@ def push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
 
 
 @base.entry_point("upstream")
-def status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
+def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     landed = False
     if status == "pending":
         # Never change anything for pending

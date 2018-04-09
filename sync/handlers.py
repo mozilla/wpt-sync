@@ -53,9 +53,12 @@ def handle_pr(git_gecko, git_wpt, event):
         if event["action"] == "opened":
             downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"])
     else:
-        sync.update_status(event["action"],
-                           event["pull_request"]["merged"],
-                           event["pull_request"]["base"]["sha"])
+        downstream.update_pr(git_gecko,
+                             git_wpt,
+                             sync,
+                             event["action"],
+                             event["pull_request"]["merged"],
+                             event["pull_request"]["base"]["sha"])
 
 
 def handle_status(git_gecko, git_wpt, event):
@@ -94,11 +97,11 @@ def handle_status(git_gecko, git_wpt, event):
         schedule_pr_task("opened", env.gh_wpt.get_pull(pr_id))
 
     if isinstance(sync, upstream.UpstreamSync):
-        upstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
-                                event["target_url"], event["sha"])
+        upstream.commit_status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
+                                       event["target_url"], event["sha"])
     elif isinstance(sync, downstream.DownstreamSync):
-        downstream.status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
-                                  event["target_url"], event["sha"])
+        downstream.commit_status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
+                                         event["target_url"], event["sha"])
 
 
 def handle_push(git_gecko, git_wpt, event):

@@ -387,6 +387,28 @@ def pull_request(git_wpt_upstream, pull_request_fn):
 
 
 @pytest.fixture
+def pull_request_commit(env, git_wpt_upstream, pull_request):
+    def inner(pr_id, commits):
+        pr_branch = git_wpt_upstream.create_head("temp_pr", "refs/pull/%s/head" % pr_id)
+        pr_branch.checkout()
+
+        gh_commits = []
+        for message, file_data in commits:
+            rev = git_commit(git_wpt_upstream, message, file_data)
+            gh_commits.append(AttrDict(**{"sha": rev.hexsha,
+                                          "message": message,
+                                          "_statuses": []}))
+        pr = env.gh_wpt.get_pull(pr_id)
+        pr._commits.extend(gh_commits)
+
+        git_wpt_upstream.git.update_ref("refs/pull/%s/head" % pr_id, "refs/heads/temp_pr")
+        git_wpt_upstream.heads.master.checkout()
+        git_wpt_upstream.delete_head(pr_branch, force=True)
+
+    return inner
+
+
+@pytest.fixture
 def mock_mach():
     from sync import projectutil
 
@@ -445,9 +467,9 @@ def set_pr_status(git_gecko, git_wpt, env):
                               "description",
                               "continuous-integration/travis-ci/pr")
         sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
-        downstream.status_changed(git_gecko, git_wpt, sync,
-                                  "continuous-integration/travis-ci/pr",
-                                  status, "http://test/", pr["head"])
+        downstream.commit_status_changed(git_gecko, git_wpt, sync,
+                                         "continuous-integration/travis-ci/pr",
+                                         status, "http://test/", pr["head"])
         return sync
     return inner
 
@@ -550,7 +572,25 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
     git_wpt.remotes.origin.fetch()
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    sync.metadata_ready = True
+    sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
     return sync.latest_try_push
+
+
+@pytest.fixture
+def MockTryCls():
+    class MockTryPush(object):
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args, **kwargs):
+            pass
+
+        def push(self):
+            return "1" * 40
+
+    return MockTryPush

@@ -31,7 +31,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     git_wpt.remotes.origin.fetch()
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    sync.metadata_ready = True
+    sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
     landing_sync = landing.land_to_gecko(git_gecko, git_wpt)
@@ -71,7 +71,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     git_wpt.remotes.origin.fetch()
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    downstream_sync.metadata_ready = True
+    downstream_sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
     sync = landing.land_to_gecko(git_gecko, git_wpt)
@@ -198,7 +198,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     downstream_sync = set_pr_status(pr, "success")
     git_wpt_upstream.head.commit = head_rev
     git_wpt_upstream.git.reset(hard=True)
-    downstream_sync.metadata_ready = True
+    downstream_sync.data["force-metadata-ready"] = True
 
     # This is the commit we should land to
     landing_rev = git_wpt_upstream.git.rev_parse("HEAD")
@@ -210,7 +210,6 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     downstream_sync = set_pr_status(pr, "success")
     git_wpt_upstream.head.commit = head_rev
     git_wpt_upstream.git.reset(hard=True)
-    downstream_sync.metadata_ready = False
 
     # Add third gecko change
     test_changes = {"change3": "CHANGE3\n"}
@@ -274,7 +273,7 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     downstream_sync._commit_metadata()
 
     assert downstream_sync.metadata_commit is not None
-    downstream_sync.metadata_ready = True
+    downstream_sync.data["force-metadata-ready"] = True
 
     git_wpt_upstream.head.commit = head_rev
     git_wpt.remotes.origin.fetch()
