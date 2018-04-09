@@ -256,6 +256,8 @@ class TryPush(base.ProcessData):
         data = {
             "try-rev": try_rev,
             "stability": stability,
+            "gecko-head": sync.gecko_commits.head.sha1,
+            "wpt-head": sync.wpt_commits.head.sha1,
         }
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
                                                     "syncs",
@@ -326,6 +328,10 @@ class TryPush(base.ProcessData):
     def status(self):
         return self._ref._process_name.status
 
+    @property
+    def wpt_head(self):
+        return self.get("wpt-head")
+
     @status.setter
     def status(self, value):
         if value not in self.statuses:
@@ -342,7 +348,8 @@ class TryPush(base.ProcessData):
 
     def sync(self, git_gecko, git_wpt):
         process_name = self._ref._process_name
-        syncs = get_syncs(git_gecko, git_wpt,
+        syncs = get_syncs(git_gecko,
+                          git_wpt,
                           process_name.subtype,
                           process_name.obj_id)
         if len(syncs) == 0:
