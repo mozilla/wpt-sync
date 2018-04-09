@@ -17,6 +17,7 @@ import base
 import bugcomponents
 import log
 import notify
+import trypush
 import commit as sync_commit
 from env import Environment
 from gitutils import update_repositories
@@ -92,6 +93,10 @@ class DownstreamSync(base.SyncProcess):
 
     @property
     def pr_head(self):
+        """Head commit of the PR. Typically this is equal to
+        self.wpt_commits.head but if the PR is rebased onto master
+        then the head of the PR won't match the commit that actually
+        merged unless it happens to be a fast-forward"""
         return sync_commit.WptCommit(self.git_wpt, "origin/pr/%s" % self.pr)
 
     @property
@@ -104,11 +109,19 @@ class DownstreamSync(base.SyncProcess):
 
     @property
     def metadata_ready(self):
-        return self.data.get("metadata-ready", False)
-
-    @metadata_ready.setter
-    def metadata_ready(self, value):
-        self.data["metadata-ready"] = value
+        # This is mostly for testing
+        if self.data.get("force-metadata-ready"):
+            return True
+        if self.skip:
+            return True
+        if not self.requires_try:
+            return True
+        latest_try_push = self.latest_valid_try_push
+        if not latest_try_push:
+            return False
+        if latest_try_push.status != "complete":
+            return False
+        return latest_try_push.stability or not self.requires_stability_try
 
     @property
     def results_notified(self):
@@ -131,6 +144,59 @@ class DownstreamSync(base.SyncProcess):
         git_work = self.wpt_worktree.get()
         return WPT(os.path.join(git_work.working_dir))
 
+    @property
+    def requires_try(self):
+        return not self.skip
+
+    @property
+    def requires_stability_try(self):
+        return self.requires_try and bool(self.affected_tests())
+
+    @property
+    def latest_valid_try_push(self):
+        """Try push for the current head of the PR, if any.
+
+        In legacy cases we don't store the wpt-head for the try push
+        so we always assume that any try push is valid"""
+
+        latest_try_push = self.latest_try_push
+
+        # Check if the try push is for the current PR head
+        if (latest_try_push and
+            latest_try_push.wpt_head and
+            latest_try_push.wpt_head not in (self.pr_head.sha1, self.wpt_commits.head.sha1)):
+            # If the try push isn't for the head of the PR or for the post merge head
+            # then we need a new try push
+            latest_try_push = None
+
+        return latest_try_push
+
+    def next_try_push(self, try_cls=trypush.TrySyntaxCommit):
+        """Schedule a new try push for the sync, if required.
+
+        A stability try push will only be scheduled if the upstream PR is
+        approved, which we check directly from GitHub. Therefore returning
+        None is not an indication that the sync is ready to land, just that
+        there's no further action at this time.
+        """
+        if not self.requires_try:
+            return
+
+        latest_try_push = self.latest_valid_try_push
+
+        if latest_try_push and latest_try_push.status != "complete":
+            return
+
+        if not latest_try_push:
+            logger.info("Creating a try push for PR %s" % self.pr)
+            return TryPush.create(self, self.affected_tests(), stability=False)
+        elif not latest_try_push.stability and self.requires_stability_try:
+            pr = env.gh_wpt.get_pull(self.pr)
+            pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
+            if pr_ready:
+                logger.info("Creating a stability try push for PR %s" % self.pr)
+                return TryPush.create(self, self.affected_tests(), stability=True)
+
     def create_bug(self, git_wpt, pr_id, pr_title, pr_body):
         if self.bug is not None:
             return
@@ -144,22 +210,11 @@ class DownstreamSync(base.SyncProcess):
                          url=env.gh_wpt.pr_url(pr_id))
         self.bug = bug
 
-    def update_status(self, action, merge_sha=None, wpt_base=None):
-        if action == "closed" and not merge_sha:
-            self.pr_status = "closed"
-            self.finish()
-        elif action == "closed":
-            # We are storing the wpt base as a reference
-            self.data["wpt-base"] = wpt_base
-            # If we can, try to add a notification to the bug
-            self.try_notify()
-        elif action == "reopened" or action == "open":
-            self.status = "open"
-            self.pr_status = "open"
-
     def update_wpt_commits(self):
+        """Update the set of commits in the PR from the latest upstream."""
         if not self.wpt_commits.head or self.wpt_commits.head.sha1 != self.pr_head.sha1:
             self.wpt_commits.head = self.pr_head
+
         if len(self.wpt_commits) == 0 and self.git_wpt.is_ancestor(self.wpt_commits.head.sha1,
                                                                    "origin/master"):
             # The commits landed on master so we need to change the commit
@@ -507,8 +562,8 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
 
 
 @base.entry_point("downstream")
-def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
-                   raise_on_error=False):
+def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
+                          raise_on_error=False):
     update_repositories(git_gecko, git_wpt)
     if sync.skip:
         return
@@ -522,11 +577,8 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
         if check_state == "success":
-            head_changed = sync.update_commits()
-            if sync.latest_try_push and not head_changed:
-                logger.info("Commits on PR %s didn't change" % sync.pr)
-                return
-            TryPush.create(sync, sync.affected_tests())
+            sync.update_commits()
+            sync.next_try_push()
             sync.error = None
     except Exception as e:
         sync.error = e
@@ -539,53 +591,55 @@ def status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
 @base.entry_point("downstream")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
-    if sync.skip:
-        return
-    # Ensure we don't have some old set of tasks
-    try_push.wpt_tasks(force_update=True)
-    disabled = []
-    if not try_push.success():
-        if sync.affected_tests():
-            log_files = try_push.download_raw_logs()
-            if not log_files:
-                raise ValueError("No log files found for try push %r" % try_push)
-            disabled = sync.update_metadata(log_files, stability=try_push.stability)
-        else:
-            env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, but the try "
-                                      "push wasn't a success. Check the try results for "
-                                      "infrastructure issues"))
-            # TODO: consider marking the push an error here so that we can't land without manual
-            # intervention
+    if not try_push.status == "complete":
+        # Ensure we don't have some old set of tasks
+        try_push.wpt_tasks(force_update=True)
+        disabled = []
+        if not try_push.success():
+            if sync.affected_tests:
+                log_files = try_push.download_raw_logs()
+                if not log_files:
+                    raise ValueError("No log files found for try push %r" % try_push)
+                disabled = sync.update_metadata(log_files, stability=try_push.stability)
+            else:
+                env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, "
+                                          "but the try push wasn't a success. Check the try "
+                                          "results for infrastructure issues"))
+                # TODO: consider marking the push an error here so that we can't land without manual
+                # intervention
 
-    pr = env.gh_wpt.get_pull(sync.pr)
-    if (sync.affected_tests() and
-        (pr.merged or env.gh_wpt.is_approved(sync.pr)) and
-        not try_push.stability):
-        logger.info("Creating a stability try push for PR %s" % sync.pr)
-        # TODO check if tonnes of tests are failing -- don't want to update the
-        # expectation data in that case
-        # TODO decide whether to do another narrow push on mac
-        TryPush.create(sync, sync.affected_tests(), stability=True)
-    elif try_push.stability:
-        if disabled:
-            logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
-            # TODO notify relevant people about test expectation changes, stability
-            env.bz.comment(sync.bug, ("The following tests were disabled "
-                                      "based on stability try push:\n %s" % "\n".join(disabled)))
-        logger.info("Metadata is ready for PR %s" % (sync.pr))
-        sync.metadata_ready = True
+    if try_push.stability and disabled:
+        logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
+        # TODO notify relevant people about test expectation changes, stability
+        env.bz.comment(sync.bug, ("The following tests were disabled "
+                                  "based on stability try push:\n %s" % "\n".join(disabled)))
     try_push.status = "complete"
 
-    pr = env.gh_wpt.get_pull(sync.pr)
-    if pr.merged:
-        sync.try_notify()
+    next_try_push = sync.next_try_push()
+
+    if not next_try_push or next_try_push.stability:
+        pr = env.gh_wpt.get_pull(sync.pr)
+        if pr.merged:
+            sync.try_notify()
 
 
 @base.entry_point("downstream")
 def pull_request_approved(git_gecko, git_wpt, sync):
-    pr = env.gh_wpt.get_pull(sync.pr)
-    if env.gh_wpt.is_approved(pr.number):
-        latest_try_push = sync.latest_try_push
-        if (latest_try_push and latest_try_push.status == "complete" and
-            not latest_try_push.stability):
-            TryPush.create(sync, sync.affected_tests(), stability=True)
+    sync.next_try_push()
+
+
+@base.entry_point("downstream")
+def update_pr(git_gecko, git_wpt, sync, action, merged, base_sha):
+    if action == "closed" and not merged:
+        sync.pr_status = "closed"
+        sync.finish()
+    elif action == "closed":
+        # We are storing the wpt base as a reference
+        sync.data["wpt-base"] = base_sha
+        sync.update_commits()
+        sync.next_try_push()
+        sync.try_notify()
+    elif action == "reopened" or action == "open":
+        sync.status = "open"
+        sync.pr_status = "open"
+        sync.update_commits()
