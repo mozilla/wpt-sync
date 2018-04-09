@@ -15,8 +15,10 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert len(landed) == 0
     assert len(failed) == 0
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    assert sync is not None
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
@@ -48,7 +50,10 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     upstream.push(git_gecko, git_wpt, "inbound", rev,
                   raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
@@ -57,9 +62,12 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
 
     backout_rev = upstream_gecko_backout(rev, bug)
 
-    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
     upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["incomplete"]
+    assert len(syncs["incomplete"]) == 1
+    sync = syncs["incomplete"][0]
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 0
@@ -82,9 +90,12 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["incomplete"]
+    assert len(syncs["incomplete"]) == 1
+    sync = syncs["incomplete"][0]
     assert sync.status == "incomplete"
-    assert sync._process_name.seq_id is None
+    assert sync._process_name.seq_id == 0
     assert len(sync.upstreamed_gecko_commits) == 0
 
     # Make some unrelated commit in the root
@@ -97,8 +108,11 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    assert sync._process_name.seq_id is None
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
+    assert sync._process_name.seq_id == 0
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
@@ -132,7 +146,10 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=relanding_rev)
     upstream.push(git_gecko, git_wpt, "inbound", relanding_rev, raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 2
     assert len(sync.wpt_commits) == 2
@@ -151,7 +168,10 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                            raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
     env.gh_wpt.get_pull(sync.pr).mergeable = True
     original_remote_branch = sync.remote_branch
 
@@ -161,7 +181,8 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
                                            raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs == {"wpt-merged": [sync]}
     assert sync.gecko_landed()
     assert sync.status == "wpt-merged"
     assert original_remote_branch not in git_wpt.remotes.origin.refs
@@ -179,7 +200,10 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev,
                                            raise_on_error=True)
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
     env.gh_wpt.get_pull(sync.pr).mergeable = True
 
     env.gh_wpt.set_status(sync.pr, "failure", "http://test/", "tests failed",
@@ -194,7 +218,6 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     pushed, landed, failed = upstream.push(git_gecko, git_wpt, "central", rev,
                                            raise_on_error=True)
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     env.gh_wpt.set_status(sync.pr, "success", "http://test/", "tests failed",
                           "continuous-integration/travis-ci/pr")
     upstream.status_changed(git_gecko, git_wpt, sync,
@@ -245,8 +268,9 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     assert len(landed) == 0
     assert len(failed) == 0
 
-    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    assert sync is not None
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    sync = pushed.pop()
+    assert syncs == {"open": [sync]}
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 2
@@ -275,3 +299,72 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     assert len(sync.wpt_commits) == 2
     assert ([item.metadata.get("gecko-commit") for item in sync.wpt_commits] ==
             [gecko_rev_2, gecko_rev_3])
+
+
+def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
+    bug = "1234"
+    test_changes = {"README": "Add README\n"}
+    rev_0 = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                  message="Add README")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_0)
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev_0,
+                                           raise_on_error=True)
+    assert len(pushed) == 1
+    sync_0 = pushed.pop()
+
+    test_changes = {"README1": "Add README1\n"}
+    rev_1 = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                  message="Add README1")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_1)
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev_1,
+                                           raise_on_error=True)
+    assert len(pushed) == 1
+    assert pushed == {sync_0}
+    assert len(sync_0.upstreamed_gecko_commits) == 2
+    assert sync_0._process_name.seq_id == 0
+
+    sync_0.finish("wpt-merged")
+    assert sync_0.status == "wpt-merged"
+
+    # Add new files each time to avoid conflicts since we don't
+    # Actually do the merges
+    test_changes = {"README2": "Add README2\n"}
+    rev_2 = upstream_gecko_commit(test_changes=test_changes,
+                                  bug=bug,
+                                  message="Add README2")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_2)
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev_2,
+                                           raise_on_error=True)
+
+    assert len(pushed) == 1
+    sync_1 = pushed.pop()
+    assert sync_1 != sync_0
+    assert sync_1._process_name.seq_id == 1
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert set(syncs.keys()) == {"open", "wpt-merged"}
+    assert set(syncs["open"]) == {sync_1}
+    assert set(syncs["wpt-merged"]) == {sync_0}
+
+    sync_0.finish()
+    sync_1.finish()
+
+    test_changes = {"README3": "Add README3\n"}
+    rev_3 = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                  message="Add README3")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_3)
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", rev_3,
+                                           raise_on_error=True)
+    assert len(pushed) == 1
+    sync_2 = pushed.pop()
+    assert sync_2._process_name not in (sync_1._process_name, sync_0._process_name)
+    assert sync_2._process_name.seq_id == 2
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert set(syncs.keys()) == {"open", "complete"}
+    assert set(syncs["open"]) == {sync_2}
+    assert set(syncs["complete"]) == {sync_0, sync_1}
