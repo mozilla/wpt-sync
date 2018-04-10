@@ -174,7 +174,8 @@ class TaskHandler(Handler):
         try_push.taskgroup_id = task_id
 
         if result != "success":
-            try_push.status = "infra-fail"
+            try_push.status = "complete"
+            try_push.infra_fail = True
             sync = try_push.sync(git_gecko, git_wpt)
             logger.error("Decision task got status %s for task %s%s" %
                          (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))

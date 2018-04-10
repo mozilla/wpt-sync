@@ -215,13 +215,14 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
         if try_push.status == "complete":
-            landing.try_push_complete(git_gecko,
-                                      git_wpt,
-                                      try_push,
-                                      current_landing,
-                                      allow_push=kwargs["push"])
-        elif try_push.status == "infra-fail":
-            land_to_gecko()
+            if try_push.infra_fail:
+                land_to_gecko()
+            else:
+                landing.try_push_complete(git_gecko,
+                                          git_wpt,
+                                          try_push,
+                                          current_landing,
+                                          allow_push=kwargs["push"])
         else:
             logger.info("Landing in bug %s is waiting for try results" % landing.bug)
     else:

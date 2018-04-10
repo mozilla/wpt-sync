@@ -234,7 +234,7 @@ class TryPush(base.ProcessData):
     obj_type = "try"
     statuses = ("open", "complete", "infra-fail")
     status_transitions = [("open", "complete"),
-                          ("open", "infra-fail")]
+                          ("infra-fail", "complete")]
     _retrigger_count = 6
 
     @classmethod
@@ -359,6 +359,19 @@ class TryPush(base.ProcessData):
         """Is the current try push a stability test"""
         return self["stability"]
 
+    @property
+    def infra_fail(self):
+        """Is the current try push a stability test"""
+        if self.status == "infra-fail":
+            self.status = "complete"
+            self.infra_fail = True
+        return self.get("infra-fail", False)
+
+    @infra_fail.setter
+    def infra_fail(self, value):
+        """Is the current try push a stability test"""
+        self["infra-fail"] = value
+
     def wpt_tasks(self, force_update=False):
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
@@ -395,7 +408,7 @@ class TryPush(base.ProcessData):
         if err:
             logger.debug(err)
             # TODO retry? manual intervention?
-            self.status = "infra-fail"
+            self.infra_fail = True
             raise AbortError(err)
 
         self._data["tasks"] = wpt_tasks
