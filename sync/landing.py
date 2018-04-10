@@ -389,6 +389,7 @@ Automatic update from web-platform-tests%s
             return
 
         if self.has_metadata_for_sync(sync):
+            logger.info("Metadata already applied for PR %s" % sync.pr)
             return
 
         if not sync.metadata_commit or sync.metadata_commit.is_empty():
@@ -435,7 +436,11 @@ Automatic update from web-platform-tests%s
                 path = data["rename"] if data["rename"] else head_path
                 if path not in affected_metadata:
                     logger.debug("Resetting changes to %s" % head_path)
-                    checkout.append(head_path)
+                    if data["code"] == "DU":
+                        # Files that were deleted in master should just be removed
+                        worktree.git.rm(head_path)
+                    else:
+                        checkout.append(head_path)
             logger.debug("Resetting changes to %s" % " ".join(checkout))
             worktree.git.checkout("HEAD", "--", *checkout)
             # Now try to commit again
