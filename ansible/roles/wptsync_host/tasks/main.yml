@@ -59,11 +59,23 @@
     - { src: "{{ _credentials }}", dest: "{{ mount_data }}/credentials_prod.ini" }
   when: update_credentials
 
-- name: chown mount-directories to docker container's UID (this make take a while)
+- name: chown mount-directories to docker container's UID (this may take a while)
   command: "/usr/bin/chown -R {{ docker_uid }}:{{ docker_uid }} {{ item }}"
   with_items:
     - "{{ mount_repos | mandatory }}"
     - "{{ mount_workspace| mandatory }}"
+    - "{{ mount_data }}/{{ ssh_dir }}/id_hgmo"
+    - "{{ mount_data }}/{{ ssh_dir }}/id_github"
+    - "{{ mount_data }}/credentials_prod.ini"
+
+- name: ensure rabbitmq user can create files in workspace/logs
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0775
+  with_items:
+    - "{{ mount_workspace| mandatory }}/logs"
+
 
 - import_tasks: push-docker-img.yml
   when: rebuild
