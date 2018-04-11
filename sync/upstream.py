@@ -536,7 +536,7 @@ def updates_for_backout(git_gecko, git_wpt, commit):
     backed_out_commits, bugs = commit.wpt_commits_backed_out()
     backed_out_commit_shas = {item.sha1 for item in backed_out_commits}
 
-    create_syncs = {}
+    create_syncs = {None: []}
     update_syncs = {}
 
     for backed_out_commit in backed_out_commits:
@@ -558,7 +558,9 @@ def updates_for_backout(git_gecko, git_wpt, commit):
         # Need to create a bug for this backout
         backout_bug = None
         for bug in bugs:
-            if bug not in update_syncs and not UpstreamSync.for_bug(git_gecko, git_wpt, bug):
+            open_bug_syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug,
+                                                  statuses=["open", "incomplete"])
+            if bug not in update_syncs and not open_bug_syncs:
                 backout_bug = bug
                 break
         if backout_bug is None:
