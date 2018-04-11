@@ -671,6 +671,9 @@ def update_modified_sync(sync):
     if len(sync.upstreamed_gecko_commits) == 0:
         logger.info("Sync has no commits, so marking as incomplete")
         sync.status = "incomplete"
+        if not sync.pr:
+            logger.info("Sync was already fully applied upstream, not creating a PR")
+            return
     else:
         sync.status = "open"
 
