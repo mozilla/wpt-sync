@@ -547,9 +547,14 @@ def updates_for_backout(git_gecko, git_wpt, commit):
         assert len(syncs) in (0, 1)
         if syncs:
             sync = syncs[0]
-        if sync and backed_out_commit in sync.upstreamed_gecko_commits:
-            backed_out_commit_shas.remove(backed_out_commit.sha1)
-            update_syncs[sync.bug] = (sync, commit)
+        if sync:
+            if commit in sync.gecko_commits:
+                # This commit was already processed
+                backed_out_commit_shas = set()
+                return {}, {}
+            if backed_out_commit in sync.upstreamed_gecko_commits:
+                backed_out_commit_shas.remove(backed_out_commit.sha1)
+                update_syncs[sync.bug] = (sync, commit)
 
     if backed_out_commit_shas:
         # This backout covers something other than known open syncs, so we need to
@@ -630,8 +635,9 @@ def create_syncs(git_gecko, git_wpt, create_endpoints):
         for endpoint in endpoints:
             if bug is None:
                 # TODO: Loading the commits doesn't work in this case, because we depend on the bug
+                commit = sync_commit.GeckoCommit(git_gecko, endpoint.head)
                 bug = env.bz.new("Upstream commit %s to web-platform-tests" %
-                                 endpoint.first.canonical_rev,
+                                 commit.canonical_rev,
                                  "",
                                  "Testing",
                                  "web-platform-tests",
