@@ -65,6 +65,13 @@ class UpstreamSync(base.SyncProcess):
         self._upstreamed_gecko_head = None
 
     @classmethod
+    def new(cls, *args, **kwargs):
+        self = super(UpstreamSync, cls).new(*args, **kwargs)
+        for commit in self.gecko_commits:
+            commit.set_upstream_sync(self)
+        return self
+
+    @classmethod
     def load(cls, git_gecko, git_wpt, branch_name):
         sync = super(UpstreamSync, cls).load(git_gecko, git_wpt, branch_name)
         sync.update_wpt_refs()
@@ -576,6 +583,9 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
     update_syncs = {}
 
     for commit in commits:
+        if commit.upstream_sync(git_gecko, git_wpt) is not None:
+            # This commit was already processed e.g. by a manual invocation, so skip
+            continue
         if commit.is_backout:
             create, update = updates_for_backout(git_gecko, git_wpt, commit)
             create_syncs.update(create)
@@ -643,6 +653,8 @@ def update_sync_heads(syncs_by_bug):
             raise ValueError("Tried to modify a closed sync for bug %s with commit %s" %
                              (bug, commit.canonical_rev))
         sync.gecko_commits.head = commit
+        for commit in sync.gecko_commits:
+            commit.set_upstream_sync(sync)
         rv.append(sync)
     return rv
 

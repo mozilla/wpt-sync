@@ -1,4 +1,4 @@
-from sync import upstream
+from sync import commit as sync_commit, upstream
 from sync.gitutils import update_repositories
 
 
@@ -37,6 +37,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert sync.pr
     assert "Posting to bug %s" % bug in env.bz.output.getvalue()
     assert "Created PR with id %s" % sync.pr in env.gh_wpt.output.getvalue()
+    assert sync.gecko_commits[0].upstream_sync(git_gecko, git_wpt) == sync
 
 
 def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
@@ -72,6 +73,8 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 0
     assert sync.status == "incomplete"
+    backout_commit = sync_commit.GeckoCommit(git_gecko, git_gecko.cinnabar.hg2git(rev))
+    assert backout_commit.upstream_sync(git_gecko, git_wpt) == sync
 
 
 def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
@@ -368,3 +371,30 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert set(syncs.keys()) == {"open", "complete"}
     assert set(syncs["open"]) == {sync_2}
     assert set(syncs["complete"]) == {sync_0, sync_1}
+
+
+def test_upstream_reprocess_commits(git_gecko, git_wpt, upstream_gecko_commit,
+                                    upstream_gecko_backout):
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change README")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    pushed, _, _ = upstream.push(git_gecko, git_wpt, "inbound", rev,
+                                 raise_on_error=True)
+    sync = pushed.pop()
+    assert sync.gecko_commits[0].upstream_sync(git_gecko, git_wpt) == sync
+
+    backout_rev = upstream_gecko_backout(rev, bug)
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
+    upstream.push(git_gecko, git_wpt, "inbound", backout_rev, raise_on_error=True)
+
+    sync_point = git_gecko.refs["sync/upstream/inbound"]
+    sync_point.commit = (sync_commit.GeckoCommit(git_gecko, git_gecko.cinnabar.hg2git(rev))
+                         .commit.parents[0])
+
+    pushed, landed, failed = upstream.push(git_gecko, git_wpt, "inbound", backout_rev,
+                                           raise_on_error=True)
+    assert len(pushed) == len(landed) == len(failed) == 0

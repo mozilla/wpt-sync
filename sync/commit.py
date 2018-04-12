@@ -325,6 +325,27 @@ class GeckoCommit(Commit):
                 commits.append(commit)
         return commits, set(bugs)
 
+    def upstream_sync(self, git_gecko, git_wpt):
+        import upstream
+        if "upstream-sync" in self.notes:
+            bug, seq_id = self.notes["upstream-sync"].split(":", 1)
+            if seq_id == "":
+                seq_id = None
+            syncs = upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="*",
+                                                   obj_id=bug, seq_id=seq_id)
+            assert len(syncs) <= 1
+            if syncs:
+                return syncs[0]
+
+    def set_upstream_sync(self, sync):
+        import upstream
+        if not isinstance(sync, upstream.UpstreamSync):
+            raise ValueError
+        seq_id = sync.seq_id
+        if seq_id is None:
+            seq_id = ""
+        self.notes["upstream-sync"] = "%s:%s" % (sync.bug, seq_id)
+
 
 class WptCommit(Commit):
     def pr(self):
