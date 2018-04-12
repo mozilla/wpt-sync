@@ -873,6 +873,10 @@ class SyncProcess(object):
         self.data["pr"] = value
 
     @property
+    def seq_id(self):
+        return self._process_name.seq_id
+
+    @property
     def last_pr_check(self):
         return self.data.get("last-pr-check", {})
 
