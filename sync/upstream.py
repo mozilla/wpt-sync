@@ -149,24 +149,6 @@ class UpstreamSync(base.SyncProcess):
         metadata = sync_commit.get_metadata(message)
         return all(item in metadata for item in required_keys)
 
-    def update_status(self, action, merge_sha=None, base_sha=None):
-        """Update the sync status for a PR event on github
-
-        :param action string: Either a PR action or a PR status
-        :param merge_sha boolean: SHA of the new head if the PR merged or None if it didn't
-        """
-        if action == "closed":
-            if not merge_sha and self.pr_status != "closed":
-                env.bz.comment(self.bug, "Upstream PR was closed without merging")
-                self.pr_status = "closed"
-            else:
-                self.merge_sha = merge_sha
-                if self.status != "complete":
-                    env.bz.comment(self.bug, "Upstream PR merged")
-                    self.finish("wpt-merged")
-        elif action == "reopened" or action == "open":
-            self.pr_status = "open"
-
     def gecko_commit_filter(self):
         return BackoutCommitFilter(self.bug)
 
@@ -816,3 +798,23 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
         else:
             logger.info("Some upstream web-platform-tests status checks still pending.")
     return landed
+
+
+@base.entry_point("upstream")
+def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
+    """Update the sync status for a PR event on github
+
+    :param action string: Either a PR action or a PR status
+    :param merge_sha string: SHA of the new head if the PR merged or None if it didn't"""
+
+    if action == "closed":
+        if not merge_sha and sync.pr_status != "closed":
+            env.bz.comment(sync.bug, "Upstream PR was closed without merging")
+            sync.pr_status = "closed"
+        else:
+            sync.merge_sha = merge_sha
+            if sync.status != "complete":
+                env.bz.comment(sync.bug, "Upstream PR merged")
+                sync.finish("wpt-merged")
+    elif action == "reopened" or action == "open":
+        sync.pr_status = "open"
