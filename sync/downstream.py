@@ -107,7 +107,9 @@ class DownstreamSync(base.SyncProcess):
         latest_try_push = self.latest_valid_try_push
         if not latest_try_push:
             return False
-        if latest_try_push.status != "complete":
+        if latest_try_push.status != "complete" or latest_try_push.infra_fail:
+            return False
+        if latest_try_push.expired():
             return False
         return latest_try_push.stability or not self.requires_stability_try
 
@@ -148,6 +150,8 @@ class DownstreamSync(base.SyncProcess):
         so we always assume that any try push is valid"""
 
         latest_try_push = self.latest_try_push
+        if latest_try_push and latest_try_push.expired():
+            latest_try_push = None
 
         # Check if the try push is for the current PR head
         if (latest_try_push and
@@ -167,17 +171,29 @@ class DownstreamSync(base.SyncProcess):
         None is not an indication that the sync is ready to land, just that
         there's no further action at this time.
         """
-        if not self.requires_try:
+        if not self.requires_try or self.status != "open":
             return
 
         latest_try_push = self.latest_valid_try_push
 
-        if latest_try_push and latest_try_push.status != "complete":
-            return
+        if latest_try_push:
+            if latest_try_push.status != "complete":
+                return
+            if latest_try_push.infra_fail and len(self.latest_busted_try_pushes()) > 5:
+                message = ("Too many busted try pushes. "
+                           "Check the try results for infrastructure issues.")
+                self.error = message
+                env.bz.comment(self.bug, message)
+                return
 
         if not latest_try_push:
             logger.info("Creating a try push for PR %s" % self.pr)
             return TryPush.create(self, self.affected_tests(), stability=False)
+        if latest_try_push.infra_fail:
+            logger.info("Recreating a%stry push for PR %s after an infra failure." %
+                        (" stability " if latest_try_push.stability else " ", self.pr))
+            return TryPush.create(self, self.affected_tests(),
+                                  stability=latest_try_push.stability)
         elif not latest_try_push.stability and self.requires_stability_try:
             pr = env.gh_wpt.get_pull(self.pr)
             pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
@@ -474,7 +490,7 @@ class DownstreamSync(base.SyncProcess):
         # Get the list of central tasks and download the wptreport logs
         central_tasks = notify.get_central_tasks(self.git_gecko, self)
         if not central_tasks:
-            logger.info("Not all mozilla-central results avaiable for PR %s" % self.pr)
+            logger.info("Not all mozilla-central results available for PR %s" % self.pr)
             return
 
         try_tasks = complete_try_push.wpt_tasks()

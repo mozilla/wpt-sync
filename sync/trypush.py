@@ -1,8 +1,10 @@
 import os
 import re
 import subprocess
+from datetime import datetime, timedelta
 from itertools import chain
 
+import taskcluster
 import yaml
 
 import base
@@ -236,6 +238,8 @@ class TryPush(base.ProcessData):
     status_transitions = [("open", "complete"),
                           ("infra-fail", "complete")]
     _retrigger_count = 6
+    # min rate of job success to proceed with metadata update
+    _min_success = 0.7
 
     @classmethod
     def create(cls, sync, affected_tests=None, stability=False, hacks=True,
@@ -266,6 +270,7 @@ class TryPush(base.ProcessData):
                                                     "open",
                                                     getattr(sync, sync.obj_id))
         rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
+        rv.created = taskcluster.fromNowJSON("0 days")
 
         env.bz.comment(sync.bug,
                        "Pushed to try%s %s" %
@@ -311,6 +316,26 @@ class TryPush(base.ProcessData):
             if getattr(self._ref._process_name, attr) != getattr(other._ref._process_name, attr):
                 return False
         return True
+
+    def failure_limit_exceeded(self, sync, target_rate=_min_success):
+        if self.success_rate() < target_rate:
+            message = (
+                "Latest try push for bug %s has too many failures.\n"
+                "See %s"
+            ) % (sync.bug, self.treeherder_url(self.try_rev))
+            sync.error = message
+            env.bz.comment(sync.bug, message)
+            self.status = "complete"
+            return True
+        return False
+
+    @property
+    def created(self):
+        return self.get("created")
+
+    @created.setter
+    def created(self, value):
+        self["created"] = value
 
     @property
     def try_rev(self):
@@ -361,6 +386,26 @@ class TryPush(base.ProcessData):
                 return item
         raise ValueError("Got multiple syncs and none were open")
 
+    def expired(self):
+        now = taskcluster.fromNow("0 days")
+        created_date = None
+        is_expired = True
+        try:
+            if self.created:
+                created_date = datetime.strptime(self.created, tc._DATE_FMT)
+            else:
+                # for legacy pushes, save creation date from TaskCluster
+                task = tc.get_task(self.taskgroup_id)
+                if task and task.get("created"):
+                    self.created = task["created"]
+                    created_date = datetime.strptime(self.created, tc._DATE_FMT)
+        except ValueError:
+            logger.debug("Failed to determine creation date for %s" % self)
+        if created_date:
+            # try push created more than 14 days ago
+            is_expired = now > created_date + timedelta(days=14)
+        return is_expired
+
     @property
     def stability(self):
         """Is the current try push a stability test"""
@@ -401,6 +446,14 @@ class TryPush(base.ProcessData):
         err = None
         if not len(wpt_tasks):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
+        else:
+            def is_exc(task):
+                return task.get("status", {}).get("state") == tc.EXCEPTION
+
+            exceptions = [task for task in wpt_tasks if is_exc(task)]
+            if float(len(exceptions)) / len(wpt_tasks) > (1 - self._min_success):
+                err = ("Too many exceptions found among wpt tests. "
+                       "Check decision task {}".format(self.taskgroup_id))
         # TODO: it seems we don't have a great way of sanity checking that all the expected
         # jobs ran to completion
         # if any(item.get("status", {}).get("state", None)
@@ -414,7 +467,6 @@ class TryPush(base.ProcessData):
 
         if err:
             logger.debug(err)
-            # TODO retry? manual intervention?
             self.infra_fail = True
             raise AbortError(err)
 
@@ -444,6 +496,14 @@ class TryPush(base.ProcessData):
         self._data["task_states"] = task_states
         return task_states
 
+    def failed_builds(self):
+        builds = tc.get_builds(self.taskgroup_id)
+
+        def failed(task):
+            return task.get("status", {}).get("state") in [tc.FAIL, tc.EXCEPTION]
+
+        return [task for task in builds if failed(task)]
+
     def retriggered_wpt_states(self, force_update=False):
         # some retrigger requests may have failed, and we try to ignore
         # manual/automatic retriggers made outside of wptsync
@@ -455,10 +515,16 @@ class TryPush(base.ProcessData):
     def success(self):
         """Check if all the wpt tasks in a try push ended with a successful status"""
         wpt_tasks = self.wpt_tasks()
-        return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
+        if wpt_tasks:
+            return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
+        else:
+            return False
 
     def success_rate(self):
         wpt_tasks = self.wpt_tasks()
+
+        if not wpt_tasks:
+            return float(0)
 
         def is_success(task):
             return task.get("status", {}).get("state") == tc.SUCCESS
