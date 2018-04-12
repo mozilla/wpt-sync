@@ -16,6 +16,7 @@ from env import Environment
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
 TREEHERDER_BASE = "https://treeherder.mozilla.org/"
+_DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 SUCCESS = "completed"
 FAIL = "failed"
@@ -43,7 +44,6 @@ class TaskclusterClient(object):
         return self._queue
 
     def retrigger(self, task_id, count=1, retries=5):
-        _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
         payload = self.queue.task(task_id)
         del payload["routes"]
         now = taskcluster.fromNow("0 days")
@@ -111,6 +111,17 @@ def is_complete(tasks):
                    for task in tasks)
 
 
+def get_task(task_id):
+    if task_id is None:
+        return
+    task_url = QUEUE_BASE + "task/" + task_id
+    r = requests.get(task_url)
+    task = r.json()
+    if task.get("taskGropuId"):
+        return task
+    logger.debug("Task %s not found: %s" % (task_id, task.get("message", "")))
+
+
 def get_tasks_in_group(group_id):
     list_url = QUEUE_BASE + "task-group/" + group_id + "/list"
 
@@ -134,6 +145,12 @@ def get_wpt_tasks(taskgroup_id):
     tasks = get_tasks_in_group(taskgroup_id)
     wpt_tasks = filter_suite(tasks, "web-platform-tests")
     return wpt_tasks
+
+
+def get_builds(taskgroup_id):
+    logger.info("Getting builds for taskgroup %s" % taskgroup_id)
+    tasks = get_tasks_in_group(taskgroup_id)
+    return [t for t in tasks if is_build(t)]
 
 
 def count_task_state_by_name(tasks):

@@ -987,12 +987,22 @@ class SyncProcess(object):
                 new_whiteboard = bug.set_sync_data(whiteboard, self.sync_type, status)
                 env.bz.set_whiteboard(self.bug, new_whiteboard)
 
-    def try_pushes(self):
+    def try_pushes(self, status="*"):
         import trypush
         return trypush.TryPush.load_all(self.git_gecko,
                                         self.sync_type,
                                         self._process_name.obj_id,
-                                        status="*")
+                                        status=status)
+
+    def latest_busted_try_pushes(self):
+        try_pushes = self.try_pushes(status="complete")
+        busted = []
+        for push in reversed(try_pushes):
+            if push.infra_fail and not push.expired():
+                busted.append(push)
+            else:
+                break
+        return busted
 
     @property
     def latest_try_push(self):
@@ -1003,7 +1013,7 @@ class SyncProcess(object):
 
     def finish(self, status="complete"):
         # TODO: cancel related try pushes &c.
-        logger.info("Marking sync %s as complete" % (self._process_name))
+        logger.info("Marking sync %s as %s" % (self._process_name, status))
         self.status = status
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()

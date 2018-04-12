@@ -1,5 +1,9 @@
 from mock import patch
-from sync import downstream, handlers, load, tree, trypush
+from datetime import datetime
+
+import taskcluster
+
+from sync import downstream, handlers, load, tc, tree, trypush
 
 
 def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, set_pr_status, mock_mach, mock_wpt):
@@ -57,7 +61,7 @@ def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
 
 
 def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
-                         hg_gecko_try, mock_wpt):
+                         hg_gecko_try, mock_wpt, mock_tasks):
     mock_wpt.set_data("tests-affected", "")
 
     pr = pull_request([("Test commit", {"README": "Example change\n"})],
@@ -73,7 +77,7 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
     assert sync.last_pr_check == {"state": "success", "sha": pr.head}
     try_push.success = lambda: True
     with patch('sync.trypush.tc.get_wpt_tasks',
-               return_value=([], [])):
+               return_value=mock_tasks(completed=["foo", "bar"] * 5)):
         downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
     assert try_push.status == "complete"
     assert sync.latest_try_push == try_push
@@ -166,3 +170,60 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
 
     updated_try_push = sync.next_try_push(try_cls=MockTryCls)
     assert not updated_try_push.stability
+
+
+def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
+                                  set_pr_status, MockTryCls, hg_gecko_try):
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr, "success")
+    assert len(sync.try_pushes()) == 1
+
+    # no stability try push needed
+    sync.data["affected-tests"] = []
+
+    try_push = sync.latest_valid_try_push
+    try_push.status = "complete"
+    try_push.infra_fail = True
+
+    for i in range(4):
+        another_try_push = sync.next_try_push(try_cls=MockTryCls)
+        assert not sync.metadata_ready
+        assert another_try_push is not None
+        another_try_push.infra_fail = True
+        another_try_push.status = "complete"
+
+    assert len(sync.latest_busted_try_pushes()) == 5
+
+    another_try_push.infra_fail = False
+    # Now most recent try push isn't busted, so count goes back to 0
+    assert len(sync.latest_busted_try_pushes()) == 0
+    # Reset back to 5
+    another_try_push.infra_fail = True
+    # After sixth consecutive infra_failure, we should get sync error
+    another_try_push = sync.next_try_push(try_cls=MockTryCls)
+    another_try_push.infra_fail = True
+    another_try_push.status = "complete"
+    another_try_push = sync.next_try_push(try_cls=MockTryCls)
+    assert another_try_push is None
+    assert sync.error["message"].startswith("Too many busted try pushes")
+
+
+def test_try_push_expiration(git_gecko, git_wpt, pull_request,
+                             set_pr_status, MockTryCls, hg_gecko_try):
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+    today = datetime.today().date()
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr, "success")
+    try_push = sync.latest_valid_try_push
+    created_date = datetime.strptime(try_push.created, tc._DATE_FMT)
+    assert today == created_date.date()
+    assert not try_push.expired()
+    try_push.created = taskcluster.fromNowJSON("-15 days")
+    assert try_push.expired()
+    try_push.created = None
+    with patch("sync.trypush.tc.get_task",
+               return_value={"created": taskcluster.fromNowJSON("-5 days")}):
+        assert not try_push.expired()

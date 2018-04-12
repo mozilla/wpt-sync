@@ -817,19 +817,10 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
 @base.entry_point("landing")
 def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
-    # min rate of job success to proceed with metadata update
-    target_rate = 0.7
     retriggered = try_push.retriggered_wpt_states(force_update=True)
     intermittents = []
     if not try_push.success() and not retriggered:
-        if try_push.success_rate() < target_rate:
-            message = (
-                "Latest try push for bug %s has too many failures.\n"
-                "See %s"
-            ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
-            sync.error = message
-            env.bz.comment(sync.bug, message)
-            try_push.status = "complete"
+        if try_push.failure_limit_exceeded(sync):
             return
         num_new_jobs = try_push.retrigger_failures()
         logger.info("%s new tasks scheduled on try for %s" % (num_new_jobs, sync.bug))
@@ -841,10 +832,12 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
     for name, data in retriggered.iteritems():
         total = float(sum(data["states"].itervalues()))
         # assuming that only failures cause metadata updates
-        if data["states"][tc.SUCCESS] / total >= target_rate:
+        if data["states"][tc.SUCCESS] / total >= try_push._min_success:
             intermittents.append(name)
 
     log_files = try_push.download_raw_logs(exclude=intermittents)
+    if not log_files:
+        logger.debug("No log files found for try push %r" % try_push)
     sync.update_metadata(log_files)
 
     try_push.status = "complete"

@@ -193,13 +193,18 @@ class TaskHandler(Handler):
         logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
         try_push.taskgroup_id = task_id
 
-        if result != "success":
+        failed_builds = len(try_push.failed_builds)
+        if result != "success" or failed_builds:
             try_push.status = "complete"
             try_push.infra_fail = True
             sync = try_push.sync(git_gecko, git_wpt)
-            logger.error("Decision task got status %s for task %s%s" %
-                         (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
+            message = ("Decision task got status %s for task %s%s" %
+                       (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
+            if failed_builds:
+                message = "The try push includes build failures. %s" % message
+            logger.error(message)
             if sync and sync.bug:
+                # TODO this is commenting too frequently on bugs
                 env.bz.comment(sync.bug,
                                "Try push failed: decision task returned error")
 
