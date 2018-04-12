@@ -801,6 +801,8 @@ def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
     landing.update_bug_components()
 
+    landing.update_sync_point(sync_point)
+
     if landing.latest_try_push is None:
         trypush.TryPush.create(landing, hacks=False,
                                try_cls=trypush.TryFuzzyCommit, exclude=["pgo", "ccov"])
@@ -855,9 +857,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
                                          git_wpt,
                                          sync.wpt_commits.base.sha1,
                                          sync.wpt_commits.head.sha1)
-
-    sync_point = load_sync_point(git_gecko, git_wpt)
-    sync.update_sync_point(sync_point)
 
     if not allow_push:
         logger.info("Landing in bug %s is ready for push.\n"

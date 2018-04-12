@@ -283,7 +283,8 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     tree.is_open = lambda x: True
     landing_sync = landing.land_to_gecko(git_gecko, git_wpt)
 
-    assert len(landing_sync.gecko_commits) == 2
-    assert landing_sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
+    assert len(landing_sync.gecko_commits) == 3
+    assert landing_sync.gecko_commits[-1].metadata["wpt-type"] == "landing"
+    assert landing_sync.gecko_commits[-2].metadata["wpt-type"] == "metadata"
     for item in file_data:
-        assert item in landing_sync.gecko_commits[-1].commit.stats.files
+        assert item in landing_sync.gecko_commits[-2].commit.stats.files
