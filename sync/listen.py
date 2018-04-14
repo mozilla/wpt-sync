@@ -1,10 +1,9 @@
 import os
-import socket
 import urlparse
-import traceback
-from time import sleep
 
 import kombu
+
+from kombu.mixins import ConsumerMixin
 
 import log
 import handlers
@@ -16,51 +15,26 @@ here = os.path.dirname(__file__)
 logger = log.get_logger(__name__)
 
 
-class Consumer(object):
-    """Represents a Pulse consumer to version control data."""
-    def __init__(self, conn, exchanges, extra_data):
-        self._conn = conn
-        self._consumer = None
-        self._entered = False
+class Listener(ConsumerMixin):
+    """Manages a single kombu.Consumer."""
+    def __init__(self, conn, exchanges, queues, extra_data):
+        self.connection = conn
         self._callbacks = {item: [] for item in exchanges}
+        self._queues = queues
         self._extra_data = extra_data
+        self.connect_max_retries = 10
 
-    def __enter__(self):
-        self._consumer.consume()
-        self._entered = True
-        return self
+    def get_consumers(self, Consumer, channel):
+        consumer = Consumer(self._queues, callbacks=[self.on_message], auto_declare=False)
+        return [consumer]
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        self._consumer.cancel()
-        self._entered = False
+    def on_connection_revived(self):
+        logger.debug("Connection to %s revived." % self.connection.hostname)
 
     def add_callback(self, exchange, func):
-        if exchange is not None:
-            self._callbacks[exchange].append(func)
-        else:
-            for callbacks in self.callbacks.itervalues():
-                callbacks.append(func)
-
-    def listen_forever(self, retries=5):
-        """Listen for and handle messages until interrupted."""
-        if not self._entered:
-            raise Exception('must enter context manager before calling')
-        pause = 1
-        count = retries
-        while True and count > 0:
-            try:
-                self._conn.drain_events(timeout=1.0)
-                pause = 1
-                count = retries
-            except socket.timeout as e:
-                pass
-            except socket.error as e:
-                logger.warning(traceback.format_exc(e))
-                sleep(pause)
-                count -= 1
-                pause *= 2
-                self._conn.release()
-                self._conn.connect()
+        if exchange is None:
+            raise ValueError("Expected string, got None")
+        self._callbacks[exchange].append(func)
 
     def on_message(self, body, message):
         exchange = message.delivery_info['exchange']
@@ -76,41 +50,15 @@ class Consumer(object):
             message.ack()
 
 
-def get_consumer(userid, password,
-                 hostname='pulse.mozilla.org',
-                 port=5571,
-                 ssl=True,
-                 exchanges=None,
-                 extra_data=None):
+def get_listener(conn, userid, exchanges=None, extra_data=None):
     """Obtain a Pulse consumer that can handle received messages.
 
-    Caller passes Pulse connection details, including credentials. These
-    credentials are managed at https://pulseguardian.mozilla.org/.
+    Returns a ``Listener`` instance bound to listen to the requested exchanges.
+    Callers should use ``add_callback`` to register functions
+    that will be called when a message is received.
 
-    Returns a ``Consumer`` instance bound to listen to the requested exchanges.
-    Callers should append functions to the ``github_callbacks`` and/or
-    ``hgmo_callbacks`` lists of this instance to register functions that will
-    be called when a message is received.
-
-    The returned ``Consumer`` must be active as a context manager for processing
-    to work.
-
-    The callback functions receive arguments ``body``, ``message``,
-    and ``extra_data``. ``body`` is the decoded message body. ``message`` is
-    the AMQP message from Pulse.  ``extra_data`` holds optional data for the
-    consumers.
-
-     **Callbacks must call ``message.ack()`` to acknowledge the message when
-     done processing it.**
+    The callback functions receive one argument ``body``, the decoded message body.
     """
-    conn = kombu.Connection(
-        hostname=hostname,
-        port=port,
-        ssl=ssl,
-        userid=userid,
-        password=password)
-    conn.connect()
-
     queues = []
 
     if exchanges is None:
@@ -132,23 +80,20 @@ def get_consumer(userid, password,
                             channel=conn,
                             extra_data=extra_data)
         queues.append(queue)
-
-    consumer = Consumer(conn, [item[1] for item in exchanges], extra_data)
-    kombu_consumer = conn.Consumer(queues, callbacks=[consumer.on_message],
-                                   auto_declare=False)
-    consumer._consumer = kombu_consumer
-
-    # queue.declare() declares the exchange, which isn't allowed by the
-    # server. So call the low-level APIs to only declare the queue itself.
-    for queue in kombu_consumer.queues:
+        # queue.declare() declares the exchange, which isn't allowed by the
+        # server. So call the low-level APIs to only declare the queue itself.
         queue.queue_declare()
         queue.queue_bind()
 
-    return consumer
+    return Listener(conn, [item[1] for item in exchanges], queues, extra_data)
 
 
 def run_pulse_listener(config):
-    """Trigger events from Pulse messages."""
+    """
+    Configures Pulse connection and triggers events from Pulse messages.
+
+    Connection details are managed at https://pulseguardian.mozilla.org/.
+    """
     exchanges = [(config['pulse']['github']['queue'],
                   config['pulse']['github']['exchange'],
                   config['pulse']['github']['routing_key']),
@@ -162,27 +107,26 @@ def run_pulse_listener(config):
                   config['pulse']['treeherder']['exchange'],
                   config['pulse']['treeherder']['routing_key']), ]
 
-    consumer = get_consumer(userid=config['pulse']['username'],
-                            password=config['pulse']['password'],
-                            hostname=config['pulse']['host'],
+    conn = kombu.Connection(hostname=config['pulse']['host'],
                             port=config['pulse']['port'],
                             ssl=config['pulse']['ssl'],
-                            exchanges=exchanges)
+                            userid=config['pulse']['username'],
+                            password=config['pulse']['password'])
 
-    consumer.add_callback(config['pulse']['github']['exchange'],
-                          GitHubFilter(config))
-    consumer.add_callback(config['pulse']['hgmo']['exchange'],
-                          PushFilter(config))
-    consumer.add_callback(config['pulse']['treeherder']['exchange'],
-                          TaskFilter(config))
-    consumer.add_callback(config['pulse']['taskcluster']['exchange'],
-                          TaskGroupFilter(config))
-
-    try:
-        with consumer:
-            consumer.listen_forever()
-    except KeyboardInterrupt:
-        pass
+    with conn:
+        try:
+            listener = get_listener(conn, userid=config['pulse']['username'], exchanges=exchanges)
+            listener.add_callback(config['pulse']['github']['exchange'],
+                                  GitHubFilter(config))
+            listener.add_callback(config['pulse']['hgmo']['exchange'],
+                                  PushFilter(config))
+            listener.add_callback(config['pulse']['treeherder']['exchange'],
+                                  TaskFilter(config))
+            listener.add_callback(config['pulse']['taskcluster']['exchange'],
+                                  TaskGroupFilter(config))
+            listener.run()
+        except KeyboardInterrupt:
+            pass
 
 
 class Filter(object):
