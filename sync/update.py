@@ -138,22 +138,27 @@ def update_pr(git_gecko, git_wpt, pr):
     elif isinstance(sync, downstream.DownstreamSync):
         if len(sync.wpt_commits) == 0:
             sync.update_wpt_commits()
+
         if not sync.bug and not (pr.state == "closed" and not pr.merged):
             sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
-        if sync.latest_try_push and not sync.latest_try_push.taskgroup_id:
-            update_taskgroup_ids(git_gecko, git_wpt)
+
         if pr.state == "open" or pr.merged:
             if pr.head.sha != sync.wpt_commits.head:
                 # Upstream has different commits, so run a push handler
                 schedule_pr_task("push", pr)
-            if not pr.merged:
-                update_for_status(pr)
-            else:
-                update_for_action(pr, "closed")
-        elif pr.state == "closed" and not pr.merged:
+
+            elif sync.latest_valid_try_push:
+                if not sync.latest_valid_try_push.taskgroup_id:
+                    update_taskgroup_ids(git_gecko, git_wpt)
+
+                if (sync.latest_valid_try_push.taskgroup_id and
+                    not sync.latest_valid_try_push.status == "complete"):
+                    update_tasks(git_gecko, git_wpt, sync=sync)
+
+        if not pr.merged:
+            update_for_status(pr)
+        else:
             update_for_action(pr, "closed")
-        if sync.latest_try_push:
-            update_tasks(git_gecko, git_wpt, sync=sync)
 
     elif isinstance(sync, upstream.UpstreamSync):
         merge_sha = pr.merge_commit_sha if pr.merged else None
