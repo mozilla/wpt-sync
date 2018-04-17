@@ -3,6 +3,7 @@ import os
 import shutil
 from collections import defaultdict
 
+import enum
 import git
 from mozautomation import commitparser
 
@@ -912,3 +913,37 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
 
     if landing_sync and landing_sync.status == "complete":
         tasks.land.apply_async()
+
+
+class UnlandableType(enum.Enum):
+    ready = 0
+    no_pr = 1
+    upstream = 2
+    no_sync = 3
+    error = 4
+    missing_try_results = 5
+    skip = 6
+
+
+def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
+    pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
+                                            git_wpt,
+                                            wpt_head or prev_wpt_head,
+                                            "origin/master")
+    for pr, commits in pr_commits:
+        if pr is None:
+            yield (pr, commits, UnlandableType.no_pr)
+        elif upstream.UpstreamSync.has_metadata(commits[0].msg):
+            yield (pr, commits, UnlandableType.upstream)
+        else:
+            sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
+            if not sync:
+                yield (pr, commits, UnlandableType.no_sync)
+            elif sync.skip:
+                yield (pr, commits, UnlandableType.skip)
+            elif sync.metadata_ready:
+                yield (pr, commits, UnlandableType.metadata_ready)
+            elif sync.error:
+                yield (pr, commits, UnlandableType.error)
+            else:
+                yield (pr, commits, UnlandableType.missing_try_results)

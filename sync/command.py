@@ -417,12 +417,11 @@ def do_skip(git_gecko, git_wpt, pr_id, *args, **kwargs):
 
 @with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
-    import downstream
     import update
-    import upstream
-    from landing import load_sync_point, landable_commits, unlanded_wpt_commits_by_pr
+    from landing import UnlandableType, load_sync_point, landable_commits, unlanded_with_type
 
     update_repositories(git_gecko, git_wpt)
+
     if kwargs["prev_wpt_head"] is None:
         sync_point = load_sync_point(git_gecko, git_wpt)
         prev_wpt_head = sync_point["upstream"]
@@ -439,68 +438,23 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         wpt_head, commits = landable
         print("Landing will update wpt head to %s" % wpt_head)
 
-    if kwargs["all"]:
-        print("Unlandable PRs:")
-        pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
-                                                git_wpt,
-                                                wpt_head or prev_wpt_head,
-                                                "origin/master")
-        start = []
-        retry = []
-        update_tasks = []
-        for pr, commits in pr_commits:
-            if pr is None:
-                print "%s: No PR" % ", ".join(item.sha1 for item in commits)
-            elif upstream.UpstreamSync.has_metadata(commits[0].msg):
-                print "%s: From mozilla-central" % pr
-            elif "gecko-commit" in commits[0].metadata:
-                print "%s: From mozilla-central" % pr
-            else:
-                sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-                if not sync:
-                    print "%s: No sync started" % pr
-                    start.append(pr)
-                elif sync.metadata_ready:
-                    print "%s: Ready" % pr
-                elif sync.skip:
-                    print "%s: Skip" % pr
-                elif sync.error:
-                    print "%s: Error" % pr
-                    retry.append(sync)
-                elif sync.latest_try_push:
-                    print "%s: Has try push" % pr
-                    if sync.latest_try_push.taskgroup_id:
-                        update_tasks.append(sync)
-                else:
-                    print "%s: No try push" % pr
-                    retry.append(sync)
+    if kwargs["all"] or kwargs["retrigger"]:
+        unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
+        status_map = {UnlandableType.ready: "ready",
+                      UnlandableType.no_pr: "No PR",
+                      UnlandableType.upstream: "From gecko",
+                      UnlandableType.no_sync: "No sync created",
+                      UnlandableType.error: "Error",
+                      UnlandableType.missing_try_results: "Incomplete try results",
+                      UnlandableType.skip: "Skip"}
+
+        for pr, _, status in unlandable:
+            print("%s: %s" % (pr, status_map.get(status, "Unknown")))
 
         if kwargs["retrigger"]:
-            errors = []
-            for pr_id in start:
-                pr = env.gh_wpt.get_pull(int(pr_id))
-                try:
-                    update.update_pr(git_gecko, git_wpt, pr)
-                except Exception:
-                    errors.append(pr_id)
-            if update_tasks:
-                update.update_taskgroup_ids(git_gecko, git_wpt)
-            for sync in update_tasks:
-                if sync.latest_try_push.taskgroup_id:
-                    try:
-                        update.handle_sync("taskgroup",
-                                           {"taskGroupId": sync.latest_try_push.taskgroup_id})
-                    except Exception:
-                        errors.append(sync.pr)
-            for sync in retry:
-                pr = env.gh_wpt.get_pull(sync.pr)
-                try:
-                    update.update_pr(git_gecko, git_wpt, pr)
-                except Exception:
-                    errors.append(sync.pr)
-
+            errors = update.retrigger(git_gecko, git_wpt, unlandable)
             if errors:
-                print("Got errors for PRs:\n%s" % "\n".join(errors))
+                print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
 def set_config(opts):
