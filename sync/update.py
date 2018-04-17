@@ -241,3 +241,23 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
                 handle_sync("taskgroup", {"taskGroupId": try_push.taskgroup_id})
             except AbortError:
                 pass
+
+
+def retrigger(git_gecko, git_wpt, unlandable_prs):
+    from landing import UnlandableType
+
+    errors = []
+    for pr_id, commits, status in unlandable_prs:
+        if status in (UnlandableType.ready,
+                      UnlandableType.skip,
+                      UnlandableType.upstream,
+                      UnlandableType.no_pr):
+            continue
+
+        try:
+            pr = env.gh_wpt.get_pull(int(pr_id))
+            update_pr(git_gecko, git_wpt, pr)
+        except Exception:
+            errors.append(pr_id)
+
+    return errors
