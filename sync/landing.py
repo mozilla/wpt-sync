@@ -697,7 +697,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
                                                   bug.bug_number_from_url(
                                                       commits[0].metadata["bugzilla-url"]))
             for key, values in syncs.iteritems():
-                for sync in syncs:
+                for sync in values:
                     if commits[0] in sync.gecko_commits:
                         break
                 else:
