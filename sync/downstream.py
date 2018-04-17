@@ -19,6 +19,7 @@ import gitutils
 import log
 import notify
 import trypush
+import tc
 import commit as sync_commit
 from env import Environment
 from gitutils import update_repositories
@@ -622,7 +623,10 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
 
 @base.entry_point("downstream")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
-    logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
+    if not try_push.taskgroup_id:
+        logger.error("No taskgroup id set for try push")
+        return
+
     if not try_push.status == "complete":
         # Ensure we don't have some old set of tasks
         try_push.wpt_tasks(force_update=True)
@@ -632,6 +636,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
         try_push.validate_tasks()
 
+        logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
         disabled = []
         if not try_push.success():
             if sync.affected_tests():
