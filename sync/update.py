@@ -65,6 +65,15 @@ def update_for_status(pr):
             return
 
 
+def update_for_action(pr, action):
+    event = construct_event("pull_request",
+                            {"action": action,
+                             "number": pr.number,
+                             "pull_request": pr.raw_data})
+    logger.info("Running action %s for PR %s" % (action, pr.number))
+    handle_sync("github", event)
+
+
 def convert_rev(git_gecko, rev):
     try:
         git_rev = git_gecko.cinnabar.hg2git(rev)
@@ -134,9 +143,12 @@ def update_pr(git_gecko, git_wpt, pr):
             if pr.head.sha != sync.wpt_commits.head:
                 # Upstream has different commits, so run a push handler
                 schedule_pr_task("push", pr)
-            update_for_status(pr)
+            if not pr.merged:
+                update_for_status(pr)
+            else:
+                update_for_action(pr, "closed")
         elif pr.state == "closed" and not pr.merged:
-            sync.state = "closed"
+            update_for_action(pr, "closed")
         if sync.latest_try_push:
             update_tasks(git_gecko, git_wpt, sync=sync)
 
