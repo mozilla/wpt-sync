@@ -1,6 +1,12 @@
 import celery
+from celery.beat import crontab
 
 beat_schedule = {
+    # Try to retrigger anything we missed once a day
+    'retrigger': {
+        "task": "sync.tasks.retrigger",
+        "schedule": crontab(hour=8, minute=0),
+    },
     # Try to cleanup once an hour
     'cleanup': {
         "task": "sync.tasks.cleanup",

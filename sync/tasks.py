@@ -114,3 +114,11 @@ def land(config):
 def cleanup(config):
     git_gecko, git_wpt = setup()
     handlers.CleanupHandler(config)(git_gecko, git_wpt)
+
+
+@worker.task
+@with_lock
+@settings.configure
+def retrigger(config):
+    git_gecko, git_wpt = setup()
+    handlers.RetriggerHandler(config)(git_gecko, git_wpt)
