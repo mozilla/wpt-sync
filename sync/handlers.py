@@ -190,11 +190,19 @@ class TaskHandler(Handler):
             logger.debug("No try push for SHA1 %s" % (sha1,))
             return
 
+        # Enforce the invariant that the taskgroup id is not set until
+        # the decision task is complete. This allows us to determine if a
+        # try push should have the expected wpt tasks just by checking if
+        # this is set
+        if result not in (tc.SUCCESS, tc.FAIL, tc.EXCEPTION):
+            logger.info("Decision task is not yet complete")
+            return
+
         logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
         try_push.taskgroup_id = task_id
 
         failed_builds = len(try_push.failed_builds())
-        if result != "success" or failed_builds:
+        if result != tc.SUCCESS or failed_builds:
             try_push.status = "complete"
             try_push.infra_fail = True
             sync = try_push.sync(git_gecko, git_wpt)
@@ -220,7 +228,8 @@ class TaskGroupHandler(Handler):
             return
         logger.info("Found try push for taskgroup %s" % taskgroup_id)
         sync = try_push.sync(git_gecko, git_wpt)
-
+        if sync:
+            logger.info("Updating try push for sync %r" % sync)
         if isinstance(sync, downstream.DownstreamSync):
             downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
         elif isinstance(sync, landing.LandingSync):
