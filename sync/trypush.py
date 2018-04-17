@@ -443,7 +443,8 @@ class TryPush(base.ProcessData):
             tasks = tc.TaskGroup(self.taskgroup_id)
             tasks.refresh()
 
-        self._data["tasks"] = tasks.tasks
+        if tasks.view().is_complete(allow_unscheduled=True):
+            self._data["tasks"] = tasks.tasks
         return tasks
 
     def wpt_tasks(self, force_update=False):
