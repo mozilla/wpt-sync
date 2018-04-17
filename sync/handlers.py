@@ -5,6 +5,7 @@ import log
 import landing
 import tc
 import trypush
+import update
 import upstream
 import worktree
 from env import Environment
@@ -246,3 +247,13 @@ class CleanupHandler(Handler):
         logger.info("Running cleanup")
         worktree.cleanup(git_gecko, git_wpt)
         tc.cleanup()
+
+
+class RetriggerHandler(Handler):
+    def __call__(self, git_gecko, git_wpt):
+        logger.info("Running retrigger")
+        update_repositories(git_gecko, git_wpt)
+        sync_point = landing.load_sync_point(git_gecko, git_wpt)
+        prev_wpt_head = sync_point["upstream"]
+        unlanded = landing.unlanded_with_type(git_gecko, git_gecko, prev_wpt_head)
+        update.retrigger(git_gecko, git_wpt, unlanded)
