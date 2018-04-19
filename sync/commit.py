@@ -189,7 +189,7 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
 def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filter=None,
                  metadata=None, src_prefix=None, dest_prefix=None, amend=False, three_way=True,
                  author=None, exclude=None):
-    if skip_empty and patch.endswith("\n\n\n"):
+    if skip_empty and (not patch or patch.isspace()):
         return None
 
     if metadata is None:
