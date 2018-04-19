@@ -575,6 +575,7 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
     sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
+    sync.latest_try_push.taskgroup_id = "abcdef"
     return sync.latest_try_push
 
 
@@ -594,3 +595,21 @@ def MockTryCls():
             return "1" * 40
 
     return MockTryPush
+
+
+@pytest.fixture
+def tc_response():
+    class FileData(object):
+        def __init__(self, filename):
+            self.path = os.path.join(here, "sample-data", "taskcluster", filename)
+            self._file = None
+
+        def __enter__(self):
+            self._file = open(self.path)
+            return self._file
+
+        def __exit__(self, *args):
+            self._file.close()
+            self._file = None
+
+    return FileData

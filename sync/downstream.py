@@ -604,6 +604,12 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
     if not try_push.status == "complete":
         # Ensure we don't have some old set of tasks
         try_push.wpt_tasks(force_update=True)
+        if not try_push.is_complete(allow_unscheduled=True):
+            logger.info("Try push is not complete")
+            return
+
+        try_push.validate_tasks()
+
         disabled = []
         if not try_push.success():
             if sync.affected_tests():

@@ -1,4 +1,4 @@
-from mock import patch
+from mock import Mock, patch
 from datetime import datetime
 
 import taskcluster
@@ -74,10 +74,12 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
     sync.data["affected-tests"] = ["example"]
 
     try_push = sync.latest_try_push
+    try_push.taskgroup_id = "abcdef"
     assert sync.last_pr_check == {"state": "success", "sha": pr.head}
     try_push.success = lambda: True
-    with patch('sync.trypush.tc.get_wpt_tasks',
-               return_value=mock_tasks(completed=["foo", "bar"] * 5)):
+
+    tasks = Mock(return_value=mock_tasks(completed=["foo", "bar"] * 5))
+    with patch.object(tc.TaskGroup, 'tasks', property(tasks)):
         downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
     assert try_push.status == "complete"
     assert sync.latest_try_push == try_push
