@@ -849,6 +849,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
                            ("Retriggered failing web-platform-test tasks on "
                             "try before final metadata update."))
             return
+
     for name, data in retriggered.iteritems():
         total = float(sum(data["states"].itervalues()))
         # assuming that only failures cause metadata updates

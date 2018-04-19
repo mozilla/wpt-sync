@@ -90,27 +90,190 @@ def normalize_task_id(task_id):
     return slugid.encode(task_uuid)
 
 
-def is_suite(task, suite):
+def parse_job_name(job_name):
+    if job_name.startswith("test-"):
+        job_name = job_name[len("test-"):]
+    if "web-platform-tests" in job_name:
+        job_name = job_name[:job_name.index("web-platform-tests")]
+    job_name = job_name.rstrip("-")
+
+    job_name = job_name.replace("/", "-")
+
+    return job_name
+
+
+class TaskGroup(object):
+    def __init__(self, taskgroup_id, tasks=None):
+        self.taskgroup_id = taskgroup_id
+        self._tasks = tasks
+
+    @property
+    def tasks(self):
+        if self._tasks:
+            return self._tasks
+
+        list_url = QUEUE_BASE + "task-group/" + self.taskgroup_id + "/list"
+
+        r = requests.get(list_url, params={
+            "limit": 200
+        })
+        reply = r.json()
+        tasks = reply["tasks"]
+        while "continuationToken" in reply:
+            r = requests.get(list_url, params={
+                "limit": 200,
+                "continuationToken": reply["continuationToken"]
+            })
+            reply = r.json()
+            tasks += reply["tasks"]
+        self._tasks = tasks
+        return self._tasks
+
+    def refresh(self):
+        self._tasks = None
+        return self.tasks
+
+    def tasks_by_id(self):
+        return {item["status"]["taskId"]: item for item in self.tasks}
+
+    def view(self, filter_fn=None):
+        return TaskGroupView(self, filter_fn)
+
+
+class TaskGroupView(object):
+    def __init__(self, taskgroup, filter_fn):
+        self.taskgroup = taskgroup
+        self.filter_fn = filter_fn if filter_fn is not None else lambda x: x
+        self._tasks = None
+
+    def __bool__(self):
+        return bool(self.tasks)
+
+    def __len__(self):
+        return len(self.tasks)
+
+    def __iter__(self):
+        for item in self.tasks:
+            yield item
+
+    @property
+    def tasks(self):
+        if self._tasks:
+            return self._tasks
+
+        self._tasks = [item for item in self.taskgroup.tasks
+                       if self.filter_fn(item)]
+        return self._tasks
+
+    def refresh(self):
+        self._tasks = None
+        self.taskgroup.refresh()
+        return self.tasks
+
+    def incomplete_tasks(self, allow_unscheduled=False):
+        tasks_by_id = self.taskgroup.tasks_by_id()
+        for task in self.tasks:
+            if task_is_incomplete(task, tasks_by_id, allow_unscheduled):
+                yield task
+
+    def filter(self, filter_fn):
+        def combined_filter(task):
+            return self.filter_fn(task) and filter_fn(task)
+
+        return self.taskgroup.view(combined_filter)
+
+    def is_complete(self, allow_unscheduled=False):
+        return not any(self.incomplete_tasks(allow_unscheduled))
+
+    def by_name(self):
+        rv = defaultdict(list)
+        for task in self.tasks:
+            name = task.get("task", {}).get("metadata", {}).get("name")
+            if name:
+                rv[name].append(task)
+        return rv
+
+    def download_logs(self, destination, file_names, retry=5):
+        if not os.path.exists(destination):
+            os.makedirs(destination)
+
+        if not file_names:
+            return []
+
+        urls = [ARTIFACTS_BASE + "{task}/{run}/public/test_info//%s" % file_name
+                for file_name in file_names]
+        logger.info("Downloading logs to %s" % destination)
+        for task in self.tasks:
+            status = task.get("status", {})
+            for run in status.get("runs", []):
+                for url in urls:
+                    params = {
+                        "task": status["taskId"],
+                        "run": run["runId"],
+                    }
+                    run["_log_paths"] = {}
+                    params["file_name"] = url.rsplit("/", 1)[1]
+                    log_url = url.format(**params)
+                    log_name = "{task}_{run}_{file_name}".format(**params)
+                    success = False
+                    logger.debug("Trying to download {}".format(log_url))
+                    log_path = os.path.abspath(os.path.join(destination, log_name))
+                    if not os.path.exists(log_path):
+                        success = download(log_url, log_path, retry)
+                    else:
+                        success = True
+                    if not success:
+                        logger.warning("Failed to download log from {}".format(log_url))
+                    run["_log_paths"][params["file_name"]] = log_path
+
+
+def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
+    status = task.get("status", {}).get("state", PENDING)
+    if status in (PENDING, RUNNING):
+        return True
+    elif status == UNSCHEDULED:
+        if not allow_unscheduled:
+            return True
+        # If the task is unscheduled, we may regard it as complete if
+        # all dependencies are complete
+        # TODO: is there a race condition here where dependencies can be
+        # complete and successful but this task has not yet been scheduled?
+
+        # A task can depend on its image; it's OK to ignore this for our purposes
+        image = task.get("task", []).get("payload", {}).get("image", {}).get("taskId")
+        dependencies = [item for item in task.get("task", {}).get("dependencies", [])
+                        if item != image]
+        if not dependencies:
+            return True
+        return any(task_is_incomplete(tasks_by_id[parent_id], tasks_by_id,
+                                      allow_unscheduled)
+                   for parent_id in dependencies)
+    return False
+
+
+def is_suite(suite, task):
     t = task.get("task", {}).get("extra", {}).get("suite", {}).get("name", "")
     return t.startswith(suite)
 
 
+def is_suite_fn(suite):
+    return lambda x: is_suite(suite, x)
+
+
 def is_build(task):
-    tags = task.get("tags")
+    tags = task.get("task", {}).get("tags")
     if tags:
         return tags.get("kind") == "build"
 
 
-def filter_suite(tasks, suite):
-    # expects return value from get_tasks_in_group
-    return [t for t in tasks if is_suite(t, suite)]
+def is_status(statuses, task):
+    return task.get("status", {}).get("state") in statuses
 
 
-def is_complete(tasks):
-    if not tasks:
-        return False
-    return not any(task.get("status", {}).get("state", PENDING) in (PENDING, RUNNING)
-                   for task in tasks)
+def is_status_fn(statuses):
+    if isinstance(statuses, (str, unicode)):
+        statuses = {statuses}
+    return lambda x: is_status(statuses, x)
 
 
 def get_task(task_id):
@@ -122,96 +285,6 @@ def get_task(task_id):
     if task.get("taskGroupId"):
         return task
     logger.debug("Task %s not found: %s" % (task_id, task.get("message", "")))
-
-
-def get_tasks_in_group(group_id):
-    list_url = QUEUE_BASE + "task-group/" + group_id + "/list"
-
-    r = requests.get(list_url, params={
-        "limit": 200
-    })
-    reply = r.json()
-    tasks = reply["tasks"]
-    while "continuationToken" in reply:
-        r = requests.get(list_url, params={
-            "limit": 200,
-            "continuationToken": reply["continuationToken"]
-        })
-        reply = r.json()
-        tasks += reply["tasks"]
-    return tasks
-
-
-def get_wpt_tasks(taskgroup_id):
-    logger.info("Getting wpt tasks for taskgroup %s" % taskgroup_id)
-    tasks = get_tasks_in_group(taskgroup_id)
-    wpt_tasks = filter_suite(tasks, "web-platform-tests")
-    return wpt_tasks
-
-
-def get_builds(taskgroup_id):
-    logger.info("Getting builds for taskgroup %s" % taskgroup_id)
-    tasks = get_tasks_in_group(taskgroup_id)
-    return [t for t in tasks if is_build(t)]
-
-
-def count_task_state_by_name(tasks):
-    # e.g. {"test-linux32-stylo-disabled/opt-web-platform-tests-e10s-6": {
-    #           "task_id": "abc123"
-    #           "states": {
-    #               "completed": 5,
-    #               "failed": 1
-    #           }
-    #       }}
-    rv = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-    for task in tasks:
-        name = task.get("task", {}).get("metadata", {}).get("name")
-        state = task.get("status", {}).get("state")
-        task_id = task.get("status", {}).get("taskId")
-        if name:
-            rv[name]["states"][state] += 1
-            # need one task_id per job group for retriggering
-            rv[name]["task_id"] = task_id
-    return rv
-
-
-def download_logs(tasks, destination, retry=5, raw=True, report=True):
-    if not os.path.exists(destination):
-        os.makedirs(destination)
-    file_names = []
-    if report:
-        file_names.append("wptreport.json")
-    if raw:
-        file_names.append("wpt_raw.log")
-
-    if not file_names:
-        return []
-
-    urls = [ARTIFACTS_BASE + "{task}/{run}/public/test_info//%s" % file_name
-            for file_name in file_names]
-    logger.info("Downloading logs to %s" % destination)
-    for task in tasks:
-        status = task.get("status", {})
-        for run in status.get("runs", []):
-            for url in urls:
-                params = {
-                    "task": status["taskId"],
-                    "run": run["runId"],
-                }
-                run["_log_paths"] = {}
-                params["file_name"] = url.rsplit("/", 1)[1]
-                log_url = url.format(**params)
-                log_name = "{task}_{run}_{file_name}".format(**params)
-                success = False
-                logger.debug("Trying to download {}".format(log_url))
-                log_path = os.path.abspath(os.path.join(destination, log_name))
-                if not os.path.exists(log_path):
-                    success = download(log_url, log_path, retry)
-                else:
-                    success = True
-                if not success:
-                    logger.warning("Failed to download log from {}".format(log_url))
-                run["_log_paths"][params["file_name"]] = log_path
 
 
 def download(log_url, log_path, retry):
@@ -229,18 +302,6 @@ def download(log_url, log_path, retry):
             logger.warning(traceback.format_exc(e))
             retry -= 1
     return False
-
-
-def parse_job_name(job_name):
-    if job_name.startswith("test-"):
-        job_name = job_name[len("test-"):]
-    if "web-platform-tests" in job_name:
-        job_name = job_name[:job_name.index("web-platform-tests")]
-    job_name = job_name.rstrip("-")
-
-    job_name = job_name.replace("/", "-")
-
-    return job_name
 
 
 def fetch_json(url, params=None):

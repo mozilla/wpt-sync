@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import chain
 
@@ -424,7 +425,7 @@ class TryPush(base.ProcessData):
         """Is the current try push a stability test"""
         self["infra-fail"] = value
 
-    def wpt_tasks(self, force_update=False):
+    def tasks(self, force_update=False):
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
@@ -433,45 +434,38 @@ class TryPush(base.ProcessData):
         :return: List of tasks
         """
         if not force_update and "tasks" in self._data:
-            return self._data["tasks"]
-
-        try:
-            wpt_tasks = tc.get_wpt_tasks(self.taskgroup_id)
-        except ValueError:
-            # If this happens we may have the wrong taskgroup id
+            tasks = tc.TaskGroup(self.taskgroup_id, self._data["tasks"])
+        else:
             task_id = tc.normalize_task_id(self.taskgroup_id)
             if task_id != self.taskgroup_id:
                 self.taskgroup_id = task_id
-            wpt_tasks = tc.get_wpt_tasks(self.taskgroup_id)
+
+            tasks = tc.TaskGroup(self.taskgroup_id)
+            tasks.refresh()
+
+        self._data["tasks"] = tasks.tasks
+        return tasks
+
+    def wpt_tasks(self, force_update=False):
+        tasks = self.tasks(force_update)
+        wpt_tasks = tasks.view(tc.is_suite_fn("web-platform-tests"))
+        return wpt_tasks
+
+    def validate_tasks(self):
+        wpt_tasks = self.wpt_tasks()
         err = None
         if not len(wpt_tasks):
             err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
         else:
-            def is_exc(task):
-                return task.get("status", {}).get("state") == tc.EXCEPTION
-
-            exceptions = [task for task in wpt_tasks if is_exc(task)]
-            if float(len(exceptions)) / len(wpt_tasks) > (1 - self._min_success):
+            exception_tasks = wpt_tasks.filter(tc.is_status_fn(tc.EXCEPTION))
+            if float(len(exception_tasks)) / len(wpt_tasks) > (1 - self._min_success):
                 err = ("Too many exceptions found among wpt tests. "
                        "Check decision task {}".format(self.taskgroup_id))
-        # TODO: it seems we don't have a great way of sanity checking that all the expected
-        # jobs ran to completion
-        # if any(item.get("status", {}).get("state", None)
-        #     # TODO check for unscheduled versus failed versus exception
-        #     def get_task_names(tasks):
-        #         return set(item["task"]["metadata"]["name"] for item in tasks)
-
-        #     missing = get_task_names(wpt_tasks) - get_task_names(wpt_completed)
-        #     err = ("The tests didn't all run; perhaps a build failed?\nMissing:%s" %
-        #            (",".join(missing)))
 
         if err:
             logger.debug(err)
             self.infra_fail = True
             raise AbortError(err)
-
-        self._data["tasks"] = wpt_tasks
-        return wpt_tasks
 
     def retrigger_failures(self, count=_retrigger_count):
         task_states = self.wpt_states()
@@ -489,20 +483,30 @@ class TryPush(base.ProcessData):
         return retriggered_count
 
     def wpt_states(self, force_update=False):
-        if not force_update and "task_states" in self._data:
-            return self._data["task_states"]
-
-        task_states = tc.count_task_state_by_name(self.wpt_tasks(force_update))
-        self._data["task_states"] = task_states
+        # e.g. {"test-linux32-stylo-disabled/opt-web-platform-tests-e10s-6": {
+        #           "task_id": "abc123"
+        #           "states": {
+        #               "completed": 5,
+        #               "failed": 1
+        #           }
+        #       }}
+        by_name = self.wpt_tasks(force_update).by_name()
+        task_states = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+        for name, tasks in by_name.iteritems():
+            for task in tasks:
+                task_id = task.get("status", {}).get("taskId")
+                state = task.get("status", {}).get("state")
+                task_states[name]["states"][state] += 1
+                # need one task_id per job group for retriggering
+                task_states[name]["task_id"] = task_id
         return task_states
 
+    def is_complete(self, allow_unscheduled=False):
+        return self.wpt_tasks().is_complete(allow_unscheduled)
+
     def failed_builds(self):
-        builds = tc.get_builds(self.taskgroup_id)
-
-        def failed(task):
-            return task.get("status", {}).get("state") in [tc.FAIL, tc.EXCEPTION]
-
-        return [task for task in builds if failed(task)]
+        builds = self.wpt_tasks().view(tc.is_build)
+        return builds.filter(tc.is_status_fn({tc.FAIL, tc.EXCEPTION}))
 
     def retriggered_wpt_states(self, force_update=False):
         # some retrigger requests may have failed, and we try to ignore
@@ -526,10 +530,7 @@ class TryPush(base.ProcessData):
         if not wpt_tasks:
             return float(0)
 
-        def is_success(task):
-            return task.get("status", {}).get("state") == tc.SUCCESS
-
-        success = [task for task in wpt_tasks if is_success(task)]
+        success = self.wpt_tasks().filter(tc.is_status_fn(tc.SUCCESS))
         return float(len(success)) / len(wpt_tasks)
 
     def download_logs(self, raw=True, report=True, exclude=None):
@@ -540,23 +541,28 @@ class TryPush(base.ProcessData):
         if exclude is None:
             exclude = []
 
-        def excluded(t):
+        def included(t):
             # if a name is on the excluded list, only download SUCCESS job logs
             name = t.get("task", {}).get("metadata", {}).get("name")
             state = t.get("status", {}).get("state")
-            return name in exclude and state != tc.SUCCESS
+            return name not in exclude or state == tc.SUCCESS
 
         wpt_tasks = self.wpt_tasks()
         if self.try_rev is None:
             if wpt_tasks:
                 logger.info("Got try push with no rev; setting it from a task")
                 self._data["try-rev"] = wpt_tasks[0]["task"]["payload"]["env"]["GECKO_HEAD_REV"]
-        wpt_tasks = [t for t in wpt_tasks if not excluded(t)]
+        include_tasks = wpt_tasks.filter(included)
         logger.info("Downloading logs for try revision %s" % self.try_rev)
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
-        tc.download_logs(wpt_tasks, dest, raw=raw, report=report)
-        return wpt_tasks
+        file_names = []
+        if raw:
+            file_names.append("wpt_raw.log")
+        if report:
+            file_names.append("wptreport.json")
+        include_tasks.download_logs(wpt_tasks, dest, file_names)
+        return include_tasks
 
     def download_raw_logs(self, exclude=None):
         wpt_tasks = self.download_logs(raw=True, exclude=exclude)
