@@ -4,6 +4,7 @@ import shutil
 from collections import defaultdict
 
 import git
+from mozautomation import commitparser
 
 import base
 import bug
@@ -686,30 +687,43 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
         if not pr:
             # Assume this was some trivial fixup:
             continue
-        # Only check the first commit since later ones could be added upstream in the PR
-        if upstream.UpstreamSync.has_metadata(commits[0].msg):
+
+        def upstream_sync(bug_number):
             syncs = upstream.UpstreamSync.for_bug(git_gecko,
                                                   git_wpt,
-                                                  bug.bug_number_from_url(
-                                                      commits[0].metadata["bugzilla-url"]))
+                                                  bug_number)
             for key, values in syncs.iteritems():
                 for sync in values:
+                    # Only check the first commit since later ones could be added in the PR
                     if commits[0] in sync.gecko_commits:
                         break
                 else:
                     sync = None
-        else:
+            return sync
+
+        sync = None
+        if upstream.UpstreamSync.has_metadata(commits[0].msg):
+            sync = upstream_sync(bug.bug_number_from_url(commits[0].metadata["bugzilla-url"]))
+        if sync is None:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-            if not include_incomplete:
-                if not sync:
-                    # TODO: schedule a downstream sync for this pr
-                    logger.info("PR %s has no corresponding sync" % pr)
-                    last = True
-                elif not (sync.skip or sync.metadata_ready):
-                    logger.info("Metadata pending for PR %s" % pr)
-                    last = True
-                if last:
+        if sync is None:
+            # Last ditch attempt at finding an upstream sync for this commit in the
+            # case that the metadata happens to be broken
+            bugs = commitparser.parse_bugs(commits[0].msg.split("\n")[0])
+            for bug_number in bugs:
+                sync = upstream_sync(bug_number)
+                if sync:
                     break
+        if not include_incomplete:
+            if not sync:
+                # TODO: schedule a downstream sync for this pr
+                logger.info("PR %s has no corresponding sync" % pr)
+                last = True
+            elif not (sync.skip or sync.metadata_ready):
+                logger.info("Metadata pending for PR %s" % pr)
+                last = True
+            if last:
+                break
         landable_commits.append((pr, sync, commits))
 
     if not landable_commits:
