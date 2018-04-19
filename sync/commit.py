@@ -232,6 +232,7 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
 
             if exclude:
                 excluded = []
+                dest_repo.index.update()
                 for path in exclude:
                     if dest_prefix:
                         path = os.path.join(dest_prefix, path)
