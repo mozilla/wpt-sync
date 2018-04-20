@@ -174,6 +174,11 @@ class DownstreamSync(base.SyncProcess):
         if not self.requires_try or self.status != "open":
             return
 
+        self.update_commits()
+
+        if self.error:
+            return
+
         latest_try_push = self.latest_valid_try_push
 
         if latest_try_push:
@@ -327,43 +332,49 @@ class DownstreamSync(base.SyncProcess):
             gecko_work.git.commit(amend=True, no_edit=True)
 
     def update_commits(self):
-        self.update_wpt_commits()
+        try:
+            self.update_wpt_commits()
 
-        # Check if this sync reverts some unlanded earlier PR and if so mark both
-        # as skip and don't try to apply the commits here
-        reverts = self.reverts_syncs()
-        if reverts:
-            all_open = all(item.status == "open" for item in reverts)
-            for revert_sync in reverts:
-                if revert_sync.status == "open":
-                    logger.info("Skipping sync for PR %s because it is later reverted" %
-                                revert_sync.pr)
-                    revert_sync.skip = True
-            # TODO: If this commit reverts some closed syncs, then set the metadata
-            # commit of this commit to the revert of the metadata commit from that
-            # sync
-            if all_open:
-                logger.info("Sync was a revert of other open syncs, skipping")
-                self.skip = True
-                return
+            # Check if this sync reverts some unlanded earlier PR and if so mark both
+            # as skip and don't try to apply the commits here
+            reverts = self.reverts_syncs()
+            if reverts:
+                all_open = all(item.status == "open" for item in reverts)
+                for revert_sync in reverts:
+                    if revert_sync.status == "open":
+                        logger.info("Skipping sync for PR %s because it is later reverted" %
+                                    revert_sync.pr)
+                        revert_sync.skip = True
+                # TODO: If this commit reverts some closed syncs, then set the metadata
+                # commit of this commit to the revert of the metadata commit from that
+                # sync
+                if all_open:
+                    logger.info("Sync was a revert of other open syncs, skipping")
+                    self.skip = True
+                    return False
 
-        old_gecko_head = self.gecko_commits.head.sha1
-        logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
-        self.wpt_to_gecko_commits()
+            old_gecko_head = self.gecko_commits.head.sha1
+            logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
+            self.wpt_to_gecko_commits()
 
-        logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
-        if old_gecko_head == self.gecko_commits.head.sha1:
-            logger.info("Gecko commits did not change for PR %s" % self.pr)
-            return False
+            logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
+            if old_gecko_head == self.gecko_commits.head.sha1:
+                logger.info("Gecko commits did not change for PR %s" % self.pr)
+                return False
 
-        self.commit_manifest_update()
+            self.commit_manifest_update()
 
-        renames = self.wpt_renames()
-        self.move_metadata(renames)
-        self.update_bug_components(renames)
+            renames = self.wpt_renames()
+            self.move_metadata(renames)
+            self.update_bug_components(renames)
 
-        files_changed = self.files_changed()
-        self.set_bug_component(files_changed)
+            files_changed = self.files_changed()
+            self.set_bug_component(files_changed)
+        except Exception:
+            raise
+        else:
+            # If we managed to apply all the commits without error, reset the error flag
+            self.error = None
         return True
 
     def wpt_to_gecko_commits(self):
@@ -560,8 +571,6 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
             raise
         traceback.print_exc()
         logger.error(e)
-    else:
-        sync.error = None
     # Now wait for the status to change before we take any actions
 
 
@@ -576,14 +585,11 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
         if status == "pending":
             # We got new commits that we missed
             sync.update_commits()
-            sync.error = None
             return
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
         if check_state == "success":
-            sync.update_commits()
             sync.next_try_push()
-            sync.error = None
     except Exception as e:
         sync.error = e
         if raise_on_error:
@@ -629,21 +635,28 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
 @base.entry_point("downstream")
 def pull_request_approved(git_gecko, git_wpt, sync):
-    sync.next_try_push()
+    try:
+        sync.next_try_push()
+    except Exception as e:
+        sync.error = e
+        raise
 
 
 @base.entry_point("downstream")
 def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
-    if action == "closed" and not merge_sha:
-        sync.pr_status = "closed"
-        sync.finish()
-    elif action == "closed":
-        # We are storing the wpt base as a reference
-        sync.data["wpt-base"] = base_sha
-        sync.update_commits()
-        sync.next_try_push()
-        sync.try_notify()
-    elif action == "reopened" or action == "open":
-        sync.status = "open"
-        sync.pr_status = "open"
-        sync.update_commits()
+    try:
+        if action == "closed" and not merge_sha:
+            sync.pr_status = "closed"
+            sync.finish()
+        elif action == "closed":
+            # We are storing the wpt base as a reference
+            sync.data["wpt-base"] = base_sha
+            sync.next_try_push()
+            sync.try_notify()
+        elif action == "reopened" or action == "open":
+            sync.status = "open"
+            sync.pr_status = "open"
+            sync.next_try_push()
+    except Exception as e:
+        sync.error = e
+        raise
