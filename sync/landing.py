@@ -130,7 +130,6 @@ Automatic update from web-platform-tests%s
                              pr.number,
                              pr.title,
                              "\n--\n".join(item.msg for item in wpt_commits) + "\n--")
-        message = sync_commit.Commit.make_commit_msg(message, metadata)
 
         upstream_changed = set()
         for commit in wpt_commits:
@@ -141,17 +140,17 @@ Automatic update from web-platform-tests%s
 
         if copy:
             commit = self.copy_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
-                                  message, author)
+                                  message, author, metadata)
         else:
             commit = self.move_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
-                                  message, author, prev_wpt_head)
+                                  message, author, prev_wpt_head, metadata)
 
         if commit is not None:
             self.gecko_commits.head = commit
 
         return commit
 
-    def copy_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author):
+    def copy_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author, metadata):
         # Ensure we have anything in a wpt submodule
         git_work_wpt.git.submodule("update", "--init", "--recursive")
 
@@ -201,6 +200,8 @@ Automatic update from web-platform-tests%s
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
 
+        message = sync_commit.Commit.make_commit_msg(message, metadata)
+
         commit = git_work_gecko.index.commit(message=message,
                                              author=git.Actor._from_string(author))
         logger.debug("Gecko files changed: \n%s" % "\n".join(commit.stats.files.keys()))
@@ -209,7 +210,7 @@ Automatic update from web-platform-tests%s
         return gecko_commit
 
     def move_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author,
-                prev_wpt_head):
+                prev_wpt_head, metadata):
         if prev_wpt_head is None:
             prev_wpt_head = wpt_commits[0].sha1 + "^"
 
@@ -217,11 +218,6 @@ Automatic update from web-platform-tests%s
         if head.is_downstream and head.metadata.get("wpt-pr") == str(pr.number):
             return
 
-        applied_commits = [commit.sha1 for commit in wpt_commits]
-        metadata = {
-            "wpt-pr": pr.number,
-            "wpt-commits": ", ".join(applied_commits)
-        }
         # Skip any commits that came from upstream since they should have been reapplied
         for commit in wpt_commits:
             if not commit.is_upstream:
