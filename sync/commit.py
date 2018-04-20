@@ -136,7 +136,8 @@ class Commit(object):
     def make_commit_msg(msg, metadata):
         if metadata:
             metadata_str = "\n".join("%s: %s" % item for item in sorted(metadata.items()))
-            msg = "%s\n%s" % (msg, metadata_str)
+            new_lines = "\n\n" if not msg.endswith("\n") else "\n"
+            msg = "".join([msg, new_lines, metadata_str])
         return msg
 
     def is_empty(self, prefix=None):
