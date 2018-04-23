@@ -107,6 +107,8 @@ def filter_suite(tasks, suite):
 
 
 def is_complete(tasks):
+    if not tasks:
+        return False
     return not any(task.get("status", {}).get("state", PENDING) in (PENDING, RUNNING)
                    for task in tasks)
 
