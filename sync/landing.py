@@ -687,14 +687,15 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
         def upstream_sync(bug_number):
             syncs = upstream.UpstreamSync.for_bug(git_gecko,
                                                   git_wpt,
-                                                  bug_number)
-            for key, values in syncs.iteritems():
-                for sync in values:
-                    # Only check the first commit since later ones could be added in the PR
-                    if commits[0] in sync.gecko_commits:
-                        break
-                else:
-                    sync = None
+                                                  bug_number,
+                                                  flat=True)
+            for sync in syncs:
+                # Only check the first commit since later ones could be added in the PR
+                if (commits[0].metadata["gecko-commit"] in
+                    {item.canonical_rev for item in sync.upstreamed_gecko_commits}):
+                    break
+            else:
+                sync = None
             return sync
 
         sync = None
@@ -715,7 +716,8 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
                 # TODO: schedule a downstream sync for this pr
                 logger.info("PR %s has no corresponding sync" % pr)
                 last = True
-            elif not (sync.skip or sync.metadata_ready):
+            elif (isinstance(sync, downstream.DownstreamSync) and
+                  not (sync.skip or sync.metadata_ready)):
                 logger.info("Metadata pending for PR %s" % pr)
                 last = True
             if last:
