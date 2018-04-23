@@ -448,6 +448,8 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                 print "%s: No PR" % ", ".join(item.sha1 for item in commits)
             elif upstream.UpstreamSync.has_metadata(commits[0].msg):
                 print "%s: From mozilla-central" % pr
+            elif "gecko-commit" in commits[0].metadata:
+                print "%s: From mozilla-central" % pr
             else:
                 sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 if not sync:

@@ -226,7 +226,8 @@ class UpstreamSync(base.SyncProcess):
                 sync_commit.GeckoCommit(self.git_gecko,
                                         self.git_gecko.cinnabar.hg2git(
                                             wpt_commit.metadata["gecko-commit"]))
-                for wpt_commit in self.wpt_commits]
+                for wpt_commit in self.wpt_commits
+                if "gecko-commit" in wpt_commit.metadata]
             self._upstreamed_gecko_head = self.wpt_commits.head.sha1
         return self._upstreamed_gecko_commits
 
