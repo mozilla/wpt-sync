@@ -606,7 +606,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         try_push.wpt_tasks(force_update=True)
         disabled = []
         if not try_push.success():
-            if sync.affected_tests:
+            if sync.affected_tests():
                 log_files = try_push.download_raw_logs()
                 if not log_files:
                     raise ValueError("No log files found for try push %r" % try_push)

@@ -193,7 +193,7 @@ class TaskHandler(Handler):
         logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
         try_push.taskgroup_id = task_id
 
-        failed_builds = len(try_push.failed_builds)
+        failed_builds = len(try_push.failed_builds())
         if result != "success" or failed_builds:
             try_push.status = "complete"
             try_push.infra_fail = True

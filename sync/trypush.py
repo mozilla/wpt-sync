@@ -481,12 +481,12 @@ class TryPush(base.ProcessData):
             return states[tc.FAIL] > 0 or states[tc.EXCEPTION] > 0
 
         failures = [data["task_id"] for name, data in task_states.iteritems() if is_failure(data)]
-        count = 0
+        retriggered_count = 0
         for task_id in failures:
             jobs = auth_tc.retrigger(task_id, count=count)
             if jobs:
-                count += len(jobs)
-        return count
+                retriggered_count += len(jobs)
+        return retriggered_count
 
     def wpt_states(self, force_update=False):
         if not force_update and "task_states" in self._data:

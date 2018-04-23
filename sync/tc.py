@@ -117,7 +117,7 @@ def get_task(task_id):
     task_url = QUEUE_BASE + "task/" + task_id
     r = requests.get(task_url)
     task = r.json()
-    if task.get("taskGropuId"):
+    if task.get("taskGroupId"):
         return task
     logger.debug("Task %s not found: %s" % (task_id, task.get("message", "")))
 
