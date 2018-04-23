@@ -323,9 +323,9 @@ class TryPush(base.ProcessData):
                 "Latest try push for bug %s has too many failures.\n"
                 "See %s"
             ) % (sync.bug, self.treeherder_url(self.try_rev))
+            logger.error(message)
             sync.error = message
             env.bz.comment(sync.bug, message)
-            self.status = "complete"
             return True
         return False
 

@@ -207,8 +207,8 @@ def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
 @with_lock
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
-    landings = landing.LandingSync.load_all(git_gecko, git_wpt)
-    current_landing = landings[0] if landings else None
+    import tc
+    current_landing = landing.current(git_gecko, git_wpt)
 
     def land_to_gecko():
         landing.land_to_gecko(git_gecko, git_wpt,
@@ -218,7 +218,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
-        if try_push.status == "complete":
+        if try_push.status == "complete" or tc.is_complete(try_push.wpt_tasks(force_update=True)):
             if try_push.infra_fail:
                 land_to_gecko()
             else:
