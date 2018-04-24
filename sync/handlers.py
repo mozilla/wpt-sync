@@ -164,7 +164,7 @@ class PushHandler(Handler):
         # matters for us
         rev = body["payload"]["data"]["heads"][0]
         logger.info("Handling commit %s to repo %s" % (rev, repo))
-        update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+        update_repositories(git_gecko, git_wpt, include_autoland=True, wait_gecko_commit=rev)
         try:
             git_rev = git_gecko.cinnabar.hg2git(rev)
         except ValueError:
