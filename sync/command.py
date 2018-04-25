@@ -210,17 +210,17 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import tc
     current_landing = landing.current(git_gecko, git_wpt)
 
-    def land_to_gecko():
-        landing.land_to_gecko(git_gecko, git_wpt,
-                              kwargs["prev_wpt_head"],
-                              kwargs["wpt_head"],
-                              kwargs["include_incomplete"])
+    def update_landing():
+        landing.update_landing(git_gecko, git_wpt,
+                               kwargs["prev_wpt_head"],
+                               kwargs["wpt_head"],
+                               kwargs["include_incomplete"])
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
         if try_push.status == "complete" or tc.is_complete(try_push.wpt_tasks(force_update=True)):
             if try_push.infra_fail:
-                land_to_gecko()
+                update_landing()
             else:
                 landing.try_push_complete(git_gecko,
                                           git_wpt,
@@ -230,7 +230,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
         else:
             logger.info("Landing in bug %s is waiting for try results" % landing.bug)
     else:
-        land_to_gecko()
+        update_landing()
 
 
 @with_lock
