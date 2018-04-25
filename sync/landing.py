@@ -610,12 +610,24 @@ def push(landing):
     success = False
 
     landing_tree = env.config["gecko"]["landing"]
-    if not tree.is_open(landing_tree):
+
+    while not success:
+        try:
+            logger.info("Rebasing onto %s" % landing.gecko_integration_branch())
+            landing.gecko_rebase(landing.gecko_integration_branch())
+        except git.GitCommandError as e:
+            err = "Rebase failed:\n%s" % e
+            logger.error(err)
+            landing.bz.comment(landing.bug, err)
+            raise AbortError(err)
+
+        if not tree.is_open(landing_tree):
             logger.info("%s is closed" % landing_tree)
             # TODO make this auto-retry
             raise AbortError("Tree is closed")
-    while not success:
+
         try:
+            logger.info("Pushing landing")
             landing.git_gecko.remotes.mozilla.push(
                 "%s:%s" % (landing.branch_name,
                            landing.gecko_integration_branch().split("/", 1)[1]))
@@ -626,14 +638,8 @@ def push(landing):
                 logger.error(err)
                 landing.bz.comment(landing.bug, err)
                 raise AbortError(err)
-            try:
-                landing.gecko_rebase(landing.gecko_integration_branch())
-            except git.GitCommandError as e:
-                err = "Rebase failed:\n%s" % e
-                logger.error(err)
-                landing.bz.comment(landing.bug, err)
-                raise AbortError(err)
-        success = True
+        else:
+            success = True
     # The landing is marked as finished when it reaches central
 
 
@@ -762,8 +768,8 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
 
 
 @base.entry_point("landing")
-def land_to_gecko(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
-                  include_incomplete=False):
+def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
+                   include_incomplete=False):
     """Create or continue a landing of wpt commits to gecko.
 
     :param prev_wpt_head: The sha1 of the previous wpt commit landed to gecko.
@@ -856,16 +862,22 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
 
     try_push.status = "complete"
 
-    wpt_head, commits = landable_commits(git_gecko,
-                                         git_wpt,
-                                         sync.wpt_commits.base.sha1,
-                                         sync.wpt_commits.head.sha1)
+    push_to_gecko(git_gecko, git_wpt, sync, allow_push)
 
+
+def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
     if not allow_push:
         logger.info("Landing in bug %s is ready for push.\n"
                     "Working copy is in %s" % (sync.bug,
                                                sync.gecko_worktree.get().working_dir))
         return
+
+    update_repositories(git_gecko, git_wpt)
+    wpt_head, commits = landable_commits(git_gecko,
+                                         git_wpt,
+                                         sync.wpt_commits.base.sha1,
+                                         sync.wpt_commits.head.sha1,
+                                         include_incomplete=True)
 
     push(sync)
     for _, sync, _ in commits:

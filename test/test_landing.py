@@ -34,7 +34,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
-    landing_sync = landing.land_to_gecko(git_gecko, git_wpt)
+    landing_sync = landing.update_landing(git_gecko, git_wpt)
 
     assert landing_sync is not None
     worktree = landing_sync.gecko_worktree.get()
@@ -74,7 +74,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     downstream_sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
-    sync = landing.land_to_gecko(git_gecko, git_wpt)
+    sync = landing.update_landing(git_gecko, git_wpt)
 
     # Set the landing sync point to current central
     sync.last_sync_point(git_gecko, "mozilla-central",
@@ -129,7 +129,7 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, m
         failed=["foo", "foo", "bar"],
         completed=["bar", "bar", "bar" "baz", "boo", "foo", "foo", "foo", "foo", "foo"])
     )
-    sync = landing.land_to_gecko(git_gecko, git_wpt)
+    sync = landing.update_landing(git_gecko, git_wpt)
     try_push.download_raw_logs = Mock(return_value=[])
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
     try_push.download_raw_logs.assert_called_with(exclude=["foo"])
@@ -139,7 +139,7 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, m
 
 def test_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_push, mock_tasks, env):
     tc.get_wpt_tasks = Mock(return_value=mock_tasks(completed=["bar", "baz", "boo"]))
-    sync = landing.land_to_gecko(git_gecko, git_wpt)
+    sync = landing.update_landing(git_gecko, git_wpt)
     try_push.download_raw_logs = Mock(return_value=[])
     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
     # no intermittents in the try push
@@ -233,7 +233,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     # Now start a landing
     tree.is_open = lambda x: True
-    sync = landing.land_to_gecko(git_gecko, git_wpt)
+    sync = landing.update_landing(git_gecko, git_wpt)
 
     assert sync is not None
 
@@ -292,7 +292,7 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
     tree.is_open = lambda x: True
-    landing_sync = landing.land_to_gecko(git_gecko, git_wpt)
+    landing_sync = landing.update_landing(git_gecko, git_wpt)
 
     assert len(landing_sync.gecko_commits) == 3
     assert landing_sync.gecko_commits[-1].metadata["wpt-type"] == "landing"
