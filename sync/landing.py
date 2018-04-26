@@ -827,7 +827,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
         if isinstance(sync, downstream.DownstreamSync):
             try:
                 sync.try_notify()
-            except AbortError as e:
+            except Exception as e:
                 logger.error(e.message)
 
     return landing
@@ -887,7 +887,7 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
                 # to work
                 try:
                     sync.try_notify()
-                except AbortError as e:
+                except Exception as e:
                     logger.error(e.message)
                 if not sync.results_notified:
                     env.bz.comment(sync.bug, "Result changes from PR not available.")
