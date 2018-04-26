@@ -193,6 +193,10 @@ def get_details(log_data):
 
 
 def consistent(results, job_names):
+    if not results:
+        # This probably shouldn't happen, but we shouldn't crash if it does
+        logger.error("Got no results")
+        return True
     if len(results) == len(job_names):
         target = results.itervalues().next()
         return all(value == target for value in results.itervalues())
