@@ -201,7 +201,6 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                                               error["message"].split("\n", 1)[0] if error else ""))
 
 
-@with_lock
 def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
