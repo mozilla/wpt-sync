@@ -122,6 +122,10 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
 def update_pr(git_gecko, git_wpt, pr):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
+    if sync.status == "complete":
+        logger.info("Sync already landed")
+        return
+
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
 
     if not sync:
@@ -260,6 +264,7 @@ def retrigger(git_gecko, git_wpt, unlandable_prs):
             continue
 
         try:
+            logger.info("Retriggering %s" % pr_id)
             pr = env.gh_wpt.get_pull(int(pr_id))
             update_pr(git_gecko, git_wpt, pr)
         except Exception:
