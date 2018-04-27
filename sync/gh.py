@@ -155,7 +155,7 @@ class GitHub(object):
     def pr_for_commit(self, sha):
         logger.info("Looking up PR for commit %s" % sha)
         owner, repo = self.repo_name.split("/")
-        prs = list(self.gh.search_issues(query="is:pr repo:%s/%s %s" % (owner, repo, sha)))
+        prs = list(self.gh.search_issues(query="is:pr repo:%s/%s sha:%s" % (owner, repo, sha)))
         if len(prs) == 0:
             return
 
