@@ -141,6 +141,10 @@ def get_parser():
                                  help="Consider PRs with incomplete syncs as landable.")
     parser_landable.set_defaults(func=do_landable)
 
+    parser_retrigger = subparsers.add_parser("retrigger",
+                                             help="Retrigger syncs that are not read")
+    parser_retrigger.set_defaults(func=do_retrigger)
+
     return parser
 
 
@@ -471,6 +475,21 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
             errors = update.retrigger(git_gecko, git_wpt, unlandable)
             if errors:
                 print("The following PRs have errors:\n%s" % "\n".join(errors))
+
+
+def do_retrigger(git_gecko, git_wpt, **kwargs):
+    import update
+    from landing import load_sync_point, unlanded_with_type
+
+    update_repositories(git_gecko, git_wpt)
+
+    sync_point = load_sync_point(git_gecko, git_wpt)
+    prev_wpt_head = sync_point["upstream"]
+    unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
+
+    errors = update.retrigger(git_gecko, git_wpt, unlandable)
+    if errors:
+        print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
 def set_config(opts):
