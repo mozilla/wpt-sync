@@ -318,17 +318,8 @@ class TryPush(base.ProcessData):
                 return False
         return True
 
-    def failure_limit_exceeded(self, sync, target_rate=_min_success):
-        if self.success_rate() < target_rate:
-            message = (
-                "Latest try push for bug %s has too many failures.\n"
-                "See %s"
-            ) % (sync.bug, self.treeherder_url(self.try_rev))
-            logger.error(message)
-            sync.error = message
-            env.bz.comment(sync.bug, message)
-            return True
-        return False
+    def failure_limit_exceeded(self, target_rate=_min_success):
+        return self.success_rate() < target_rate
 
     @property
     def created(self):
