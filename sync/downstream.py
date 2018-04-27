@@ -11,6 +11,7 @@ import re
 import traceback
 from collections import defaultdict
 
+import enum
 import git
 
 import base
@@ -19,15 +20,24 @@ import gitutils
 import log
 import notify
 import trypush
-import tc
 import commit as sync_commit
 from env import Environment
 from gitutils import update_repositories
+from pipeline import AbortError
 from projectutil import Mach, WPT
 from trypush import TryPush
 
 logger = log.get_logger(__name__)
 env = Environment()
+
+
+class DownstreamAction(enum.Enum):
+    ready = 0
+    manual_fix = 1
+    try_push = 2
+    try_push_stability = 3
+    wait_try = 4
+    wait_approved = 5
 
 
 class DownstreamSync(base.SyncProcess):
@@ -98,22 +108,50 @@ class DownstreamSync(base.SyncProcess):
         self.data["pr-status"] = value
 
     @property
-    def metadata_ready(self):
-        # This is mostly for testing
+    def next_action(self):
+        """Work out the next action for the sync based on the current status.
+
+        Returns a DownstreamAction indicating the next step to take."""
+
         if self.data.get("force-metadata-ready"):
-            return True
+            # This is mostly for testing
+            return DownstreamAction.ready
         if self.skip:
-            return True
+            return DownstreamAction.ready
         if not self.requires_try:
-            return True
+            return DownstreamAction.ready
+        if self.error:
+            return DownstreamAction.manual_fix
+
         latest_try_push = self.latest_valid_try_push
+
         if not latest_try_push:
-            return False
-        if latest_try_push.status != "complete" or latest_try_push.infra_fail:
-            return False
-        if self.affected_tests() and latest_try_push.expired():
-            return False
-        return latest_try_push.stability or not self.requires_stability_try
+            return DownstreamAction.try_push
+
+        if latest_try_push.status != "complete":
+            return DownstreamAction.wait_try
+        if latest_try_push.infra_fail:
+            if len(self.latest_busted_try_pushes()) > 5:
+                return DownstreamAction.manual_fix
+
+            if not latest_try_push.stability:
+                return DownstreamAction.try_push
+
+            # Don't worry about recreating stability try pushes for infra failures
+            return DownstreamAction.ready
+
+        if not latest_try_push.stability and self.requires_stability_try:
+            pr = env.gh_wpt.get_pull(self.pr)
+            pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
+            if pr_ready:
+                return DownstreamAction.try_push_stability
+            return DownstreamAction.wait_approved
+
+        return DownstreamAction.ready
+
+    @property
+    def metadata_ready(self):
+        return self.next_action == DownstreamAction.ready
 
     @property
     def results_notified(self):
@@ -178,35 +216,13 @@ class DownstreamSync(base.SyncProcess):
 
         self.update_commits()
 
-        if self.error:
-            return
-
-        latest_try_push = self.latest_valid_try_push
-
-        if latest_try_push:
-            if latest_try_push.status != "complete":
-                return
-            if latest_try_push.infra_fail and len(self.latest_busted_try_pushes()) > 5:
-                message = ("Too many busted try pushes. "
-                           "Check the try results for infrastructure issues.")
-                self.error = message
-                env.bz.comment(self.bug, message)
-                return
-
-        if not latest_try_push:
-            logger.info("Creating a try push for PR %s" % self.pr)
-            return TryPush.create(self, self.affected_tests(), stability=False)
-        if latest_try_push.infra_fail:
-            logger.info("Recreating a%stry push for PR %s after an infra failure." %
-                        (" stability " if latest_try_push.stability else " ", self.pr))
-            return TryPush.create(self, self.affected_tests(),
-                                  stability=latest_try_push.stability)
-        elif not latest_try_push.stability and self.requires_stability_try:
-            pr = env.gh_wpt.get_pull(self.pr)
-            pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
-            if pr_ready:
-                logger.info("Creating a stability try push for PR %s" % self.pr)
-                return TryPush.create(self, self.affected_tests(), stability=True)
+        action = self.next_action
+        if action == DownstreamAction.try_push:
+            return TryPush.create(self, self.affected_tests(), stability=False,
+                                  try_cls=try_cls)
+        elif action == DownstreamAction.try_push_stability:
+            return TryPush.create(self, self.affected_tests(), stability=True,
+                                  try_cls=try_cls)
 
     def create_bug(self, git_wpt, pr_id, pr_title, pr_body):
         if self.bug is not None:
@@ -635,28 +651,36 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             logger.info("Try push is not complete")
             return
 
-        try_push.validate_tasks()
+        if not try_push.validate_tasks():
+            if len(sync.latest_busted_try_pushes()) > 5:
+                message = ("Too many busted try pushes. "
+                           "Check the try results for infrastructure issues.")
+                sync.error = message
+                env.bz.comment(sync.bug, message)
+                try_push.status = "complete"
+                raise AbortError(message)
+        else:
+            logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
+            disabled = []
+            if not try_push.success():
+                if sync.affected_tests():
+                    log_files = try_push.download_raw_logs()
+                    if not log_files:
+                        raise ValueError("No log files found for try push %r" % try_push)
+                    disabled = sync.update_metadata(log_files, stability=try_push.stability)
+                else:
+                    env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, "
+                                              "but the try push wasn't a success. Check the try "
+                                              "results for infrastructure issues"))
+                    # TODO: consider marking the push an error here so that we can't land without
+                    # manual intervention
 
-        logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
-        disabled = []
-        if not try_push.success():
-            if sync.affected_tests():
-                log_files = try_push.download_raw_logs()
-                if not log_files:
-                    raise ValueError("No log files found for try push %r" % try_push)
-                disabled = sync.update_metadata(log_files, stability=try_push.stability)
-            else:
-                env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, "
-                                          "but the try push wasn't a success. Check the try "
-                                          "results for infrastructure issues"))
-                # TODO: consider marking the push an error here so that we can't land without manual
-                # intervention
-
-    if try_push.stability and disabled:
-        logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
-        # TODO notify relevant people about test expectation changes, stability
-        env.bz.comment(sync.bug, ("The following tests were disabled "
-                                  "based on stability try push:\n %s" % "\n".join(disabled)))
+            if try_push.stability and disabled:
+                logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
+                # TODO notify relevant people about test expectation changes, stability
+                env.bz.comment(sync.bug, ("The following tests were disabled "
+                                          "based on stability try push:\n %s" %
+                                          "\n".join(disabled)))
     try_push.status = "complete"
 
     next_try_push = sync.next_try_push()
