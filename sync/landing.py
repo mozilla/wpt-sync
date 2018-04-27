@@ -622,6 +622,40 @@ def push(landing):
     # The landing is marked as finished when it reaches central
 
 
+class UnlandableType(enum.Enum):
+    ready = 0
+    no_pr = 1
+    upstream = 2
+    no_sync = 3
+    error = 4
+    missing_try_results = 5
+    skip = 6
+
+
+def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
+    pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
+                                            git_wpt,
+                                            wpt_head or prev_wpt_head,
+                                            "origin/master")
+    for pr, commits in pr_commits:
+        if pr is None:
+            yield (pr, commits, UnlandableType.no_pr)
+        elif upstream.UpstreamSync.has_metadata(commits[0].msg):
+            yield (pr, commits, UnlandableType.upstream)
+        else:
+            sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
+            if not sync:
+                yield (pr, commits, UnlandableType.no_sync)
+            elif sync.skip:
+                yield (pr, commits, UnlandableType.skip)
+            elif sync.metadata_ready:
+                yield (pr, commits, UnlandableType.ready)
+            elif sync.error:
+                yield (pr, commits, UnlandableType.error)
+            else:
+                yield (pr, commits, UnlandableType.missing_try_results)
+
+
 def load_sync_point(git_gecko, git_wpt):
     """Read the last sync point from the batch sync process"""
     mozilla_data = git_gecko.git.show("%s:testing/web-platform/meta/mozilla-sync" %
@@ -818,9 +852,18 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
     intermittents = []
 
     if not try_push.success() and not retriggered:
-        if try_push.failure_limit_exceeded(sync):
+        if try_push.failure_limit_exceeded():
+            message = (
+                "Latest try push for bug %s has too many failures.\n"
+                "See %s"
+            ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
+            logger.error(message)
+            sync.error = message
+            env.bz.comment(sync.bug, message)
+
             try_push.status = "complete"
             return
+
         num_new_jobs = try_push.retrigger_failures()
         logger.info("%s new tasks scheduled on try for %s" % (num_new_jobs, sync.bug))
         if num_new_jobs:
@@ -831,6 +874,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
 
     for name, data in retriggered.iteritems():
         total = float(sum(data["states"].itervalues()))
+
         # assuming that only failures cause metadata updates
         if data["states"][tc.SUCCESS] / total >= try_push._min_success:
             intermittents.append(name)
@@ -913,37 +957,3 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
 
     if landing_sync and landing_sync.status == "complete":
         tasks.land.apply_async()
-
-
-class UnlandableType(enum.Enum):
-    ready = 0
-    no_pr = 1
-    upstream = 2
-    no_sync = 3
-    error = 4
-    missing_try_results = 5
-    skip = 6
-
-
-def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
-    pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
-                                            git_wpt,
-                                            wpt_head or prev_wpt_head,
-                                            "origin/master")
-    for pr, commits in pr_commits:
-        if pr is None:
-            yield (pr, commits, UnlandableType.no_pr)
-        elif upstream.UpstreamSync.has_metadata(commits[0].msg):
-            yield (pr, commits, UnlandableType.upstream)
-        else:
-            sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-            if not sync:
-                yield (pr, commits, UnlandableType.no_sync)
-            elif sync.skip:
-                yield (pr, commits, UnlandableType.skip)
-            elif sync.metadata_ready:
-                yield (pr, commits, UnlandableType.metadata_ready)
-            elif sync.error:
-                yield (pr, commits, UnlandableType.error)
-            else:
-                yield (pr, commits, UnlandableType.missing_try_results)
