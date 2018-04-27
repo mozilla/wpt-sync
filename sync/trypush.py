@@ -462,11 +462,11 @@ class TryPush(base.ProcessData):
             if float(len(exception_tasks)) / len(wpt_tasks) > (1 - self._min_success):
                 err = ("Too many exceptions found among wpt tests. "
                        "Check decision task {}".format(self.taskgroup_id))
-
         if err:
-            logger.debug(err)
+            logger.error(err)
             self.infra_fail = True
-            raise AbortError(err)
+            return False
+        return True
 
     def retrigger_failures(self, count=_retrigger_count):
         task_states = self.wpt_states()
