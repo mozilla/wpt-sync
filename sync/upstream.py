@@ -235,7 +235,7 @@ class UpstreamSync(base.SyncProcess):
         matching_commits = []
 
         if len(self.gecko_commits) == 0:
-            self.wpt_commits.head = self.wpt_commits.base
+            return
 
         # Find the commits that were already upstreamed. Some gecko commits may not
         # result in an upstream commit, if the patch has no effect. But if we find
@@ -249,7 +249,7 @@ class UpstreamSync(base.SyncProcess):
             matching_commits.pop()
 
         if len(matching_commits) == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
-            return False
+            return
 
         if len(matching_commits) == 0:
             self.wpt_commits.head = self.wpt_commits.base
@@ -340,13 +340,18 @@ class UpstreamSync(base.SyncProcess):
 
     def update_github(self):
         if self.pr:
-            if not len(self.wpt_commits):
+            if not len(self.gecko_commits):
                 env.gh_wpt.close_pull(self.pr)
             elif env.gh_wpt.pull_state(self.pr) == "closed":
                 env.gh_wpt.reopen_pull(self.pr)
+
+        if not len(self.gecko_commits):
+            return
+
         self.push_commits()
         if not self.pr:
             self.create_pr()
+
         landed_status = "success" if self.gecko_landed() else "failure"
         # TODO - Maybe ignore errors setting the status
         env.gh_wpt.set_status(self.pr,
@@ -632,15 +637,20 @@ def update_sync_heads(syncs_by_bug):
 
 
 def update_modified_sync(sync):
-    sync.update_wpt_commits()
-
-    if len(sync.upstreamed_gecko_commits) == 0:
+    if len(sync.gecko_commits) == 0:
+        # In the case that there are no gecko commits, we presumably had a backout
+        # In this case we don't touch the wpt commits, but just mark the PR
+        # as closed. That's pretty counterintuitive, but it turns out that GitHub
+        # will only let you reopen a closed PR if you don't change the branch head in
+        # the meantime. So we carefully avoid touching the wpt side until something
+        # relands and we have a chance to reopen the PR
         logger.info("Sync has no commits, so marking as incomplete")
         sync.status = "incomplete"
         if not sync.pr:
             logger.info("Sync was already fully applied upstream, not creating a PR")
             return
     else:
+        sync.update_wpt_commits()
         sync.status = "open"
 
     sync.update_github()

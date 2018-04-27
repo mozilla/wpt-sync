@@ -108,6 +108,12 @@ class GitHub(object):
             raise ValueError
         return pr.state
 
+    def reopen_pull(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if not pr:
+            raise ValueError
+        pr.edit(state="open")
+
     def close_pull(self, pr_id):
         pr = self.get_pull(pr_id)
         if not pr:
