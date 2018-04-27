@@ -96,11 +96,8 @@ def get_central_tasks(git_gecko, sync):
     if not wpt_tasks:
         return None
 
-    # Check if the job is complete
-    for task in wpt_tasks:
-        state = task.get("status", {}).get("state")
-        if state in (None, tc.PENDING, tc.RUNNING):
-            return None
+    if not wpt_tasks.is_complete(allow_unscheduled=True):
+        return None
 
     dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                         "central", central_commit.sha1)
