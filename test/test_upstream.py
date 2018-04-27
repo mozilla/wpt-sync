@@ -71,7 +71,8 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     sync = syncs["incomplete"][0]
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 0
-    assert len(sync.wpt_commits) == 0
+    assert len(sync.wpt_commits) == 1
+    assert len(sync.upstreamed_gecko_commits) == 1
     assert sync.status == "incomplete"
     backout_commit = sync_commit.GeckoCommit(git_gecko, git_gecko.cinnabar.hg2git(rev))
     assert backout_commit.upstream_sync(git_gecko, git_wpt) == sync
@@ -99,7 +100,9 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     sync = syncs["incomplete"][0]
     assert sync.status == "incomplete"
     assert sync._process_name.seq_id == 0
-    assert len(sync.upstreamed_gecko_commits) == 0
+    assert len(sync.gecko_commits) == 0
+    assert len(sync.upstreamed_gecko_commits) == 1
+    assert len(sync.wpt_commits) == 1
 
     # Make some unrelated commit in the root
     upstream_gecko_commit(other_changes=test_changes, bug="1235",
@@ -119,6 +122,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
+    assert len(sync.upstreamed_gecko_commits) == 1
     assert sync.status == "open"
     sync.wpt_commits[0].metadata["gecko-commit"] == relanding_rev
 
