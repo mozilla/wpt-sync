@@ -607,6 +607,18 @@ class CommitRange(object):
         self._base_sha = self.base.sha1
         return self._commits
 
+    @property
+    def files_changed(self):
+        # For the diff have to use the real parent commit, because this is
+        # basically `git diff base..head` and if base is a ref, it can include
+        # other changes on that branch
+        diff = self.head.commit.diff(self.commits[0].commit.parents[0])
+        files = set()
+        for item in diff:
+            files.add(item.a_path)
+            files.add(item.b_path)
+        return files
+
 
 class Worktree(object):
     """Wrapper for accessing a git worktree for a specific process.

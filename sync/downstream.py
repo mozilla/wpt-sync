@@ -393,7 +393,15 @@ class DownstreamSync(base.SyncProcess):
 
             old_gecko_head = self.gecko_commits.head.sha1
             logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
-            self.wpt_to_gecko_commits()
+            try:
+                self.wpt_to_gecko_commits()
+            except AbortError:
+                # If there's a merge conflict, apply the prior commits that touched files in this PR
+                has_changes = self.apply_upstream_changes()
+                if has_changes:
+                    self.wpt_to_gecko_commits()
+                    env.bz.comment(self.bug,
+                                   "Commit applied after adding additional changes from upstream")
 
             logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
             if old_gecko_head == self.gecko_commits.head.sha1:
@@ -413,12 +421,16 @@ class DownstreamSync(base.SyncProcess):
         else:
             # If we managed to apply all the commits without error, reset the error flag
             self.error = None
+
         return True
 
     def wpt_to_gecko_commits(self):
         """Create a patch based on wpt branch, apply it to corresponding gecko branch"""
+        applied_dependents = any(commit.metadata.get("wpt-type") == "dependent"
+                                 for commit in self.gecko_commits)
         existing_gecko_commits = [commit for commit in self.gecko_commits
-                                  if commit.metadata.get("wpt-commit")]
+                                  if not commit.metadata.get("wpt-type") and
+                                  commit.metadata.get("wpt-commit")]
 
         retain_commits = []
         if existing_gecko_commits:
@@ -448,7 +460,7 @@ class DownstreamSync(base.SyncProcess):
             if retain_commits and len(retain_commits) < len(existing_gecko_commits):
                 self.gecko_commits.head = retain_commits[-1].sha1
                 gecko_work.git.reset(hard=True)
-            elif not retain_commits:
+            elif not retain_commits and not applied_dependents:
                 # If there's no commit in common don't try to reuse the current branch at all
                 logger.info("Resetting gecko to latest central")
                 self.gecko_commits.head = self.gecko_landing_branch()
@@ -475,6 +487,59 @@ class DownstreamSync(base.SyncProcess):
                 self.gecko_commits[-1].metadata.get("wpt-type") != "metadata"):
                 gitutils.cherry_pick(gecko_work, metadata_commit)
             self.data["metadata-commit"] = None
+
+        return True
+
+    def dependent_changes(self):
+        import landing
+
+        sync_point = landing.load_sync_point(self.git_gecko, self.git_wpt)
+        base = sync_point["upstream"]
+        head = "origin/master"
+        changed = self.wpt_commits.files_changed
+        changes = []
+        for commit in self.git_wpt.iter_commits("%s..%s" % (base, head),
+                                                reverse=True,
+                                                paths=list(changed)):
+            commit = sync_commit.WptCommit(self.git_wpt, commit)
+            # Check for same-pr rather than same-commit because we always
+            # use the commits on the PR branch, not the merged commits.
+            # The other option is to use the GH API to decide if the PR
+            # merged and if so what the merge commit was, although in that
+            # case we would still not know the commit prior to merge, which
+            # is what we need
+            if commit.pr() == str(self.pr):
+                break
+            changes.append(commit)
+        return changes
+
+    def apply_upstream_changes(self):
+        # TODO: make this apply full PRs
+        gecko_work = self.gecko_worktree.get()
+        try:
+            dependent_changes = self.dependent_changes()
+            if not dependent_changes:
+                return False
+            logger.info("Applying %i commits that touch the same files:\n%s" %
+                        (len(dependent_changes), ",".join(item.sha1 for item in dependent_changes)))
+            if gecko_work.is_dirty():
+                gecko_work.git.reset(hard=True)
+
+            self.gecko_commits.head = self.gecko_landing_branch()
+
+            for commit in dependent_changes:
+                commit.move(gecko_work,
+                            dest_prefix=env.config["gecko"]["path"]["wpt"],
+                            metadata={"wpt-type": "dependent",
+                                      "wpt-commit": commit.sha1})
+        except Exception:
+            self.gecko_commits.head = self.gecko_landing_branch()
+            gecko_work.git.reset(hard=True)
+            raise
+        except AbortError as e:
+            self.gecko_commits.head = self.gecko_landing_branch()
+            gecko_work.git.reset(hard=True)
+            logger.warning("Got exception: %s" % e)
 
         return True
 
