@@ -229,3 +229,37 @@ def test_try_push_expiration(git_gecko, git_wpt, pull_request,
     with patch("sync.trypush.tc.get_task",
                return_value={"created": taskcluster.fromNowJSON("-5 days")}):
         assert not try_push.expired()
+
+
+def test_metadata_update(env, git_gecko, git_wpt, pull_request,
+                         pull_request_commit):
+    from conftest import gecko_changes, git_commit
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+
+    assert len(sync.gecko_commits) == 1
+
+    gecko_work = sync.gecko_worktree.get()
+    changes = gecko_changes(env, meta_changes={"example.ini": "Example change"})
+    git_commit(gecko_work, """Update metadata
+
+wpt-pr: %s
+wpt-type: metadata
+""" % pr.number, changes)
+
+    assert len(sync.gecko_commits) == 2
+    assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
+    metadata_commit = sync.gecko_commits[-1]
+
+    head_sha = pull_request_commit(pr.number,
+                                   [("fixup! Test commit", {"README": "Example change 1\n"})])
+
+    downstream.update_repositories(git_gecko, git_wpt)
+    sync.update_commits()
+    assert len(sync.gecko_commits) == 3
+    assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
+    assert sync.gecko_commits[-1].msg == metadata_commit.msg
+    assert sync.gecko_commits[-2].metadata.get("wpt-commit") == head_sha

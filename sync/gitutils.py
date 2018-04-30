@@ -1,5 +1,7 @@
 import time
 
+import git
+
 import log
 from env import Environment
 
@@ -100,3 +102,30 @@ def status(repo):
             filename, rename = filenames[0], None
         rv[filename] = {"code": code, "rename": rename}
     return rv
+
+
+def handle_empty_commit(worktree, e):
+    # If git exits with return code 1 and mentions an empty
+    # cherry pick, then we tried to cherry pick something
+    # that results in an empty commit so reset the index and
+    # continue. gitpython doesn't really enforce anything about
+    # the type of status, so just convert it to a string to be
+    # sure
+    if (str(e.status) == "1" and
+        "The previous cherry-pick is now empty" in e.stderr):
+        logger.info("Cherry pick resulted in an empty commit")
+        # If the cherry pick would result in an empty commit,
+        # just reset and continue
+        worktree.git.reset()
+        return True
+    return False
+
+
+def cherry_pick(worktree, commit):
+    try:
+        worktree.git.cherry_pick(commit)
+        return True
+    except git.GitCommandError as e:
+        if handle_empty_commit(worktree, e):
+            return True
+        return False
