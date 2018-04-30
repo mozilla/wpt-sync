@@ -89,9 +89,9 @@ def get_central_tasks(git_gecko, sync):
         return None
 
     taskgroup_id = tc.normalize_task_id(taskgroup_id)
-    tasks = tc.get_tasks_in_group(taskgroup_id)
+    tasks = tc.TaskGroup(taskgroup_id)
 
-    wpt_tasks = tc.filter_suite(tasks, "web-platform-tests")
+    wpt_tasks = tasks.view(tc.is_suite_fn("web-platform-tests"))
 
     if not wpt_tasks:
         return None
@@ -105,7 +105,7 @@ def get_central_tasks(git_gecko, sync):
     dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                         "central", central_commit.sha1)
 
-    tc.download_logs(wpt_tasks, dest, raw=False)
+    wpt_tasks.download_logs(dest, ["wptreport.json"])
 
     return wpt_tasks
 

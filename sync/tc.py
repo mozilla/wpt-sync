@@ -206,12 +206,13 @@ class TaskGroupView(object):
         for task in self.tasks:
             status = task.get("status", {})
             for run in status.get("runs", []):
+                if not "_log_paths" in run:
+                    run["_log_paths"] = {}
                 for url in urls:
                     params = {
                         "task": status["taskId"],
                         "run": run["runId"],
                     }
-                    run["_log_paths"] = {}
                     params["file_name"] = url.rsplit("/", 1)[1]
                     log_url = url.format(**params)
                     log_name = "{task}_{run}_{file_name}".format(**params)

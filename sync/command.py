@@ -218,7 +218,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
-        if try_push.status != "complete" and tc.is_complete(try_push.wpt_tasks(force_update=True)):
+        if try_push.status != "complete" and try_push.wpt_tasks(force_update=True).is_complete(allow_unscheduled=True):
             if try_push.infra_fail:
                 update_landing()
             else:

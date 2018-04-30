@@ -858,7 +858,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
 
     log_files = try_push.download_raw_logs(exclude=intermittents)
     if not log_files:
-        logger.debug("No log files found for try push %r" % try_push)
+        logger.warning("No log files found for try push %r" % try_push)
     sync.update_metadata(log_files)
 
     try_push.status = "complete"

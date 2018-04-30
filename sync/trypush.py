@@ -561,11 +561,11 @@ class TryPush(base.ProcessData):
             file_names.append("wpt_raw.log")
         if report:
             file_names.append("wptreport.json")
-        include_tasks.download_logs(wpt_tasks, dest, file_names)
+        include_tasks.download_logs(dest, file_names)
         return include_tasks
 
     def download_raw_logs(self, exclude=None):
-        wpt_tasks = self.download_logs(raw=True, exclude=exclude)
+        wpt_tasks = self.download_logs(raw=True, report=True, exclude=exclude)
         raw_logs = []
         for task in wpt_tasks:
             for run in task.get("status", {}).get("runs", []):
