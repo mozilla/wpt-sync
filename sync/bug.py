@@ -100,6 +100,10 @@ class Bugzilla(object):
                         summary=summary,
                         product=product,
                         component=component)
+        # Self-assign bugs by default to get them off triage radars
+        bz_username = env.config["bugzilla"]["username"]
+        if bz_username:
+            bug._bug["assigned_to"] = bz_username
         bug.add_comment(comment)
         if priority is not None:
             if priority not in ("P1", "P2", "P3", "P4", "P5"):
