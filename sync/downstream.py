@@ -15,6 +15,7 @@ import git
 
 import base
 import bugcomponents
+import gitutils
 import log
 import notify
 import trypush
@@ -394,28 +395,49 @@ class DownstreamSync(base.SyncProcess):
 
         logger.info("Retaining %s previous commits" % len(retain_commits))
 
-        if retain_commits and len(retain_commits) < len(existing_gecko_commits):
-            self.gecko_commits.head = retain_commits[-1].sha1
-        elif not retain_commits:
-            # If there's no commit in common don't try to reuse the current branch at all
-            logger.info("Resetting gecko to latest central")
-            self.gecko_commits.head = self.gecko_landing_branch()
+        # If we have a metadata commit already, remove it and re-apply it at the end to
+        # ensure it's always the last commit in the branch
+        metadata_commit = self.data.get("metadata-commit")
 
-        append_commits = self.wpt_commits[len(retain_commits):]
-        if not append_commits:
-            return
+        try:
+            gecko_work = self.gecko_worktree.get()
+            if (len(self.gecko_commits) > 1 and
+                self.gecko_commits[-1].metadata.get("wpt-type") == "metadata"):
+                metadata_commit = self.gecko_commits[-1].sha1
+                self.data["metadata-commit"] = metadata_commit
+                self.gecko_commits.head = self.gecko_commits[-2]
+                gecko_work.git.reset(hard=True)
 
-        gecko_work = self.gecko_worktree.get()
-        for commit in append_commits:
-            logger.info("Moving commit %s" % commit.sha1)
-            metadata = {
-                "wpt-pr": self.pr,
-                "wpt-commit": commit.sha1
-            }
-            commit.move(gecko_work,
-                        dest_prefix=env.config["gecko"]["path"]["wpt"],
-                        msg_filter=self.message_filter,
-                        metadata=metadata)
+            if retain_commits and len(retain_commits) < len(existing_gecko_commits):
+                self.gecko_commits.head = retain_commits[-1].sha1
+                gecko_work.git.reset(hard=True)
+            elif not retain_commits:
+                # If there's no commit in common don't try to reuse the current branch at all
+                logger.info("Resetting gecko to latest central")
+                self.gecko_commits.head = self.gecko_landing_branch()
+                gecko_work.git.reset(hard=True)
+
+            append_commits = self.wpt_commits[len(retain_commits):]
+            if not append_commits:
+                return
+
+            for commit in append_commits:
+                logger.info("Moving commit %s" % commit.sha1)
+                metadata = {
+                    "wpt-pr": self.pr,
+                    "wpt-commit": commit.sha1
+                }
+                commit.move(gecko_work,
+                            dest_prefix=env.config["gecko"]["path"]["wpt"],
+                            msg_filter=self.message_filter,
+                            metadata=metadata)
+        except Exception:
+            raise
+        else:
+            if (metadata_commit is not None and
+                self.gecko_commits[-1].metadata.get("wpt-type") != "metadata"):
+                gitutils.cherry_pick(gecko_work, metadata_commit)
+            self.data["metadata-commit"] = None
 
         return True
 

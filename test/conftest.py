@@ -404,6 +404,7 @@ def pull_request_commit(env, git_wpt_upstream, pull_request):
         git_wpt_upstream.git.update_ref("refs/pull/%s/head" % pr_id, "refs/heads/temp_pr")
         git_wpt_upstream.heads.master.checkout()
         git_wpt_upstream.delete_head(pr_branch, force=True)
+        return rev.hexsha
 
     return inner
 

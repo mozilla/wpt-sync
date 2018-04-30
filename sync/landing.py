@@ -395,29 +395,7 @@ Automatic update from web-platform-tests%s
 
         worktree = self.gecko_worktree.get()
 
-        def handle_empty_commit(e):
-            # If git exits with return code 1 and mentions an empty
-            # cherry pick, then we tried to cherry pick something
-            # that results in an empty commit so reset the index and
-            # continue. gitpython doesn't really enforce anything about
-            # the type of status, so just convert it to a string to be
-            # sure
-            if (str(e.status) == "1" and
-                "The previous cherry-pick is now empty" in e.stderr):
-                logger.info("Cherry pick resulted in an empty commit")
-                # If the cherry pick would result in an empty commit,
-                # just reset and continue
-                worktree.git.reset()
-                return True
-            return False
-
-        try:
-            worktree.git.cherry_pick(sync.metadata_commit.sha1)
-            success = True
-        except git.GitCommandError as e:
-            if handle_empty_commit(e):
-                return
-            success = False
+        success = gitutils.cherry_pick(worktree, sync.metadata_commit.sha1)
 
         if not success:
             logger.info("Cherry-pick failed, trying again with only test-related changes")
@@ -444,7 +422,7 @@ Automatic update from web-platform-tests%s
             try:
                 worktree.git.commit(c="CHERRY_PICK_HEAD", no_edit=True)
             except git.GitCommandError as e:
-                if handle_empty_commit(e):
+                if gitutils.handle_empty_commit(worktree, e):
                     return
                 raise
 
