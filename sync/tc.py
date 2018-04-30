@@ -206,7 +206,7 @@ class TaskGroupView(object):
         for task in self.tasks:
             status = task.get("status", {})
             for run in status.get("runs", []):
-                if not "_log_paths" in run:
+                if "_log_paths" not in run:
                     run["_log_paths"] = {}
                 for url in urls:
                     params = {
