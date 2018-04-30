@@ -441,12 +441,14 @@ Automatic update from web-platform-tests%s
             logger.debug("Resetting changes to %s" % " ".join(checkout))
             worktree.git.checkout("HEAD", "--", *checkout)
             # Now try to commit again
-            try:
-                worktree.git.commit(c="CHERRY_PICK_HEAD", no_edit=True)
-            except git.GitCommandError as e:
-                if handle_empty_commit(e):
-                    return
-                raise
+
+            if worktree.is_dirty():
+                try:
+                    worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
+                except git.GitCommandError as e:
+                    if handle_empty_commit(e):
+                        return
+                    raise
 
             metadata_commit = worktree.head.commit
             if metadata_commit.message.startswith("Bug None"):
