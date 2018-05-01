@@ -231,8 +231,8 @@ def test_try_push_expiration(git_gecko, git_wpt, pull_request,
         assert not try_push.expired()
 
 
-def test_dependent_commit(env, git_gecko, git_wpt, pull_request,
-                          upstream_wpt_commit):
+def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
+                          pull_request_commit):
     upstream_wpt_commit("First change", {"README": "Example change\n"})
 
     pr = pull_request([("Test change", {"README": "Example change 1\n"})],
@@ -243,13 +243,25 @@ def test_dependent_commit(env, git_gecko, git_wpt, pull_request,
 
     assert len(sync.gecko_commits) == 2
     assert sync.gecko_commits[0].msg.splitlines()[0] == "First change"
-    assert sync.gecko_commits[0].metadata["wpt-type"] == "dependent"
+    assert sync.gecko_commits[0].metadata["wpt-type"] == "dependency"
     assert sync.gecko_commits[1].metadata.get("wpt-type") is None
     assert "Test change" in sync.gecko_commits[1].msg.splitlines()[0]
+    old_gecko_commits = sync.gecko_commits[:]
+    # Check that rerunning doesn't affect anything
+    sync.update_commits()
+    assert [item.sha1 for item in sync.gecko_commits] == [item.sha1 for item in old_gecko_commits]
+
+    head_sha = pull_request_commit(pr.number,
+                                   [("fixup! Test change", {"README": "Example change 2\n"})])
+    downstream.update_repositories(git_gecko, git_wpt)
+    sync.update_commits()
+    assert len(sync.gecko_commits) == 3
+    assert ([item.sha1 for item in sync.gecko_commits[:2]] ==
+            [item.sha1 for item in old_gecko_commits])
+    assert sync.gecko_commits[-1].metadata["wpt-commit"] == head_sha
 
 
-def test_metadata_update(env, git_gecko, git_wpt, pull_request,
-                         pull_request_commit):
+def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_commit):
     from conftest import gecko_changes, git_commit
     pr = pull_request([("Test commit", {"README": "Example change\n"})],
                       "Test PR")
