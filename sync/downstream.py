@@ -31,6 +31,7 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 
+@enum.unique
 class DownstreamAction(enum.Enum):
     ready = 0
     manual_fix = 1
@@ -38,6 +39,14 @@ class DownstreamAction(enum.Enum):
     try_push_stability = 3
     wait_try = 4
     wait_approved = 5
+
+    def reason_str(self):
+        return {DownstreamAction.ready: "",
+                DownstreamAction.manual_fix: "",
+                DownstreamAction.try_push: "valid try push required",
+                DownstreamAction.try_push_stability: "stability try push required",
+                DownstreamAction.wait_try: "waiting for try to complete",
+                DownstreamAction.wait_approved: "waiting for PR to be approved"}.get(self, "")
 
 
 class DownstreamSync(base.SyncProcess):

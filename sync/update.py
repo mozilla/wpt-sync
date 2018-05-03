@@ -253,14 +253,14 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
 
 
 def retrigger(git_gecko, git_wpt, unlandable_prs):
-    from landing import UnlandableType
+    from landing import LandableStatus
 
     errors = []
     for pr_id, commits, status in unlandable_prs:
-        if status in (UnlandableType.ready,
-                      UnlandableType.skip,
-                      UnlandableType.upstream,
-                      UnlandableType.no_pr):
+        if status in (LandableStatus.ready,
+                      LandableStatus.skip,
+                      LandableStatus.upstream,
+                      LandableStatus.no_pr):
             continue
 
         try:
