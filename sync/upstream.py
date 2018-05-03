@@ -160,6 +160,10 @@ class UpstreamSync(base.SyncProcess):
                                                           remote_head.commit.hexsha)
 
     @property
+    def landable_status(self):
+        return base.LandableStatus.upstream
+
+    @property
     def bug(self):
         return self._process_name.obj_id
 
