@@ -421,8 +421,8 @@ def do_skip(git_gecko, git_wpt, pr_id, *args, **kwargs):
 @with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import update
-    from downstream import DownstreamAction, DownstreamSync
-    from landing import UnlandableType, load_sync_point, landable_commits, unlanded_with_type
+    from downstream import DownstreamSync
+    from landing import LandableStatus, load_sync_point, landable_commits, unlanded_with_type
 
     update_repositories(git_gecko, git_wpt)
 
@@ -445,27 +445,12 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
     if kwargs["all"] or kwargs["retrigger"]:
         unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
 
-        status_map = {UnlandableType.ready: "Ready",
-                      UnlandableType.no_pr: "No PR",
-                      UnlandableType.upstream: "From gecko",
-                      UnlandableType.no_sync: "No sync created",
-                      UnlandableType.error: "Error",
-                      UnlandableType.missing_try_results: "Incomplete try results",
-                      UnlandableType.skip: "Skip"}
-
-        detail_map = {DownstreamAction.ready: "",
-                      DownstreamAction.manual_fix: "",
-                      DownstreamAction.try_push: "Valid try push required",
-                      DownstreamAction.try_push_stability: "Stability try push required",
-                      DownstreamAction.wait_try: "Waiting for try to complete",
-                      DownstreamAction.wait_approved: "Waiting for PR to be approved"}
-
         for pr, _, status in unlandable:
-            msg = status_map.get(status, "Unknown")
-            if status == UnlandableType.missing_try_results:
+            msg = status.reason_str()
+            if status == LandableStatus.missing_try_results:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-                msg = "%s (%s)" % (msg, detail_map.get(sync.next_action))
-            elif status == UnlandableType.error:
+                msg = "%s (%s)" % (msg, sync.next_action.reason_str())
+            elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 msg = "%s (%s)" % (msg, sync.error["message"].split("\n")[0])
             print("%s: %s" % (pr, msg))

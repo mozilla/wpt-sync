@@ -209,7 +209,7 @@ def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
     another_try_push.status = "complete"
     another_try_push = sync.next_try_push(try_cls=MockTryCls)
     assert another_try_push is None
-    assert sync.error["message"].startswith("Too many busted try pushes")
+    assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
 def test_try_push_expiration(git_gecko, git_wpt, pull_request,
