@@ -561,7 +561,8 @@ class DownstreamSync(base.SyncProcess):
                 # Ensure we have the latest commits for the reverted sync
                 sync.update_wpt_commits()
                 unreverted_commits[sync] = {item.sha1 for item in sync.wpt_commits}
-            unreverted_commits[sync].remove(sha)
+            if sha in unreverted_commits[sync]:
+                unreverted_commits[sync].remove(sha)
 
         rv = {sync for sync, unreverted in unreverted_commits.iteritems()
               if not unreverted}
