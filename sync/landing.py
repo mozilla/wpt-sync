@@ -3,7 +3,6 @@ import os
 import shutil
 from collections import defaultdict
 
-import enum
 import git
 from mozautomation import commitparser
 
@@ -622,26 +621,6 @@ def push(landing):
     # The landing is marked as finished when it reaches central
 
 
-@enum.unique
-class LandableStatus(enum.Enum):
-    ready = 0
-    no_pr = 1
-    upstream = 2
-    no_sync = 3
-    error = 4
-    missing_try_results = 5
-    skip = 6
-
-    def reason_str(self):
-        return {LandableStatus.ready: "Ready",
-                LandableStatus.no_pr: "No PR",
-                LandableStatus.upstream: "From gecko",
-                LandableStatus.no_sync: "No sync created",
-                LandableStatus.error: "Error",
-                LandableStatus.missing_try_results: "Incomplete try results",
-                LandableStatus.skip: "Skip"}.get(self, "Unknown")
-
-
 def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
     pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
                                             git_wpt,
@@ -649,21 +628,16 @@ def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
                                             "origin/master")
     for pr, commits in pr_commits:
         if pr is None:
-            yield (pr, commits, LandableStatus.no_pr)
+            status = base.LandableStatus.no_pr
         elif upstream.UpstreamSync.has_metadata(commits[0].msg):
-            yield (pr, commits, LandableStatus.upstream)
+            status = base.LandableStatus.upstream
         else:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if not sync:
-                yield (pr, commits, LandableStatus.no_sync)
-            elif sync.skip:
-                yield (pr, commits, LandableStatus.skip)
-            elif sync.metadata_ready:
-                yield (pr, commits, LandableStatus.ready)
-            elif sync.error:
-                yield (pr, commits, LandableStatus.error)
+                status = base.LandableStatus.no_sync
             else:
-                yield (pr, commits, LandableStatus.missing_try_results)
+                status = sync.landable_status
+        yield (pr, commits, status)
 
 
 def load_sync_point(git_gecko, git_wpt):

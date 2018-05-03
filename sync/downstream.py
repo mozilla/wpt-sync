@@ -101,6 +101,17 @@ class DownstreamSync(base.SyncProcess):
         return all(item in metadata for item in required_keys)
 
     @property
+    def landable_status(self):
+        if self.skip:
+            return base.LandableStatus.skip
+        if self.metadata_ready:
+            return base.LandableStatus.ready
+        if self.error:
+            return base.LandableStatus.error
+
+        return base.LandableStatus.missing_try_results
+
+    @property
     def pr_head(self):
         """Head commit of the PR. Typically this is equal to
         self.wpt_commits.head but if the PR is rebased onto master

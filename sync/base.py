@@ -8,6 +8,7 @@ import traceback
 import weakref
 from fnmatch import fnmatch
 
+import enum
 import git
 
 import bug
@@ -664,6 +665,26 @@ class Worktree(object):
         self.repo.git.worktree("prune")
 
 
+@enum.unique
+class LandableStatus(enum.Enum):
+    ready = 0
+    no_pr = 1
+    upstream = 2
+    no_sync = 3
+    error = 4
+    missing_try_results = 5
+    skip = 6
+
+    def reason_str(self):
+        return {LandableStatus.ready: "Ready",
+                LandableStatus.no_pr: "No PR",
+                LandableStatus.upstream: "From gecko",
+                LandableStatus.no_sync: "No sync created",
+                LandableStatus.error: "Error",
+                LandableStatus.missing_try_results: "Incomplete try results",
+                LandableStatus.skip: "Skip"}.get(self, "Unknown")
+
+
 class SyncProcess(object):
     __metaclass__ = IdentityMap
 
@@ -779,6 +800,10 @@ class SyncProcess(object):
             rv = list(itertools.chain.from_iterable(rv.itervalues()))
         return rv
 
+    @property
+    def landable_status(self):
+        return None
+
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
                         str(self._process_name)),
@@ -790,6 +815,9 @@ class SyncProcess(object):
             rv.extend(["ERROR:",
                        self.error["message"],
                        self.error["stack"]])
+        landable_status = self.landable_status
+        if landable_status:
+            rv.append("Landable status: %s" % landable_status.reason_str())
 
         for key, value in sorted(self.data.items()):
             if key != "error":
