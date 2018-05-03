@@ -122,7 +122,7 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
 def update_pr(git_gecko, git_wpt, pr):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
-    if sync.status == "complete":
+    if sync and sync.status == "complete":
         logger.info("Sync already landed")
         return
 
