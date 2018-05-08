@@ -287,7 +287,7 @@ class GeckoCommit(Commit):
 
     def commits_backed_out(self):
         commits = []
-        bugs = None
+        bugs = []
         if self.is_backout:
             nodes_bugs = commitparser.parse_backouts(self.commit.message)
             if nodes_bugs is None:

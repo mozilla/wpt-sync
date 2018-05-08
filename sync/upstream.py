@@ -33,7 +33,7 @@ class BackoutCommitFilter(base.CommitFilter):
         if DownstreamSync.has_metadata(commit.msg):
             return False
         if commit.is_backout:
-            commits, bugs = commit.wpt_commits_backed_out()
+            commits, _ = commit.wpt_commits_backed_out()
             for backout_commit in commits:
                 if backout_commit.sha1 in self.seen:
                     return True
@@ -459,7 +459,7 @@ def filter_commits(commits):
     for commit in commits:
         if (commit.metadata.get("wptsync-skip") or
             DownstreamSync.has_metadata(commit.msg) or
-            (commit.is_backout and not commit.wpt_commits_backed_out())):
+            (commit.is_backout and not commit.wpt_commits_backed_out()[0])):
             continue
         rv.append(commit)
     return rv
