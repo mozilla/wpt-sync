@@ -46,7 +46,7 @@
   become_user: wpt_user
 
 - name: install credentials (if configured)
-  copy: 
+  copy:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
     owner: wpt_user
@@ -76,6 +76,17 @@
   with_items:
     - "{{ mount_workspace| mandatory }}/logs"
 
+- name: ensure rabbitmq user can create files in workspace/logs
+  file:
+    path: "{{ item }}"
+    state: file
+    mode: 0664
+  with_items:
+    - "{{ mount_workspace| mandatory }}/logs/shutdown_err"
+    - "{{ mount_workspace| mandatory }}/logs/startup_err"
+    - "{{ mount_workspace| mandatory }}/logs/shutdown_log"
+    - "{{ mount_workspace| mandatory }}/logs/startup_log"
+    - "{{ mount_workspace| mandatory }}/logs/rabbit.log"
 
 - import_tasks: push-docker-img.yml
   when: rebuild
