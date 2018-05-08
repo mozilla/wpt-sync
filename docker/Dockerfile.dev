@@ -13,10 +13,11 @@ RUN chmod +x /app/start_wptsync.sh
 COPY ./docker/get_ini.py /app/get_ini.py
 RUN chmod +x /app/get_ini.py
 
-# install/update git and erlang/rabbitmq dependencies
+# install/update pip, git and erlang/rabbitmq dependencies
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https
+    apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https; \
+    pip install --upgrade pip
 
 # install tini for process management so we can use its -g option
 ENV TINI_VERSION v0.17.0
@@ -29,7 +30,7 @@ RUN set -eux; \
 # add buster sources.list
     sed 's/stretch/buster/g' /etc/apt/sources.list \
         | tee /etc/apt/sources.list.d/buster.list; \
-        # update apt-preferences such that we get only erlang* from only buster 
+        # update apt-preferences such that we get only erlang* and libtinfo* from only buster 
     { \
         echo 'Package: *'; \
         echo 'Pin: release n=buster*'; \
@@ -40,6 +41,13 @@ RUN set -eux; \
         echo 'Pin-Priority: 999'; \
         echo; \
         echo 'Package: erlang*'; \
+        echo 'Pin: release n=stretch*'; \
+        echo 'Pin-Priority: -10'; \
+        echo 'Package: libtinfo*'; \
+        echo 'Pin: release n=buster*'; \
+        echo 'Pin-Priority: 999'; \
+        echo; \
+        echo 'Package: libtinfo*'; \
         echo 'Pin: release n=stretch*'; \
         echo 'Pin-Priority: -10'; \
     } | tee /etc/apt/preferences.d/buster-erlang
