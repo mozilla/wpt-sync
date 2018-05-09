@@ -253,7 +253,7 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
 
 
 def retrigger(git_gecko, git_wpt, unlandable_prs):
-    from landing import LandableStatus
+    from base import LandableStatus
 
     errors = []
     for pr_id, commits, status in unlandable_prs:
