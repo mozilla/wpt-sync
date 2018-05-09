@@ -932,8 +932,9 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
             if syncs:
                 syncs[0].finish()
         elif commit.is_backout:
-            for backed_out, _ in commit.landing_commits_backed_out():
-                syncs = LandingSync.for_bug(git_gecko, git_wpt, backed_out.bug, flat=True)
+            backed_out, _ = commit.landing_commits_backed_out()
+            for backed_out_commit in backed_out:
+                syncs = LandingSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug, flat=True)
                 if syncs:
                     syncs[0].status = "open"
                     syncs[0].error = "Landing was backed out"
