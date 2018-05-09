@@ -1008,8 +1008,8 @@ class SyncProcess(object):
                 message = value.message
                 stack = traceback.format_exc()
             error = {
-                "message": message,
-                "stack": stack
+                "message": message.encode("utf8", "replace") if message else message,
+                "stack": stack.encode("utf8", "replace") if stack else stack
             }
             self.data["error"] = error
             self.set_bug_data("error")
