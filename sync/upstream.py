@@ -423,7 +423,7 @@ def commit_message_filter(msg):
         logger.info(m.groups())
         bug_str, bug_number = m.groups()[:2]
         if msg.startswith(bug_str):
-            prefix = re.compile(r"^%s[^\w\d]*" % bug_str)
+            prefix = re.compile(r"^%s[^\w\d\[\(]*" % bug_str)
             msg = prefix.sub("", msg)
         metadata["bugzilla-url"] = env.bz.bugzilla_url(bug_number)
 
