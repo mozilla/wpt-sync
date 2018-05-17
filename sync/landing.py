@@ -420,7 +420,7 @@ Automatic update from web-platform-tests%s
             worktree.git.checkout("HEAD", "--", *checkout)
             # Now try to commit again
             try:
-                worktree.git.commit(c="CHERRY_PICK_HEAD", no_edit=True)
+                worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
             except git.GitCommandError as e:
                 if gitutils.handle_empty_commit(worktree, e):
                     return
