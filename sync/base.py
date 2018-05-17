@@ -1000,6 +1000,16 @@ class SyncProcess(object):
 
     @error.setter
     def error(self, value):
+
+        def encode(item):
+            if item is None:
+                return item
+            if isinstance(item, str):
+                return item
+            if isinstance(item, unicode):
+                return item.encode("utf8", "replace")
+            return repr(item)
+
         if value is not None:
             if isinstance(value, (str, unicode)):
                 message = value
@@ -1008,8 +1018,8 @@ class SyncProcess(object):
                 message = value.message
                 stack = traceback.format_exc()
             error = {
-                "message": message.encode("utf8", "replace") if message else message,
-                "stack": stack.encode("utf8", "replace") if stack else stack
+                "message": encode(message),
+                "stack": encode(stack)
             }
             self.data["error"] = error
             self.set_bug_data("error")
