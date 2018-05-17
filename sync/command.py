@@ -59,6 +59,9 @@ def get_parser():
                                 help="Don't actually push anything to gecko")
     parser_landing.add_argument("--include-incomplete", action="store_true", default=False,
                                 help="Consider PRs with incomplete syncs as landable.")
+    parser_landing.add_argument("--accept-failures", action="store_true", default=False,
+                                help="Consider the latest try push a success even if it has "
+                                "more than the allowed number of failures")
     parser_landing.set_defaults(func=do_landing)
 
     parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
@@ -212,6 +215,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
     current_landing = landing.current(git_gecko, git_wpt)
 
+    accept_failures = kwargs["accept_failures"]
+
     def update_landing():
         landing.update_landing(git_gecko, git_wpt,
                                kwargs["prev_wpt_head"],
@@ -220,6 +225,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
+        if try_push.status == "complete" and try_push.failure_limit_exceeded() and accept_failures:
+            try_push.status = "open"
         if (try_push.status != "complete" and
             try_push.wpt_tasks(force_update=True).is_complete(allow_unscheduled=True)):
             if try_push.infra_fail:
@@ -229,7 +236,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                           git_wpt,
                                           try_push,
                                           current_landing,
-                                          allow_push=kwargs["push"])
+                                          allow_push=kwargs["push"],
+                                          accept_failures=accept_failures)
         elif try_push.status == "complete":
             landing.push_to_gecko(git_gecko,
                                   git_wpt,
