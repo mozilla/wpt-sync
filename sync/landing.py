@@ -846,7 +846,14 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
     intermittents = []
 
     if not try_push.success() and not retriggered:
-        if not accept_failures and try_push.failure_limit_exceeded():
+        if not accept_failures and len(try_push.failed_builds()):
+            message = ("Try push had build failures")
+            sync.error = message
+            env.bz.comment(sync.bug, message)
+            try_push.status = "complete"
+            try_push.infra_fail = True
+            raise AbortError(message)
+        elif not accept_failures and try_push.failure_limit_exceeded():
             message = (
                 "Latest try push for bug %s has too many failures.\n"
                 "See %s"

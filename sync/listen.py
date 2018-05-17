@@ -8,7 +8,6 @@ from kombu.mixins import ConsumerMixin
 import log
 import handlers
 import tasks
-import tc
 
 here = os.path.dirname(__file__)
 
@@ -191,4 +190,4 @@ class TaskFilter(Filter):
 
     def accept(self, body):
         return (body["display"]["jobName"] == "Gecko Decision Task" and
-                body["state"] == tc.SUCCESS)
+                body["state"] == "completed")
