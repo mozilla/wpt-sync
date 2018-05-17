@@ -12,7 +12,7 @@ import log
 import commit as sync_commit
 from downstream import DownstreamSync
 from gitutils import update_repositories, gecko_repo
-from pipeline import AbortError
+from errors import AbortError
 from env import Environment
 
 env = Environment()

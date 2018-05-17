@@ -14,7 +14,7 @@ import tc
 import tree
 from env import Environment
 from load import get_syncs
-from pipeline import AbortError
+from errors import AbortError, RetryableError
 from projectutil import Mach
 
 logger = log.get_logger(__name__)
@@ -79,8 +79,7 @@ class TryCommit(object):
     def read_treeherder(self, status, output):
         if status != 0:
             logger.error("Failed to push to try.")
-            # TODO retry
-            raise AbortError("Failed to push to try")
+            raise RetryableError(AbortError("Failed to push to try"))
         rev_match = rev_re.search(output)
         if not rev_match:
             logger.warning("No revision found in string:\n\n{}\n".format(output))
@@ -248,8 +247,7 @@ class TryPush(base.ProcessData):
         logger.info("Creating try push for PR %s" % sync.pr)
         if not tree.is_open("try"):
             logger.info("try is closed")
-            # TODO make this auto-retry
-            raise AbortError("Try is closed")
+            raise RetryableError(AbortError("Try is closed"))
 
         git_work = sync.gecko_worktree.get()
 
