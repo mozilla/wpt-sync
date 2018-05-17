@@ -765,7 +765,15 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
                 sync.error = message
                 env.bz.comment(sync.bug, message)
                 try_push.status = "complete"
+                try_push.infra_fail = True
                 raise AbortError(message)
+        elif len(try_push.failed_builds()):
+            message = ("Try push had build failures")
+            sync.error = message
+            env.bz.comment(sync.bug, message)
+            try_push.status = "complete"
+            try_push.infra_fail = True
+            raise AbortError(message)
         else:
             logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
             disabled = []

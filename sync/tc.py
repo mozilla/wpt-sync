@@ -347,7 +347,9 @@ def get_taskgroup_id(project, revision):
                                (project, job_id))
     job_data = fetch_json(job_url)
 
-    return normalize_task_id(job_data["taskcluster_metadata"]["task_id"]), job_data["result"]
+    return (normalize_task_id(job_data["taskcluster_metadata"]["task_id"]),
+            job_data["state"],
+            job_data["result"])
 
 
 def cleanup():

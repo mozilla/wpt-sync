@@ -225,10 +225,11 @@ def update_taskgroup_ids(git_gecko, git_wpt):
             continue
 
         if not try_push.taskgroup_id:
-            taskgroup_id, status = tc.get_taskgroup_id("try", try_push.try_rev)
+            taskgroup_id, state, result = tc.get_taskgroup_id("try", try_push.try_rev)
             handle_sync("task", {"origin": {"revision": try_push.try_rev},
                                  "taskId": taskgroup_id,
-                                 "result": status})
+                                 "state": state,
+                                 "result": result})
 
 
 def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):

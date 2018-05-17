@@ -181,9 +181,17 @@ class PushHandler(Handler):
 
 
 class TaskHandler(Handler):
+    """Handler for the task associated with a decision task completing.
+
+    Note that this is using the Treeherder event type at
+    https://docs.taskcluster.net/reference/integrations/taskcluster-treeherder/references/events
+    rather than the TaskCluster event type, as this allows us to filter only
+    Gecko Decision Tasks."""
+
     def __call__(self, git_gecko, git_wpt, body):
         sha1 = body["origin"]["revision"]
         task_id = tc.normalize_task_id(body["taskId"])
+        state = body["state"]
         result = body["result"]
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
@@ -195,27 +203,33 @@ class TaskHandler(Handler):
         # the decision task is complete. This allows us to determine if a
         # try push should have the expected wpt tasks just by checking if
         # this is set
-        if result not in (tc.SUCCESS, tc.FAIL, tc.EXCEPTION):
-            logger.info("Decision task is not yet complete")
+        if state != "completed" or result == "superseded":
+            logger.info("Decision task is not yet complete, status %s" % result)
             return
 
-        logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
-        try_push.taskgroup_id = task_id
-
-        failed_builds = len(try_push.failed_builds())
-        if result != tc.SUCCESS or failed_builds:
-            try_push.status = "complete"
-            try_push.infra_fail = True
+        # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
+        # But the retriggered decision task itself is still in the original taskgroup
+        if result == "success":
+            logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
+            try_push.taskgroup_id = task_id
+        elif result in ("fail", "exception"):
             sync = try_push.sync(git_gecko, git_wpt)
             message = ("Decision task got status %s for task %s%s" %
                        (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
-            if failed_builds:
-                message = "The try push includes build failures. %s" % message
             logger.error(message)
-            if sync and sync.bug:
-                # TODO this is commenting too frequently on bugs
-                env.bz.comment(sync.bug,
-                               "Try push failed: decision task returned error")
+            task = tc.get_task(task_id)
+            taskgroup = tc.TaskGroup(task["taskGroupId"])
+            if len(taskgroup.tasks.view(
+                    lambda x: x["metadata"]["name"] == "Gecko Decision Task")) > 5:
+                try_push.status = "complete"
+                try_push.infra_fail = True
+                if sync and sync.bug:
+                    # TODO this is commenting too frequently on bugs
+                    env.bz.comment(sync.bug,
+                                   "Try push failed: decision task %i returned error" % task_id)
+            else:
+                client = tc.TaskclusterClient()
+                client.retrigger(task_id)
 
 
 class TaskGroupHandler(Handler):
