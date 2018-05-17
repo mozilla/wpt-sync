@@ -664,7 +664,7 @@ class DownstreamSync(base.SyncProcess):
             sha = revert_shas[0]
             try:
                 self.git_wpt.rev_parse(sha)
-            except git.BadName:
+            except (ValueError, git.BadName):
                 # Commit isn't in this repo (could be upstream)
                 return set()
             pr = env.gh_wpt.pr_for_commit(sha)
