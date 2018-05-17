@@ -609,14 +609,14 @@ class CommitRange(object):
 
     @property
     def files_changed(self):
-        # For the diff have to use the real parent commit, because this is
-        # basically `git diff base..head` and if base is a ref, it can include
-        # other changes on that branch
-        diff = self.head.commit.diff(self.commits[0].commit.parents[0])
+        # We avoid using diffs because that's harder to get right in the face of merges
         files = set()
-        for item in diff:
-            files.add(item.a_path)
-            files.add(item.b_path)
+        for commit in self.commits:
+            commit_files = self.repo.git.show(commit.sha1, name_status=True, format="")
+            for item in commit_files.splitlines():
+                parts = item.split("\t")
+                for part in parts[1:]:
+                    files.add(part.strip())
         return files
 
 
