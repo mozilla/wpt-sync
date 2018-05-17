@@ -706,7 +706,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
             sync = upstream_sync(bug.bug_number_from_url(commits[0].metadata["bugzilla-url"]))
         if sync is None:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-            if sync.data["affected-tests"] is None:
+            if sync and "affected-tests" in sync.data and sync.data["affected-tests"] is None:
                 del sync.data["affected-tests"]
         if sync is None:
             # Last ditch attempt at finding an upstream sync for this commit in the
