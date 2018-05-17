@@ -6,7 +6,7 @@ from mozautomation import commitparser
 
 import log
 from env import Environment
-from pipeline import AbortError
+from errors import AbortError
 
 
 env = Environment()

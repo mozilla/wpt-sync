@@ -23,7 +23,7 @@ import trypush
 import commit as sync_commit
 from env import Environment
 from gitutils import update_repositories
-from pipeline import AbortError
+from errors import AbortError
 from projectutil import Mach, WPT
 from trypush import TryPush
 

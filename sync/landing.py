@@ -23,7 +23,7 @@ import upstream
 from env import Environment
 from gitutils import update_repositories
 from projectutil import Mach
-from pipeline import AbortError
+from errors import AbortError, RetryableError
 
 
 env = Environment()
@@ -601,8 +601,7 @@ def push(landing):
 
         if not tree.is_open(landing_tree):
             logger.info("%s is closed" % landing_tree)
-            # TODO make this auto-retry
-            raise AbortError("Tree is closed")
+            raise RetryableError(AbortError("Tree is closed"))
 
         try:
             logger.info("Pushing landing")

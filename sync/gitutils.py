@@ -4,6 +4,7 @@ import git
 
 import log
 from env import Environment
+from errors import RetryableError
 
 env = Environment()
 
@@ -25,7 +26,8 @@ def update_repositories(git_gecko, git_wpt, include_autoland=False, wait_gecko_c
             success = until(lambda: _update_gecko(git_gecko, include_autoland),
                             lambda: have_gecko_hg_commit(git_gecko, wait_gecko_commit))
             if not success:
-                raise ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit)
+                raise RetryableError(
+                    ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit))
         else:
             _update_gecko(git_gecko, include_autoland)
 

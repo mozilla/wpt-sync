@@ -11,6 +11,7 @@ import handlers
 import log
 import repos
 import settings
+from errors import RetryableError
 from worker import worker
 
 
@@ -83,15 +84,17 @@ def setup(config):
     return git_gecko, git_wpt
 
 
-@worker.task
+@worker.task(bind=True, max_retries=6, retry_backoff=60, retry_backoff_max=3840)
 @with_lock
-def handle(task, body):
+def handle(self, task, body):
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
         git_gecko, git_wpt = setup()
         try:
             handlers[task](git_gecko, git_wpt, body)
+        except RetryableError as e:
+            self.retry(exc=e.wrapped)
         except Exception as e:
             logger.error(body)
             logger.error("".join(traceback.format_exc(e)))
@@ -100,12 +103,15 @@ def handle(task, body):
         logger.error("No handler for %s" % task)
 
 
-@worker.task
+@worker.task(bind=True, max_retries=6, retry_backoff=60, retry_backoff_max=3840)
 @with_lock
 @settings.configure
-def land(config):
+def land(self, config):
     git_gecko, git_wpt = setup()
-    handlers.LandingHandler(config)(git_gecko, git_wpt)
+    try:
+        handlers.LandingHandler(config)(git_gecko, git_wpt)
+    except RetryableError as e:
+        self.retry(exc=e.wrapped)
 
 
 @worker.task
