@@ -498,7 +498,7 @@ class TryPush(base.ProcessData):
         return self.wpt_tasks().is_complete(allow_unscheduled)
 
     def failed_builds(self):
-        builds = self.wpt_tasks().view(tc.is_build)
+        builds = self.wpt_tasks().filter(tc.is_build)
         return builds.filter(tc.is_status_fn({tc.FAIL, tc.EXCEPTION}))
 
     def retriggered_wpt_states(self, force_update=False):
