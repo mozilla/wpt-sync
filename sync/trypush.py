@@ -237,6 +237,7 @@ class TryPush(base.ProcessData):
     obj_type = "try"
     statuses = ("open", "complete", "infra-fail")
     status_transitions = [("open", "complete"),
+                          ("complete", "open"),  # For reopening "failed" landing try pushes
                           ("infra-fail", "complete")]
     _retrigger_count = 6
     # min rate of job success to proceed with metadata update

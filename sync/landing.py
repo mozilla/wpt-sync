@@ -833,12 +833,13 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
 
 @base.entry_point("landing")
-def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True):
+def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
+                      accept_failures=False):
     retriggered = try_push.retriggered_wpt_states(force_update=True)
     intermittents = []
 
     if not try_push.success() and not retriggered:
-        if try_push.failure_limit_exceeded():
+        if not accept_failures and try_push.failure_limit_exceeded():
             message = (
                 "Latest try push for bug %s has too many failures.\n"
                 "See %s"
