@@ -264,7 +264,7 @@ def retrigger(git_gecko, git_wpt, unlandable_prs):
             continue
 
         try:
-            logger.info("Retriggering %s" % pr_id)
+            logger.info("Retriggering %s (status %s)" % (pr_id, status))
             pr = env.gh_wpt.get_pull(int(pr_id))
             update_pr(git_gecko, git_wpt, pr)
         except Exception:
