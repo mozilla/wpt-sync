@@ -891,18 +891,21 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
                                          include_incomplete=True)
 
     push(sync)
+
     for _, sync, _ in commits:
         if sync is not None:
             if isinstance(sync, downstream.DownstreamSync):
                 # If we can't perform a notification by now it isn't ever going
                 # to work
                 try:
-                    sync.try_notify()
+                    if not sync.skip:
+                        sync.try_notify()
                 except Exception as e:
                     logger.error(e.message)
-                if not sync.results_notified:
-                    env.bz.comment(sync.bug, "Result changes from PR not available.")
-            sync.finish()
+                finally:
+                    sync.finish()
+                    if not sync.results_notified:
+                        env.bz.comment(sync.bug, "Result changes from PR not available.")
 
 
 @base.entry_point("landing")
