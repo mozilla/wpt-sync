@@ -589,6 +589,7 @@ def push(landing):
 
     landing_tree = env.config["gecko"]["landing"]
 
+    old_head = None
     while not success:
         try:
             logger.info("Rebasing onto %s" % landing.gecko_integration_branch())
@@ -598,6 +599,13 @@ def push(landing):
             logger.error(err)
             env.bz.comment(landing.bug, err)
             raise AbortError(err)
+
+        if old_head == landing.gecko_commits.head.sha1:
+            err = "Landing push failed and rebase didn't change head"
+            logger.error(err)
+            landing.bz.comment(landing.bug, err)
+            raise AbortError(err)
+        old_head = landing.gecko_commits.head.sha1
 
         if not tree.is_open(landing_tree):
             logger.info("%s is closed" % landing_tree)
