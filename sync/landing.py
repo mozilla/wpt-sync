@@ -935,8 +935,7 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
 
     landing_sync = current(git_gecko, git_wpt)
     for commit in git_gecko.iter_commits(revish,
-                                         reverse=True,
-                                         first_parent=True):
+                                         reverse=True):
         commit = sync_commit.GeckoCommit(git_gecko, commit.hexsha)
         if landed_central and commit.is_landing:
             syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug, flat=True)
