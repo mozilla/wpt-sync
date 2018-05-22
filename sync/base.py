@@ -876,10 +876,6 @@ class SyncProcess(object):
     def wpt_commit_filter(self):
         return CommitFilter()
 
-    def update_status(self, action, merged, wpt_base):
-        """Update the status of the sync for a PR change"""
-        pass
-
     @classmethod
     def new(cls, git_gecko, git_wpt, gecko_base, gecko_head,
             wpt_base="origin/master", wpt_head=None,

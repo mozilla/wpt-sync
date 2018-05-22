@@ -133,7 +133,7 @@ def update_pr(git_gecko, git_wpt, pr):
         # a corresponding sync
         upstream_sync = upstream.UpstreamSync.from_pr(git_gecko, git_wpt, pr.number, pr.body)
         if upstream_sync is not None:
-            upstream_sync.update_status(pr.state, pr.merged)
+            upstream.update_pr(git_gecko, git_wpt, upstream_sync, pr.state, pr.merged)
         else:
             if pr.state != "open" and not pr.merged:
                 return
@@ -166,7 +166,7 @@ def update_pr(git_gecko, git_wpt, pr):
 
     elif isinstance(sync, upstream.UpstreamSync):
         merge_sha = pr.merge_commit_sha if pr.merged else None
-        sync.update_status(pr.state, merge_sha)
+        upstream.update_pr(git_gecko, git_wpt, sync, pr.state, merge_sha)
         sync.try_land_pr()
         if merge_sha:
             if git_wpt.is_ancestor(merge_sha, sync_point["upstream"]):
