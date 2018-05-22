@@ -596,7 +596,7 @@ def push(landing):
         except git.GitCommandError as e:
             err = "Rebase failed:\n%s" % e
             logger.error(err)
-            landing.bz.comment(landing.bug, err)
+            env.bz.comment(landing.bug, err)
             raise AbortError(err)
 
         if not tree.is_open(landing_tree):
@@ -613,7 +613,7 @@ def push(landing):
             if not changes:
                 err = "Pushing update to remote failed:\n%s" % e
                 logger.error(err)
-                landing.bz.comment(landing.bug, err)
+                env.bz.comment(landing.bug, err)
                 raise AbortError(err)
         else:
             success = True
