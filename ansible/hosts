@@ -1,5 +1,5 @@
 [wptsync]
-54.172.8.13  ansible_ssh_user=mfrydrychowicz ansible_become=yes
+54.172.8.13  ansible_become=yes
 
 [wptsync:vars]
 internal_volume=/500G
