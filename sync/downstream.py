@@ -71,7 +71,8 @@ class DownstreamSync(base.SyncProcess):
 
     def make_bug_comment(self, git_wpt, pr_id, pr_title, pr_body):
         pr_msg = env.gh_wpt.cleanup_pr_body(pr_body)
-        author = self.wpt_commits[0].author
+        # TODO: Ensure we have the right set of commits before geting here
+        author = self.wpt_commits[0].author if self.wpt_commits else ""
 
         msg = ["Sync web-platform-tests PR %s into mozilla-central"
                " (this bug is closed when the sync is complete)." % pr_id,
