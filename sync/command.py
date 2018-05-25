@@ -62,6 +62,8 @@ def get_parser():
     parser_landing.add_argument("--accept-failures", action="store_true", default=False,
                                 help="Consider the latest try push a success even if it has "
                                 "more than the allowed number of failures")
+    parser_landing.add_argument("--retry", action="store_true", default=False,
+                                help="Rebase onto latest central and do another try push")
     parser_landing.set_defaults(func=do_landing)
 
     parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
@@ -221,7 +223,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
         landing.update_landing(git_gecko, git_wpt,
                                kwargs["prev_wpt_head"],
                                kwargs["wpt_head"],
-                               kwargs["include_incomplete"])
+                               kwargs["include_incomplete"],
+                               kwargs["retry"])
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
@@ -238,11 +241,17 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                           current_landing,
                                           allow_push=kwargs["push"],
                                           accept_failures=accept_failures)
-        elif try_push.status == "complete":
+        elif try_push.status == "complete" and not try_push.infra_fail:
             landing.push_to_gecko(git_gecko,
                                   git_wpt,
                                   current_landing,
                                   allow_push=kwargs["push"])
+        elif try_push.status == "complete":
+            if kwargs["retry"]:
+                update_landing()
+            else:
+                logger.info("Last try push was complete, but has failures or errors. "
+                            "Rerun with --accept-failures or --retry")
         else:
             logger.info("Landing in bug %s is waiting for try results" % landing.bug)
     else:

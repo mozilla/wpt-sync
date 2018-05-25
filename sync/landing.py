@@ -775,7 +775,7 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
 
 @base.entry_point("landing")
 def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
-                   include_incomplete=False):
+                   include_incomplete=False, retry=False):
     """Create or continue a landing of wpt commits to gecko.
 
     :param prev_wpt_head: The sha1 of the previous wpt commit landed to gecko.
@@ -783,7 +783,8 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                      or None to use the head of the master branch"
     :param include_incomplete: By default we don't attempt to land anything that
                                hasn't completed a metadata update. This flag disables
-                               that and just lands everything up to the specified commit."""
+                               that and just lands everything up to the specified commit.
+    :param retry: Create a new try push for the landing even if there's an existing one"""
     landing = current(git_gecko, git_wpt)
     sync_point = load_sync_point(git_gecko, git_wpt)
 
@@ -824,6 +825,10 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
     landing.update_sync_point(sync_point)
 
     if landing.latest_try_push is None:
+        trypush.TryPush.create(landing, hacks=False,
+                               try_cls=trypush.TryFuzzyCommit, exclude=["pgo", "ccov"])
+    elif retry:
+        landing.gecko_rebase(landing.gecko_integration_branch())
         trypush.TryPush.create(landing, hacks=False,
                                try_cls=trypush.TryFuzzyCommit, exclude=["pgo", "ccov"])
     else:
