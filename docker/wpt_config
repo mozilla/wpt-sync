@@ -5,6 +5,6 @@
     ignorecase = true
     precomposeunicode = true
 [remote "origin"]
-    url = git@github.com:w3c/web-platform-tests.git
+    url = git@github.com:web-platform-tests/wpt.git
     fetch = +refs/heads/*:refs/remotes/origin/*
     fetch = +refs/pull/*/head:refs/remotes/origin/pr/*

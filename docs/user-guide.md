@@ -30,7 +30,7 @@ docker stop -t 60 <container_name>...
 ### External Activity
 
 *   [wptsync try activity](https://treeherder.mozilla.org/#/jobs?repo=try&author=wptsync@mozilla.com)
-*   [wptsync-bot PRs](https://github.com/w3c/web-platform-tests/pulls/moz-wptsync-bot)
+*   [wptsync-bot PRs](https://github.com/web-platform-tests/wpt/pulls/moz-wptsync-bot)
 *   [wptsync bugs marked as "error"](https://bugzilla.mozilla.org/buglist.cgi?status_whiteboard_type=regexp&status_whiteboard=.wptsync.%2Aerror.&query_format=advanced)
 *   [wptsync Bugzilla activity](https://bugzilla.mozilla.org/page.cgi?id=user_activity.html&action=run&who=wptsync%40mozilla.bugs&group=when)
 
@@ -118,7 +118,7 @@ git for-each-ref 'refs/syncs/sync/downstream/open/*
 All upstream syncs are expected to have the label
 `mozilla:gecko-sync`. These can be viewed on GitHub with the query:
 
-[https://github.com/w3c/web-platform-tests/pulls?q=is%3Apr+is%3Aopen+label%3Amozilla%3Agecko-sync](https://github.com/w3c/web-platform-tests/pulls?q=is%3Apr+is%3Aopen+label%3Amozilla%3Agecko-sync)
+[https://github.com/web-platform-tests/wpt?q=is%3Apr+is%3Aopen+label%3Amozilla%3Agecko-sync](https://github.com/web-platform-tests/wpt/pulls?q=is%3Apr+is%3Aopen+label%3Amozilla%3Agecko-sync)
 
 # Deleting Syncs
 
