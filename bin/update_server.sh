@@ -9,6 +9,19 @@ set -euo pipefail
 # This should work if we've been conscientious about tagging builds with *-image
 img="wptsync_dev:$(git rev-list -n 1 $(git tag --list .*-image | tail -1))"
 
+if [ "$#" -ne 2 ]; then
+    echo Please specify a suitable git tag and message for this commit.
+    echo Usage: $0 \<tag\> \"\<message\>\"
+    echo The last tag is $(git describe --abbrev=0)
+    exit 1
+fi
+
+tag="${1-}"
+msg="${2-}"
+
 ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     ansible/wptsync_update.yml -vvv \
     --extra-vars _image_name=$img
+
+echo Creating tag $tag. Remember to push it.
+git tag -a $tag -m "$msg"

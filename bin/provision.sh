@@ -10,7 +10,16 @@ set -euo pipefail
 # _image_name: name of docker image, tagged with HEAD sha
 # _tempdir: path to workspace for ansible
 
+if [ "$#" -ne 2 ]; then
+    echo Please specify a suitable git tag and message for this commit.
+    echo Usage: $0 \<tag\> \"\<message\>\"
+    echo The last tag associated with a docker build is $(git tag --list .*-image | tail -1)
+    exit 1
+fi
+
 img="wptsync_dev:$(git rev-parse HEAD)"
+tag="${1-}"
+msg="${2-}"
 
 ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     ansible/wptsync_deploy.yml -vvv \
@@ -20,3 +29,6 @@ ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     --extra-vars _ssh_hgmo=$WPT_SSH_HGMO \
     --extra-vars _ssh_github=$WPT_SSH_GITHUB \
     --extra-vars _credentials=$WPT_CREDENTIALS
+
+echo Creating tag $tag. Remember to push it.
+git tag -a $tag -m "$msg"
