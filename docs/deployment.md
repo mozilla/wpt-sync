@@ -18,9 +18,9 @@ Control machine:
 
 *   Docker is installed.
 *   You have access to a server configured in `ansible/hosts`.
-    the ansible_ssh_user has passwordless sudo privileges.
 *   Local ssh config specifies the correct username and key file with
-    which to connect to the server.
+    which to connect to the server. This user should have passwordless sudo
+    privileges.
 *   You have set extra_vars and environment variables as described in 
     `./bin/provision.sh`.
 
@@ -54,6 +54,11 @@ depends on as well as `run_docker.sh`, which is generated from `ansible/roles/
 wptsync_host/templates/run_docker.sh.j2` and runnable by `wpt_user`. Note 
 where this script is installed.
 
+### When do I have to build a new Docker image?
+
+* Dockerfile has changed.
+* Resources copied at build-time have changed. See Dockerfile. e.g. `docker/start_wptsync.sh` or anything else under `docker/`.
+
 ## Starting/stopping the wptsync service
 
 The ansible playbooks stop any running containers, so we need to restart them.
@@ -72,6 +77,8 @@ The ansible playbooks stop any running containers, so we need to restart them.
 
 3.  To start the service: 
 
+    (Assuming there isn't already a `screen` session called `wptsync`.)
+
     ```
     screen -dmS wptsync run_docker.sh run
     ```
@@ -84,6 +91,6 @@ The ansible playbooks stop any running containers, so we need to restart them.
 
     You can see what images are available with `docker images`.
 
-4. To stop the service use `docker stop -t 30 <container_name>`. `docker ps` will tell you the container names.
+4. To stop the service use `docker stop -t 60 <container_name>`. `docker ps` will tell you the container names.
 
 See the [user guide](./user-guide.md) for troubleshooting instructions. 
