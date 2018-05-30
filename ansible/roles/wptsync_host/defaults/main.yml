@@ -5,7 +5,13 @@ docker_uid: 10001
 wpt_user: wpt_user
 # rebuild the docker image by default
 rebuild: true
+# credentials will be updated on server unless any of the environment variables
+# below are unset on the control machine
 update_credentials: true
+# default filter sets these to false if environment variable is empty string
+_credentials: "{{ lookup('env','WPT_CREDENTIALS') | default(false, true) }}"
+_ssh_hgmo: "{{ lookup('env','WPT_SSH_HGMO') | default(false, true) }}"
+_ssh_github: "{{ lookup('env','WPT_SSH_GITHUB') | default(false, true) }}"
 
 # docker run paths
 mount_data: "{{ internal_volume }}/data"
