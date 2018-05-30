@@ -1,6 +1,5 @@
 ---
-# assuming _image_name, _ssh_hgmo, _ssh_github, _credentials variables are
-# defined in call to ansible-playbook
+# assuming _image_name variable is defined in call to ansible-playbook
 - name: ensure wpt_user is in docker group
   user:
     name: "{{ wpt_user | mandatory }}"
@@ -45,7 +44,7 @@
     - run_docker.sh
   become_user: wpt_user
 
-- name: install credentials (if configured)
+- name: install credentials (if environment variables are configured)
   copy:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
@@ -57,7 +56,7 @@
     - { src: "{{ _ssh_github }}", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github" }
     - { src: "{{ _ssh_github }}.pub", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github.pub" }
     - { src: "{{ _credentials }}", dest: "{{ mount_data }}/credentials_prod.ini" }
-  when: update_credentials
+  when: update_credentials and _credentials and _ssh_github and _ssh_hgmo
 
 - name: chown mount-directories to docker container's UID (this may take a while)
   command: "/usr/bin/chown -R {{ docker_uid }}:{{ docker_uid }} {{ item }}"
