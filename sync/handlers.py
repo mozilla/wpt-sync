@@ -219,7 +219,7 @@ class TaskHandler(Handler):
             logger.error(message)
             task = tc.get_task(task_id)
             taskgroup = tc.TaskGroup(task["taskGroupId"])
-            if len(taskgroup.tasks.view(
+            if len(taskgroup.view(
                     lambda x: x["metadata"]["name"] == "Gecko Decision Task")) > 5:
                 try_push.status = "complete"
                 try_push.infra_fail = True
