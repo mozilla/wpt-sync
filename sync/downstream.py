@@ -417,7 +417,8 @@ class DownstreamSync(base.SyncProcess):
                     env.bz.comment(self.bug,
                                    "PR %s applied with additional changes from upstream: %s"
                                    % (self.pr, ", ".join(item.sha1 for item in dependencies)))
-
+                else:
+                    raise
             logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
             if old_gecko_head == self.gecko_commits.head.sha1:
                 logger.info("Gecko commits did not change for PR %s" % self.pr)
