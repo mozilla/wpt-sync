@@ -336,7 +336,7 @@ def get_taskgroup_id(project, revision):
 
     if not jobs_data["results"]:
         logger.info("No decision task found for %s %s" % (project, revision))
-        return None, None
+        return None, None, None
 
     if len(jobs_data["results"]) > 1:
         logger.warning("Multiple decision tasks found for %s" % revision)
