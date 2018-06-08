@@ -558,7 +558,7 @@ Automatic update from web-platform-tests%s
 
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
-        logger.info("Updating metadata")
+        logger.info("Updating metadata from %s logs" % len(log_files))
         mach.wpt_update(*log_files)
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
