@@ -2,6 +2,7 @@ import downstream
 import landing
 import log
 import tc
+import trypush
 import upstream
 from env import Environment
 from load import get_bug_sync, get_pr_sync
@@ -218,18 +219,15 @@ def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
 
 
 def update_taskgroup_ids(git_gecko, git_wpt):
-    for sync in downstream.DownstreamSync.load_all(git_gecko, git_wpt):
-        try_push = sync.latest_try_push
-
-        if not try_push:
-            continue
-
+    for try_push in trypush.TryPush.load_all(git_gecko, "*", "*"):
         if not try_push.taskgroup_id:
+            logger.info("Setting taskgroup id for try push %s" % try_push)
             taskgroup_id, state, result = tc.get_taskgroup_id("try", try_push.try_rev)
-            handle_sync("task", {"origin": {"revision": try_push.try_rev},
-                                 "taskId": taskgroup_id,
-                                 "state": state,
-                                 "result": result})
+            if state == "completed":
+                handle_sync("task", {"origin": {"revision": try_push.try_rev},
+                                     "taskId": taskgroup_id,
+                                     "state": state,
+                                     "result": result})
 
 
 def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
