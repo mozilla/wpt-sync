@@ -508,7 +508,8 @@ class DownstreamSync(base.SyncProcess):
             reset_head = self.gecko_landing_branch()
         elif len(keep_commits) < len(existing_commits):
             reset_head = keep_commits[-1]
-        elif "metadata-commit" in self.data:
+        elif ("metadata-commit" in self.data and
+              self.gecko_commits[-1].metadata.get("wpt-type") == "metadata"):
             reset_head = self.gecko_commits[-2]
 
         # Clear the set of affected tests since there are updates
