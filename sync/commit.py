@@ -163,8 +163,7 @@ class Commit(object):
         if src_prefix:
             show_args = ("--", src_prefix)
         try:
-            return self.repo.git.show(self.sha1, binary=True, pretty="email",
-                                      *show_args) + "\n"
+            return self.repo.git.show(self.sha1, binary=True, *show_args) + "\n"
         except git.GitCommandError as e:
             raise AbortError(e.message)
 
@@ -178,8 +177,8 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
     if src_prefix:
         diff_args = ("--", src_prefix)
     try:
-        patch = repo.git.diff(revish, binary=True, pretty="email", submodule="diff",
-                              *diff_args) + "\n"
+        patch = repo.git.diff(revish, binary=True, submodule="diff",
+                              pretty="email", *diff_args) + "\n"
     except git.GitCommandError as e:
         raise AbortError(e.message)
 
@@ -190,7 +189,9 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
 def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filter=None,
                  metadata=None, src_prefix=None, dest_prefix=None, amend=False, three_way=True,
                  author=None, exclude=None):
-    if skip_empty and (not patch or patch.isspace()):
+
+    if skip_empty and (not patch or patch.isspace() or
+                       not any(line.startswith("diff ") for line in patch.splitlines())):
         return None
 
     if metadata is None:
