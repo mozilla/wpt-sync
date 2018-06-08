@@ -215,6 +215,7 @@ def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
 @with_lock
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
+    import update
     current_landing = landing.current(git_gecko, git_wpt)
 
     accept_failures = kwargs["accept_failures"]
@@ -228,6 +229,10 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
 
     if current_landing and current_landing.latest_try_push:
         try_push = current_landing.latest_try_push
+        logger.info("Found try push %s" % try_push.treeherder_url(try_push.try_rev))
+        if try_push.taskgroup_id is None:
+            update.update_taskgroup_ids(git_gecko, git_wpt)
+            assert try_push.taskgroup_id is not None
         if try_push.status == "complete" and try_push.failure_limit_exceeded() and accept_failures:
             try_push.status = "open"
         if (try_push.status != "complete" and
