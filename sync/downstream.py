@@ -147,6 +147,7 @@ class DownstreamSync(base.SyncProcess):
         latest_try_push = self.latest_valid_try_push
 
         if not latest_try_push:
+            logger.debug("Sync for PR %s has no valid try push" % self.pr)
             return DownstreamAction.try_push
 
         if latest_try_push.status != "complete":
@@ -156,12 +157,15 @@ class DownstreamSync(base.SyncProcess):
                 return DownstreamAction.manual_fix
 
             if not latest_try_push.stability:
+                logger.debug("Sync for PR %s has a try push, but it has an infra failure" % self.pr)
                 return DownstreamAction.try_push
 
             # Don't worry about recreating stability try pushes for infra failures
             return DownstreamAction.ready
 
         if not latest_try_push.stability and self.requires_stability_try:
+            logger.debug("Sync for PR %s has a initial try push but requires a stability try push" %
+                         self.pr)
             pr = env.gh_wpt.get_pull(self.pr)
             pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
             if pr_ready:
