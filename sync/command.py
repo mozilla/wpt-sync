@@ -444,7 +444,7 @@ def do_skip(git_gecko, git_wpt, pr_id, *args, **kwargs):
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import update
     from base import LandableStatus
-    from downstream import DownstreamSync
+    from downstream import DownstreamAction, DownstreamSync
     from landing import load_sync_point, landable_commits, unlanded_with_type
 
     update_repositories(git_gecko, git_wpt)
@@ -463,16 +463,22 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         wpt_head = None
     else:
         wpt_head, commits = landable
-        print("Landing will update wpt head to %s" % wpt_head)
+        print("Landing will update wpt head to %s, adding %i new PRs" % (wpt_head, len(commits)))
 
     if kwargs["all"] or kwargs["retrigger"]:
-        unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
-
+        unlandable = list(unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head))
+        print ("%i PRs are unlandable:" % len(unlandable))
         for pr, _, status in unlandable:
             msg = status.reason_str()
             if status == LandableStatus.missing_try_results:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-                msg = "%s (%s)" % (msg, sync.next_action.reason_str())
+                next_action = sync.next_action
+                reason = next_action.reason_str()
+                if next_action == DownstreamAction.wait_try:
+                    latest_try_push = sync.latest_try_push
+                    reason = "%s %s" % (reason,
+                                        latest_try_push.treeherder_url(latest_try_push.try_rev))
+                msg = "%s (%s)" % (msg, reason)
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 msg = "%s (%s)" % (msg, sync.error["message"].split("\n")[0])
