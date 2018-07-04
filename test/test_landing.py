@@ -104,9 +104,9 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 
 
 def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, try_push, mock_tasks):
-    # 50% failure rate, too high
+    # 2/3 failure rate, too high
     with patch.object(tc.TaskGroup, "tasks",
-                      property(Mock(return_value=mock_tasks(failed=["foo"],
+                      property(Mock(return_value=mock_tasks(failed=["foo", "foobar"],
                                                             completed=["bar"])))):
         try_push.taskgroup_id = "abcdef"
         sync = try_push.sync(git_gecko, git_wpt)
@@ -116,42 +116,53 @@ def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, try_push, mock_t
 
 
 def test_try_push_retriggers_failures(git_gecko, git_wpt, try_push, mock_tasks, env):
-    # 25% failure rate, okay
+    # 20% failure rate, okay
     tasks = Mock(return_value=mock_tasks(
-        failed=["foo"], completed=["bar", "baz", "boo"])
+        failed=["foo"], completed=["bar", "baz", "boo", "faz"])
     )
     sync = try_push.sync(git_gecko, git_wpt)
     with patch.object(tc.TaskGroup, "tasks", property(tasks)):
         with patch('sync.trypush.auth_tc.retrigger',
                    return_value=["job"] * try_push._retrigger_count):
             landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-    assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
-    assert try_push.status != "complete"
+            assert "Pushed to try (stability)" in env.bz.output.getvalue()
+            assert try_push.status == "complete"
+            assert sync.latest_try_push != try_push
+            try_push = sync.latest_try_push
+            # Give try push a fake taskgroup id
+            try_push.taskgroup_id = "abcdef"
+            assert try_push.stability
+            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+            assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
+            assert try_push.status != "complete"
 
 
 def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, mock_tasks, env):
-    # > 70% of retriggered "foo" tasks pass, so we consider the "foo" failure intermittent
+    # > 80% of retriggered "foo" tasks pass, so we consider the "foo" failure intermittent
     mock_tasks = Mock(return_value=mock_tasks(
         failed=["foo", "foo", "bar"],
-        completed=["bar", "bar", "bar" "baz", "boo", "foo", "foo", "foo", "foo", "foo"])
+        completed=["bar", "bar", "bar" "baz", "boo", "foo", "foo", "foo", "foo", "foo",
+                   "foobar", "foobar", "foobar"])
     )
     with patch.object(tc.TaskGroup, "tasks", property(mock_tasks)):
         sync = landing.update_landing(git_gecko, git_wpt)
         try_push.download_raw_logs = Mock(return_value=[])
+        try_push["stability"] = True
         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
         try_push.download_raw_logs.assert_called_with(exclude=["foo"])
         assert sync.status == "open"
         assert try_push.status == "complete"
 
 
-def test_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_push, mock_tasks, env):
+def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_push, mock_tasks,
+                                                      env):
     tasks = Mock(return_value=mock_tasks(completed=["bar", "baz", "boo"]))
     with patch.object(tc.TaskGroup, "tasks", property(tasks)):
         sync = landing.update_landing(git_gecko, git_wpt)
         try_push.download_raw_logs = Mock(return_value=[])
         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
         # no intermittents in the try push
-        try_push.download_raw_logs.assert_called_with(exclude=[])
+        try_push.download_raw_logs.assert_not_called()
         assert sync.status == "open"
         assert try_push.status == "complete"
 

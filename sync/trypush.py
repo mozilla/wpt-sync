@@ -244,7 +244,7 @@ class TryPush(base.ProcessData):
 
     @classmethod
     def create(cls, sync, affected_tests=None, stability=False, hacks=True,
-               try_cls=TrySyntaxCommit, **kwargs):
+               try_cls=TrySyntaxCommit, rebuild_count=None, **kwargs):
         logger.info("Creating try push for PR %s" % sync.pr)
         if not tree.is_open("try"):
             logger.info("try is closed")
@@ -252,7 +252,8 @@ class TryPush(base.ProcessData):
 
         git_work = sync.gecko_worktree.get()
 
-        rebuild_count = 0 if not stability else 10
+        if rebuild_count is None:
+            rebuild_count = 0 if not stability else 10
         with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks,
                      **kwargs) as c:
             try_rev = c.push()
