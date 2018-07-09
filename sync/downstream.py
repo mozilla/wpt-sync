@@ -565,13 +565,7 @@ class DownstreamSync(base.SyncProcess):
         return commits
 
     def message_filter(self, msg):
-        # It turns out that the string "try:" is forbidden anywhere in gecko commits,
-        # because we (mistakenly) think that this always means it's a try string. So we insert
-        # a ZWSP which means that the try syntax regexp doesn't match, but the printable
-        # representation of the commit message doesn't change
-        try_re = re.compile(r"(\b)try:")
-        msg, _ = try_re.subn(u"\\1try\u200B:", msg)
-
+        msg = sync_commit.try_filter(msg)
         parts = msg.split("\n", 1)
         if len(parts) > 1:
             summary, body = parts

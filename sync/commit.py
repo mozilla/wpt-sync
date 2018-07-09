@@ -34,6 +34,16 @@ def get_metadata(text):
     return data
 
 
+def try_filter(msg):
+    # It turns out that the string "try:" is forbidden anywhere in gecko commits,
+    # because we (mistakenly) think that this always means it's a try string. So we insert
+    # a ZWSP which means that the try syntax regexp doesn't match, but the printable
+    # representation of the commit message doesn't change
+    try_re = re.compile(r"(\b)try:")
+    msg, _ = try_re.subn(u"\\1try\u200B:", msg)
+    return msg
+
+
 class GitNotes(object):
     def __init__(self, commit):
         self.commit = commit

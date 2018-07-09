@@ -131,6 +131,8 @@ Automatic update from web-platform-tests%s
                              pr.title,
                              "\n--\n".join(item.msg for item in wpt_commits) + "\n--")
 
+        message = sync_commit.try_filter(message)
+
         upstream_changed = set()
         for commit in wpt_commits:
             stats = commit.commit.stats
