@@ -180,6 +180,11 @@ def sync_from_path(git_gecko, git_wpt):
     elif parts[1] == "upstream":
         import upstream
         cls = upstream.UpstreamSync
+    elif parts[1] == "landing":
+        import landing
+        cls = landing.LandingSync
+    else:
+        raise ValueError
     process_name = base.ProcessName.from_ref(branch)
     return cls(git_gecko, git_wpt, process_name)
 
