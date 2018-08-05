@@ -462,14 +462,11 @@ def do_skip(git_gecko, git_wpt, pr_id, *args, **kwargs):
     sync.skip = True
 
 
-@with_lock
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import update
     from base import LandableStatus
     from downstream import DownstreamAction, DownstreamSync
     from landing import load_sync_point, landable_commits, unlanded_with_type
-
-    update_repositories(git_gecko, git_wpt)
 
     if kwargs["prev_wpt_head"] is None:
         sync_point = load_sync_point(git_gecko, git_wpt)
@@ -488,9 +485,10 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         print("Landing will update wpt head to %s, adding %i new PRs" % (wpt_head, len(commits)))
 
     if kwargs["all"] or kwargs["retrigger"]:
-        unlandable = list(unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head))
-        print ("%i PRs are unlandable:" % len(unlandable))
+        unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
+        count = 0
         for pr, _, status in unlandable:
+            count += 1
             msg = status.reason_str()
             if status == LandableStatus.missing_try_results:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
@@ -505,6 +503,8 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 msg = "%s (%s)" % (msg, sync.error["message"].split("\n")[0])
             print("%s: %s" % (pr, msg))
+
+        print ("%i PRs are unlandable:" % count)
 
         if kwargs["retrigger"]:
             errors = update.retrigger(git_gecko, git_wpt, unlandable)
