@@ -244,9 +244,9 @@ class TryPush(base.ProcessData):
 
     @classmethod
     def create(cls, sync, affected_tests=None, stability=False, hacks=True,
-               try_cls=TrySyntaxCommit, rebuild_count=None, **kwargs):
+               try_cls=TrySyntaxCommit, rebuild_count=None, check_open=True, **kwargs):
         logger.info("Creating try push for PR %s" % sync.pr)
-        if not tree.is_open("try"):
+        if check_open and not tree.is_open("try"):
             logger.info("try is closed")
             raise RetryableError(AbortError("Try is closed"))
 

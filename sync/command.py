@@ -150,6 +150,20 @@ def get_parser():
                                              help="Retrigger syncs that are not read")
     parser_retrigger.set_defaults(func=do_retrigger)
 
+    parser_try_push_add = subparsers.add_parser("add-try",
+                                                help="Add a try push to an existing sync")
+    parser_try_push_add.add_argument("try_rev", help="Revision on try")
+    parser_try_push_add.add_argument("sync_type", nargs="?", choices=["downstream", "landing"],
+                                     help="Revision on try")
+    parser_try_push_add.add_argument("sync_id", nargs="?",
+                                     help="PR id for downstream sync or bug number "
+                                     "for upstream sync")
+    parser_try_push_add.add_argument("--stability", action="store_true",
+                                     help="Push is stability try push")
+    parser_try_push_add.add_argument("--rebuild-count", default=None, type=int,
+                                     help="Rebuild count")
+    parser_try_push_add.set_defaults(func=do_try_push_add)
+
     return parser
 
 
@@ -506,6 +520,43 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
     errors = update.retrigger(git_gecko, git_wpt, unlandable)
     if errors:
         print("The following PRs have errors:\n%s" % "\n".join(errors))
+
+
+@with_lock
+def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
+    import downstream
+    import landing
+    import trypush
+
+    if sync_type is None:
+        sync = sync_from_path(git_gecko, git_wpt)
+    elif sync_type == "downstream":
+        sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, obj_id)
+    elif sync_type == "landing":
+        sync = landing.LandingSync.for_bug(git_gecko, git_wpt, obj_id)
+    else:
+        raise ValueError
+
+    class FakeTry(object):
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def push(self):
+            return kwargs["try_rev"]
+
+    trypush = trypush.TryPush.create(sync,
+                                     None,
+                                     stability=kwargs["stability"],
+                                     try_cls=FakeTry, rebuild_count=kwargs["rebuild_count"],
+                                     check_open=False)
+
+    print "Now run an update for the sync"
 
 
 def set_config(opts):
