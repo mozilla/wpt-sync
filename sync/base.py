@@ -9,6 +9,7 @@ import weakref
 from fnmatch import fnmatch
 
 import enum
+import filelock
 import git
 
 import bug
@@ -401,6 +402,22 @@ class DataRefObject(VcsRefObject):
     ref_prefix = "syncs"
 
 
+def repo_lock(f):
+    locks = {}
+
+    def inner(repo, *args, **kwargs):
+        if repo.working_dir not in locks:
+            locks[repo.working_dir] = filelock.FileLock(os.path.join(
+                repo.working_dir,
+                "sync.index.lock"))
+        with locks[repo.working_dir]:
+            return f(repo, *args, **kwargs)
+    inner.__name__ = f.__name__
+    inner.__doc__ = f.__doc__
+    return inner
+
+
+@repo_lock
 def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Commit):
     """
     :param tree: A dictionary of path: file data
@@ -408,6 +425,7 @@ def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Comm
     # TODO: use some lock around this since it writes to the index
 
     # First we create an empty index
+    assert tree
     repo.git.read_tree(empty=True)
     for path, data in tree.iteritems():
         proc = repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
