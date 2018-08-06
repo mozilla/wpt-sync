@@ -469,7 +469,8 @@ class DownstreamSync(base.SyncProcess):
                     break
 
         # Expect all the new commits
-        expected_commits.extend((item.sha1, item, False) for item in self.wpt_commits)
+        expected_commits.extend((item.sha1, item, False) for item in self.wpt_commits
+                                if not item.is_merge)
 
         existing_commits = [commit for commit in self.gecko_commits
                             if commit.metadata.get("wpt-commit") and

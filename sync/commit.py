@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 
 import git
 from mozautomation import commitparser
@@ -128,6 +129,10 @@ class Commit(object):
     @property
     def metadata(self):
         return get_metadata(self.msg)
+
+    @property
+    def is_merge(self):
+        return len(self.commit.parents) > 1
 
     @classmethod
     def create(cls, repo, msg, metadata, author=None, amend=False):
