@@ -266,26 +266,26 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
                         paths = []
                         for line in patch.splitlines():
                             if line.startswith(prefix):
-                                path = "%s/%s" % (dest_prefix,
-                                                  "/".join(line[len(prefix):].split("/")[strip_dirs:]))
+                                path = "%s/%s" % (
+                                    dest_prefix,
+                                    "/".join(line[len(prefix):].split("/")[strip_dirs:]))
                                 paths.append(path)
                         dest_repo.git.add(*paths)
                 if err_msg:
                     raise AbortError(err_msg)
 
             if exclude:
-                excluded = []
-                dest_repo.index.update()
-                for path in exclude:
-                    if dest_prefix:
-                        path = os.path.join(dest_prefix, path)
-                    if (path, 0) in dest_repo.index.entries:
-                        excluded.append(path)
-                        dest_repo.index.reset(paths=[path], working_tree=True)
-                    if excluded:
-                        logger.info("Excluded changes to %s" % ", ".join(excluded))
-                        dest_repo.index.write()
+                exclude_paths = [os.path.join(dest_prefix, exclude_path)
+                                 if dest_prefix else exclude_path
+                                 for exclude_path in exclude]
+                exclude_paths = [item for item in exclude_paths
+                                 if os.path.exists(os.path.join(dest_repo.working_dir, item))]
+                try:
+                    dest_repo.git.checkout("HEAD", *exclude_paths)
+                except git.GitCommandError as e:
+                    logger.info(e)
             try:
+                logger.info("Creating commit")
                 return Commit.create(dest_repo, msg, None, amend=amend, author=author)
             except git.GitCommandError as e:
                 if amend and e.status == 1 and "--allow-empty" in e.stdout:
