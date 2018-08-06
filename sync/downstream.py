@@ -540,7 +540,8 @@ class DownstreamSync(base.SyncProcess):
             wpt_commit.move(gecko_work,
                             dest_prefix=env.config["gecko"]["path"]["wpt"],
                             msg_filter=msg_filter,
-                            metadata=metadata)
+                            metadata=metadata,
+                            patch_fallback=True)
 
     def unlanded_commits_same_files(self):
         import landing

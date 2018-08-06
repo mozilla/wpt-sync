@@ -167,11 +167,12 @@ class Commit(object):
                 if item.strip()]
 
     def move(self, dest_repo, skip_empty=True, msg_filter=None, metadata=None, src_prefix=None,
-             dest_prefix=None, amend=False, three_way=True, exclude=None):
+             dest_prefix=None, amend=False, three_way=True, exclude=None, patch_fallback=False):
 
         return _apply_patch(self.show(src_prefix), self.msg, self.canonical_rev, dest_repo,
                             skip_empty, msg_filter, metadata, src_prefix, dest_prefix, amend,
-                            three_way, author=self.author, exclude=exclude)
+                            three_way, author=self.author, exclude=exclude,
+                            patch_fallback=patch_fallback)
 
     def show(self, src_prefix):
         show_args = ()
@@ -185,7 +186,7 @@ class Commit(object):
 
 def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=None, metadata=None,
                  src_prefix=None, dest_prefix=None, amend=False, three_way=True, rev_name=None,
-                 author=None, exclude=None):
+                 author=None, exclude=None, patch_fallback=False):
     if rev_name is None:
         rev_name = revish
     diff_args = ()
@@ -194,16 +195,18 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
     try:
         patch = repo.git.diff(revish, binary=True, submodule="diff",
                               pretty="email", *diff_args) + "\n"
+        logger.info("Created patch")
     except git.GitCommandError as e:
         raise AbortError(e.message)
 
     return _apply_patch(patch, message, rev_name, dest_repo, skip_empty, msg_filter, metadata,
-                        src_prefix, dest_prefix, amend, three_way, author=author, exclude=exclude)
+                        src_prefix, dest_prefix, amend, three_way, author=author, exclude=exclude,
+                        patch_fallback=patch_fallback)
 
 
 def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filter=None,
                  metadata=None, src_prefix=None, dest_prefix=None, amend=False, three_way=True,
-                 author=None, exclude=None):
+                 author=None, exclude=None, patch_fallback=False):
 
     if skip_empty and (not patch or patch.isspace() or
                        not any(line.startswith("diff ") for line in patch.splitlines())):
@@ -224,9 +227,7 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
 
     with Store(dest_repo, rev_name + ".message", msg) as message_path:
         strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
-
         with Store(dest_repo, rev_name + ".diff", patch) as patch_path:
-
             # Without this tests were failing with "Index does not match"
             dest_repo.git.update_index(refresh=True)
             apply_kwargs = {}
@@ -237,15 +238,40 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
             else:
                 apply_kwargs["reject"] = True
             try:
+                logger.info("Trying to apply patch")
                 dest_repo.git.apply(patch_path, index=True, binary=True,
                                     p=strip_dirs, **apply_kwargs)
+                logger.info("Patch applied")
             except git.GitCommandError as e:
                 err_msg = """git apply failed
-    %s returned status %s
-    Patch saved as :%s
-    Commit message saved as: %s
-     %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
-                raise AbortError(err_msg)
+        %s returned status %s
+        Patch saved as :%s
+        Commit message saved as: %s
+         %s""" % (e.command, e.status, patch_path, message_path, e.stderr)
+                if patch_fallback and not dest_repo.is_dirty():
+                    dest_repo.git.reset(hard=True)
+                    cmd = ["patch", "-p%s" % strip_dirs, "-f", "-r=-",
+                           "--no-backup-if-mismatch"]
+                    if dest_prefix:
+                        cmd.append("--directory=%s" % dest_prefix)
+                    logger.info(" ".join(cmd))
+                    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+                    (stdout, stderr) = proc.communicate(patch.encode("utf8"))
+                    if not proc.returncode == 0:
+                        err_msg = ("%s\n\nPatch failed (status %i):\nstdout:\n%s\nstderr:\n%s" %
+                                   (err_msg, proc.returncode, stdout, stderr))
+                    else:
+                        err_msg = None
+                        prefix = "+++ "
+                        paths = []
+                        for line in patch.splitlines():
+                            if line.startswith(prefix):
+                                path = "%s/%s" % (dest_prefix,
+                                                  "/".join(line[len(prefix):].split("/")[strip_dirs:]))
+                                paths.append(path)
+                        dest_repo.git.add(*paths)
+                if err_msg:
+                    raise AbortError(err_msg)
 
             if exclude:
                 excluded = []
@@ -269,7 +295,9 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
                 elif not amend and e.status == 1 and "nothing added to commit" in e.stdout:
                     logger.warning("Commit added no changes to destination repo")
                     return None
-                raise
+                else:
+                    dest_repo.git.reset(hard=True)
+                    raise
 
 
 class GeckoCommit(Commit):
