@@ -512,12 +512,25 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                 print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
+@with_lock
 def do_retrigger(git_gecko, git_wpt, **kwargs):
+    import errors
     import update
+    import upstream
     from landing import load_sync_point, unlanded_with_type
 
-    update_repositories(git_gecko, git_wpt)
+    update_repositories(git_gecko, git_wpt, True)
 
+    print("Retriggering upstream syncs with errors")
+    for sync in upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="open"):
+        if sync.error:
+            try:
+                upstream.update_sync(git_gecko, git_wpt, sync)
+            except errors.AbortError as e:
+                print("Update failed:\n%s" % e)
+                pass
+
+    print("Retriggering downstream syncs on master")
     sync_point = load_sync_point(git_gecko, git_wpt)
     prev_wpt_head = sync_point["upstream"]
     unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
