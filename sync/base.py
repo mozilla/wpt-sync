@@ -870,7 +870,9 @@ class SyncProcess(object):
 
     def set_wpt_base(self, ref):
         # This is kind of an appaling hack
-        if ref not in self.git_wpt.refs:
+        try:
+            self.git_wpt.commit(ref)
+        except Exception:
             raise ValueError
         self.data["wpt-base"] = ref
         self.wpt_commits._base = sync_commit.WptCommit(self.git_wpt, ref)
