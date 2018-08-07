@@ -126,7 +126,8 @@ def update_pr(git_gecko, git_wpt, pr):
     if sync and sync.status == "complete":
         logger.info("Sync already landed")
         return
-
+    if sync:
+        logger.info("sync status %s" % sync.landable_status)
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
 
     if not sync:

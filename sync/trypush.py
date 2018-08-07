@@ -78,7 +78,7 @@ class TryCommit(object):
 
     def read_treeherder(self, status, output):
         if status != 0:
-            logger.error("Failed to push to try.")
+            logger.error("Failed to push to try:\n%s" % output)
             raise RetryableError(AbortError("Failed to push to try"))
         rev_match = rev_re.search(output)
         if not rev_match:

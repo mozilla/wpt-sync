@@ -196,7 +196,7 @@ class TaskHandler(Handler):
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
         if not try_push:
-            logger.debug("No try push for SHA1 %s" % (sha1,))
+            logger.debug("No try push for SHA1 %s taskId %s" % (sha1, task_id))
             return
 
         # Enforce the invariant that the taskgroup id is not set until
