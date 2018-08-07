@@ -605,7 +605,7 @@ def push(landing):
         if old_head == landing.gecko_commits.head.sha1:
             err = "Landing push failed and rebase didn't change head"
             logger.error(err)
-            landing.bz.comment(landing.bug, err)
+            env.bz.comment(landing.bug, err)
             raise AbortError(err)
         old_head = landing.gecko_commits.head.sha1
 
