@@ -114,7 +114,8 @@ def handle_empty_commit(worktree, e):
     # the type of status, so just convert it to a string to be
     # sure
     if (str(e.status) == "1" and
-        "The previous cherry-pick is now empty" in e.stderr):
+        "The previous cherry-pick is now empty" in e.stderr or
+        "nothing to commit" in e.stdout):
         logger.info("Cherry pick resulted in an empty commit")
         # If the cherry pick would result in an empty commit,
         # just reset and continue
