@@ -407,18 +407,58 @@ class DownstreamSync(base.SyncProcess):
             old_gecko_head = self.gecko_commits.head.sha1
             logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
 
-            try:
+            def plain_apply():
+                logger.info("Applying on top of the current commits")
                 self.wpt_to_gecko_commits()
-            except AbortError:
-                # If there's a merge conflict, apply the prior commits that touched files in this PR
+                return True
+
+            def rebase_apply():
+                logger.info("Applying with a rebase onto latest inbound")
+                new_base = self.gecko_integration_branch()
+                if len(self.gecko_commits) > 0:
+                    gecko_work = self.gecko_worktree.get()
+                    if self.gecko_commits[0].metadata["wpt-type"] == "dependent":
+                        # If we have any dependent commits first reset to the new
+                        # head. This prevents conflicts if the dependents already
+                        # landed
+                        # TODO: Actually check if they landed?
+                        reset_head = new_base
+                    else:
+                        reset_head = "HEAD"
+                    gecko_work.git.reset(reset_head, hard=True)
+                    try:
+                        self.gecko_rebase(new_base)
+                    except git.GitCommandError:
+                        try:
+                            gecko_work.git.rebase(abort=True)
+                        except git.GitCommandError:
+                            pass
+                        raise AbortError("Rebasing onto latest gecko failed")
+                    self.wpt_to_gecko_commits(base=new_base)
+                    return True
+
+            def dependents_apply():
+                logger.info("Applying with upstream dependents")
                 dependencies = self.unlanded_commits_same_files()
                 if dependencies:
                     self.wpt_to_gecko_commits(dependencies)
                     env.bz.comment(self.bug,
                                    "PR %s applied with additional changes from upstream: %s"
                                    % (self.pr, ", ".join(item.sha1 for item in dependencies)))
-                else:
-                    raise
+                    return True
+
+            error = None
+            for fn in [plain_apply, rebase_apply, dependents_apply]:
+                try:
+                    if fn():
+                        error = None
+                        break
+                except Exception as e:
+                    error = e
+
+            if error is not None:
+                raise error
+
             logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
             if old_gecko_head == self.gecko_commits.head.sha1:
                 logger.info("Gecko commits did not change for PR %s" % self.pr)
@@ -445,7 +485,7 @@ class DownstreamSync(base.SyncProcess):
             self.error = exception
         return True
 
-    def wpt_to_gecko_commits(self, dependencies=None):
+    def wpt_to_gecko_commits(self, dependencies=None, base=None):
         """Create a patch based on wpt branch, apply it to corresponding gecko branch.
 
         If there is a commit with wpt-type metadata, this function will remove it. The
@@ -498,6 +538,9 @@ class DownstreamSync(base.SyncProcess):
             logger.info("Commits did not change")
             return
 
+        logger.info("Keeping %i existing commits; adding %i new commits" % (len(keep_commits),
+                                                                            len(add_commits)))
+
         if self.metadata_commit:
             # If we have a metadata commit, store it in self.data["metadata-commit"]
             # remove it when updating commits, and reapply it when we next call
@@ -506,7 +549,7 @@ class DownstreamSync(base.SyncProcess):
 
         reset_head = None
         if not keep_commits:
-            reset_head = self.gecko_landing_branch()
+            reset_head = base if base is not None else self.gecko_landing_branch()
         elif len(keep_commits) < len(existing_commits):
             reset_head = keep_commits[-1]
         elif ("metadata-commit" in self.data and
