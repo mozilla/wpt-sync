@@ -860,15 +860,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
             try_push.status = "complete"
             try_push.infra_fail = True
             raise AbortError(message)
-        elif not accept_failures and try_push.failure_limit_exceeded(target_success_rate):
-            message = (
-                "Latest try push for bug %s has too many failures.\n"
-                "See %s"
-            ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
-            logger.error(message)
-            sync.error = message
-            env.bz.comment(sync.bug, message)
-
+        elif (not accept_failures and not try_push.stability and
+              try_push.failure_limit_exceeded(target_success_rate)):
+            record_too_many_failures(sync, try_push)
             try_push.status = "complete"
             return
 
@@ -883,6 +877,10 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
             retriggered = try_push.retriggered_wpt_states(force_update=True)
 
             if not retriggered:
+                if not accept_failures and try_push.failure_limit_exceeded(target_success_rate):
+                    record_too_many_failures(sync, try_push)
+                    try_push.status = "complete"
+                    return
                 num_new_jobs = try_push.retrigger_failures()
                 logger.info("%s new tasks scheduled on try for %s" % (num_new_jobs, sync.bug))
                 if num_new_jobs:
@@ -903,6 +901,16 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
 
     try_push.status = "complete"
     push_to_gecko(git_gecko, git_wpt, sync, allow_push)
+
+
+def record_too_many_failures(sync, try_push):
+    message = (
+        "Latest try push for bug %s has too many failures.\n"
+        "See %s"
+    ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
+    logger.error(message)
+    sync.error = message
+    env.bz.comment(sync.bug, message)
 
 
 def update_metadata(sync, try_push, intermittents=None):
