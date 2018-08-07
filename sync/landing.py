@@ -983,8 +983,13 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
             for backed_out_commit in backed_out:
                 syncs = LandingSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug, flat=True)
                 if syncs:
-                    syncs[0].status = "open"
-                    syncs[0].error = "Landing was backed out"
+                    # TODO: should really check if commit is actually part of the sync if there's >1
+                    # TODO: reopen landing? But that affects the invariant that there is only one
+                    syncs[-1].error = "Landing was backed out"
+        elif commit.is_downstream:
+            syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug, flat=True)
+            for sync in syncs:
+                sync.finish()
 
     if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
         last_sync_point.commit = rev
