@@ -384,6 +384,7 @@ Automatic update from web-platform-tests%s
         return False
 
     def add_metadata(self, sync):
+        logger.info("Adding metadata from downstream sync")
         if sync.skip:
             return
 

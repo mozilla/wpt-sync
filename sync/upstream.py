@@ -373,6 +373,7 @@ class UpstreamSync(base.SyncProcess):
             self.create_pr()
 
         landed_status = "success" if self.gecko_landed() else "failure"
+        logger.info("Setting landed status to %s" % landed_status)
         # TODO - Maybe ignore errors setting the status
         env.gh_wpt.set_status(self.pr,
                               landed_status,
