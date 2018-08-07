@@ -11,9 +11,9 @@ import base
 import log
 import commit as sync_commit
 from downstream import DownstreamSync
-from gitutils import update_repositories, gecko_repo
 from errors import AbortError
 from env import Environment
+from gitutils import update_repositories, gecko_repo
 
 env = Environment()
 
@@ -344,12 +344,28 @@ class UpstreamSync(base.SyncProcess):
 
     def update_github(self):
         if self.pr:
+            state = env.gh_wpt.pull_state(self.pr)
             if not len(self.gecko_commits):
                 env.gh_wpt.close_pull(self.pr)
-            elif env.gh_wpt.pull_state(self.pr) == "closed":
-                env.gh_wpt.reopen_pull(self.pr)
+            elif state == "closed":
+                pr = env.gh_wpt.get_pull(self.pr)
+                if not pr.merged:
+                    env.gh_wpt.reopen_pull(self.pr)
+                else:
+                    # If all the local commits are represented upstream, everything is
+                    # fine and close out the sync. Otherwise we have a problem.
+                    if len(self.upstreamed_gecko_commits) == len(self.gecko_commits):
+                        self.finish()
+                    else:
+                        # It's unclear what to do in this case, so mark the sync for manual
+                        # fixup
+                        self.error = "Upstream PR merged, but additional commits added after merge"
+                    return
 
         if not len(self.gecko_commits):
+            return
+
+        if not len(self.upstreamed_gecko_commits):
             return
 
         self.push_commits()
