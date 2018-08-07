@@ -53,7 +53,8 @@ class DownstreamSync(base.SyncProcess):
     sync_type = "downstream"
     obj_id = "pr"
     statuses = ("open", "complete")
-    status_transitions = [("open", "complete")]
+    status_transitions = [("open", "complete"),
+                          ("complete", "open")]  # Unfortunately, if a backout occurs
 
     @classmethod
     def new(cls, git_gecko, git_wpt, wpt_base, pr_id, pr_title, pr_body):
