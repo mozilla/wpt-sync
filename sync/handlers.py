@@ -261,6 +261,8 @@ class CleanupHandler(Handler):
         logger.info("Running cleanup")
         worktree.cleanup(git_gecko, git_wpt)
         tc.cleanup()
+        for repo in git_gecko, git_wpt:
+            repo.git.prune()
 
 
 class RetriggerHandler(Handler):
