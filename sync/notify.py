@@ -131,6 +131,9 @@ def get_msg(try_tasks, central_tasks):
     parse_logs(try_log_files, log_data, True)
     parse_logs(central_log_files, log_data, False)
 
+    if not log_data:
+        return "Failed to get results from try push"
+
     summary = get_summary(log_data)
     details = get_details(log_data)
 
