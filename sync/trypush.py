@@ -179,7 +179,16 @@ class TrySyntaxCommit(TryCommit):
                         test_data["prefixed_paths"].append(flavor + ":" + p)
             test_data["prefixed_paths"] = " ".join(test_data["prefixed_paths"])
 
-        return try_message.format(**test_data)
+        msg = try_message.format(**test_data)
+
+        # If a try push message has length > 2**16 the tryserver can't handle it, so
+        # we truncate at that length for now. This may mean we don't run some tests.
+        max_length = 2**16
+        if len(msg) > max_length:
+            logger.warning("Try message length %s > 2^16, so truncating" % len(msg))
+            max_index = msg[:max_length].rindex(" ") if msg[max_length] != " " else (max_length - 1)
+            msg = msg[:max_index]
+        return msg
 
     def _push(self):
         logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
