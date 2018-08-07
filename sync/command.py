@@ -254,7 +254,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
             assert try_push.taskgroup_id is not None
         if try_push.status == "complete" and try_push.failure_limit_exceeded() and accept_failures:
             try_push.status = "open"
-        if (try_push.status != "complete" and
+        if (try_push.status == "open" and
             try_push.wpt_tasks(force_update=True).is_complete(allow_unscheduled=True)):
             if try_push.infra_fail:
                 update_landing()
