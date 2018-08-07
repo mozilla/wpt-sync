@@ -533,7 +533,6 @@ def updates_for_backout(git_gecko, git_wpt, commit):
         assert len(syncs) in (0, 1)
         if syncs:
             sync = syncs[0]
-        if sync:
             if commit in sync.gecko_commits:
                 # This commit was already processed
                 backed_out_commit_shas = set()
@@ -587,6 +586,8 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
             create, update = updates_for_backout(git_gecko, git_wpt, commit)
             create_syncs.update(create)
             update_syncs.update(update)
+        if commit.is_downstream or commit.is_landing:
+            continue
         else:
             bug = commit.bug
             if bug in update_syncs:
@@ -656,7 +657,7 @@ def update_sync_heads(syncs_by_bug):
     return rv
 
 
-def update_modified_sync(sync):
+def update_modified_sync(git_gecko, git_wpt, sync):
     if len(sync.gecko_commits) == 0:
         # In the case that there are no gecko commits, we presumably had a backout
         # In this case we don't touch the wpt commits, but just mark the PR
@@ -670,7 +671,24 @@ def update_modified_sync(sync):
             logger.info("Sync was already fully applied upstream, not creating a PR")
             return
     else:
-        sync.update_wpt_commits()
+        try:
+            sync.update_wpt_commits()
+        except AbortError:
+            # If we got a merge conflict and the PR doesn't exist yet then try
+            # recreating the commits on top of the current sync point in order that
+            # we get a PR and it's visible that it fails
+            if not sync.pr:
+                logger.info("Applying to origin/master failed; "
+                            "retrying with the current sync point")
+                from landing import load_sync_point
+                sync_point = load_sync_point(git_gecko, git_wpt)
+                sync.set_wpt_base(sync_point["upstream"])
+                try:
+                    sync.update_wpt_commits()
+                except AbortError:
+                    # Reset the base to origin/master
+                    sync.set_wpt_base("origin/master")
+                    raise
         sync.status = "open"
 
     sync.update_github()
@@ -686,7 +704,7 @@ def update_sync_prs(git_gecko, git_wpt, create_endpoints, update_syncs,
 
     for sync in to_push:
         try:
-            update_modified_sync(sync)
+            update_modified_sync(git_gecko, git_wpt, sync)
         except Exception as e:
             sync.error = e
             if raise_on_error:
