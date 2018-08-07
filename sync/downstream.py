@@ -198,6 +198,7 @@ class DownstreamSync(base.SyncProcess):
     @property
     def wpt(self):
         git_work = self.wpt_worktree.get()
+        git_work.git.reset(hard=True)
         return WPT(os.path.join(git_work.working_dir))
 
     @property

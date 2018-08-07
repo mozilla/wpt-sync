@@ -216,6 +216,8 @@ class TryFuzzyCommit(TryCommit):
         return " ".join(self.include + ["!%s" % item for item in self.exclude])
 
     def _push(self):
+        self.worktree.git.reset("--hard")
+        self.worktree.git.clean("-fdx")
         mach = Mach(self.worktree.working_dir)
         query = self.query
 

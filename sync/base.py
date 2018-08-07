@@ -668,14 +668,11 @@ class Worktree(object):
         # * Add the list of paths to check out under $REPO/worktrees/info/sparse-checkout
         # * Go to the worktree and check it out
         if self._worktree is None:
-            if os.path.exists(self.path):
-                worktree = git.Repo(self.path)
-                worktree.git.reset(str(self.process_name), hard=True)
-            else:
+            if not os.path.exists(self.path):
                 self.repo.git.worktree("prune")
-                worktree = self.repo.git.worktree("add",
-                                                  os.path.abspath(self.path),
-                                                  str(self.process_name))
+                self.repo.git.worktree("add",
+                                       os.path.abspath(self.path),
+                                       str(self.process_name))
             self._worktree = git.Repo(self.path)
         # TODO: In general the worktree should be on the right branch, but it would
         # be good to check. In the specific case of landing, we move the wpt worktree

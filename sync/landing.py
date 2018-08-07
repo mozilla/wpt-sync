@@ -365,6 +365,7 @@ Automatic update from web-platform-tests%s
 
     def manifest_update(self):
         git_work = self.gecko_worktree.get()
+        git_work.git.reset(hard=True)
         mach = Mach(git_work.working_dir)
         mach.wpt_manifest_update()
         if git_work.is_dirty():
@@ -567,6 +568,7 @@ Automatic update from web-platform-tests%s
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
             gecko_work.git.add(meta_path, all=True)
             self.update_landing_commit()
+            gecko_work.git.reset(hard=True)
 
     def update_sync_point(self, sync_point):
         """Update the in-tree record of the last sync point."""
