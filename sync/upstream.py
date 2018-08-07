@@ -262,6 +262,7 @@ class UpstreamSync(base.SyncProcess):
 
         # Ensure the worktree is clean
         wpt_work = self.wpt_worktree.get()
+        wpt_work.git.reset(hard=True)
         wpt_work.git.clean(f=True, d=True, x=True)
 
         for commit in self.gecko_commits[len(matching_commits):]:
