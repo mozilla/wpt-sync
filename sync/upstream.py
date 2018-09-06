@@ -425,13 +425,21 @@ class UpstreamSync(base.SyncProcess):
             else:
                 self.merge_sha = merge_sha
                 self.finish("wpt-merged")
-                # Delete the remote branch after a merge
-                self.git_wpt.remotes.origin.push(self.remote_branch, delete=True)
-                self.remote_branch = None
                 return True
         if msg is not None:
             logger.error(msg)
         return False
+
+    def finish(self, status="complete"):
+        super(UpstreamSync, self).finish(status)
+        if status in ("wpt-merged", "complete") and self.remote_branch:
+            # Delete the remote branch after a merge
+            try:
+                self.git_wpt.remotes.origin.push(self.remote_branch, delete=True)
+            except git.GitCommandError:
+                pass
+            else:
+                self.remote_branch = None
 
 
 def commit_message_filter(msg):
