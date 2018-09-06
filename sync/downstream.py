@@ -443,6 +443,8 @@ class DownstreamSync(base.SyncProcess):
                 logger.info("Applying with upstream dependents")
                 dependencies = self.unlanded_commits_same_files()
                 if dependencies:
+                    logger.info("Found dependencies:\n%s" %
+                                "\n".join(item.msg.splitlines()[0] for item in dependencies))
                     self.wpt_to_gecko_commits(dependencies)
                     env.bz.comment(self.bug,
                                    "PR %s applied with additional changes from upstream: %s"
@@ -455,8 +457,11 @@ class DownstreamSync(base.SyncProcess):
                     if fn():
                         error = None
                         break
+                    else:
+                        logger.error("Applying with %s was a no-op" % fn.__name__)
                 except Exception as e:
                     error = e
+                    logger.error("Applying with %s errored" % fn.__name__)
 
             if error is not None:
                 raise error

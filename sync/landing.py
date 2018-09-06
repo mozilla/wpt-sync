@@ -595,6 +595,7 @@ def push(landing):
     landing_tree = env.config["gecko"]["landing"]
 
     old_head = None
+    err = None
     while not success:
         try:
             logger.info("Rebasing onto %s" % landing.gecko_integration_branch())
@@ -606,7 +607,8 @@ def push(landing):
             raise AbortError(err)
 
         if old_head == landing.gecko_commits.head.sha1:
-            err = "Landing push failed and rebase didn't change head"
+            err = ("Landing push failed and rebase didn't change head:%s" %
+                   ("\n%s" % err if err else ""))
             logger.error(err)
             env.bz.comment(landing.bug, err)
             raise AbortError(err)
@@ -623,8 +625,8 @@ def push(landing):
                            landing.gecko_integration_branch().split("/", 1)[1]))
         except git.GitCommandError as e:
             changes = landing.git_gecko.remotes.mozilla.fetch()
+            err = "Pushing update to remote failed:\n%s" % e
             if not changes:
-                err = "Pushing update to remote failed:\n%s" % e
                 logger.error(err)
                 env.bz.comment(landing.bug, err)
                 raise AbortError(err)
