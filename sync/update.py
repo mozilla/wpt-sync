@@ -120,7 +120,7 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
     handle_sync(*args)
 
 
-def update_pr(git_gecko, git_wpt, pr):
+def update_pr(git_gecko, git_wpt, pr, force_rebase=False):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
     if sync and sync.status == "complete":
@@ -142,6 +142,9 @@ def update_pr(git_gecko, git_wpt, pr):
             schedule_pr_task("opened", pr)
             update_for_status(pr)
     elif isinstance(sync, downstream.DownstreamSync):
+        if force_rebase:
+            sync.gecko_rebase(sync.gecko_integration_branch())
+
         if len(sync.wpt_commits) == 0:
             sync.update_wpt_commits()
 
