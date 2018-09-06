@@ -386,8 +386,6 @@ Automatic update from web-platform-tests%s
 
     def add_metadata(self, sync):
         logger.info("Adding metadata from downstream sync")
-        if sync.skip:
-            return
 
         if self.has_metadata_for_sync(sync):
             logger.info("Metadata already applied for PR %s" % sync.pr)
