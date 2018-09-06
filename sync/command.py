@@ -80,6 +80,8 @@ def get_parser():
 
     parser_pr = subparsers.add_parser("pr", help="Update the downstreaming for a specific PR")
     parser_pr.add_argument("pr_id", default=None, nargs="?", help="PR number")
+    parser_pr.add_argument("--rebase", default=False, action="store_true",
+                           help="Force the PR to be rebase onto the integration branch")
     parser_pr.set_defaults(func=do_pr)
 
     parser_bug = subparsers.add_parser("bug", help="Update the upstreaming for a specific bug")
@@ -310,7 +312,7 @@ def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
         pr_id = sync_from_path(git_gecko, git_wpt).pr
     pr = env.gh_wpt.get_pull(int(pr_id))
     update_repositories(git_gecko, git_wpt, True)
-    update.update_pr(git_gecko, git_wpt, pr)
+    update.update_pr(git_gecko, git_wpt, pr, kwargs["rebase"])
 
 
 @with_lock
