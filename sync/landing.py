@@ -428,18 +428,20 @@ Automatic update from web-platform-tests%s
             except git.GitCommandError as e:
                 if gitutils.handle_empty_commit(worktree, e):
                     return
+                if sync.skip:
+                    return
                 raise
 
-            metadata_commit = worktree.head.commit
-            if metadata_commit.message.startswith("Bug None"):
-                # If the metadata commit didn't get a valid bug number for some reason,
-                # we want to replace the placeholder bug number with the
-                # either the sync or landing bug number, otherwise the push will be
-                # rejected
-                bug_number = sync.bug or self.bug
-                new_message = "Bug %s%s" % (bug_number,
-                                            metadata_commit.message[len("Bug None"):])
-                worktree.git.commit(message=new_message, amend=True)
+        metadata_commit = worktree.head.commit
+        if metadata_commit.message.startswith("Bug None"):
+            # If the metadata commit didn't get a valid bug number for some reason,
+            # we want to replace the placeholder bug number with the
+            # either the sync or landing bug number, otherwise the push will be
+            # rejected
+            bug_number = sync.bug or self.bug
+            new_message = "Bug %s%s" % (bug_number,
+                                        metadata_commit.message[len("Bug None"):])
+            worktree.git.commit(message=new_message, amend=True)
 
     def apply_prs(self, prev_wpt_head, landable_commits):
         """Main entry point to setting the commits for landing.
