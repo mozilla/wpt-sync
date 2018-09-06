@@ -45,7 +45,6 @@ class TaskclusterClient(object):
 
     def retrigger(self, task_id, count=1, retries=5):
         payload = self.queue.task(task_id)
-        del payload["routes"]
         now = taskcluster.fromNow("0 days")
         created = datetime.strptime(payload["created"], _DATE_FMT)
         deadline = datetime.strptime(payload["deadline"], _DATE_FMT)
