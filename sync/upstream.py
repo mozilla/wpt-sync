@@ -673,6 +673,7 @@ def update_modified_sync(git_gecko, git_wpt, sync):
             logger.info("Sync was already fully applied upstream, not creating a PR")
             return
     else:
+        sync.status = "open"
         try:
             sync.update_wpt_commits()
         except AbortError:
@@ -691,7 +692,6 @@ def update_modified_sync(git_gecko, git_wpt, sync):
                     # Reset the base to origin/master
                     sync.set_wpt_base("origin/master")
                     raise
-        sync.status = "open"
 
     sync.update_github()
 
