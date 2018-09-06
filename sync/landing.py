@@ -918,7 +918,13 @@ def record_too_many_failures(sync, try_push):
 
 
 def update_metadata(sync, try_push, intermittents=None):
-    log_files = try_push.download_raw_logs(exclude=intermittents)
+    wpt_tasks = try_push.download_logs(raw=False, report=True, exclude=intermittents)
+    log_files = []
+    for task in wpt_tasks:
+        for run in task.get("status", {}).get("runs", []):
+            log = run.get("_log_paths", {}).get("wptreport.json")
+            if log:
+                log_files.append(log)
     if not log_files:
         logger.warning("No log files found for try push %r" % try_push)
     sync.update_metadata(log_files)
