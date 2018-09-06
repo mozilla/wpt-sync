@@ -954,6 +954,8 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
                     if not sync.results_notified:
                         env.bz.comment(sync.bug, "Result changes from PR not available.")
 
+    tasks.retrigger.apply_async()
+
 
 @base.entry_point("landing")
 def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
