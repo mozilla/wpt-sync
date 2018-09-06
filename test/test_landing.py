@@ -82,7 +82,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 
     try_push = sync.latest_try_push
     try_push.taskgroup_id = "abcdef"
-    with patch.object(try_push, "download_raw_logs", Mock(return_value=[])):
+    with patch.object(try_push, "download_logs", Mock(return_value=[])):
         with patch.object(tc.TaskGroup, "tasks",
                           property(Mock(return_value=mock_tasks(completed=["foo"])))):
             landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
@@ -146,10 +146,10 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, m
     )
     with patch.object(tc.TaskGroup, "tasks", property(mock_tasks)):
         sync = landing.update_landing(git_gecko, git_wpt)
-        try_push.download_raw_logs = Mock(return_value=[])
+        try_push.download_logs = Mock(return_value=[])
         try_push["stability"] = True
         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-        try_push.download_raw_logs.assert_called_with(exclude=["foo"])
+        try_push.download_logs.assert_called_with(raw=False, report=True, exclude=["foo"])
         assert sync.status == "open"
         assert try_push.status == "complete"
 
@@ -159,10 +159,10 @@ def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_pu
     tasks = Mock(return_value=mock_tasks(completed=["bar", "baz", "boo"]))
     with patch.object(tc.TaskGroup, "tasks", property(tasks)):
         sync = landing.update_landing(git_gecko, git_wpt)
-        try_push.download_raw_logs = Mock(return_value=[])
+        try_push.download_logs = Mock(return_value=[])
         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
         # no intermittents in the try push
-        try_push.download_raw_logs.assert_not_called()
+        try_push.download_logs.assert_not_called()
         assert sync.status == "open"
         assert try_push.status == "complete"
 
@@ -258,7 +258,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     try_push = sync.latest_try_push
     try_push.taskgroup_id = "abcde"
-    try_push.download_raw_logs = Mock(return_value=[])
+    try_push.download_logs = Mock(return_value=[])
     with patch.object(tc.TaskGroup, "tasks",
                       property(Mock(return_value=mock_tasks(completed=["foo"])))):
         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
