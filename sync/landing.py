@@ -817,6 +817,13 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
             raise AbortError("Existing landing head commit %s doesn't match"
                              "supplied wpt head %s" % (landing.wpt_commits.head.sha1,
                                                        new_wpt_head))
+        head = landing.gecko_commits.head.sha1
+        if git_gecko.is_ancestor(head, env.config["gecko"]["refs"]["central"]):
+            logger.info("Landing reached central")
+            landing.finish()
+        elif git_gecko.is_ancestor(head, landing.gecko_integration_branch()):
+            logger.info("Landing is on inbound but not yet on central")
+            return
 
         wpt_head, commits = landable_commits(git_gecko,
                                              git_wpt,
