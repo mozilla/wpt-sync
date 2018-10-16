@@ -160,7 +160,11 @@ class Commit(object):
             args = ("--", prefix)
         else:
             args = ()
-        return self.repo.git.show(self.sha1, format="", patch=True, *args).strip() == ""
+        return self.repo.git.show(self.sha1,
+                                  format="",
+                                  patch=True,
+                                  stdout_as_string=False,
+                                  *args).strip() == ""
 
     def tags(self):
         return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n")
@@ -174,12 +178,15 @@ class Commit(object):
                             three_way, author=self.author, exclude=exclude,
                             patch_fallback=patch_fallback)
 
-    def show(self, src_prefix):
+    def show(self, src_prefix=None, **kwargs):
         show_args = ()
         if src_prefix:
             show_args = ("--", src_prefix)
         try:
-            return self.repo.git.show(self.sha1, binary=True, *show_args) + "\n"
+            show_kwargs = {"binary": True,
+                           "stdout_as_string": False}
+            show_kwargs.update(kwargs)
+            return self.repo.git.show(self.sha1, *show_args, **show_kwargs) + "\n"
         except git.GitCommandError as e:
             raise AbortError(e.message)
 
@@ -194,7 +201,7 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
         diff_args = ("--", src_prefix)
     try:
         patch = repo.git.diff(revish, binary=True, submodule="diff",
-                              pretty="email", *diff_args) + "\n"
+                              pretty="email", stdout_as_string=False, *diff_args) + "\n"
         logger.info("Created patch")
     except git.GitCommandError as e:
         raise AbortError(e.message)
@@ -207,6 +214,7 @@ def move_commits(repo, revish, message, dest_repo, skip_empty=True, msg_filter=N
 def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filter=None,
                  metadata=None, src_prefix=None, dest_prefix=None, amend=False, three_way=True,
                  author=None, exclude=None, patch_fallback=False):
+    assert type(patch) == str
 
     if skip_empty and (not patch or patch.isspace() or
                        not any(line.startswith("diff ") for line in patch.splitlines())):
@@ -223,7 +231,7 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
     if metadata_extra:
         metadata.update(metadata_extra)
 
-    msg = Commit.make_commit_msg(msg, metadata)
+    msg = Commit.make_commit_msg(msg, metadata).encode("utf8")
 
     with Store(dest_repo, rev_name + ".message", msg) as message_path:
         strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
@@ -256,7 +264,7 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
                         cmd.append("--directory=%s" % dest_prefix)
                     logger.info(" ".join(cmd))
                     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-                    (stdout, stderr) = proc.communicate(patch.encode("utf8"))
+                    (stdout, stderr) = proc.communicate(patch)
                     if not proc.returncode == 0:
                         err_msg = ("%s\n\nPatch failed (status %i):\nstdout:\n%s\nstderr:\n%s" %
                                    (err_msg, proc.returncode, stdout, stderr))
@@ -426,10 +434,11 @@ class Store(object):
     def __init__(self, repo, name, data):
         self.path = os.path.join(repo.working_dir, name)
         self.data = data
+        assert isinstance(data, str)
 
     def __enter__(self):
         with open(self.path, "w") as f:
-            f.write(self.data.encode("utf8"))
+            f.write(self.data)
         self.data = None
         return self.path
 
