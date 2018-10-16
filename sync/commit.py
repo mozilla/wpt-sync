@@ -45,6 +45,12 @@ def try_filter(msg):
     return msg
 
 
+def first_non_merge(commits):
+    for item in commits:
+        if not item.is_merge:
+            return item
+
+
 class GitNotes(object):
     def __init__(self, commit):
         self.commit = commit

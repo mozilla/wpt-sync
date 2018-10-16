@@ -134,6 +134,12 @@ class GitHub(object):
             review_by_reviewer[review.user.login] = review.state
         return "APPROVED" in review_by_reviewer.values()
 
+    def merge_sha(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if pr.merged:
+            return pr.merge_commit_sha
+        return None
+
     def is_mergeable(self, pr_id):
         pr = self.get_pull(pr_id)
         return pr.mergeable
@@ -230,6 +236,7 @@ class MockGitHub(GitHub):
             "base": {"ref": base},
             "head": head,
             "merged": False,
+            "merge_commit_sha": "%040x" % random.getrandbits(160),
             "state": "open",
             "mergeable": True,
             "_approved": True,
@@ -294,6 +301,12 @@ class MockGitHub(GitHub):
             raise ValueError
         pr["state"] = "closed"
 
+    def merge_sha(self, pr_id):
+        pr = self.get_pull(pr_id)
+        if pr.merged:
+            return pr.merge_commit_sha
+        return None
+
     def merge_pull(self, pr_id):
         pr = self.get_pull(pr_id)
         if self.is_mergeable:
@@ -302,6 +315,7 @@ class MockGitHub(GitHub):
             # TODO: raise the right kind of error here
             raise ValueError
         self._log("Merged PR with id %s" % pr_id)
+        return pr.merge_commit_sha
 
     def is_approved(self, pr_id):
         pr = self.get_pull(pr_id)

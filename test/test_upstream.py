@@ -191,6 +191,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     assert syncs == {"wpt-merged": [sync]}
     assert sync.gecko_landed()
     assert sync.status == "wpt-merged"
+    assert sync.merge_sha is not None
     assert original_remote_branch not in git_wpt.remotes.origin.refs
     pr = env.gh_wpt.get_pull(sync.pr)
     assert pr.merged
@@ -401,3 +402,25 @@ def test_upstream_reprocess_commits(git_gecko, git_wpt, upstream_gecko_commit,
     pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "inbound", backout_rev,
                                                  raise_on_error=True)
     assert len(pushed) == len(landed) == len(failed) == 0
+
+
+def test_update_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit):
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change README")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+                                                 raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert syncs.keys() == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"][0]
+
+    merge_sha = env.gh_wpt.get_pull(sync.pr).merge_commit_sha
+    upstream.update_pr(git_gecko, git_wpt, sync, "closed", merge_sha)
+
+    assert sync.status == "wpt-merged"
+    assert sync.merge_sha == merge_sha
