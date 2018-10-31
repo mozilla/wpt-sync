@@ -50,8 +50,9 @@ def set_sync_data(whiteboard, subtype, status):
         text = "[wptsync %s %s]" % (subtype, status)
     else:
         text = "[wptsync %s]" % subtype
-    new = status_re.sub(text, whiteboard)
-    if new == whiteboard:
+    if status_re.findall(whiteboard):
+        new = status_re.sub(text, whiteboard)
+    else:
         new = whiteboard + text
     return new
 
