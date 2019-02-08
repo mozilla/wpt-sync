@@ -446,8 +446,10 @@ class DownstreamSync(base.SyncProcess):
                     else:
                         logger.error("Applying with %s was a no-op" % fn.__name__)
                 except Exception as e:
+                    import traceback
                     error = e
                     logger.error("Applying with %s errored" % fn.__name__)
+                    logger.error(traceback.format_exc(e))
 
             if error is not None:
                 raise error

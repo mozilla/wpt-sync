@@ -280,7 +280,7 @@ class UpstreamSync(base.SyncProcess):
                   for commit in self.gecko_commits]
         if not all(item == landed[0] for item in landed):
             raise ValueError("Got some commits landed and some not for upstream sync %s" %
-                             self.branch)
+                             self.branch_name)
         return landed[0]
 
     @property
