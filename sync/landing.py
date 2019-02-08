@@ -20,11 +20,11 @@ import load
 import trypush
 import update
 import upstream
+from commit import first_non_merge
 from env import Environment
 from gitutils import update_repositories
 from projectutil import Mach
 from errors import AbortError, RetryableError
-
 
 env = Environment()
 
@@ -110,7 +110,7 @@ class LandingSync(base.SyncProcess):
             assert all(item.pr() == pr_id for item in wpt_commits)
 
         # Assume we can always use the author of the first commit
-        author = wpt_commits[0].author
+        author = first_non_merge(wpt_commits).author
 
         git_work_wpt = self.wpt_worktree.get()
         git_work_gecko = self.gecko_worktree.get()
@@ -214,21 +214,20 @@ Automatic update from web-platform-tests%s
     def move_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author,
                 prev_wpt_head, metadata):
         if prev_wpt_head is None:
-            prev_wpt_head = wpt_commits[0].sha1 + "^"
+            if wpt_commits[-1].is_merge:
+                base = wpt_commits[-1].sha1 + "^"
+            else:
+                base = wpt_commits[0].sha1 + "^"
+        else:
+            base = self.git_wpt.git.merge_base(prev_wpt_head, wpt_commits[-1].sha1)
 
         head = sync_commit.GeckoCommit(self.git_gecko, git_work_gecko.head.commit)
         if head.is_downstream and head.metadata.get("wpt-pr") == str(pr.number):
             return
 
-        # Skip any commits that came from upstream since they should have been reapplied
-        for commit in wpt_commits:
-            if not commit.is_upstream:
-                break
-            prev_wpt_head = commit.sha1
-        else:
-            return
-        revish = "%s..%s" % (prev_wpt_head, wpt_commits[-1].sha1)
+        revish = "%s..%s" % (base, wpt_commits[-1].sha1)
         logger.info("Moving wpt commits %s" % revish)
+
         return sync_commit.move_commits(self.git_wpt,
                                         revish,
                                         message,
@@ -237,7 +236,7 @@ Automatic update from web-platform-tests%s
                                         amend=False,
                                         metadata=metadata,
                                         rev_name="pr-%s" % pr.number,
-                                        author=wpt_commits[0].author,
+                                        author=first_non_merge(wpt_commits).author,
                                         exclude={"LICENSE", "resources/testdriver_vendor.js"})
 
     def unlanded_gecko_commits(self):
@@ -643,7 +642,7 @@ def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
     for pr, commits in pr_commits:
         if pr is None:
             status = base.LandableStatus.no_pr
-        elif upstream.UpstreamSync.has_metadata(commits[0].msg):
+        elif upstream.UpstreamSync.has_metadata(first_non_merge(commits).msg):
             status = base.LandableStatus.upstream
         else:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
@@ -667,6 +666,7 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head="orig
     revish = "%s..%s" % (prev_wpt_head, wpt_head)
 
     commits_by_pr = []
+    index_by_pr = {}
     legacy_sync_re = re.compile(r"Merge pull request \#\d+ from w3c/sync_[0-9a-fA-F]+")
 
     for commit in git_wpt.iter_commits(revish,
@@ -676,9 +676,29 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head="orig
         if legacy_sync_re.match(commit.msg):
             continue
         pr = commit.pr()
-        if not commits_by_pr or commits_by_pr[-1][0] != pr:
-            commits_by_pr.append((pr, []))
-        commits_by_pr[-1][1].append(commit)
+        extra_commits = []
+        if pr not in index_by_pr:
+            pr_data = (pr, [])
+            # If we have a merge commit, also get the commits merged in
+            if len(commit.commit.parents) > 1:
+                merged_revish = "%s..%s" % (commit.commit.parents[0].hexsha, commit.sha1)
+                for merged_commit in git_wpt.iter_commits(merged_revish,
+                                                          reverse=True):
+                    if merged_commit.hexsha != commit.sha1:
+                        wpt_commit = sync_commit.WptCommit(git_wpt, merged_commit.hexsha)
+                        if wpt_commit.pr() == pr:
+                            extra_commits.append(wpt_commit)
+        else:
+            idx = index_by_pr[pr]
+            pr_data = commits_by_pr.pop(idx)
+            assert pr_data[0] == pr
+            index_by_pr = {key: (value if value < idx else value - 1)
+                           for key, value in index_by_pr.iteritems()}
+        for c in extra_commits + [commit]:
+            pr_data[1].append(c)
+        commits_by_pr.append(pr_data)
+        index_by_pr[pr] = len(commits_by_pr) - 1
+
     return commits_by_pr
 
 
@@ -701,23 +721,32 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
             # Assume this was some trivial fixup:
             continue
 
+        first_commit = first_non_merge(commits)
+        if not first_commit:
+            # If we only have a merge commit just use that; it doesn't come from gecko anyway
+            first_commit = commits[-1]
+
         def upstream_sync(bug_number):
             syncs = upstream.UpstreamSync.for_bug(git_gecko,
                                                   git_wpt,
                                                   bug_number,
                                                   flat=True)
             for sync in syncs:
+                if sync.merge_sha == commits[-1].sha1 and not sync.wpt_commits:
+                    # If we merged with a merge commit, the set of commits here will be empty
+                    sync.set_wpt_base(sync_commit.WptCommit(git_wpt, commits[0].sha1 + "~").sha1)
+
                 # Only check the first commit since later ones could be added in the PR
-                if (commits[0].metadata["gecko-commit"] in
-                    {item.canonical_rev for item in sync.upstreamed_gecko_commits}):
+                sync_revs = {item.canonical_rev for item in sync.upstreamed_gecko_commits}
+                if any(commit.metadata["gecko-commit"] in sync_revs for commit in commits):
                     break
             else:
                 sync = None
             return sync
 
         sync = None
-        if upstream.UpstreamSync.has_metadata(commits[0].msg):
-            sync = upstream_sync(bug.bug_number_from_url(commits[0].metadata["bugzilla-url"]))
+        if upstream.UpstreamSync.has_metadata(first_commit.msg):
+            sync = upstream_sync(bug.bug_number_from_url(first_commit.metadata["bugzilla-url"]))
         if sync is None:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if sync and "affected-tests" in sync.data and sync.data["affected-tests"] is None:
@@ -725,7 +754,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
         if sync is None:
             # Last ditch attempt at finding an upstream sync for this commit in the
             # case that the metadata happens to be broken
-            bugs = commitparser.parse_bugs(commits[0].msg.split("\n")[0])
+            bugs = commitparser.parse_bugs(first_commit.msg.split("\n")[0])
             for bug_number in bugs:
                 sync = upstream_sync(bug_number)
                 if sync:
@@ -888,7 +917,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
             return
         else:
             retriggered = try_push.retriggered_wpt_states(force_update=True)
-
             if not retriggered:
                 if not accept_failures and try_push.failure_limit_exceeded(target_success_rate):
                     record_too_many_failures(sync, try_push)
