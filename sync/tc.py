@@ -316,7 +316,7 @@ def fetch_json(url, params=None):
 
 def get_taskgroup_id(project, revision):
     resultset_url = urlparse.urljoin(TREEHERDER_BASE,
-                                     "/api/project/%s/resultset/" % project)
+                                     "/api/project/%s/push/" % project)
     resultset_params = {
         'revision': revision,
     }
