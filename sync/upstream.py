@@ -395,6 +395,13 @@ class UpstreamSync(base.SyncProcess):
             logger.info("No upstream PR created")
             return False
 
+        merge_sha = env.gh_wpt.merge_sha(self.pr)
+        if merge_sha:
+            logger.info("PR already merged")
+            self.merge_sha = merge_sha
+            self.finish("wpt-merged")
+            return
+
         logger.info("Commit are landable; trying to land %s" % self.pr)
 
         msg = None
@@ -853,6 +860,8 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
             sync.pr_status = "closed"
         else:
             sync.merge_sha = merge_sha
+            if not sync.wpt_commits and base_sha:
+                sync.set_wpt_base(base_sha)
             if sync.status != "complete":
                 env.bz.comment(sync.bug, "Upstream PR merged")
                 sync.finish("wpt-merged")
