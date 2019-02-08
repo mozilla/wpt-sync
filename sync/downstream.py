@@ -358,11 +358,16 @@ class DownstreamSync(base.SyncProcess):
 
         self._commit_metadata()
 
-    def _commit_metadata(self):
+    def _commit_metadata(self, amend=True):
         assert self.metadata_commit
         gecko_work = self.gecko_worktree.get()
         if gecko_work.is_dirty():
-            gecko_work.git.commit(amend=True, no_edit=True)
+            try:
+                gecko_work.git.commit(amend=True, no_edit=True)
+            except git.GitCommandError as e:
+                if amend and e.status == 1 and "--allow-empty" in e.stdout:
+                    logger.warning("Amending commit made it empty, resetting")
+                    gecko_work.git.reset("HEAD^")
 
     def update_commits(self):
         exception = None
