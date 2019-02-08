@@ -553,13 +553,19 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
     import landing
     import trypush
 
+    sync = None
     if sync_type is None:
         sync = sync_from_path(git_gecko, git_wpt)
     elif sync_type == "downstream":
         sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, obj_id)
     elif sync_type == "landing":
-        sync = landing.LandingSync.for_bug(git_gecko, git_wpt, obj_id)
+        syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, obj_id, flat=True)
+        if syncs:
+            sync = syncs[0]
     else:
+        raise ValueError
+
+    if not sync:
         raise ValueError
 
     class FakeTry(object):
