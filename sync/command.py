@@ -132,7 +132,7 @@ def get_parser():
     parser_skip = subparsers.add_parser("skip",
                                         help="Mark the sync for a PR as skip so that "
                                         "it doesn't have to complete before a landing")
-    parser_skip.add_argument("pr_id", nargs="?", help="PR for which to skip")
+    parser_skip.add_argument("pr_ids", nargs="*", help="PR ids for which to skip")
     parser_skip.set_defaults(func=do_skip)
 
     parser_landable = subparsers.add_parser("landable",
@@ -452,16 +452,17 @@ def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
 
 
 @with_lock
-def do_skip(git_gecko, git_wpt, pr_id, *args, **kwargs):
+def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
     import downstream
-    if pr_id is None:
-        sync = sync_from_path(git_gecko, git_wpt)
+    if not pr_ids:
+        syncs = [sync_from_path(git_gecko, git_wpt)]
     else:
-        sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
-    if sync is None:
-        logger.error("No active sync for PR %s" % pr_id)
-        return
-    sync.skip = True
+        syncs = [downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id) for pr_id in pr_ids]
+    for sync in syncs:
+        if sync is None:
+            logger.error("No active sync for PR %s" % pr_id)
+        else:
+            sync.skip = True
 
 
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
