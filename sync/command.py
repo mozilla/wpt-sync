@@ -268,10 +268,14 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                           allow_push=kwargs["push"],
                                           accept_failures=accept_failures)
         elif try_push.status == "complete" and not try_push.infra_fail:
-            landing.push_to_gecko(git_gecko,
-                                  git_wpt,
-                                  current_landing,
-                                  allow_push=kwargs["push"])
+            update_landing()
+            if current_landing.latest_try_push == try_push:
+                landing.try_push_complete(git_gecko,
+                                          git_wpt,
+                                          try_push,
+                                          current_landing,
+                                          allow_push=kwargs["push"],
+                                          accept_failures=accept_failures)
         elif try_push.status == "complete":
             if kwargs["retry"]:
                 update_landing()
