@@ -975,13 +975,14 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
         return
 
     update_repositories(git_gecko, git_wpt)
+
+    push(sync)
+
     wpt_head, commits = landable_commits(git_gecko,
                                          git_wpt,
                                          sync.wpt_commits.base.sha1,
                                          sync.wpt_commits.head.sha1,
                                          include_incomplete=True)
-
-    push(sync)
 
     for _, sync, _ in commits:
         if sync is not None:
