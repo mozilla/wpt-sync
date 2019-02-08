@@ -124,7 +124,7 @@ class LandingSync(base.SyncProcess):
 
         message = """Bug %s [wpt PR %s] - %s, a=testonly
 
-Automatic update from web-platform-tests%s
+Automatic update from web-platform-tests\n%s
 """
         message = message % ((sync and sync.bug) or self.bug,
                              pr.number,
