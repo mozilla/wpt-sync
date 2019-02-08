@@ -287,25 +287,6 @@ class DownstreamSync(base.SyncProcess):
         # TODO: Would be nice to do this from mach with a gecko worktree
         return set(self.wpt.files_changed().split("\n"))
 
-    def commit_manifest_update(self):
-        gecko_work = self.gecko_worktree.get()
-        mach = Mach(gecko_work.working_dir)
-        mach.wpt_manifest_update()
-        if gecko_work.is_dirty():
-            manifest_path = os.path.join(env.config["gecko"]["path"]["meta"],
-                                         "MANIFEST.json")
-            gecko_work.index.add([manifest_path])
-            metadata = {
-                "wpt-pr": self.pr,
-                "wpt-type": "manifest"
-            }
-            msg = sync_commit.Commit.make_commit_msg("Bug %s [wpt PR %s] - Update wpt manifest" %
-                                                     (self.bug, self.pr), metadata)
-            gecko_work.index.commit(message=msg)
-        if gecko_work.is_dirty():
-            # This can happen if the mozilla/meta/MANIFEST.json is updated
-            gecko_work.git.reset(hard=True)
-
     @property
     def metadata_commit(self):
         if len(self.gecko_commits) == 0:
@@ -470,8 +451,6 @@ class DownstreamSync(base.SyncProcess):
             if old_gecko_head == self.gecko_commits.head.sha1:
                 logger.info("Gecko commits did not change for PR %s" % self.pr)
                 return False
-
-            self.commit_manifest_update()
 
             # If we have a metadata commit already, ensure it's applied now
             if "metadata-commit" in self.data:
@@ -658,6 +637,7 @@ class DownstreamSync(base.SyncProcess):
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
         logger.debug("Updating metadata")
+        mach.wpt_manifest_update()
         output = mach.wpt_update(*args)
         prefix = "disabled:"
         disabled = []
