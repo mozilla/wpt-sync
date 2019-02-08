@@ -16,6 +16,7 @@ RUN chmod +x /app/get_ini.py
 # install/update pip, git and erlang/rabbitmq dependencies
 RUN set -eux; \
     apt-get update; \
+    apt-get upgrade -y; \
     apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https; \
     pip install --upgrade pip
 
@@ -43,11 +44,20 @@ RUN set -eux; \
         echo 'Package: erlang*'; \
         echo 'Pin: release n=stretch*'; \
         echo 'Pin-Priority: -10'; \
+        echo; \
         echo 'Package: libtinfo*'; \
         echo 'Pin: release n=buster*'; \
         echo 'Pin-Priority: 999'; \
         echo; \
         echo 'Package: libtinfo*'; \
+        echo 'Pin: release n=stretch*'; \
+        echo 'Pin-Priority: -10'; \
+        echo; \
+        echo 'Package: libssl* *'; \
+        echo 'Pin: release n=buster*'; \
+        echo 'Pin-Priority: 999'; \
+        echo; \
+        echo 'Package: libssl*' \
         echo 'Pin: release n=stretch*'; \
         echo 'Pin-Priority: -10'; \
     } | tee /etc/apt/preferences.d/buster-erlang
@@ -62,6 +72,7 @@ RUN set -eux; \
         ; \
     fi; \
     apt-get install -y --no-install-recommends \
+        libssl-dev \
         erlang-asn1 \
         erlang-crypto \
         erlang-eldap \
