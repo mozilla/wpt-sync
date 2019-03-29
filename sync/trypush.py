@@ -14,6 +14,7 @@ import tc
 import tree
 from env import Environment
 from load import get_syncs
+from lock import constructor, mut
 from errors import AbortError, RetryableError
 from projectutil import Mach
 
@@ -254,7 +255,9 @@ class TryPush(base.ProcessData):
     _min_success = 0.7
 
     @classmethod
-    def create(cls, sync, affected_tests=None, stability=False, hacks=True,
+    @constructor(lambda args: (args["sync"].process_name.subtype,
+                               args["sync"].process_name.obj_id))
+    def create(cls, lock, sync, affected_tests=None, stability=False, hacks=True,
                try_cls=TrySyntaxCommit, rebuild_count=None, check_open=True, **kwargs):
         logger.info("Creating try push for PR %s" % sync.pr)
         if check_open and not tree.is_open("try"):
@@ -281,8 +284,9 @@ class TryPush(base.ProcessData):
                                                     sync.sync_type,
                                                     "open",
                                                     getattr(sync, sync.obj_id))
-        rv = super(TryPush, cls).create(sync.git_gecko, process_name, data)
-        rv.created = taskcluster.fromNowJSON("0 days")
+        rv = super(TryPush, cls).create(lock, sync.git_gecko, process_name, data)
+        with rv.as_mut(lock):
+            rv.created = taskcluster.fromNowJSON("0 days")
 
         env.bz.comment(sync.bug,
                        "Pushed to try%s %s" %
@@ -322,10 +326,10 @@ class TryPush(base.ProcessData):
         return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
 
     def __eq__(self, other):
-        if not (hasattr(other, "_ref") and hasattr(other._ref, "_process_name")):
+        if not (hasattr(other, "_ref") and hasattr(other._ref, "process_name")):
             return False
         for attr in ["obj_type", "subtype", "obj_id", "seq_id"]:
-            if getattr(self._ref._process_name, attr) != getattr(other._ref._process_name, attr):
+            if getattr(self._ref.process_name, attr) != getattr(other._ref.process_name, attr):
                 return False
         return True
 
@@ -337,6 +341,7 @@ class TryPush(base.ProcessData):
         return self.get("created")
 
     @created.setter
+    @mut()
     def created(self, value):
         self["created"] = value
 
@@ -349,33 +354,36 @@ class TryPush(base.ProcessData):
         return self.get("taskgroup-id")
 
     @taskgroup_id.setter
+    @mut()
     def taskgroup_id(self, value):
         self["taskgroup-id"] = value
 
     @property
     def status(self):
-        return self._ref._process_name.status
+        return self._ref.process_name.status
+
+    @status.setter
+    @mut()
+    def status(self, value):
+        if value not in self.statuses:
+            raise ValueError("Unrecognised status %s" % value)
+        current = self._ref.process_name.status
+        if current == value:
+            return
+        if (current, value) not in self.status_transitions:
+            raise ValueError("Tried to change status from %s to %s" % (current, value))
+        self._ref.process_name.status = value
 
     @property
     def wpt_head(self):
         return self.get("wpt-head")
 
-    @status.setter
-    def status(self, value):
-        if value not in self.statuses:
-            raise ValueError("Unrecognised status %s" % value)
-        current = self._ref._process_name.status
-        if current == value:
-            return
-        if (current, value) not in self.status_transitions:
-            raise ValueError("Tried to change status from %s to %s" % (current, value))
-        self._ref._process_name.status = value
-
+    @mut()
     def delete(self):
-        self._ref._process_name.delete()
+        self._ref.process_name.delete()
 
     def sync(self, git_gecko, git_wpt):
-        process_name = self._ref._process_name
+        process_name = self._ref.process_name
         syncs = get_syncs(git_gecko,
                           git_wpt,
                           process_name.subtype,
@@ -423,10 +431,12 @@ class TryPush(base.ProcessData):
         return self.get("infra-fail", False)
 
     @infra_fail.setter
+    @mut()
     def infra_fail(self, value):
         """Is the current try push a stability test"""
         self["infra-fail"] = value
 
+    @mut()
     def tasks(self, force_update=False):
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
@@ -454,6 +464,7 @@ class TryPush(base.ProcessData):
         wpt_tasks = tasks.view(tc.is_suite_fn("web-platform-tests"))
         return wpt_tasks
 
+    @mut()
     def validate_tasks(self):
         wpt_tasks = self.wpt_tasks()
         err = None
@@ -470,6 +481,7 @@ class TryPush(base.ProcessData):
             return False
         return True
 
+    @mut()
     def retrigger_failures(self, count=_retrigger_count):
         task_states = self.wpt_states()
 
@@ -536,6 +548,7 @@ class TryPush(base.ProcessData):
         success = self.wpt_tasks().filter(tc.is_status_fn(tc.SUCCESS))
         return float(len(success)) / len(wpt_tasks)
 
+    @mut()
     def download_logs(self, raw=True, report=True, exclude=None):
         """Download all the logs for the current try push
 
@@ -567,6 +580,7 @@ class TryPush(base.ProcessData):
         include_tasks.download_logs(dest, file_names)
         return include_tasks
 
+    @mut()
     def download_raw_logs(self, exclude=None):
         wpt_tasks = self.download_logs(raw=True, report=True, exclude=exclude)
         raw_logs = []
