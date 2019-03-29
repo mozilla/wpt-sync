@@ -13,7 +13,7 @@ from errors import AbortError
 env = Environment()
 logger = log.get_logger(__name__)
 
-METADATA_RE = re.compile("([^\:]*): (.*)")
+METADATA_RE = re.compile("\s*([^\:]*): (.*)")
 
 
 class ShowError(Exception):

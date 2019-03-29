@@ -4,6 +4,7 @@ from datetime import datetime
 import taskcluster
 
 from sync import downstream, handlers, load, tc, tree, trypush
+from sync.lock import SyncLock
 
 
 def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, set_pr_status, mock_mach, mock_wpt):
@@ -71,18 +72,23 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
 
-    sync.data["affected-tests"] = ["example"]
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            sync.data["affected-tests"] = ["example"]
 
-    try_push = sync.latest_try_push
-    try_push.taskgroup_id = "abcdef"
-    assert sync.last_pr_check == {"state": "success", "sha": pr.head}
-    try_push.success = lambda: True
+        try_push = sync.latest_try_push
+        with try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcdef"
 
-    tasks = Mock(return_value=mock_tasks(completed=["foo", "bar"] * 5))
-    with patch.object(tc.TaskGroup, 'tasks', property(tasks)):
-        downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
-    assert try_push.status == "complete"
-    assert sync.latest_try_push == try_push
+        assert sync.last_pr_check == {"state": "success", "sha": pr.head}
+        try_push.success = lambda: True
+
+        tasks = Mock(return_value=mock_tasks(completed=["foo", "bar"] * 5))
+        with patch.object(tc.TaskGroup, 'tasks', property(tasks)):
+            with sync.as_mut(lock), try_push.as_mut(lock):
+                downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
+        assert try_push.status == "complete"
+        assert sync.latest_try_push == try_push
 
     pr._approved = True
     handlers.handle_pull_request_review(git_gecko, git_wpt,
@@ -101,9 +107,11 @@ def test_revert_pr(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, pull
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
 
-    commit = sync.wpt_commits[0]
-    sync.wpt_commits.base = sync.data["wpt-base"] = git_wpt_upstream.head.commit.hexsha
-    git_wpt_upstream.git.merge(commit.sha1)
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            commit = sync.wpt_commits[0]
+            sync.wpt_commits.base = sync.data["wpt-base"] = git_wpt_upstream.head.commit.hexsha
+            git_wpt_upstream.git.merge(commit.sha1)
 
     def revert_fn():
         git_wpt.remotes["origin"].fetch()
@@ -131,47 +139,51 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
 
-    assert sync.next_try_push() is None
-    assert sync.metadata_ready is False
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            assert sync.next_try_push() is None
+            assert sync.metadata_ready is False
 
-    # No affected tests and one try push, means we should be ready
-    sync.data["affected-tests"] = []
+            # No affected tests and one try push, means we should be ready
+            sync.data["affected-tests"] = []
 
-    assert sync.requires_try
-    assert not sync.requires_stability_try
+            assert sync.requires_try
+            assert not sync.requires_stability_try
 
-    try_push = trypush.TryPush.create(sync, try_cls=MockTryCls)
-    try_push.status = "complete"
+            try_push = trypush.TryPush.create(lock, sync, try_cls=MockTryCls)
+            with try_push.as_mut(lock):
+                try_push.status = "complete"
 
-    assert try_push.wpt_head == sync.wpt_commits.head.sha1
+            assert try_push.wpt_head == sync.wpt_commits.head.sha1
 
-    assert sync.metadata_ready
-    assert sync.next_try_push() is None
+            assert sync.metadata_ready
+            assert sync.next_try_push() is None
 
-    sync.data["affected-tests"] = ["example"]
+            sync.data["affected-tests"] = ["example"]
 
-    assert sync.requires_stability_try
-    assert not sync.metadata_ready
+            assert sync.requires_stability_try
+            assert not sync.metadata_ready
 
-    new_try_push = sync.next_try_push(try_cls=MockTryCls)
-    assert new_try_push is not None
-    assert new_try_push.stability
-    assert not sync.metadata_ready
+            new_try_push = sync.next_try_push(try_cls=MockTryCls)
+            assert new_try_push is not None
+            assert new_try_push.stability
+            assert not sync.metadata_ready
 
-    new_try_push.status = "complete"
-    assert sync.metadata_ready
-    assert not sync.next_try_push()
+            with new_try_push.as_mut(lock):
+                new_try_push.status = "complete"
+            assert sync.metadata_ready
+            assert not sync.next_try_push()
 
-    pull_request_commit(pr.number, [("Second test commit", {"README": "Another change\n"})])
-    git_wpt.remotes.origin.fetch()
+            pull_request_commit(pr.number, [("Second test commit", {"README": "Another change\n"})])
+            git_wpt.remotes.origin.fetch()
 
-    sync.update_commits()
-    assert sync.latest_try_push is not None
-    assert sync.latest_valid_try_push is None
-    assert not sync.metadata_ready
+            sync.update_commits()
+            assert sync.latest_try_push is not None
+            assert sync.latest_valid_try_push is None
+            assert not sync.metadata_ready
 
-    updated_try_push = sync.next_try_push(try_cls=MockTryCls)
-    assert not updated_try_push.stability
+            updated_try_push = sync.next_try_push(try_cls=MockTryCls)
+            assert not updated_try_push.stability
 
 
 def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
@@ -180,36 +192,42 @@ def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
                       "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
-    assert len(sync.try_pushes()) == 1
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            assert len(sync.try_pushes()) == 1
 
-    # no stability try push needed
-    sync.data["affected-tests"] = []
+            # no stability try push needed
+            sync.data["affected-tests"] = []
 
-    try_push = sync.latest_valid_try_push
-    try_push.status = "complete"
-    try_push.infra_fail = True
+            try_push = sync.latest_valid_try_push
+            with try_push.as_mut(lock):
+                try_push.status = "complete"
+                try_push.infra_fail = True
 
-    for i in range(4):
-        another_try_push = sync.next_try_push(try_cls=MockTryCls)
-        assert not sync.metadata_ready
-        assert another_try_push is not None
-        another_try_push.infra_fail = True
-        another_try_push.status = "complete"
+            for i in range(4):
+                another_try_push = sync.next_try_push(try_cls=MockTryCls)
+                assert not sync.metadata_ready
+                assert another_try_push is not None
+                with another_try_push.as_mut(lock):
+                    another_try_push.infra_fail = True
+                    another_try_push.status = "complete"
 
-    assert len(sync.latest_busted_try_pushes()) == 5
+            assert len(sync.latest_busted_try_pushes()) == 5
 
-    another_try_push.infra_fail = False
-    # Now most recent try push isn't busted, so count goes back to 0
-    assert len(sync.latest_busted_try_pushes()) == 0
-    # Reset back to 5
-    another_try_push.infra_fail = True
-    # After sixth consecutive infra_failure, we should get sync error
-    another_try_push = sync.next_try_push(try_cls=MockTryCls)
-    another_try_push.infra_fail = True
-    another_try_push.status = "complete"
-    another_try_push = sync.next_try_push(try_cls=MockTryCls)
-    assert another_try_push is None
-    assert sync.next_action == downstream.DownstreamAction.manual_fix
+            with another_try_push.as_mut(lock):
+                another_try_push.infra_fail = False
+                # Now most recent try push isn't busted, so count goes back to 0
+                assert len(sync.latest_busted_try_pushes()) == 0
+                # Reset back to 5
+                another_try_push.infra_fail = True
+            # After sixth consecutive infra_failure, we should get sync error
+            another_try_push = sync.next_try_push(try_cls=MockTryCls)
+            with another_try_push.as_mut(lock):
+                another_try_push.infra_fail = True
+                another_try_push.status = "complete"
+                another_try_push = sync.next_try_push(try_cls=MockTryCls)
+                assert another_try_push is None
+                assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
 def test_try_push_expiration(git_gecko, git_wpt, pull_request,
@@ -219,16 +237,18 @@ def test_try_push_expiration(git_gecko, git_wpt, pull_request,
     today = datetime.today().date()
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
-    try_push = sync.latest_valid_try_push
-    created_date = datetime.strptime(try_push.created, tc._DATE_FMT)
-    assert today == created_date.date()
-    assert not try_push.expired()
-    try_push.created = taskcluster.fromNowJSON("-15 days")
-    assert try_push.expired()
-    try_push.created = None
-    with patch("sync.trypush.tc.get_task",
-               return_value={"created": taskcluster.fromNowJSON("-5 days")}):
+    with SyncLock.for_process(sync.process_name) as lock:
+        try_push = sync.latest_valid_try_push
+        created_date = datetime.strptime(try_push.created, tc._DATE_FMT)
+        assert today == created_date.date()
         assert not try_push.expired()
+        with try_push.as_mut(lock):
+            try_push.created = taskcluster.fromNowJSON("-15 days")
+            assert try_push.expired()
+            try_push.created = None
+            with patch("sync.trypush.tc.get_task",
+                       return_value={"created": taskcluster.fromNowJSON("-5 days")}):
+                assert not try_push.expired()
 
 
 def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
@@ -241,24 +261,28 @@ def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_co
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
 
-    assert len(sync.gecko_commits) == 2
-    assert sync.gecko_commits[0].msg.splitlines()[0] == "First change"
-    assert sync.gecko_commits[0].metadata["wpt-type"] == "dependency"
-    assert sync.gecko_commits[1].metadata.get("wpt-type") is None
-    assert "Test change" in sync.gecko_commits[1].msg.splitlines()[0]
-    old_gecko_commits = sync.gecko_commits[:]
-    # Check that rerunning doesn't affect anything
-    sync.update_commits()
-    assert [item.sha1 for item in sync.gecko_commits] == [item.sha1 for item in old_gecko_commits]
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            assert len(sync.gecko_commits) == 2
+            assert sync.gecko_commits[0].msg.splitlines()[0] == "First change"
+            assert sync.gecko_commits[0].metadata["wpt-type"] == "dependency"
+            assert sync.gecko_commits[1].metadata.get("wpt-type") is None
+            assert "Test change" in sync.gecko_commits[1].msg.splitlines()[0]
+            old_gecko_commits = sync.gecko_commits[:]
+            # Check that rerunning doesn't affect anything
+            sync.update_commits()
+            assert ([item.sha1 for item in sync.gecko_commits] ==
+                    [item.sha1 for item in old_gecko_commits])
 
-    head_sha = pull_request_commit(pr.number,
-                                   [("fixup! Test change", {"README": "Example change 2\n"})])
-    downstream.update_repositories(git_gecko, git_wpt)
-    sync.update_commits()
-    assert len(sync.gecko_commits) == 3
-    assert ([item.sha1 for item in sync.gecko_commits[:2]] ==
-            [item.sha1 for item in old_gecko_commits])
-    assert sync.gecko_commits[-1].metadata["wpt-commit"] == head_sha
+            head_sha = pull_request_commit(pr.number,
+                                           [("fixup! Test change",
+                                             {"README": "Example change 2\n"})])
+            downstream.update_repositories(git_gecko, git_wpt)
+            sync.update_commits()
+            assert len(sync.gecko_commits) == 3
+            assert ([item.sha1 for item in sync.gecko_commits[:2]] ==
+                    [item.sha1 for item in old_gecko_commits])
+            assert sync.gecko_commits[-1].metadata["wpt-commit"] == head_sha
 
 
 def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_commit):
@@ -271,27 +295,30 @@ def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_com
 
     assert len(sync.gecko_commits) == 1
 
-    gecko_work = sync.gecko_worktree.get()
-    changes = gecko_changes(env, meta_changes={"example.ini": "Example change"})
-    git_commit(gecko_work, """Update metadata
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            gecko_work = sync.gecko_worktree.get()
+            changes = gecko_changes(env, meta_changes={"example.ini": "Example change"})
+            git_commit(gecko_work, """Update metadata
 
-wpt-pr: %s
-wpt-type: metadata
-""" % pr.number, changes)
+        wpt-pr: %s
+        wpt-type: metadata
+        """ % pr.number, changes)
 
-    assert len(sync.gecko_commits) == 2
-    assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
-    metadata_commit = sync.gecko_commits[-1]
+            assert len(sync.gecko_commits) == 2
+            assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
+            metadata_commit = sync.gecko_commits[-1]
 
-    head_sha = pull_request_commit(pr.number,
-                                   [("fixup! Test commit", {"README": "Example change 1\n"})])
+            head_sha = pull_request_commit(pr.number,
+                                           [("fixup! Test commit",
+                                             {"README": "Example change 1\n"})])
 
-    downstream.update_repositories(git_gecko, git_wpt)
-    sync.update_commits()
-    assert len(sync.gecko_commits) == 3
-    assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
-    assert sync.gecko_commits[-1].msg == metadata_commit.msg
-    assert sync.gecko_commits[-2].metadata.get("wpt-commit") == head_sha
+            downstream.update_repositories(git_gecko, git_wpt)
+            sync.update_commits()
+            assert len(sync.gecko_commits) == 3
+            assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
+            assert sync.gecko_commits[-1].msg == metadata_commit.msg
+            assert sync.gecko_commits[-2].metadata.get("wpt-commit") == head_sha
 
 
 def test_message_filter():

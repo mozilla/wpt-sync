@@ -6,6 +6,7 @@ import trypush
 import upstream
 from env import Environment
 from load import get_bug_sync, get_pr_sync
+from lock import SyncLock
 from gitutils import update_repositories
 from errors import AbortError
 
@@ -97,9 +98,11 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
     else:
         hg_rev_base = None
 
-    if not git_gecko.is_ancestor(git_rev, env.config["gecko"]["refs"]["central"]):
+    if not git_gecko.is_ancestor(git_rev,
+                                 env.config["gecko"]["refs"]["central"]):
         routing_key = "mozilla-central"
-    if not git_gecko.is_ancestor(git_rev, env.config["gecko"]["refs"]["autoland"]):
+    if not git_gecko.is_ancestor(git_rev,
+                                 env.config["gecko"]["refs"]["autoland"]):
         routing_key = "integration/mozilla-inbound"
     else:
         routing_key = "integration/autoland"
@@ -133,57 +136,72 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False):
     if not sync:
         # If this looks like something that came from gecko, create
         # a corresponding sync
-        upstream_sync = upstream.UpstreamSync.from_pr(git_gecko, git_wpt, pr.number, pr.body)
-        if upstream_sync is not None:
-            upstream.update_pr(git_gecko, git_wpt, upstream_sync, pr.state, pr.merged)
-        else:
-            if pr.state != "open" and not pr.merged:
-                return
+        with SyncLock("upstream", None) as lock:
+            upstream_sync = upstream.UpstreamSync.from_pr(lock,
+                                                          git_gecko,
+                                                          git_wpt,
+                                                          pr.number,
+                                                          pr.body)
+            if upstream_sync is not None:
+                with upstream_sync.as_mut(lock):
+                    upstream.update_pr(git_gecko,
+                                       git_wpt,
+                                       upstream_sync,
+                                       pr.state,
+                                       pr.merged)
+            else:
+                if pr.state != "open" and not pr.merged:
+                    return
             schedule_pr_task("opened", pr)
             update_for_status(pr)
     elif isinstance(sync, downstream.DownstreamSync):
-        if force_rebase:
-            sync.gecko_rebase(sync.gecko_integration_branch())
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                if force_rebase:
+                    sync.gecko_rebase(sync.gecko_integration_branch())
 
-        if len(sync.wpt_commits) == 0:
-            sync.update_wpt_commits()
+                if len(sync.wpt_commits) == 0:
+                    sync.update_wpt_commits()
 
-        if not sync.bug and not (pr.state == "closed" and not pr.merged):
-            sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
+                if not sync.bug and not (pr.state == "closed" and not pr.merged):
+                    sync.create_bug(git_wpt, pr.number, pr.title, pr.body)
 
-        if pr.state == "open" or pr.merged:
-            if pr.head.sha != sync.wpt_commits.head:
-                # Upstream has different commits, so run a push handler
-                schedule_pr_task("push", pr)
+                if pr.state == "open" or pr.merged:
+                    if pr.head.sha != sync.wpt_commits.head:
+                        # Upstream has different commits, so run a push handler
+                        schedule_pr_task("push", pr)
 
-            elif sync.latest_valid_try_push:
-                if not sync.latest_valid_try_push.taskgroup_id:
-                    update_taskgroup_ids(git_gecko, git_wpt)
+                    elif sync.latest_valid_try_push:
+                        if not sync.latest_valid_try_push.taskgroup_id:
+                            update_taskgroup_ids(git_gecko, git_wpt)
 
-                if (sync.latest_valid_try_push.taskgroup_id and
-                    not sync.latest_valid_try_push.status == "complete"):
-                    update_tasks(git_gecko, git_wpt, sync=sync)
+                        if (sync.latest_valid_try_push.taskgroup_id and
+                            not sync.latest_valid_try_push.status == "complete"):
+                            update_tasks(git_gecko, git_wpt, sync=sync)
 
-        if not pr.merged:
-            update_for_status(pr)
-        else:
-            update_for_action(pr, "closed")
+                if not pr.merged:
+                    update_for_status(pr)
+                else:
+                    update_for_action(pr, "closed")
 
     elif isinstance(sync, upstream.UpstreamSync):
-        merge_sha = pr.merge_commit_sha if pr.merged else None
-        upstream.update_pr(git_gecko, git_wpt, sync, pr.state, merge_sha)
-        sync.try_land_pr()
-        if merge_sha:
-            if git_wpt.is_ancestor(merge_sha, sync_point["upstream"]):
-                # This sync already landed, so it should be finished
-                sync.finish()
-            else:
-                if sync.status == "complete":
-                    # We bypass the setter here because we have some cases where the
-                    # status must go from complete to wpt-merged which is otherwise forbidden
-                    sync._process_name.status = "wpt-merged"
-                else:
-                    sync.status = "wpt-merged"
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                merge_sha = pr.merge_commit_sha if pr.merged else None
+                upstream.update_pr(git_gecko, git_wpt, sync, pr.state, merge_sha)
+                sync.try_land_pr()
+                if merge_sha:
+                    if git_wpt.is_ancestor(merge_sha, sync_point["upstream"]):
+                        # This sync already landed, so it should be finished
+                        sync.finish()
+                    else:
+                        if sync.status == "complete":
+                            # We bypass the setter here because we have some cases where the
+                            # status must go from complete to wpt-merged which is otherwise
+                            # forbidden
+                            sync.process_name.status = "wpt-merged"
+                        else:
+                            sync.status = "wpt-merged"
 
 
 def update_bug(git_gecko, git_wpt, bug):
@@ -195,11 +213,13 @@ def update_bug(git_gecko, git_wpt, bug):
         syncs_for_status = syncs.get(status)
         if not syncs_for_status:
             continue
-        for sync in syncs_for_status:
-            if isinstance(sync, upstream.UpstreamSync):
-                upstream.update_sync(git_gecko, git_wpt, sync)
-            else:
-                logger.warning("Can't update sync %s" % sync)
+        with SyncLock("upstream", None) as lock:
+            for sync in syncs_for_status:
+                if isinstance(sync, upstream.UpstreamSync):
+                    with sync.as_mut(lock):
+                        upstream.update_sync(git_gecko, git_wpt, sync)
+                else:
+                    logger.warning("Can't update sync %s" % sync)
 
 
 def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):

@@ -11,6 +11,7 @@ import worktree
 from env import Environment
 from gitutils import pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
+from lock import SyncLock
 
 env = Environment()
 
@@ -63,12 +64,14 @@ def handle_pr(git_gecko, git_wpt, event):
 
         merge_sha = (event["pull_request"]["merge_commit_sha"]
                      if event["pull_request"]["merged"] else None)
-        update_func(git_gecko,
-                    git_wpt,
-                    sync,
-                    event["action"],
-                    merge_sha,
-                    event["pull_request"]["base"]["sha"])
+        with SyncLock.for_process(sync.process_name) as lock:
+            sync = sync.to_writer(lock)
+            update_func(git_gecko,
+                        git_wpt,
+                        sync,
+                        event["action"],
+                        merge_sha,
+                        event["pull_request"]["base"]["sha"])
 
 
 def handle_status(git_gecko, git_wpt, event):
@@ -87,7 +90,7 @@ def handle_status(git_gecko, git_wpt, event):
         # There are a few possibilities for what happened:
         # * Something new was pushed. In that case ignoring this message is fine
         # * The PR got merged in a way that changes the SHAs. In that case we assume that
-        #   the syncc will get triggered later like when there's a push for the commit
+        #   the sync will get triggered later like when there's a push for the commit
         logger.warning("Got status for commit %s which is not the current HEAD of any PR\n"
                        "context: %s url: %s state: %s" %
                        (rev, event["context"], event["target_url"], event["state"]))
@@ -106,12 +109,16 @@ def handle_status(git_gecko, git_wpt, event):
         from update import schedule_pr_task
         schedule_pr_task("opened", env.gh_wpt.get_pull(pr_id))
 
+    update_func = None
     if isinstance(sync, upstream.UpstreamSync):
-        upstream.commit_status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
-                                       event["target_url"], event["sha"])
+        update_func = upstream.commit_status_changed
     elif isinstance(sync, downstream.DownstreamSync):
-        downstream.commit_status_changed(git_gecko, git_wpt, sync, event["context"], event["state"],
-                                         event["target_url"], event["sha"])
+        update_func = downstream.commit_status_changed
+    if update_func is not None:
+        with SyncLock.for_process(sync.process_name) as lock:
+            sync = sync.as_mut(lock)
+            update_func(git_gecko, git_wpt, sync, event["context"], event["state"],
+                        event["target_url"], event["sha"])
 
 
 def handle_push(git_gecko, git_wpt, event):
@@ -131,7 +138,9 @@ def handle_pull_request_review(git_gecko, git_wpt, event):
     if not sync or not isinstance(sync, downstream.DownstreamSync):
         return
 
-    downstream.pull_request_approved(git_gecko, git_wpt, sync)
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            downstream.pull_request_approved(git_gecko, git_wpt, sync)
 
 
 class GitHubHandler(Handler):
@@ -207,29 +216,32 @@ class TaskHandler(Handler):
             logger.info("Decision task is not yet complete, status %s" % result)
             return
 
-        # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
-        # But the retriggered decision task itself is still in the original taskgroup
-        if result == "success":
-            logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
-            try_push.taskgroup_id = task_id
-        elif result in ("fail", "exception"):
-            sync = try_push.sync(git_gecko, git_wpt)
-            message = ("Decision task got status %s for task %s%s" %
-                       (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
-            logger.error(message)
-            task = tc.get_task(task_id)
-            taskgroup = tc.TaskGroup(task["taskGroupId"])
-            if len(taskgroup.view(
-                    lambda x: x["metadata"]["name"] == "Gecko Decision Task")) > 5:
-                try_push.status = "complete"
-                try_push.infra_fail = True
-                if sync and sync.bug:
-                    # TODO this is commenting too frequently on bugs
-                    env.bz.comment(sync.bug,
-                                   "Try push failed: decision task %i returned error" % task_id)
-            else:
-                client = tc.TaskclusterClient()
-                client.retrigger(task_id)
+        with SyncLock.for_process(try_push._ref.process_name) as lock:
+            with try_push.as_mut(lock):
+                # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
+                # But the retriggered decision task itself is still in the original taskgroup
+                if result == "success":
+                    logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
+                    try_push.taskgroup_id = task_id
+                elif result in ("fail", "exception"):
+                    sync = try_push.sync(git_gecko, git_wpt)
+                    message = ("Decision task got status %s for task %s%s" %
+                               (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
+                    logger.error(message)
+                    task = tc.get_task(task_id)
+                    taskgroup = tc.TaskGroup(task["taskGroupId"])
+                    if len(taskgroup.view(
+                            lambda x: x["metadata"]["name"] == "Gecko Decision Task")) > 5:
+                        try_push.status = "complete"
+                        try_push.infra_fail = True
+                        if sync and sync.bug:
+                            # TODO this is commenting too frequently on bugs
+                            env.bz.comment(
+                                sync.bug,
+                                "Try push failed: decision task %i returned error" % task_id)
+                    else:
+                        client = tc.TaskclusterClient()
+                        client.retrigger(task_id)
 
 
 class TaskGroupHandler(Handler):
@@ -243,12 +255,15 @@ class TaskGroupHandler(Handler):
             return
         logger.info("Found try push for taskgroup %s" % taskgroup_id)
         sync = try_push.sync(git_gecko, git_wpt)
-        if sync:
-            logger.info("Updating try push for sync %r" % sync)
-        if isinstance(sync, downstream.DownstreamSync):
-            downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
-        elif isinstance(sync, landing.LandingSync):
-            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock), try_push.as_mut(lock):
+                if sync:
+                    logger.info("Updating try push for sync %r" % sync)
+                if isinstance(sync, downstream.DownstreamSync):
+                    downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                elif isinstance(sync, landing.LandingSync):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
 
 class LandingHandler(Handler):
@@ -261,6 +276,7 @@ class CleanupHandler(Handler):
         logger.info("Running cleanup")
         worktree.cleanup(git_gecko, git_wpt)
         tc.cleanup()
+        # TODO: this is rather unsafe
         for repo in git_gecko, git_wpt:
             repo.git.prune()
 

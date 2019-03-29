@@ -5,6 +5,7 @@ import git
 import log
 from env import Environment
 from errors import RetryableError
+from lock import RepoLock
 
 env = Environment()
 
@@ -47,19 +48,21 @@ def until(func, cond, max_tries=5):
 
 
 def _update_gecko(git_gecko, include_autoland):
-    logger.info("Fetching mozilla-unified")
-    # Not using the built in fetch() function since that tries to parse the output
-    # and sometimes fails
-    git_gecko.git.fetch("mozilla")
+    with RepoLock(git_gecko):
+        logger.info("Fetching mozilla-unified")
+        # Not using the built in fetch() function since that tries to parse the output
+        # and sometimes fails
+        git_gecko.git.fetch("mozilla")
 
-    if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
-        logger.info("Fetching autoland")
-        git_gecko.git.fetch("autoland")
+        if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
+            logger.info("Fetching autoland")
+            git_gecko.git.fetch("autoland")
 
 
 def _update_wpt(git_wpt):
-    logger.info("Fetching web-platform-tests")
-    git_wpt.git.fetch("origin")
+    with RepoLock(git_wpt):
+        logger.info("Fetching web-platform-tests")
+        git_wpt.git.fetch("origin")
 
 
 def refs(git, prefix=None):

@@ -12,7 +12,7 @@ from tasks import setup
 from env import Environment
 from gitutils import update_repositories
 from load import get_syncs
-from tasks import with_lock
+from lock import RepoLock, SyncLock
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -233,7 +233,6 @@ def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
         print(sync.output())
 
 
-@with_lock
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
     import landing
     import update
@@ -249,46 +248,49 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                kwargs["retry"])
 
     if current_landing and current_landing.latest_try_push:
-        try_push = current_landing.latest_try_push
-        logger.info("Found try push %s" % try_push.treeherder_url(try_push.try_rev))
-        if try_push.taskgroup_id is None:
-            update.update_taskgroup_ids(git_gecko, git_wpt)
-            assert try_push.taskgroup_id is not None
-        if try_push.status == "complete" and try_push.failure_limit_exceeded() and accept_failures:
-            try_push.status = "open"
-        if (try_push.status == "open" and
-            try_push.wpt_tasks(force_update=True).is_complete(allow_unscheduled=True)):
-            if try_push.infra_fail:
-                update_landing()
-            else:
-                landing.try_push_complete(git_gecko,
-                                          git_wpt,
-                                          try_push,
-                                          current_landing,
-                                          allow_push=kwargs["push"],
-                                          accept_failures=accept_failures)
-        elif try_push.status == "complete" and not try_push.infra_fail:
-            update_landing()
-            if current_landing.latest_try_push == try_push:
-                landing.try_push_complete(git_gecko,
-                                          git_wpt,
-                                          try_push,
-                                          current_landing,
-                                          allow_push=kwargs["push"],
-                                          accept_failures=accept_failures)
-        elif try_push.status == "complete":
-            if kwargs["retry"]:
-                update_landing()
-            else:
-                logger.info("Last try push was complete, but has failures or errors. "
-                            "Rerun with --accept-failures or --retry")
-        else:
-            logger.info("Landing in bug %s is waiting for try results" % landing.bug)
+        with SyncLock("landing", None) as lock:
+            try_push = current_landing.latest_try_push
+            logger.info("Found try push %s" % try_push.treeherder_url(try_push.try_rev))
+            if try_push.taskgroup_id is None:
+                update.update_taskgroup_ids(git_gecko, git_wpt)
+                assert try_push.taskgroup_id is not None
+            with try_push.as_mut(lock):
+                if (try_push.status == "complete" and
+                    try_push.failure_limit_exceeded() and
+                    accept_failures):
+                    try_push.status = "open"
+                if (try_push.status == "open" and
+                    try_push.wpt_tasks(force_update=True).is_complete(allow_unscheduled=True)):
+                    if try_push.infra_fail:
+                        update_landing()
+                    else:
+                        landing.try_push_complete(git_gecko,
+                                                  git_wpt,
+                                                  try_push,
+                                                  current_landing,
+                                                  allow_push=kwargs["push"],
+                                                  accept_failures=accept_failures)
+                elif try_push.status == "complete" and not try_push.infra_fail:
+                    update_landing()
+                    if current_landing.latest_try_push == try_push:
+                        landing.try_push_complete(git_gecko,
+                                                  git_wpt,
+                                                  try_push,
+                                                  current_landing,
+                                                  allow_push=kwargs["push"],
+                                                  accept_failures=accept_failures)
+                elif try_push.status == "complete":
+                    if kwargs["retry"]:
+                        update_landing()
+                    else:
+                        logger.info("Last try push was complete, but has failures or errors. "
+                                    "Rerun with --accept-failures or --retry")
+                else:
+                    logger.info("Landing in bug %s is waiting for try results" % landing.bug)
     else:
         update_landing()
 
 
-@with_lock
 def do_update(git_gecko, git_wpt, *args, **kwargs):
     import downstream
     import update
@@ -302,14 +304,12 @@ def do_update(git_gecko, git_wpt, *args, **kwargs):
     update.update_from_github(git_gecko, git_wpt, sync_classes, kwargs["status"])
 
 
-@with_lock
 def do_update_tasks(git_gecko, git_wpt, *args, **kwargs):
     import update
     update.update_taskgroup_ids(git_gecko, git_wpt)
     update.update_tasks(git_gecko, git_wpt, kwargs["pr_id"])
 
 
-@with_lock
 def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
     import update
     if pr_id is None:
@@ -319,7 +319,6 @@ def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
     update.update_pr(git_gecko, git_wpt, pr, kwargs["rebase"])
 
 
-@with_lock
 def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
     import update
     if bug is None:
@@ -327,7 +326,6 @@ def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
     update.update_bug(git_gecko, git_wpt, bug)
 
 
-@with_lock
 def do_push(git_gecko, git_wpt, *args, **kwargs):
     import update
     rev = kwargs["rev"]
@@ -339,26 +337,29 @@ def do_push(git_gecko, git_wpt, *args, **kwargs):
     update.update_push(git_gecko, git_wpt, rev, base_rev=base_rev, processes=processes)
 
 
-@with_lock
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush
     if kwargs["try"]:
         try_pushes = trypush.TryPush.load_all(git_gecko, sync_type, obj_id)
         for try_push in try_pushes:
-            try_push.delete()
+            with SyncLock.for_process(try_push.process_name) as lock:
+                with try_push.as_mut(lock):
+                    try_push.delete()
     else:
         syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
         for sync in syncs:
-            for try_push in sync.try_pushes():
-                try_push.delete()
-            sync.delete()
+            with SyncLock.for_process(sync.process_name) as lock:
+                with sync.as_mut(lock):
+                    for try_push in sync.try_pushes():
+                        with try_push.as_mut(lock):
+                            try_push.delete()
+                sync.delete()
 
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
     listen.run_pulse_listener(env.config)
 
 
-@with_lock
 def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     import repos
     c = env.config
@@ -366,25 +367,25 @@ def do_fetch(git_gecko, git_wpt, *args, **kwargs):
     r = repos.wrappers[name](c)
     logger.info("Fetching %s in %s..." % (name, r.root))
     pyrepo = r.repo()
-    try:
-        pyrepo.git.fetch(*r.fetch_args)
-    except git.GitCommandError as e:
-        # GitPython fails when git warns about adding known host key for new IP
-        if re.search(".*Warning: Permanently added.*host key.*", e.stderr) is not None:
-            logger.debug(e.stderr)
-        else:
-            raise e
+    with RepoLock(pyrepo):
+        try:
+            pyrepo.git.fetch(*r.fetch_args)
+        except git.GitCommandError as e:
+            # GitPython fails when git warns about adding known host key for new IP
+            if re.search(".*Warning: Permanently added.*host key.*", e.stderr) is not None:
+                logger.debug(e.stderr)
+            else:
+                raise e
 
 
-@with_lock
 def do_configure_repos(git_gecko, git_wpt, *args, **kwargs):
     import repos
     name = kwargs.get("repo")
     r = repos.wrappers[name](env.config)
-    r.configure(os.path.abspath(os.path.normpath(kwargs.get("config_file"))))
+    with RepoLock(r.repo()):
+        r.configure(os.path.abspath(os.path.normpath(kwargs.get("config_file"))))
 
 
-@with_lock
 def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     import upstream
     import downstream
@@ -415,23 +416,24 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
         obj.status = kwargs["new_status"]
 
 
-@with_lock
 def do_notify(git_gecko, git_wpt, pr_id, **kwargs):
     import downstream
     sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if sync is None:
         logger.error("No active sync for PR %s" % pr_id)
         return
-    old_notified = None
-    if kwargs["force"]:
-        old_notified = sync.results_notified
-        sync.results_notified = False
-    try:
-        sync.try_notify()
-    finally:
-        # Reset the notification status if it was set before and isn't now
-        if not sync.results_notified and old_notified:
-            sync.results_notified = True
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            old_notified = None
+            if kwargs["force"]:
+                old_notified = sync.results_notified
+                sync.results_notified = False
+            try:
+                sync.try_notify()
+            finally:
+                # Reset the notification status if it was set before and isn't now
+                if not sync.results_notified and old_notified:
+                    sync.results_notified = True
 
 
 def do_test(*args, **kwargs):
@@ -449,13 +451,11 @@ def do_test(*args, **kwargs):
     subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
-@with_lock
 def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
     from tasks import cleanup
     cleanup()
 
 
-@with_lock
 def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
     import downstream
     if not pr_ids:
@@ -466,7 +466,9 @@ def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
         if sync is None:
             logger.error("No active sync for PR %s" % pr_id)
         else:
-            sync.skip = True
+            with SyncLock.for_process(sync.process_name) as lock:
+                with sync.as_mut(lock):
+                    sync.skip = True
 
 
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
@@ -519,7 +521,6 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                 print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
-@with_lock
 def do_retrigger(git_gecko, git_wpt, **kwargs):
     import errors
     import update
@@ -547,7 +548,6 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
         print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
-@with_lock
 def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
     import downstream
     import landing
@@ -581,11 +581,13 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
         def push(self):
             return kwargs["try_rev"]
 
-    trypush = trypush.TryPush.create(sync,
-                                     None,
-                                     stability=kwargs["stability"],
-                                     try_cls=FakeTry, rebuild_count=kwargs["rebuild_count"],
-                                     check_open=False)
+    with SyncLock.for_process(sync.process_name) as lock:
+        trypush = trypush.TryPush.create(lock,
+                                         sync,
+                                         None,
+                                         stability=kwargs["stability"],
+                                         try_cls=FakeTry, rebuild_count=kwargs["rebuild_count"],
+                                         check_open=False)
 
     print "Now run an update for the sync"
 

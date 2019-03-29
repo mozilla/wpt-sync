@@ -24,8 +24,8 @@ if [[ $command == "build" ]]; then
       && ssh-keygen -f workspace/ssh/id_github -t rsa -b 4096 \
       && echo "Creating development credentials for hg.m.o" \
       && ssh-keygen -f workspace/ssh/id_hgmo -t rsa -b 4096 -C wptsync@mozilla.com \
-      && echo "Creating repos directory"
-      mkdir repos
+      && echo "Creating repos directory" \
+      && mkdir repos
     }
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $command == "test" ]]; then
