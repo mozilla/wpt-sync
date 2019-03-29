@@ -1,5 +1,6 @@
 from sync import commit as sync_commit, upstream
 from sync.gitutils import update_repositories
+from sync.lock import SyncLock
 
 
 def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
@@ -99,7 +100,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     assert len(syncs["incomplete"]) == 1
     sync = syncs["incomplete"][0]
     assert sync.status == "incomplete"
-    assert sync._process_name.seq_id == 0
+    assert sync.process_name.seq_id == 0
     assert len(sync.gecko_commits) == 0
     assert len(sync.upstreamed_gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
@@ -118,7 +119,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
     sync = syncs["open"][0]
-    assert sync._process_name.seq_id == 0
+    assert sync.process_name.seq_id == 0
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
@@ -214,9 +215,12 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
 
     env.gh_wpt.set_status(sync.pr, "failure", "http://test/", "tests failed",
                           "continuous-integration/travis-ci/pr")
-    upstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                   "continuous-integration/travis-ci/pr",
-                                   "failure", "http://test/", sync.wpt_commits.head.sha1)
+    with SyncLock("upstream", None) as lock:
+        with sync.as_mut(lock):
+            upstream.commit_status_changed(git_gecko, git_wpt, sync,
+                                           "continuous-integration/travis-ci/pr",
+                                           "failure", "http://test/", sync.wpt_commits.head.sha1)
+
     assert sync.last_pr_check == {"state": "failure", "sha": sync.wpt_commits.head.sha1}
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
@@ -226,9 +230,13 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
 
     env.gh_wpt.set_status(sync.pr, "success", "http://test/", "tests failed",
                           "continuous-integration/travis-ci/pr")
-    upstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                   "continuous-integration/travis-ci/pr",
-                                   "success", "http://test/", sync.wpt_commits.head.sha1)
+
+    with SyncLock("upstream", None) as lock:
+        with sync.as_mut(lock):
+            upstream.commit_status_changed(git_gecko, git_wpt, sync,
+                                           "continuous-integration/travis-ci/pr",
+                                           "success", "http://test/", sync.wpt_commits.head.sha1)
+
     assert sync.last_pr_check == {"state": "success", "sha": sync.wpt_commits.head.sha1}
     assert sync.gecko_landed()
     assert sync.status == "wpt-merged"
@@ -243,14 +251,14 @@ def test_no_upstream_downstream(env, git_gecko, git_wpt, upstream_gecko_commit,
 wpt-pr: 1
 wpt-commits: 0000000000000000000000000000000000000000""")
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=hg_rev)
-    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "mozilla-inbound",
+    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "inbound",
                                                  hg_rev, raise_on_error=True)
     assert not pushed
     assert not landed
     assert not failed
     backout_rev = upstream_gecko_backout(hg_rev, "1234")
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
-    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "mozilla-inbound",
+    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "inbound",
                                                  backout_rev, raise_on_error=True)
     assert not pushed
     assert not landed
@@ -329,9 +337,11 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert len(pushed) == 1
     assert pushed == {sync_0}
     assert len(sync_0.upstreamed_gecko_commits) == 2
-    assert sync_0._process_name.seq_id == 0
+    assert sync_0.process_name.seq_id == 0
 
-    sync_0.finish("wpt-merged")
+    with SyncLock.for_process(sync_0.process_name) as lock:
+        with sync_0.as_mut(lock):
+            sync_0.finish("wpt-merged")
     assert sync_0.status == "wpt-merged"
 
     # Add new files each time to avoid conflicts since we don't
@@ -348,15 +358,17 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert len(pushed) == 1
     sync_1 = pushed.pop()
     assert sync_1 != sync_0
-    assert sync_1._process_name.seq_id == 1
+    assert sync_1.process_name.seq_id == 1
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert set(syncs.keys()) == {"open", "wpt-merged"}
     assert set(syncs["open"]) == {sync_1}
     assert set(syncs["wpt-merged"]) == {sync_0}
 
-    sync_0.finish()
-    sync_1.finish()
+    with SyncLock.for_process(sync_0.process_name) as lock:
+        with sync_0.as_mut(lock), sync_1.as_mut(lock):
+            sync_0.finish()
+            sync_1.finish()
 
     test_changes = {"README3": "Add README3\n"}
     rev_3 = upstream_gecko_commit(test_changes=test_changes, bug=bug,
@@ -367,8 +379,8 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
                                                  raise_on_error=True)
     assert len(pushed) == 1
     sync_2 = pushed.pop()
-    assert sync_2._process_name not in (sync_1._process_name, sync_0._process_name)
-    assert sync_2._process_name.seq_id == 2
+    assert sync_2.process_name not in (sync_1.process_name, sync_0.process_name)
+    assert sync_2.process_name.seq_id == 2
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert set(syncs.keys()) == {"open", "complete"}

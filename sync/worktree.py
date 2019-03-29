@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import log
 from base import ProcessName
+from lock import SyncLock
 
 logger = log.get_logger(__name__)
 
@@ -36,15 +37,16 @@ def cleanup(git_gecko, git_wpt):
             if not os.path.exists(worktree_path):
                 continue
 
-            if process_name.status != "open":
-                logger.info("Removing worktree for closed sync %s" % worktree_path)
-                shutil.rmtree(worktree_path)
-                continue
+            with SyncLock.for_process(process_name):
+                if process_name.status != "open":
+                    logger.info("Removing worktree for closed sync %s" % worktree_path)
+                    shutil.rmtree(worktree_path)
+                    continue
 
-            now = datetime.now()
-            # Data hasn't been touched in two days
-            if (datetime.fromtimestamp(os.stat(worktree_path).st_mtime) <
-                now - timedelta(days=2)):
-                logger.info("Removing worktree without recent activity %s" % worktree_path)
-                shutil.rmtree(worktree_path)
+                now = datetime.now()
+                # Data hasn't been touched in two days
+                if (datetime.fromtimestamp(os.stat(worktree_path).st_mtime) <
+                    now - timedelta(days=2)):
+                    logger.info("Removing worktree without recent activity %s" % worktree_path)
+                    shutil.rmtree(worktree_path)
         git.git.worktree("prune")

@@ -14,6 +14,7 @@ from downstream import DownstreamSync
 from errors import AbortError
 from env import Environment
 from gitutils import update_repositories, gecko_repo
+from lock import SyncLock, constructor, mut
 
 env = Environment()
 
@@ -64,16 +65,27 @@ class UpstreamSync(base.SyncProcess):
         self._upstreamed_gecko_head = None
 
     @classmethod
-    def new(cls, *args, **kwargs):
-        self = super(UpstreamSync, cls).new(*args, **kwargs)
-        for commit in self.gecko_commits:
-            commit.set_upstream_sync(self)
+    @constructor(lambda args: ("upstream", args['bug']))
+    def new(cls, lock, git_gecko, git_wpt, gecko_base, gecko_head,
+            wpt_base="origin/master", wpt_head=None,
+            bug=None, status="open"):
+        self = super(UpstreamSync, cls).new(lock,
+                                            git_gecko,
+                                            git_wpt,
+                                            gecko_base,
+                                            gecko_head,
+                                            wpt_base=wpt_base,
+                                            wpt_head=wpt_head,
+                                            bug=bug,
+                                            status=status)
+        with self.as_mut(lock):
+            for commit in self.gecko_commits:
+                commit.set_upstream_sync(self)
         return self
 
     @classmethod
     def load(cls, git_gecko, git_wpt, branch_name):
         sync = super(UpstreamSync, cls).load(git_gecko, git_wpt, branch_name)
-        sync.update_wpt_refs()
         return sync
 
     @classmethod
@@ -96,7 +108,7 @@ class UpstreamSync(base.SyncProcess):
                     return sync
 
     @classmethod
-    def from_pr(cls, git_gecko, git_wpt, pr_id, body):
+    def from_pr(cls, lock, git_gecko, git_wpt, pr_id, body):
         gecko_commits = []
         bug = None
         integration_branch = None
@@ -134,8 +146,8 @@ class UpstreamSync(base.SyncProcess):
         wpt_head = commits[-1].sha
         wpt_base = commits[0].sha
 
-        return cls.new(git_gecko, git_wpt, gecko_base, gecko_head,
-                       wpt_base, wpt_head, bug. pr_id)
+        return cls.new(lock, git_gecko, git_wpt, gecko_base, gecko_head,
+                       wpt_base, wpt_head, bug, pr_id)
 
     @classmethod
     def has_metadata(cls, message):
@@ -165,7 +177,7 @@ class UpstreamSync(base.SyncProcess):
 
     @property
     def bug(self):
-        return self._process_name.obj_id
+        return self.process_name.obj_id
 
     @property
     def pr(self):
@@ -208,9 +220,11 @@ class UpstreamSync(base.SyncProcess):
         return remote
 
     @remote_branch.setter
+    @mut()
     def remote_branch(self, value):
         self.data["remote-branch"] = value
 
+    @mut()
     def get_or_create_remote_branch(self):
         if not self.remote_branch:
             count = 0
@@ -235,6 +249,7 @@ class UpstreamSync(base.SyncProcess):
             self._upstreamed_gecko_head = self.wpt_commits.head.sha1
         return self._upstreamed_gecko_commits
 
+    @mut()
     def update_wpt_commits(self):
         matching_commits = []
 
@@ -292,6 +307,7 @@ class UpstreamSync(base.SyncProcess):
             raise ValueError("Commit %s not part of any repository" % head)
         return repo
 
+    @mut()
     def add_commit(self, gecko_commit):
         git_work = self.wpt_worktree.get()
 
@@ -311,6 +327,7 @@ class UpstreamSync(base.SyncProcess):
 
         return wpt_commit, True
 
+    @mut()
     def create_pr(self):
         if self.pr:
             return self.pr
@@ -337,12 +354,14 @@ class UpstreamSync(base.SyncProcess):
                        env.gh_wpt.pr_url(pr_id))
         return pr_id
 
+    @mut()
     def push_commits(self):
         remote_branch = self.get_or_create_remote_branch()
         logger.info("Pushing commits from bug %s to branch %s" % (self.bug, remote_branch))
         self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
                                          force=True, set_upstream=True)
 
+    @mut()
     def update_github(self):
         if self.pr:
             state = env.gh_wpt.pull_state(self.pr)
@@ -382,6 +401,7 @@ class UpstreamSync(base.SyncProcess):
                               description="Landed on mozilla-central",
                               context="upstream/gecko")
 
+    @mut()
     def try_land_pr(self):
         logger.info("Checking if sync for bug %s can land" % self.bug)
         if not self.status == "open":
@@ -437,6 +457,7 @@ class UpstreamSync(base.SyncProcess):
             logger.error(msg)
         return False
 
+    @mut()
     def finish(self, status="complete"):
         super(UpstreamSync, self).finish(status)
         if status in ("wpt-merged", "complete") and self.remote_branch:
@@ -634,7 +655,7 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
     return create_syncs, update_syncs
 
 
-def create_syncs(git_gecko, git_wpt, create_endpoints):
+def create_syncs(lock, git_gecko, git_wpt, create_endpoints):
     rv = []
     for bug, endpoints in create_endpoints.iteritems():
         if bug is not None:
@@ -649,7 +670,8 @@ def create_syncs(git_gecko, git_wpt, create_endpoints):
                                  "Testing",
                                  "web-platform-tests",
                                  whiteboard="[wptsync upstream]")
-            sync = UpstreamSync.new(git_gecko,
+            sync = UpstreamSync.new(lock,
+                                    git_gecko,
                                     git_wpt,
                                     bug=bug,
                                     gecko_base=endpoint.base,
@@ -660,21 +682,23 @@ def create_syncs(git_gecko, git_wpt, create_endpoints):
     return rv
 
 
-def update_sync_heads(syncs_by_bug):
+def update_sync_heads(lock, syncs_by_bug):
     rv = []
     for bug, (sync, commit) in syncs_by_bug.iteritems():
         if sync.status not in ("open", "incomplete"):
             # TODO: Create a new sync with a non-zero seq-id in this case
             raise ValueError("Tried to modify a closed sync for bug %s with commit %s" %
                              (bug, commit.canonical_rev))
-        sync.gecko_commits.head = commit
-        for commit in sync.gecko_commits:
-            commit.set_upstream_sync(sync)
+        with sync.as_mut(lock):
+            sync.gecko_commits.head = commit
+            for commit in sync.gecko_commits:
+                commit.set_upstream_sync(sync)
         rv.append(sync)
     return rv
 
 
 def update_modified_sync(git_gecko, git_wpt, sync):
+    assert sync._lock is not None
     if len(sync.gecko_commits) == 0:
         # In the case that there are no gecko commits, we presumably had a backout
         # In this case we don't touch the wpt commits, but just mark the PR
@@ -711,40 +735,43 @@ def update_modified_sync(git_gecko, git_wpt, sync):
     sync.update_github()
 
 
-def update_sync_prs(git_gecko, git_wpt, create_endpoints, update_syncs,
+def update_sync_prs(lock, git_gecko, git_wpt, create_endpoints, update_syncs,
                     raise_on_error=False):
     pushed_syncs = set()
     failed_syncs = set()
 
-    to_push = create_syncs(git_gecko, git_wpt, create_endpoints)
-    to_push.extend(update_sync_heads(update_syncs))
+    to_push = create_syncs(lock, git_gecko, git_wpt, create_endpoints)
+    to_push.extend(update_sync_heads(lock, update_syncs))
 
     for sync in to_push:
-        try:
-            update_modified_sync(git_gecko, git_wpt, sync)
-        except Exception as e:
-            sync.error = e
-            if raise_on_error:
-                raise
-            traceback.print_exc()
-            logger.error(e)
-            failed_syncs.add((sync, e))
-        else:
-            sync.error = None
-            pushed_syncs.add(sync)
+        with sync.as_mut(lock):
+            try:
+                update_modified_sync(git_gecko, git_wpt, sync)
+            except Exception as e:
+                sync.error = e
+                if raise_on_error:
+                    raise
+                traceback.print_exc()
+                logger.error(e)
+                failed_syncs.add((sync, e))
+            else:
+                sync.error = None
+                pushed_syncs.add(sync)
 
     return pushed_syncs, failed_syncs
 
 
-def try_land_syncs(syncs):
+def try_land_syncs(lock, syncs):
     landed_syncs = set()
     for sync in syncs:
-        if sync.try_land_pr():
-            landed_syncs.add(sync)
+        with sync.as_mut(lock):
+            if sync.try_land_pr():
+                landed_syncs.add(sync)
     return landed_syncs
 
 
 @base.entry_point("upstream")
+@mut('sync')
 def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
     if sync.status in ("wpt-merged", "complete"):
         logger.info("Nothing to do for sync with status %s" % sync.status)
@@ -753,14 +780,15 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
     update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
     assert isinstance(sync, UpstreamSync)
     update_syncs = {sync.bug: (sync, sync.gecko_commits.head.sha1)}
-    pushed_syncs, failed_syncs = update_sync_prs(git_gecko,
+    pushed_syncs, failed_syncs = update_sync_prs(sync._lock,
+                                                 git_gecko,
                                                  git_wpt,
                                                  {},
                                                  update_syncs,
                                                  raise_on_error=raise_on_error)
 
     if sync.repository == "central" and sync not in failed_syncs:
-        landed_syncs = try_land_syncs([sync])
+        landed_syncs = try_land_syncs(sync._lock, [sync])
     else:
         landed_syncs = set()
 
@@ -771,41 +799,45 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
 def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
                base_rev=None):
     rev = git_gecko.cinnabar.hg2git(hg_rev)
-    central_ref = env.config["gecko"]["refs"]["central"]
     last_sync_point, prev_commit = UpstreamSync.prev_gecko_commit(git_gecko,
-                                                                  repository_name,
-                                                                  default=central_ref)
+                                                                  repository_name)
+
     if base_rev is None and git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
         logger.info("Last sync point moved past commit")
         return
 
-    updated = updated_syncs_for_push(git_gecko,
-                                     git_wpt,
-                                     prev_commit,
-                                     sync_commit.GeckoCommit(git_gecko, rev))
+    with SyncLock("upstream", None) as lock:
+        updated = updated_syncs_for_push(git_gecko,
+                                         git_wpt,
+                                         prev_commit,
+                                         sync_commit.GeckoCommit(git_gecko, rev))
 
-    if updated is None:
-        return set(), set(), set()
+        if updated is None:
+            return set(), set(), set()
 
-    create_endpoints, update_syncs = updated
+        create_endpoints, update_syncs = updated
 
-    pushed_syncs, failed_syncs = update_sync_prs(git_gecko,
-                                                 git_wpt,
-                                                 create_endpoints,
-                                                 update_syncs,
-                                                 raise_on_error=raise_on_error)
+        pushed_syncs, failed_syncs = update_sync_prs(lock,
+                                                     git_gecko,
+                                                     git_wpt,
+                                                     create_endpoints,
+                                                     update_syncs,
+                                                     raise_on_error=raise_on_error)
 
-    landable_syncs = {item for item in UpstreamSync.load_all(git_gecko, git_wpt, status="open")
-                      if item.error is None}
-    landed_syncs = try_land_syncs(landable_syncs)
+        landable_syncs = {item for item in UpstreamSync.load_all(git_gecko, git_wpt, status="open")
+                          if item.error is None}
+        landed_syncs = try_land_syncs(lock, landable_syncs)
 
-    if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
-        last_sync_point.commit = rev
+        # TODO
+        if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+            with last_sync_point.as_mut(lock):
+                last_sync_point.commit = rev
 
     return pushed_syncs, landed_syncs, failed_syncs
 
 
 @base.entry_point("upstream")
+@mut('sync')
 def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     landed = False
     if sync.status != "open":
@@ -848,6 +880,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
 
 
 @base.entry_point("upstream")
+@mut('sync')
 def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
     """Update the sync status for a PR event on github
 

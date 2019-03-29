@@ -13,6 +13,7 @@ import pytest
 from sync import repos, settings, bugcomponents, base, downstream, landing, trypush, tree
 from sync.env import Environment, set_env, clear_env
 from sync.gh import AttrDict
+from sync.lock import SyncLock
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -92,6 +93,11 @@ def env(request, mock_mach, mock_wpt):
     downstream.WPT = mock_wpt
 
     set_env(config, bz, gh_wpt)
+
+    for name, dir in config["paths"].iteritems():
+        path = os.path.join(config["root"], dir)
+        if not os.path.exists(path):
+            os.makedirs(path)
 
     def empty_caches():
         base.IdentityMap._cache.clear()
@@ -236,6 +242,7 @@ def git_gecko(env, hg_gecko_upstream):
     git_gecko.remotes.mozilla.fetch()
     git_gecko.create_head("sync/upstream/inbound", "FETCH_HEAD")
     git_gecko.create_head("sync/upstream/central", "FETCH_HEAD")
+    git_gecko.create_head("sync/landing/central", "FETCH_HEAD")
     return git_gecko
 
 
@@ -468,9 +475,12 @@ def set_pr_status(git_gecko, git_wpt, env):
                               "description",
                               "continuous-integration/travis-ci/pr")
         sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
-        downstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                         "continuous-integration/travis-ci/pr",
-                                         status, "http://test/", pr["head"])
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                downstream.commit_status_changed(git_gecko, git_wpt, sync,
+                                                 "continuous-integration/travis-ci/pr",
+                                                 status, "http://test/", pr["head"],
+                                                 raise_on_error=True)
         return sync
     return inner
 
@@ -569,15 +579,44 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
 
-    git_wpt_upstream.head.commit = head_rev
-    git_wpt.remotes.origin.fetch()
-    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+    with SyncLock.for_process(sync.process_name) as sync_lock:
+        git_wpt_upstream.head.commit = head_rev
+        git_wpt.remotes.origin.fetch()
+        landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    sync.data["force-metadata-ready"] = True
+        with sync.as_mut(sync_lock):
+            sync.data["force-metadata-ready"] = True
 
-    tree.is_open = lambda x: True
-    sync.latest_try_push.taskgroup_id = "abcdef"
+        tree.is_open = lambda x: True
+        try_push = sync.latest_try_push
+        with try_push.as_mut(sync_lock):
+            try_push.taskgroup_id = "abcdef"
     return sync.latest_try_push
+
+
+@pytest.fixture
+def landing_with_try_push(env, git_gecko, git_wpt, git_wpt_upstream,
+                          upstream_wpt_commit, MockTryCls, mock_mach):
+    base_commit = git_wpt_upstream.head.commit
+    new_commit = upstream_wpt_commit("First change", {"README": "Example change\n"})
+    git_wpt.remotes.origin.fetch()
+    with SyncLock("landing", None) as lock:
+        landing_sync = landing.LandingSync.new(lock,
+                                               git_gecko,
+                                               git_wpt,
+                                               base_commit.hexsha,
+                                               new_commit.hexsha)
+        with landing_sync.as_mut(lock):
+            try_push = trypush.TryPush.create(lock,
+                                              landing_sync,
+                                              hacks=False,
+                                              try_cls=MockTryCls,
+                                              exclude=["pgo", "ccov", "msvc"])
+            trypush.Mach = mock_mach
+        tree.is_open = lambda x: True
+        with try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcdef"
+    return landing_sync
 
 
 @pytest.fixture

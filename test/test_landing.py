@@ -5,6 +5,7 @@ from mock import Mock, patch
 from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
 from sync.gitutils import update_repositories
+from sync.lock import SyncLock
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
@@ -23,6 +24,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                         "LICENSE": "Some change"})])
     head_rev = pr._commits[0]["sha"]
 
+
     trypush.Mach = mock_mach
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")
@@ -31,21 +33,25 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     git_wpt.remotes.origin.fetch()
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    sync.data["force-metadata-ready"] = True
+    with SyncLock.for_process(sync.process_name) as downstream_lock:
+        with sync.as_mut(downstream_lock):
+            sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
     landing_sync = landing.update_landing(git_gecko, git_wpt)
 
     assert landing_sync is not None
-    worktree = landing_sync.gecko_worktree.get()
-    # Check that files we shouldn't move aren't
-    assert not os.path.exists(os.path.join(worktree.working_dir,
-                                           env.config["gecko"]["path"]["wpt"],
-                                           ".git"))
-    with open(os.path.join(worktree.working_dir,
-                           env.config["gecko"]["path"]["wpt"],
-                           "LICENSE")) as f:
-        assert f.read() == "Initial license\n"
+    with SyncLock("landing", None) as lock:
+        with landing_sync.as_mut(lock):
+            worktree = landing_sync.gecko_worktree.get()
+            # Check that files we shouldn't move aren't
+            assert not os.path.exists(os.path.join(worktree.working_dir,
+                                                   env.config["gecko"]["path"]["wpt"],
+                                                   ".git"))
+            with open(os.path.join(worktree.working_dir,
+                                   env.config["gecko"]["path"]["wpt"],
+                                   "LICENSE")) as f:
+                assert f.read() == "Initial license\n"
 
     try_push = sync.latest_try_push
     assert try_push is not None
@@ -71,21 +77,21 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     git_wpt.remotes.origin.fetch()
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    downstream_sync.data["force-metadata-ready"] = True
+    with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+        with downstream_sync.as_mut(downstream_lock):
+            downstream_sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
     sync = landing.update_landing(git_gecko, git_wpt)
 
-    # Set the landing sync point to current central
-    sync.last_sync_point(git_gecko, "mozilla-central",
-                         env.config["gecko"]["refs"]["central"])
-
     try_push = sync.latest_try_push
-    try_push.taskgroup_id = "abcdef"
-    with patch.object(try_push, "download_logs", Mock(return_value=[])):
-        with patch.object(tc.TaskGroup, "tasks",
-                          property(Mock(return_value=mock_tasks(completed=["foo"])))):
-            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcdef"
+            with patch.object(try_push, "download_logs", Mock(return_value=[])):
+                with patch.object(tc.TaskGroup, "tasks",
+                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     assert sync.status == "open"
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/inbound"].commit
@@ -97,74 +103,95 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     # Update central to contain the landing
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
     with patch("sync.landing.tasks.land.apply_async") as mock_apply:
-        landing.gecko_push(git_gecko, git_wpt, "mozilla-central",
+        landing.gecko_push(git_gecko, git_wpt, "central",
                            git_gecko.cinnabar.git2hg(new_head))
         assert mock_apply.call_count == 1
     assert sync.status == "complete"
 
 
-def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, try_push, mock_tasks):
+def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, landing_with_try_push, mock_tasks):
     # 2/3 failure rate, too high
+    sync = landing_with_try_push
+    try_push = sync.latest_try_push
     with patch.object(tc.TaskGroup, "tasks",
                       property(Mock(return_value=mock_tasks(failed=["foo", "foobar"],
                                                             completed=["bar"])))):
-        try_push.taskgroup_id = "abcdef"
-        sync = try_push.sync(git_gecko, git_wpt)
-        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock), try_push.as_mut(lock):
+                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
     assert try_push.status == "complete"
     assert "too many failures" in sync.error["message"]
 
 
-def test_try_push_retriggers_failures(git_gecko, git_wpt, try_push, mock_tasks, env):
+def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push, mock_tasks, env,
+                                      mock_mach):
     # 20% failure rate, okay
     tasks = Mock(return_value=mock_tasks(
         failed=["foo"], completed=["bar", "baz", "boo", "faz"])
     )
-    sync = try_push.sync(git_gecko, git_wpt)
-    with patch.object(tc.TaskGroup, "tasks", property(tasks)):
-        with patch('sync.trypush.auth_tc.retrigger',
-                   return_value=["job"] * try_push._retrigger_count):
-            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-            assert "Pushed to try (stability)" in env.bz.output.getvalue()
-            assert try_push.status == "complete"
-            assert sync.latest_try_push != try_push
-            try_push = sync.latest_try_push
-            # Give try push a fake taskgroup id
-            try_push.taskgroup_id = "abcdef"
-            assert try_push.stability
-            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-            assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
-            assert try_push.status != "complete"
+    sync = landing_with_try_push
+    try_push = sync.latest_try_push
+    with SyncLock("landing", None) as lock:
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            with patch.object(tc.TaskGroup, "tasks", property(tasks)):
+                with patch('sync.trypush.auth_tc.retrigger',
+                           return_value=["job"] * try_push._retrigger_count):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                    assert "Pushed to try (stability)" in env.bz.output.getvalue()
+                    assert try_push.status == "complete"
+                    assert sync.status == "open"
+                    new_try_push = sync.latest_try_push
+                    assert new_try_push != try_push
+                    assert new_try_push.stability
+                    new_try_push.Mach = mock_mach
+                    with new_try_push.as_mut(lock):
+                        new_try_push.taskgroup_id = "1234"
+                        landing.try_push_complete(git_gecko, git_wpt, new_try_push, sync)
+                    assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
+                    assert new_try_push.status != "complete"
 
 
-def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, try_push, mock_tasks, env):
+def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_with_try_push,
+                                                 mock_tasks, env):
     # > 80% of retriggered "foo" tasks pass, so we consider the "foo" failure intermittent
-    mock_tasks = Mock(return_value=mock_tasks(
+    tasks = Mock(return_value=mock_tasks(
         failed=["foo", "foo", "bar"],
         completed=["bar", "bar", "bar" "baz", "boo", "foo", "foo", "foo", "foo", "foo",
                    "foobar", "foobar", "foobar"])
     )
-    with patch.object(tc.TaskGroup, "tasks", property(mock_tasks)):
-        sync = landing.update_landing(git_gecko, git_wpt)
-        try_push.download_logs = Mock(return_value=[])
-        try_push["stability"] = True
-        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    sync = landing_with_try_push
+    try_push = sync.latest_try_push
+    with SyncLock.for_process(sync.process_name) as lock:
+        with try_push.as_mut(lock), sync.as_mut(lock):
+            with patch.object(tc.TaskGroup,
+                              "tasks",
+                              property(tasks)), patch(
+                                  'sync.landing.push_to_gecko'):
+                try_push.download_logs = Mock(return_value=[])
+                try_push["stability"] = True
+                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
         try_push.download_logs.assert_called_with(raw=False, report=True, exclude=["foo"])
         assert sync.status == "open"
         assert try_push.status == "complete"
 
 
-def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, try_push, mock_tasks,
-                                                      env):
+def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, landing_with_try_push,
+                                                      mock_tasks, env):
     tasks = Mock(return_value=mock_tasks(completed=["bar", "baz", "boo"]))
-    with patch.object(tc.TaskGroup, "tasks", property(tasks)):
-        sync = landing.update_landing(git_gecko, git_wpt)
-        try_push.download_logs = Mock(return_value=[])
-        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-        # no intermittents in the try push
-        try_push.download_logs.assert_not_called()
-        assert sync.status == "open"
-        assert try_push.status == "complete"
+    sync = landing_with_try_push
+    try_push = sync.latest_try_push
+    with SyncLock.for_process(sync.process_name) as lock:
+        with try_push.as_mut(lock), sync.as_mut(lock):
+            with patch.object(tc.TaskGroup,
+                              "tasks",
+                              property(tasks)), patch(
+                                  'sync.landing.push_to_gecko'):
+                try_push.download_logs = Mock(return_value=[])
+                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                # no intermittents in the try push
+                try_push.download_logs.assert_not_called()
+                assert sync.status == "open"
+                assert try_push.status == "complete"
 
 
 def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
@@ -200,7 +227,9 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     git_wpt_upstream.git.checkout("master")
     git_wpt_upstream.git.merge(remote_branch, ff_only=True)
 
-    sync_1.finish()
+    with SyncLock.for_process(sync_1.process_name) as lock:
+        with sync_1.as_mut(lock):
+            sync_1.finish()
 
     # Add second gecko change
     test_changes = {"change2": "CHANGE2\n"}
@@ -228,7 +257,9 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     downstream_sync = set_pr_status(pr, "success")
     git_wpt_upstream.head.commit = head_rev
     git_wpt_upstream.git.reset(hard=True)
-    downstream_sync.data["force-metadata-ready"] = True
+    with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+        with downstream_sync.as_mut(downstream_lock):
+            downstream_sync.data["force-metadata-ready"] = True
 
     # This is the commit we should land to
     landing_rev = git_wpt_upstream.git.rev_parse("HEAD")
@@ -256,12 +287,14 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     assert sync is not None
 
-    try_push = sync.latest_try_push
-    try_push.taskgroup_id = "abcde"
-    try_push.download_logs = Mock(return_value=[])
-    with patch.object(tc.TaskGroup, "tasks",
-                      property(Mock(return_value=mock_tasks(completed=["foo"])))):
-        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    with SyncLock.for_process(sync.process_name) as lock:
+        try_push = sync.latest_try_push
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcde"
+            try_push.download_logs = Mock(return_value=[])
+            with patch.object(tc.TaskGroup, "tasks",
+                              property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
     gecko_root = hg_gecko_upstream.root().strip()
@@ -296,16 +329,19 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     downstream_sync = set_pr_status(pr, "success")
 
     # Create a metadata commit
-    git_work = downstream_sync.gecko_worktree.get()
-    changes = gecko_changes(env, meta_changes={"example/test1.html":
-                                               "[test1.html]\n  expected: FAIL"})
-    file_data, _ = create_file_data(changes, git_work.working_dir)
-    downstream_sync.ensure_metadata_commit()
-    git_work.index.add(file_data)
-    downstream_sync._commit_metadata()
+    with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+        with downstream_sync.as_mut(downstream_lock):
+            git_work = downstream_sync.gecko_worktree.get()
 
-    assert downstream_sync.metadata_commit is not None
-    downstream_sync.data["force-metadata-ready"] = True
+            changes = gecko_changes(env, meta_changes={"example/test1.html":
+                                                       "[test1.html]\n  expected: FAIL"})
+            file_data, _ = create_file_data(changes, git_work.working_dir)
+            downstream_sync.ensure_metadata_commit()
+            git_work.index.add(file_data)
+            downstream_sync._commit_metadata()
+
+            assert downstream_sync.metadata_commit is not None
+            downstream_sync.data["force-metadata-ready"] = True
 
     git_wpt_upstream.head.commit = head_rev
     git_wpt.remotes.origin.fetch()
