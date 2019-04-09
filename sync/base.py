@@ -484,6 +484,7 @@ def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Comm
 
 
 class ProcessData(object):
+    __metaclass__ = IdentityMap
     path = "data"
 
     def __init__(self, repo, process_name):
@@ -491,6 +492,8 @@ class ProcessData(object):
         self._ref = DataRefObject(repo, process_name)
         self._data = self._load()
         self._lock = None
+        self._updated = set()
+        self._deleted = set()
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self._ref)
@@ -498,17 +501,28 @@ class ProcessData(object):
     def as_mut(self, lock):
         return MutGuard(lock, self, [self._ref])
 
+    def exit_mut(self):
+        if self._updated or self._deleted:
+            message = []
+            if self._updated:
+                message.append("Updated: %s" % (", ".join(self._updated),))
+            if self._deleted:
+                message.append("Deleted: %s" % (", ".join(self._deleted),))
+            self._save(message=" ".join(message))
+            self._updated = set()
+            self._deleted = set()
+
     @property
     def lock_key(self):
         return (self.process_name.subtype, self.process_name.obj_id)
 
-    @property
-    def repo(self):
-        return self._ref.repo
-
     @classmethod
     def _cache_key(cls, repo, process_name):
         return (repo, process_name.key())
+
+    @property
+    def repo(self):
+        return self._ref.repo
 
     @classmethod
     def load(cls, repo, branch_name):
@@ -562,13 +576,13 @@ class ProcessData(object):
     def __setitem__(self, key, value):
         if key not in self._data or self._data[key] != value:
             self._data[key] = value
-            self._save(message="Update %s" % key)
+            self._updated.add(key)
 
     @mut()
     def __delitem__(self, key):
         if key in self._data:
             del self._data[key]
-            self._save(message="Delete %s" % key)
+            self._deleted.add(key)
 
 
 class CommitFilter(object):
