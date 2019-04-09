@@ -244,6 +244,8 @@ class MutGuard(object):
             while self.owned_guards:
                 guard = self.owned_guards.pop()
                 guard.__exit__(*args, **kwargs)
+            if hasattr(self.instance, "exit_mut"):
+                self.instance.exit_mut()
             self.instance._lock = None
         finally:
             self.took_lock = None
