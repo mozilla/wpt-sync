@@ -230,10 +230,9 @@ def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
         for status in statuses:
             if status != "*" and status not in cls.statuses:
                 continue
-            syncs = cls.load_all(git_gecko,
-                                 git_wpt,
-                                 status=status,
-                                 obj_id="*")
+            syncs = cls.load_by_status(git_gecko,
+                                       git_wpt,
+                                       status)
             for sync in syncs:
                 if not sync.pr:
                     continue
@@ -243,7 +242,7 @@ def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
 
 
 def update_taskgroup_ids(git_gecko, git_wpt):
-    for try_push in trypush.TryPush.load_all(git_gecko, "*", "*"):
+    for try_push in trypush.TryPush.load_all(git_gecko):
         if not try_push.taskgroup_id:
             logger.info("Setting taskgroup id for try push %s" % try_push)
             taskgroup_id, state, result = tc.get_taskgroup_id("try", try_push.try_rev)
@@ -258,11 +257,11 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
     logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
 
     if not sync:
-        obj_id = str(pr_id) or "*"
-        syncs = [item for item in
-                 landing.LandingSync.load_all(git_gecko, git_wpt) +
-                 downstream.DownstreamSync.load_all(git_gecko, git_wpt, obj_id=obj_id)
-                 if pr_id is None or sync.pr == pr_id]
+        if pr_id is not None:
+            syncs = [downstream.DownstreamSync.load_by_obj(git_gecko, git_wpt, pr_id)]
+        else:
+            syncs = ({landing.current_landing(git_gecko, git_wpt)} |
+                     downstream.DownstreamSync.load_by_status(git_gecko, git_wpt, "open"))
     else:
         syncs = [sync]
 

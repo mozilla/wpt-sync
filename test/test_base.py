@@ -56,6 +56,9 @@ def test_process_name(git_gecko, local_gecko_commit):
     with SyncLock("upstream", None) as lock:
         base.DataRefObject.create(lock, git_gecko, process_name_no_seq_id, commit)
 
-    process_name_seq_id = base.ProcessName.with_seq_id(git_gecko, "syncs", "sync",
-                                                       "upstream", "open", "1234")
+    process_name_seq_id = base.ProcessName.with_seq_id(git_gecko,
+                                                       "sync",
+                                                       "upstream",
+                                                       "open",
+                                                       "1234")
     assert process_name_seq_id.seq_id == 1

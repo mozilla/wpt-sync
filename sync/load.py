@@ -46,7 +46,7 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
     return syncs
 
 
-def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status="*"):
+def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None):
     import downstream
     import landing
     import upstream
@@ -57,4 +57,7 @@ def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status="*"):
         "upstream": upstream.UpstreamSync
     }
     cls = cls_types[sync_type]
-    return cls.load_all(git_gecko, git_wpt, obj_id=obj_id, status=status)
+    syncs = cls.load_by_obj(git_gecko, git_wpt, obj_id)
+    if status:
+        syncs = {sync for sync in syncs if sync.status == status}
+    return syncs

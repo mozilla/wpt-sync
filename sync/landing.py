@@ -136,8 +136,9 @@ class LandingSync(SyncProcess):
             # integration branch
             unlanded_syncs = set()
             for status in ["open", "wpt-merged"]:
-                unlanded_syncs |= set(upstream.UpstreamSync.load_all(self.git_gecko, self.git_wpt,
-                                                                     status=status))
+                unlanded_syncs |= set(upstream.UpstreamSync.load_by_status(self.git_gecko,
+                                                                           self.git_wpt,
+                                                                           status))
 
             for sync in unlanded_syncs:
                 branch_commits = [commit.sha1 for commit in sync.gecko_commits if
@@ -799,10 +800,10 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
 
 
 def current(git_gecko, git_wpt):
-    landings = LandingSync.load_all(git_gecko, git_wpt)
+    landings = LandingSync.load_by_status(git_gecko, git_wpt, "open")
     if len(landings) > 1:
         raise ValueError("Multiple open landing branches")
-    return landings[0] if landings else None
+    return landings.pop() if landings else None
 
 
 @base.entry_point("landing")

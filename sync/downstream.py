@@ -94,10 +94,10 @@ class DownstreamSync(base.SyncProcess):
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
-        items = cls.load_all(git_gecko, git_wpt, obj_id=pr_id)
-        if len(items) > 1:
-            raise ValueError("Got multiple syncs for PR")
-        return items[0] if items else None
+        items = cls.load_by_obj(git_gecko, git_wpt, pr_id)
+        if items:
+            assert len(items) == 1
+            return items.pop()
 
     @classmethod
     def has_metadata(cls, message):
