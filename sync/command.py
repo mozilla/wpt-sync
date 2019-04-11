@@ -204,7 +204,7 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
 
     for cls in [upstream.UpstreamSync, downstream.DownstreamSync, landing.LandingSync]:
         if not sync_type or cls.sync_type in sync_type:
-            syncs.extend(item for item in cls.load_all(git_gecko, git_wpt, status="open")
+            syncs.extend(item for item in cls.load_by_status(git_gecko, git_wpt, "open")
                          if filter(item))
 
     for sync in syncs:
@@ -340,7 +340,7 @@ def do_push(git_gecko, git_wpt, *args, **kwargs):
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush
     if kwargs["try"]:
-        try_pushes = trypush.TryPush.load_all(git_gecko, sync_type, obj_id)
+        try_pushes = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id)
         for try_push in try_pushes:
             with SyncLock.for_process(try_push.process_name) as lock:
                 with try_push.as_mut(lock):
@@ -392,28 +392,27 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     import landing
     import trypush
     if obj_type == "try":
-        objs = trypush.TryPush.load_all(git_gecko,
-                                        sync_type,
-                                        obj_id,
-                                        status=kwargs["old_status"],
-                                        seq_id=kwargs["seq_id"])
-    elif sync_type == "upstream":
-        objs = upstream.UpstreamSync.load_all(git_gecko,
-                                              git_wpt,
-                                              status=kwargs["old_status"],
-                                              obj_id=obj_id)
-    elif sync_type == "downstream":
-        objs = downstream.DownstreamSync.load_all(git_gecko,
-                                                  git_wpt,
-                                                  status=kwargs["old_status"],
-                                                  obj_id=obj_id)
-    elif sync_type == "landing":
-        objs = landing.LandingSync.load_all(git_gecko,
-                                            git_wpt,
-                                            status=kwargs["old_status"],
-                                            obj_id=obj_id)
+        objs = trypush.TryPush.load_by_obj(git_gecko, obj_id)
+    else:
+        if sync_type == "upstream":
+            cls = upstream.UpstreamSync
+        if sync_type == "downstream":
+            cls = downstream.DownstreamSync
+        if sync_type == "landing":
+            cls = landing.LandingSync
+        objs = cls.load_by_obj(git_gecko,
+                               git_wpt,
+                               obj_id)
+
+    if kwargs["old_status"]:
+        objs = {item for item in objs if item.status == kwargs["old_status"]}
+
+    if kwargs["seq_id"]:
+        objs = {item for item in objs if item.seq_id == kwargs["seq_id"]}
+
     for obj in objs:
-        obj.status = kwargs["new_status"]
+        with SyncLock.for_process(obj.process_name):
+            obj.status = kwargs["new_status"]
 
 
 def do_notify(git_gecko, git_wpt, pr_id, **kwargs):
@@ -530,7 +529,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
     update_repositories(git_gecko, git_wpt, True)
 
     print("Retriggering upstream syncs with errors")
-    for sync in upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="open"):
+    for sync in upstream.UpstreamSync.load_by_status(git_gecko, git_wpt, "open"):
         if sync.error:
             try:
                 upstream.update_sync(git_gecko, git_wpt, sync)

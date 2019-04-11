@@ -279,7 +279,6 @@ class TryPush(base.ProcessData):
             "wpt-head": sync.wpt_commits.head.sha1,
         }
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
-                                                    "syncs",
                                                     cls.obj_type,
                                                     sync.sync_type,
                                                     "open",
@@ -296,30 +295,28 @@ class TryPush(base.ProcessData):
         return rv
 
     @classmethod
-    def load_all(cls, git_gecko, sync_type, sync_id, status="open", seq_id="*"):
-        return [cls.load(git_gecko, ref.path)
-                for ref in base.DataRefObject.load_all(git_gecko,
-                                                       obj_type=cls.obj_type,
-                                                       subtype=sync_type,
-                                                       status=status,
-                                                       obj_id=sync_id,
-                                                       seq_id=seq_id)]
+    def load_all(cls, git_gecko):
+        rv = set()
+        process_names = base.ProcessIndex(git_gecko).get_by_type("try")
+        for process_name in process_names:
+            rv.add(cls(git_gecko, process_name))
+        return rv
 
     @classmethod
-    def for_commit(cls, git_gecko, sha1, sync_type="*", sync_id="*", status="open"):
-        pushes = cls.load_all(git_gecko, sync_type, sync_id, status=status)
-        for push in reversed(pushes):
-            if push.try_rev == sha1:
-                logger.info("Found try push %r for rev %s" % (push, sha1))
-                return push
+    def for_commit(cls, git_gecko, sha1):
+        items = cls.load_all(git_gecko)
+        for item in items:
+            if item.try_rev == sha1:
+                logger.info("Found try push %r for rev %s" % (item, sha1))
+                return item
         logger.info("No try push for rev %s" % (sha1,))
 
     @classmethod
-    def for_taskgroup(cls, git_gecko, taskgroup_id, sync_type="*", status="open"):
-        pushes = cls.load_all(git_gecko, sync_type, "*", status=status)
-        for push in reversed(pushes):
-            if push.taskgroup_id == taskgroup_id:
-                return push
+    def for_taskgroup(cls, git_gecko, taskgroup_id):
+        items = cls.load_all(git_gecko)
+        for item in items:
+            if item.taskgroup_id == taskgroup_id:
+                return item
 
     @staticmethod
     def treeherder_url(try_rev):

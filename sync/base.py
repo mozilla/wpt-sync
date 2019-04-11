@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import traceback
 import weakref
+from collections import defaultdict
 from fnmatch import fnmatch
 
 import enum
@@ -75,6 +76,69 @@ class IdentityMap(type):
         if hasattr(value, "_cache_verify") and not value._cache_verify(*args, **kwargs):
             raise ValueError("Cached instance didn't match non-key arguments")
         return value
+
+
+class ProcessIndex(object):
+    __metaclass__ = IdentityMap
+
+    def __init__(self, repo):
+        self.repo = repo
+        self.reset()
+
+    @classmethod
+    def _cache_key(cls, repo):
+        return (repo,)
+
+    def reset(self):
+        self._all = set()
+        self._by_obj_id = defaultdict(set)
+        self._by_status = defaultdict(set)
+        self._built = False
+
+    def build(self):
+        for ref in self.repo.references:
+            process_name = ProcessName.from_ref(ref.path)
+            if process_name is None:
+                continue
+
+            self.insert(process_name)
+        self._built = True
+
+    def insert(self, process_name):
+        self._all.add(process_name)
+        obj_id_key = (process_name.obj_type,
+                      process_name.subtype,
+                      process_name.obj_id)
+        status_key = (process_name.obj_type,
+                      process_name.subtype,
+                      process_name.status)
+
+        self._by_obj_id[obj_id_key].add(process_name)
+        self._by_status[status_key].add(process_name)
+
+    def has(self, process_name):
+        if not self._built:
+            self.build()
+        return process_name in self._all
+
+    def get_by_type(self, obj_type):
+        if not self._built:
+            self.build()
+        rv = set()
+        for key, values in self._by_status.iteritems():
+            if key[0] == obj_type:
+                rv |= values
+        return rv
+
+    def get_by_obj(self, obj_type, subtype, obj_id):
+        if not self._built:
+            self.build()
+        return self._by_obj_id[(obj_type, subtype, str(obj_id))]
+
+    def get_by_status(self, obj_type, subtype, status):
+        if not self._built:
+            self.build()
+        return self._by_status[(obj_type, subtype, status)]
 
 
 class ProcessName(object):
@@ -204,47 +268,21 @@ class ProcessName(object):
             parts = parts[2:]
         if parts[0] not in ["sync", "try"]:
             return None
+        if len(parts) not in (4, 5):
+            return None
         return cls(*parts)
 
     @classmethod
-    def with_seq_id(cls, repo, ref_type, obj_type, subtype, status, obj_id):
-        existing_no_id = cls.commit_refs(repo, ref_type, obj_type, subtype, status="*",
-                                         obj_id=obj_id, seq_id=None)
-        existing = cls.commit_refs(repo, ref_type, obj_type, subtype, status="*",
-                                   obj_id=obj_id, seq_id="*")
+    def with_seq_id(cls, repo, obj_type, subtype, status, obj_id):
+        existing = ProcessIndex(repo).get_by_obj(obj_type, subtype, obj_id)
+        existing_no_id = any(item.seq_id is None for item in existing)
         last_id = 0 if existing_no_id else -1
-        for branch in existing.itervalues():
-            if len(branch.split("/")) == 6:
-                # This doesn't have a trailing seq_id
-                continue
-            seq_id = int(branch.rsplit("/", 1)[-1])
-            if seq_id > last_id:
-                last_id = seq_id
+        for process_name in existing:
+            if (process_name.seq_id is not None and
+                int(process_name.seq_id) > last_id):
+                last_id = int(process_name.seq_id)
         seq_id = last_id + 1
         return cls(obj_type, subtype, status, obj_id, seq_id)
-
-    @classmethod
-    def commit_refs(cls, repo, ref_type, obj_type, subtype, status="open", obj_id="*", seq_id=None):
-        base_filter = "refs/%s/%s/%s/%s/%s" % (ref_type, obj_type, subtype, status, obj_id)
-        branch_filters = []
-        if seq_id in (None, "*"):
-            seq_id = "*"
-            branch_filters.append(base_filter)
-        branch_filters.append("%s/%s" % (base_filter, seq_id))
-
-        commits_refs = []
-        for branch_filter in branch_filters:
-            commits_refs.extend(repo.git.for_each_ref("--format", "%(objectname) %(refname)",
-                                                      branch_filter).splitlines())
-
-        commit_refs = {}
-        for line in commits_refs:
-            line = line.strip()
-            if not line:
-                continue
-            commit, ref = line.split(" ", 1)
-            commit_refs[commit] = ref
-        return commit_refs
 
 
 class SyncPointName(object):
@@ -386,6 +424,7 @@ class VcsRefObject(object):
                                  (ref.path, path))
         ref = git.Reference(repo, path)
         ref.set_object(obj)
+        ProcessIndex(repo).insert(process_name)
         return cls(repo, process_name, commit_cls)
 
     @property
@@ -398,9 +437,6 @@ class VcsRefObject(object):
     @commit.setter
     @mut()
     def commit(self, commit):
-        if not self._lock and self._lock.lock.is_locked:
-            import pdb
-            pdb.set_trace()
         if isinstance(commit, sync_commit.Commit):
             commit = commit.commit
         ref = git.Reference(self.repo, self.path)
@@ -423,20 +459,7 @@ class VcsRefObject(object):
                      "To recreate this ref run `git update-ref %s %s`" %
                      (ref.path, ref.commit.hexsha, ref.path, ref.commit.hexsha))
         ref.delete(self.repo, ref.path)
-
-    @classmethod
-    def load_all(cls, repo, obj_type, subtype, status="open", obj_id="*", seq_id=None,
-                 commit_cls=sync_commit.Commit):
-        rv = []
-        for ref_name in sorted(ProcessName.commit_refs(repo,
-                                                       ref_type=cls.ref_prefix,
-                                                       obj_type=obj_type,
-                                                       subtype=subtype,
-                                                       status=status,
-                                                       obj_id=obj_id,
-                                                       seq_id=seq_id).itervalues()):
-            rv.append(cls(repo, ProcessName.from_ref(ref_name), commit_cls))
-        return rv
+        ProcessIndex(self.repo).reset()
 
 
 class BranchRefObject(VcsRefObject):
@@ -486,6 +509,7 @@ def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Comm
 class ProcessData(object):
     __metaclass__ = IdentityMap
     path = "data"
+    obj_type = None
 
     def __init__(self, repo, process_name):
         self.process_name = process_name
@@ -525,11 +549,24 @@ class ProcessData(object):
         return self._ref.repo
 
     @classmethod
-    def load(cls, repo, branch_name):
-        process_name = ProcessName.from_ref(branch_name)
-        if not process_name:
-            return None
-        return cls(repo, process_name)
+    def load_by_obj(cls, repo, subtype, obj_id):
+        process_names = ProcessIndex(repo).get_by_obj(cls.obj_type,
+                                                      subtype,
+                                                      obj_id)
+        rv = set()
+        for process_name in process_names:
+            rv.add(cls(repo, process_name))
+        return rv
+
+    @classmethod
+    def load_by_status(cls, repo, subtype, status):
+        process_names = ProcessIndex(repo).get_by_status(cls.obj_type,
+                                                         subtype,
+                                                         status)
+        rv = set()
+        for process_name in process_names:
+            rv.add(cls(repo, process_name))
+        return rv
 
     def _load(self):
         return json.load(self._ref.ref.commit.tree[self.path].data_stream)
@@ -841,6 +878,9 @@ class SyncProcess(object):
 
         self.wpt_worktree = Worktree(git_wpt, process_name)
 
+        # Hold onto indexes for the lifetime of the SyncProcess object
+        self._indexes = {ProcessIndex(git_gecko)}
+
     @classmethod
     def _cache_key(cls, git_gecko, git_wpt, process_name):
         return process_name.key()
@@ -875,38 +915,38 @@ class SyncProcess(object):
         """
         statuses = statuses if statuses is not None else cls.statuses
         rv = {}
+        all_syncs = cls.load_by_obj(git_gecko, git_wpt, bug)
         for status in statuses:
-            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id=bug)
+            syncs = [item for item in all_syncs if item.status == status]
             if syncs:
                 rv[status] = syncs
                 if not cls.multiple_syncs:
                     if len(syncs) != 1:
                         raise ValueError("Found multiple %s syncs for bug %s, expected at most 1" %
                                          (cls.sync_type, bug))
-                    break
         if flat:
             rv = list(itertools.chain.from_iterable(rv.itervalues()))
         return rv
 
     @classmethod
-    def load_all(cls, git_gecko, git_wpt, status="open", obj_id="*", seq_id=None):
-        rv = []
-        for branch_name in ProcessName.commit_refs(git_gecko,
-                                                   ref_type="heads",
-                                                   obj_type=cls.obj_type,
-                                                   subtype=cls.sync_type,
-                                                   status=status,
-                                                   obj_id=obj_id,
-                                                   seq_id=seq_id).itervalues():
-            rv.append(cls.load(git_gecko, git_wpt, branch_name))
+    def load_by_obj(cls, git_gecko, git_wpt, obj_id):
+        process_names = ProcessIndex(git_gecko).get_by_obj(cls.obj_type,
+                                                           cls.sync_type,
+                                                           obj_id)
+        rv = set()
+        for process_name in process_names:
+            rv.add(cls(git_gecko, git_wpt, process_name))
         return rv
 
     @classmethod
-    def load(cls, git_gecko, git_wpt, branch_name):
-        process_name = ProcessName.from_ref(branch_name)
-        if not process_name:
-            return None
-        return cls(git_gecko, git_wpt, process_name)
+    def load_by_status(cls, git_gecko, git_wpt, status):
+        process_names = ProcessIndex(git_gecko).get_by_status(cls.obj_type,
+                                                              cls.sync_type,
+                                                              status)
+        rv = set()
+        for process_name in process_names:
+            rv.add(cls(git_gecko, git_wpt, process_name))
+        return rv
 
     # End of getter methods
 
@@ -1103,12 +1143,14 @@ class SyncProcess(object):
             del self.data["error"]
             self.set_bug_data(None)
 
-    def try_pushes(self, status="*"):
+    def try_pushes(self, status=None):
         import trypush
-        return trypush.TryPush.load_all(self.git_gecko,
-                                        self.sync_type,
-                                        self.process_name.obj_id,
-                                        status=status)
+        try_pushes = trypush.TryPush.load_by_obj(self.git_gecko,
+                                                 self.sync_type,
+                                                 self.process_name.obj_id)
+        if status is not None:
+            try_pushes = {item for item in try_pushes if item.status == status}
+        return list(sorted(try_pushes, key=lambda x: x.process_name.seq_id))
 
     def latest_busted_try_pushes(self):
         try_pushes = self.try_pushes(status="complete")
@@ -1162,8 +1204,11 @@ class SyncProcess(object):
                 "bug": bug}
 
         # This is pretty ugly
-        process_name = ProcessName.with_seq_id(git_gecko, "syncs", cls.obj_type,
-                                               cls.sync_type, status, obj_id)
+        process_name = ProcessName.with_seq_id(git_gecko,
+                                               cls.obj_type,
+                                               cls.sync_type,
+                                               status,
+                                               obj_id)
         if not cls.multiple_syncs and process_name.seq_id != 0:
             raise ValueError("Tried to create new %s sync for %s %s but one already exists" % (
                 cls.obj_id, cls.sync_type, obj_id))

@@ -391,11 +391,13 @@ class GeckoCommit(Commit):
             bug, seq_id = self.notes["upstream-sync"].split(":", 1)
             if seq_id == "":
                 seq_id = None
-            syncs = upstream.UpstreamSync.load_all(git_gecko, git_wpt, status="*",
-                                                   obj_id=bug, seq_id=seq_id)
+            else:
+                seq_id = int(seq_id)
+            syncs = upstream.UpstreamSync.load_by_obj(git_gecko, git_wpt, bug)
+            syncs = {item for item in syncs if item.seq_id == seq_id}
             assert len(syncs) <= 1
             if syncs:
-                return syncs[0]
+                return syncs.pop()
 
     def set_upstream_sync(self, sync):
         import upstream
