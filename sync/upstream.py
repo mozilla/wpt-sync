@@ -84,18 +84,13 @@ class UpstreamSync(base.SyncProcess):
         return self
 
     @classmethod
-    def load(cls, git_gecko, git_wpt, branch_name):
-        sync = super(UpstreamSync, cls).load(git_gecko, git_wpt, branch_name)
-        return sync
-
-    @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
         try:
             wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
         except git.BadName:
             return None
         for status in cls.statuses:
-            syncs = cls.load_all(git_gecko, git_wpt, status=status, obj_id="*")
+            syncs = cls.load_by_status(git_gecko, git_wpt, status)
 
             for sync in syncs:
                 if sync.pr == pr_id:
@@ -567,10 +562,10 @@ def updates_for_backout(git_gecko, git_wpt, commit):
 
     for backed_out_commit in backed_out_commits:
         syncs = UpstreamSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug,
-                                     statuses=["open", "incomplete"], flat=True)
+                                     statuses={"open", "incomplete"}, flat=True)
         assert len(syncs) in (0, 1)
         if syncs:
-            sync = syncs[0]
+            sync = syncs.pop()
             if commit in sync.gecko_commits:
                 # This commit was already processed
                 backed_out_commit_shas = set()
@@ -824,7 +819,7 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
                                                      update_syncs,
                                                      raise_on_error=raise_on_error)
 
-        landable_syncs = {item for item in UpstreamSync.load_all(git_gecko, git_wpt, status="open")
+        landable_syncs = {item for item in UpstreamSync.load_by_status(git_gecko, git_wpt, "open")
                           if item.error is None}
         landed_syncs = try_land_syncs(lock, landable_syncs)
 
