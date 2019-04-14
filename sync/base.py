@@ -11,7 +11,7 @@ from fnmatch import fnmatch
 
 import enum
 import git
-from lock import MutGuard, mut, constructor, repo_lock
+from lock import MutGuard, mut, constructor
 
 import bug
 import log
@@ -191,6 +191,17 @@ class ProcessName(object):
 
     def key(self):
         return self._cache_key(self._obj_type, self._subtype, None, self._obj_id, self._seq_id)
+
+    def __eq_(self, other):
+        if self is other:
+            return True
+        if self.__class__ != other.__class__:
+            return False
+        return ((self._obj_type == other._obj_type) and
+                (self._subtype == other._subtype) and
+                (self._status == other._status) and
+                (self._obj_id == other._obj_id) and
+                (self._seq_id == other._seq_id))
 
     def __hash__(self):
         return hash(self.key())
@@ -477,16 +488,24 @@ class DataRefObject(VcsRefObject):
     ref_prefix = "syncs"
 
 
-@repo_lock
-def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Commit):
+def create_commit(repo, tree, message,
+                  delete=None,
+                  initial=None,
+                  parents=None,
+                  commit_cls=sync_commit.Commit):
     """
     :param tree: A dictionary of path: file data
     """
-    # TODO: use some lock around this since it writes to the index
+    # TODO: check we acquired the right lock here
 
     # First we create an empty index
-    assert tree
-    repo.git.read_tree(empty=True)
+    if initial is None:
+        read_tree_args = ()
+        read_tree_kwargs = {"empty": True}
+    else:
+        read_tree_args = (initial,)
+        read_tree_kwargs = {}
+    repo.git.read_tree(*read_tree_args, **read_tree_kwargs)
     for path, data in tree.iteritems():
         proc = repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
                                     istream=subprocess.PIPE)
@@ -495,6 +514,9 @@ def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Comm
             raise git.GitCommandError(["git", "hash-object", "-w", "--path=%s" % path],
                                       proc.returncode, stderr, stdout)
         repo.git.update_index("100644", stdout, path, add=True, cacheinfo=True)
+    if delete:
+        for path in delete:
+            repo.git.rm(path, cached=True)
     tree_id = repo.git.write_tree()
     args = ["-m", message]
     if parents is not None:
@@ -513,17 +535,18 @@ class ProcessData(object):
 
     def __init__(self, repo, process_name):
         self.process_name = process_name
-        self._ref = DataRefObject(repo, process_name)
+        self.repo = repo
+        self.ref = DataRefObject(repo, process_name)
         self._data = self._load()
         self._lock = None
         self._updated = set()
         self._deleted = set()
 
     def __repr__(self):
-        return "<%s %s>" % (self.__class__.__name__, self._ref)
+        return "<%s %s>" % (self.__class__.__name__, self.process_name)
 
     def as_mut(self, lock):
-        return MutGuard(lock, self, [self._ref])
+        return MutGuard(lock, self, [self.ref])
 
     def exit_mut(self):
         if self._updated or self._deleted:
@@ -532,9 +555,33 @@ class ProcessData(object):
                 message.append("Updated: %s" % (", ".join(self._updated),))
             if self._deleted:
                 message.append("Deleted: %s" % (", ".join(self._deleted),))
-            self._save(message=" ".join(message))
+            self._save(self._data, message=" ".join(message))
             self._updated = set()
             self._deleted = set()
+
+    @classmethod
+    @constructor(lambda args: (args["process_name"].subtype,
+                               args["process_name"].obj_id))
+    def create(cls, lock, repo, process_name, data, message="Sync data"):
+        commit = cls.create_commit(repo, cls.path, data, message=message)
+        DataRefObject.create(lock, repo, process_name, commit.commit)
+        return cls(repo, process_name)
+
+    def _save(self, data, message):
+        commit = self.create_commit(self.repo,
+                                    self.path,
+                                    self._data,
+                                    parents=[self.ref.path],
+                                    message=message)
+        self.ref.ref.set_commit(commit.sha1)
+
+    def _load(self):
+        return json.load(self.ref.ref.commit.tree[self.path].data_stream)
+
+    @staticmethod
+    def create_commit(repo, path, data, message, parents=None):
+        tree = {path: json.dumps(data)}
+        return create_commit(repo, tree, message=message, parents=parents)
 
     @property
     def lock_key(self):
@@ -543,10 +590,6 @@ class ProcessData(object):
     @classmethod
     def _cache_key(cls, repo, process_name):
         return (repo, process_name.key())
-
-    @property
-    def repo(self):
-        return self._ref.repo
 
     @classmethod
     def load_by_obj(cls, repo, subtype, obj_id):
@@ -568,9 +611,6 @@ class ProcessData(object):
             rv.add(cls(repo, process_name))
         return rv
 
-    def _load(self):
-        return json.load(self._ref.ref.commit.tree[self.path].data_stream)
-
     def __getitem__(self, key):
         return self._data[key]
 
@@ -583,31 +623,6 @@ class ProcessData(object):
     def items(self):
         for key, value in self._data.iteritems():
             yield key, value
-
-    @classmethod
-    @constructor(lambda args: (args["process_name"].subtype,
-                               args["process_name"].obj_id))
-    def create(cls, lock, repo, process_name, data, message="Sync data"):
-        commit = cls._create_commit(lock, repo, process_name, data, message=message)
-        DataRefObject.create(lock, repo, process_name, commit.commit)
-        return cls(repo, process_name)
-
-    @classmethod
-    @constructor(lambda args: (args["process_name"].subtype,
-                               args["process_name"].obj_id))
-    def _create_commit(cls, lock, repo, process_name, data, message="Sync data", parents=None):
-        tree = {cls.path: json.dumps(data)}
-        return create_commit(repo, tree, message=message, parents=parents)
-
-    @mut()
-    def _save(self, message="Sync data"):
-        commit = self._create_commit(self._lock,
-                                     self.repo,
-                                     self._ref.process_name,
-                                     self._data,
-                                     parents=[self._ref.path],
-                                     message=message)
-        self._ref.ref.set_commit(commit.sha1)
 
     @mut()
     def __setitem__(self, key, value):
@@ -857,7 +872,7 @@ class SyncProcess(object):
 
         self.data = ProcessData(git_gecko, process_name)
 
-        assert self.data._ref in self.process_name._refs
+        assert self.data.ref in self.process_name._refs
 
         self.gecko_commits = CommitRange(git_gecko,
                                          self.data["gecko-base"],
@@ -1166,7 +1181,7 @@ class SyncProcess(object):
     def latest_try_push(self):
         try_pushes = self.try_pushes()
         if try_pushes:
-            try_pushes = sorted(try_pushes, key=lambda x: x._ref.process_name.seq_id)
+            try_pushes = sorted(try_pushes, key=lambda x: x.ref.process_name.seq_id)
             return try_pushes[-1]
 
     def wpt_renames(self):

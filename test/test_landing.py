@@ -145,7 +145,7 @@ def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push,
                     assert new_try_push.stability
                     new_try_push.Mach = mock_mach
                     with new_try_push.as_mut(lock):
-                        new_try_push.taskgroup_id = "1234"
+                        new_try_push.taskgroup_id = "12345678"
                         landing.try_push_complete(git_gecko, git_wpt, new_try_push, sync)
                     assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
                     assert new_try_push.status != "complete"
