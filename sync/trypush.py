@@ -13,6 +13,7 @@ import log
 import tc
 import tree
 from env import Environment
+from index import TaskGroupIndex, TryCommitIndex
 from load import get_syncs
 from lock import constructor, mut
 from errors import AbortError, RetryableError
@@ -264,6 +265,10 @@ class TryPush(base.ProcessData):
             logger.info("try is closed")
             raise RetryableError(AbortError("Try is closed"))
 
+        # Ensure the required indexes exist
+        TaskGroupIndex.get_or_create(sync.git_gecko)
+        try_idx = TryCommitIndex.get_or_create(sync.git_gecko)
+
         git_work = sync.gecko_worktree.get()
 
         if rebuild_count is None:
@@ -284,6 +289,10 @@ class TryPush(base.ProcessData):
                                                     "open",
                                                     getattr(sync, sync.obj_id))
         rv = super(TryPush, cls).create(lock, sync.git_gecko, process_name, data)
+        # Add to the index
+        if try_rev:
+            try_idx.insert(try_idx.make_key(try_rev), process_name)
+
         with rv.as_mut(lock):
             rv.created = taskcluster.fromNowJSON("0 days")
 
@@ -304,31 +313,28 @@ class TryPush(base.ProcessData):
 
     @classmethod
     def for_commit(cls, git_gecko, sha1):
-        items = cls.load_all(git_gecko)
-        for item in items:
-            if item.try_rev == sha1:
-                logger.info("Found try push %r for rev %s" % (item, sha1))
-                return item
+        idx = TryCommitIndex(git_gecko)
+        process_name = idx.get(idx.make_key(sha1))
+        if process_name:
+            logger.info("Found try push %r for rev %s" % (process_name, sha1))
+            return cls(git_gecko, process_name)
         logger.info("No try push for rev %s" % (sha1,))
 
     @classmethod
     def for_taskgroup(cls, git_gecko, taskgroup_id):
-        items = cls.load_all(git_gecko)
-        for item in items:
-            if item.taskgroup_id == taskgroup_id:
-                return item
+        idx = TaskGroupIndex(git_gecko)
+        process_name = idx.get(idx.make_key(taskgroup_id))
+        if process_name:
+            return cls(git_gecko, process_name)
 
     @staticmethod
     def treeherder_url(try_rev):
         return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
 
     def __eq__(self, other):
-        if not (hasattr(other, "_ref") and hasattr(other._ref, "process_name")):
+        if not other.__class__ == self.__class__:
             return False
-        for attr in ["obj_type", "subtype", "obj_id", "seq_id"]:
-            if getattr(self._ref.process_name, attr) != getattr(other._ref.process_name, attr):
-                return False
-        return True
+        return other.process_name == self.process_name
 
     def failure_limit_exceeded(self, target_rate=_min_success):
         return self.success_rate() < target_rate
@@ -354,22 +360,25 @@ class TryPush(base.ProcessData):
     @mut()
     def taskgroup_id(self, value):
         self["taskgroup-id"] = value
+        idx = TaskGroupIndex(self.repo)
+        if value:
+            idx.insert(idx.make_key(value), self.process_name)
 
     @property
     def status(self):
-        return self._ref.process_name.status
+        return self.ref.process_name.status
 
     @status.setter
     @mut()
     def status(self, value):
         if value not in self.statuses:
             raise ValueError("Unrecognised status %s" % value)
-        current = self._ref.process_name.status
+        current = self.ref.process_name.status
         if current == value:
             return
         if (current, value) not in self.status_transitions:
             raise ValueError("Tried to change status from %s to %s" % (current, value))
-        self._ref.process_name.status = value
+        self.ref.process_name.status = value
 
     @property
     def wpt_head(self):
@@ -377,10 +386,10 @@ class TryPush(base.ProcessData):
 
     @mut()
     def delete(self):
-        self._ref.process_name.delete()
+        self.ref.process_name.delete()
 
     def sync(self, git_gecko, git_wpt):
-        process_name = self._ref.process_name
+        process_name = self.ref.process_name
         syncs = get_syncs(git_gecko,
                           git_wpt,
                           process_name.subtype,
@@ -565,6 +574,9 @@ class TryPush(base.ProcessData):
             if wpt_tasks:
                 logger.info("Got try push with no rev; setting it from a task")
                 self._data["try-rev"] = wpt_tasks[0]["task"]["payload"]["env"]["GECKO_HEAD_REV"]
+                idx = TryCommitIndex(self.repo)
+                idx.insert(idx.make_key(self.try_rev), self.process_name)
+
         include_tasks = wpt_tasks.filter(included)
         logger.info("Downloading logs for try revision %s" % self.try_rev)
         dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],

@@ -13,6 +13,7 @@ import taskcluster
 import log
 from env import Environment
 
+
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
 TREEHERDER_BASE = "https://treeherder.mozilla.org/"
