@@ -2,10 +2,12 @@ import copy
 import io
 import json
 import os
+import random
 import shutil
 import subprocess
 import types
 from cStringIO import StringIO
+from mock import Mock, patch
 
 import git
 import pytest
@@ -477,10 +479,11 @@ def set_pr_status(git_gecko, git_wpt, env):
         sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock):
-                downstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                                 "continuous-integration/travis-ci/pr",
-                                                 status, "http://test/", pr["head"],
-                                                 raise_on_error=True)
+                with patch("sync.tree.is_open", Mock(return_value=True)):
+                    downstream.commit_status_changed(git_gecko, git_wpt, sync,
+                                                     "continuous-integration/travis-ci/pr",
+                                                     status, "http://test/", pr["head"],
+                                                     raise_on_error=True)
         return sync
     return inner
 
@@ -576,21 +579,21 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
-    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    sync = set_pr_status(pr, "success")
+    with patch("sync.tree.is_open", Mock(return_value=True)):
+        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+        sync = set_pr_status(pr, "success")
 
-    with SyncLock.for_process(sync.process_name) as sync_lock:
-        git_wpt_upstream.head.commit = head_rev
-        git_wpt.remotes.origin.fetch()
-        landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+        with SyncLock.for_process(sync.process_name) as sync_lock:
+            git_wpt_upstream.head.commit = head_rev
+            git_wpt.remotes.origin.fetch()
+            landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-        with sync.as_mut(sync_lock):
-            sync.data["force-metadata-ready"] = True
+            with sync.as_mut(sync_lock):
+                sync.data["force-metadata-ready"] = True
 
-        tree.is_open = lambda x: True
-        try_push = sync.latest_try_push
-        with try_push.as_mut(sync_lock):
-            try_push.taskgroup_id = "abcdef"
+            try_push = sync.latest_try_push
+            with try_push.as_mut(sync_lock):
+                try_push.taskgroup_id = "abcdef"
     return sync.latest_try_push
 
 
@@ -607,11 +610,12 @@ def landing_with_try_push(env, git_gecko, git_wpt, git_wpt_upstream,
                                                base_commit.hexsha,
                                                new_commit.hexsha)
         with landing_sync.as_mut(lock):
-            try_push = trypush.TryPush.create(lock,
-                                              landing_sync,
-                                              hacks=False,
-                                              try_cls=MockTryCls,
-                                              exclude=["pgo", "ccov", "msvc"])
+            with patch("sync.tree.is_open", Mock(return_value=True)):
+                try_push = trypush.TryPush.create(lock,
+                                                  landing_sync,
+                                                  hacks=False,
+                                                  try_cls=MockTryCls,
+                                                  exclude=["pgo", "ccov", "msvc"])
             trypush.Mach = mock_mach
         tree.is_open = lambda x: True
         with try_push.as_mut(lock):
@@ -632,7 +636,7 @@ def MockTryCls():
             pass
 
         def push(self):
-            return "1" * 40
+            return "".join(hex(random.randint(0, 15))[2:] for _ in range(40))
 
     return MockTryPush
 
