@@ -19,7 +19,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
-    sync = syncs["open"][0]
+    sync = syncs["open"].pop()
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
@@ -55,7 +55,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
-    sync = syncs["open"][0]
+    sync = syncs["open"].pop()
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
@@ -69,7 +69,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["incomplete"]
     assert len(syncs["incomplete"]) == 1
-    sync = syncs["incomplete"][0]
+    sync = syncs["incomplete"].pop()
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 1
@@ -98,7 +98,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["incomplete"]
     assert len(syncs["incomplete"]) == 1
-    sync = syncs["incomplete"][0]
+    sync = syncs["incomplete"].pop()
     assert sync.status == "incomplete"
     assert sync.process_name.seq_id == 0
     assert len(sync.gecko_commits) == 0
@@ -118,7 +118,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
-    sync = syncs["open"][0]
+    sync = syncs["open"].pop()
     assert sync.process_name.seq_id == 0
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 1
@@ -156,7 +156,7 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
-    sync = syncs["open"][0]
+    sync = syncs["open"].pop()
     assert sync.bug == "1234"
     assert len(sync.gecko_commits) == 2
     assert len(sync.wpt_commits) == 2
@@ -178,7 +178,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
-    sync = syncs["open"][0]
+    sync = syncs["open"].pop()
     env.gh_wpt.get_pull(sync.pr).mergeable = True
     original_remote_branch = sync.remote_branch
 
@@ -189,7 +189,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
                                                  raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    assert syncs == {"wpt-merged": [sync]}
+    assert syncs == {"wpt-merged": {sync}}
     assert sync.gecko_landed()
     assert sync.status == "wpt-merged"
     assert original_remote_branch not in git_wpt.remotes.origin.refs
@@ -210,7 +210,7 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
-    sync = syncs["open"][0]
+    sync = syncs["open"].pop()
     env.gh_wpt.get_pull(sync.pr).mergeable = True
 
     env.gh_wpt.set_status(sync.pr, "failure", "http://test/", "tests failed",
@@ -284,7 +284,7 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     sync = pushed.pop()
-    assert syncs == {"open": [sync]}
+    assert syncs == {"open": {sync}}
     assert sync.bug == "1234"
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 2
