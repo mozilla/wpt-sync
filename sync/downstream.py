@@ -93,13 +93,6 @@ class DownstreamSync(base.SyncProcess):
         return "\n".join(msg)
 
     @classmethod
-    def for_pr(cls, git_gecko, git_wpt, pr_id):
-        items = cls.load_by_obj(git_gecko, git_wpt, pr_id)
-        if items:
-            assert len(items) == 1
-            return items.pop()
-
-    @classmethod
     def has_metadata(cls, message):
         required_keys = ["wpt-commits",
                          "wpt-pr"]

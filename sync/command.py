@@ -166,6 +166,11 @@ def get_parser():
                                      help="Rebuild count")
     parser_try_push_add.set_defaults(func=do_try_push_add)
 
+    parser_try_push_add = subparsers.add_parser("build-index",
+                                                help="Build indexes")
+    parser_try_push_add.add_argument("try_rev", help="Revision on try")
+    parser_try_push_add.set_defaults(func=do_build_index)
+
     return parser
 
 
@@ -589,6 +594,14 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
                                          check_open=False)
 
     print "Now run an update for the sync"
+
+
+def do_build_index(git_gecko, git_wpt, **kwargs):
+    import index
+    for idx_cls in [index.TaskGroupIndex, index.TryCommitIndex, index.SyncIndex,
+                    index.PrIdIndex, index.BugIdIndex]:
+        idx = idx_cls(git_gecko)
+        idx.build(git_gecko, git_wpt)
 
 
 def set_config(opts):

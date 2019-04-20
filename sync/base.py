@@ -11,7 +11,7 @@ from fnmatch import fnmatch
 
 import enum
 import git
-from lock import MutGuard, mut, constructor
+from lock import MutGuard, RepoLock, mut, constructor
 
 import bug
 import log
@@ -488,44 +488,67 @@ class DataRefObject(VcsRefObject):
     ref_prefix = "syncs"
 
 
-def create_commit(repo, tree, message,
-                  delete=None,
-                  initial=None,
-                  parents=None,
-                  commit_cls=sync_commit.Commit):
-    """
-    :param tree: A dictionary of path: file data
-    """
-    # TODO: check we acquired the right lock here
+class CommitBuilder(object):
+    def __init__(self, repo, message, initial=None, ref=None, commit_cls=sync_commit.Commit):
+        self.repo = repo
+        self.message = message
+        self.commit_cls = commit_cls
+        self.initial = initial
+        self.ref = ref
+        self.parents = None
+        self.lock = RepoLock(repo)
+        self._commit = None
 
-    # First we create an empty index
-    if initial is None:
-        read_tree_args = ()
-        read_tree_kwargs = {"empty": True}
-    else:
-        read_tree_args = (initial,)
-        read_tree_kwargs = {}
-    repo.git.read_tree(*read_tree_args, **read_tree_kwargs)
-    for path, data in tree.iteritems():
-        proc = repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
-                                    istream=subprocess.PIPE)
-        stdout, stderr = proc.communicate(data)
-        if proc.returncode != 0:
-            raise git.GitCommandError(["git", "hash-object", "-w", "--path=%s" % path],
-                                      proc.returncode, stderr, stdout)
-        repo.git.update_index("100644", stdout, path, add=True, cacheinfo=True)
-    if delete:
-        for path in delete:
-            repo.git.rm(path, cached=True)
-    tree_id = repo.git.write_tree()
-    args = ["-m", message]
-    if parents is not None:
-        for item in parents:
-            args.extend(["-p", item])
-    args.append(tree_id)
-    sha1 = repo.git.commit_tree(*args)
-    repo.git.read_tree(empty=True)
-    return commit_cls(repo, sha1)
+    def __enter__(self):
+        assert self._commit is None
+        self.lock.__enter__()
+        # First we create an empty index
+        if self.ref is not None:
+            ref = git.Reference(self.repo, self.ref)
+            if ref.is_valid():
+                self.parents = [ref.commit.hexsha]
+
+        if self.initial is None:
+            read_tree_args = ()
+            read_tree_kwargs = {"empty": True}
+        else:
+            read_tree_args = (self.initial,)
+            read_tree_kwargs = {}
+        self.repo.git.read_tree(*read_tree_args, **read_tree_kwargs)
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        tree_id = self.repo.git.write_tree()
+        args = ["-m", self.message]
+        if self.parents is not None:
+            for item in self.parents:
+                args.extend(["-p", item])
+        args.append(tree_id)
+        sha1 = self.repo.git.commit_tree(*args)
+        self.repo.git.read_tree(empty=True)
+        if self.ref:
+            ref = git.Reference(self.repo, self.ref)
+            ref.set_object(sha1)
+        self.lock.__exit__(*args, **kwargs)
+        self._commit = self.commit_cls(self.repo, sha1)
+
+    def add_tree(self, tree):
+        for path, data in tree.iteritems():
+            proc = self.repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
+                                             istream=subprocess.PIPE)
+            stdout, stderr = proc.communicate(data)
+            if proc.returncode is not 0:
+                raise git.GitCommandError(["git", "hash-object", "-w", "--path=%s" % path],
+                                          proc.returncode, stderr, stdout)
+            self.repo.git.update_index("100644", stdout, path, add=True, cacheinfo=True)
+
+    def delete(self, delete):
+        if delete:
+            for path in delete:
+                self.repo.git.rm(path, cached=True)
+
+    def get(self):
+        return self._commit
 
 
 class ProcessData(object):
@@ -541,6 +564,7 @@ class ProcessData(object):
         self._lock = None
         self._updated = set()
         self._deleted = set()
+        self._index_changes = []
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self.process_name)
@@ -549,6 +573,7 @@ class ProcessData(object):
         return MutGuard(lock, self, [self.ref])
 
     def exit_mut(self):
+        import index
         if self._updated or self._deleted:
             message = []
             if self._updated:
@@ -558,20 +583,23 @@ class ProcessData(object):
             self._save(self._data, message=" ".join(message))
             self._updated = set()
             self._deleted = set()
+        for idx in index.indicies.values():
+            idx.save()
 
     @classmethod
     @constructor(lambda args: (args["process_name"].subtype,
                                args["process_name"].obj_id))
     def create(cls, lock, repo, process_name, data, message="Sync data"):
-        commit = cls.create_commit(repo, cls.path, data, message=message)
-        DataRefObject.create(lock, repo, process_name, commit.commit)
+        with CommitBuilder(repo, message) as commit:
+            commit.add_tree({cls.path: json.dumps(data)})
+        DataRefObject.create(lock, repo, process_name, commit.get().commit)
         return cls(repo, process_name)
 
     def _save(self, data, message):
         commit = self.create_commit(self.repo,
                                     self.path,
                                     self._data,
-                                    parents=[self.ref.path],
+                                    ref=self.ref.path,
                                     message=message)
         self.ref.ref.set_commit(commit.sha1)
 
@@ -579,9 +607,11 @@ class ProcessData(object):
         return json.load(self.ref.ref.commit.tree[self.path].data_stream)
 
     @staticmethod
-    def create_commit(repo, path, data, message, parents=None):
+    def create_commit(repo, path, data, message, ref=None):
         tree = {path: json.dumps(data)}
-        return create_commit(repo, tree, message=message, parents=parents)
+        with CommitBuilder(repo, message=message, ref=ref) as commit:
+            commit.add_tree(tree)
+        return commit.get()
 
     @property
     def lock_key(self):
@@ -865,6 +895,9 @@ class SyncProcess(object):
     def __init__(self, git_gecko, git_wpt, process_name):
         self._lock = None
 
+        assert process_name.obj_type == self.obj_type
+        assert process_name.subtype == self.sync_type
+
         self.git_gecko = git_gecko
         self.git_wpt = git_wpt
 
@@ -917,6 +950,14 @@ class SyncProcess(object):
                                self.process_name)
 
     @classmethod
+    def for_pr(cls, git_gecko, git_wpt, pr_id):
+        import index
+        idx = index.PrIdIndex.get_or_create(git_gecko)
+        process_name = idx.get((str(pr_id),))
+        if process_name:
+            return cls(git_gecko, git_wpt, process_name)
+
+    @classmethod
     def for_bug(cls, git_gecko, git_wpt, bug, statuses=None, flat=False):
         """Get the syncs for a specific bug.
 
@@ -928,17 +969,20 @@ class SyncProcess(object):
         :returns: By default a dictionary of {status: [syncs]}, but if flat
                   is true, just returns a list of matching syncs.
         """
-        statuses = statuses if statuses is not None else cls.statuses
-        rv = {}
-        all_syncs = cls.load_by_obj(git_gecko, git_wpt, bug)
-        for status in statuses:
-            syncs = [item for item in all_syncs if item.status == status]
-            if syncs:
-                rv[status] = syncs
-                if not cls.multiple_syncs:
-                    if len(syncs) != 1:
-                        raise ValueError("Found multiple %s syncs for bug %s, expected at most 1" %
-                                         (cls.sync_type, bug))
+        import index
+        statuses = set(statuses) if statuses is not None else set(cls.statuses)
+        rv = defaultdict(set)
+        idx_key = (bug,)
+        if len(statuses) == 1:
+            idx_key == (bug, list(statuses)[0])
+        idx = index.BugIdIndex.get_or_create(git_gecko)
+
+        process_names = idx.get(idx_key)
+        for process_name in process_names:
+            if process_name.subtype == cls.sync_type:
+                sync = cls(git_gecko, git_wpt, process_name)
+                if sync.status in statuses:
+                    rv[sync.status].add(sync)
         if flat:
             rv = list(itertools.chain.from_iterable(rv.itervalues()))
         return rv
@@ -955,9 +999,10 @@ class SyncProcess(object):
 
     @classmethod
     def load_by_status(cls, git_gecko, git_wpt, status):
-        process_names = ProcessIndex(git_gecko).get_by_status(cls.obj_type,
-                                                              cls.sync_type,
-                                                              status)
+        import index
+        idx = index.SyncIndex.get_or_create(git_gecko)
+        key = (cls.obj_type, cls.sync_type, status)
+        process_names = idx.get(key)
         rv = set()
         for process_name in process_names:
             rv.add(cls(git_gecko, git_wpt, process_name))
@@ -1065,7 +1110,11 @@ class SyncProcess(object):
 
     @property
     def status(self):
-        return self.process_name.status
+        stored = self.data.get("status")
+        rv = self.process_name.status
+        if stored is not None:
+            assert rv == stored
+        return rv
 
     @status.setter
     @mut()
@@ -1078,8 +1127,18 @@ class SyncProcess(object):
         if (current, value) not in self.status_transitions:
             raise ValueError("Tried to change status from %s to %s" % (current, value))
 
+        import index
+        index.SyncIndex(self.git_gecko).delete(index.SyncIndex.make_key(self),
+                                               self.process_name)
+        index.BugIdIndex(self.git_gecko).delete(index.BugIdIndex.make_key(self),
+                                                self.process_name)
+        self.data["status"] = value
         with self.process_name.as_mut(self._lock):
             self.process_name.status = value
+        index.SyncIndex(self.git_gecko).insert(index.SyncIndex.make_key(self),
+                                               self.process_name)
+        index.BugIdIndex(self.git_gecko).insert(index.BugIdIndex.make_key(self),
+                                                self.process_name)
 
     @property
     def bug(self):
@@ -1091,9 +1150,15 @@ class SyncProcess(object):
     @bug.setter
     @mut()
     def bug(self, value):
+        import index
         if self.obj_id == "bug":
             raise AttributeError("Can't set attribute")
+        old_key = None
+        if self.data.get("bug"):
+            old_key = index.BugIdIndex.make_key(self)
         self.data["bug"] = value
+        new_key = index.BugIdIndex.make_key(self)
+        index.BugIdIndex(self.git_gecko).move(old_key, new_key, self.process_name)
 
     @property
     def pr(self):
@@ -1105,9 +1170,17 @@ class SyncProcess(object):
     @pr.setter
     @mut()
     def pr(self, value):
+        import index
         if self.obj_id == "pr":
             raise AttributeError("Can't set attribute")
+        old_key = None
+        if self.data.get("pr"):
+            old_key = index.PrIdIndex.make_key(self)
         self.data["pr"] = value
+        new_key = index.PrIdIndex.make_key(self)
+        index.PrIdIndex(self.git_gecko).move(old_key,
+                                             new_key,
+                                             self.process_name)
 
     @property
     def seq_id(self):
@@ -1201,6 +1274,7 @@ class SyncProcess(object):
     def new(cls, lock, git_gecko, git_wpt, gecko_base, gecko_head,
             wpt_base="origin/master", wpt_head=None,
             bug=None, pr=None, status="open"):
+        import index
         if cls.obj_id == "bug":
             assert bug is not None
             obj_id = bug
@@ -1231,7 +1305,18 @@ class SyncProcess(object):
         BranchRefObject.create(lock, git_gecko, process_name, gecko_head, sync_commit.GeckoCommit)
         BranchRefObject.create(lock, git_wpt, process_name, wpt_head, sync_commit.WptCommit)
 
-        return cls(git_gecko, git_wpt, process_name)
+        rv = cls(git_gecko, git_wpt, process_name)
+
+        idx = index.SyncIndex.get_or_create(git_gecko)
+        idx.insert(idx.make_key(rv), process_name).save()
+
+        if cls.obj_id == "bug":
+            bug_idx = index.BugIdIndex.get_or_create(git_gecko)
+            bug_idx.insert(bug_idx.make_key(rv), process_name).save()
+        elif cls.obj_id == "pr":
+            pr_idx = index.PrIdIndex.get_or_create(git_gecko)
+            pr_idx.insert(pr_idx.make_key(rv), process_name).save()
+        return rv
 
     @mut()
     def finish(self, status="complete"):
