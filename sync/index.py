@@ -1,22 +1,13 @@
 import json
+from collections import defaultdict
 
 import git
 
 import log
-from base import ProcessName, create_commit
-from lock import RepoLock
+from base import ProcessName, CommitBuilder
 
 
 logger = log.get_logger(__name__)
-
-
-def lock(f):
-    def inner(self, *args, **kwargs):
-        with RepoLock(self.repo):
-            return f(self, *args, **kwargs)
-    inner.__name__ = f.__name__
-    inner.__doc__ = f.__doc__
-    return inner
 
 
 class Index(object):
@@ -25,7 +16,20 @@ class Index(object):
     unique = False
     value_cls = tuple
 
+    # Overridden in subclasses using the constructor
+    changes = None
+
     def __init__(self, repo):
+        if self.__class__.changes is None:
+            constructors = [list]
+            for _ in self.key_fields[:-1]:
+                def fn():
+                    idx = len(constructors) - 1
+                    constructors.append(lambda: defaultdict(constructors[idx]))
+                    return constructors[-1]
+                fn()
+            self.changes = defaultdict(constructors[-1])
+
         self.repo = repo
         self.ref = git.Reference(repo, "refs/syncs/index/%s" % self.name)
 
@@ -36,10 +40,10 @@ class Index(object):
                 "fields": list(cls.key_fields),
                 "unique": cls.unique}
         tree = {"_metadata": json.dumps(data, indent=0)}
-        commit = create_commit(repo, tree, message="Create index %s" % cls.name)
-        ref = git.Reference(repo, "refs/syncs/index/%s" % cls.name)
-        ref.set_object(commit.sha1)
-        assert ref.is_valid()
+        with CommitBuilder(repo,
+                           message="Create index %s" % cls.name,
+                           ref="refs/syncs/index/%s" % cls.name) as commit:
+            commit.add_tree(tree)
         return cls(repo)
 
     @classmethod
@@ -52,8 +56,7 @@ class Index(object):
     def get(self, key):
         if len(key) > len(self.key_fields):
             raise ValueError
-        path = "/".join(key)
-        _, items = self._read_path(path)
+        items = self._read(key)
         if self.unique and len(key) == len(self.key_fields) and len(items) > 1:
             raise ValueError("Got multiple results for unique index")
 
@@ -65,21 +68,51 @@ class Index(object):
             return rv.pop() if rv else None
         return rv
 
-    def _read_path(self, path):
+    def _read(self, key, include_local=True):
+        path = "/".join(key)
         try:
             root = self.ref.commit.tree[path]
         except KeyError:
-            return None, set()
+            data = set()
+        else:
+            if isinstance(root, git.Blob):
+                data = self._load_obj(root)
+            else:
+                data = set()
+                for obj in root.traverse():
+                    if isinstance(obj, git.Blob):
+                        items = self._load_obj(obj)
+                    data |= items
+        if include_local:
+            self._update_changes(key, data)
+        return data
 
-        if isinstance(root, git.Blob):
-            return root, self._load_obj(root)
+    def _read_changes(self, key):
+        target = self.changes
+        if key:
+            for part in key:
+                target = target[part]
+        else:
+            key = ()
+        changes = {}
+        stack = [(key, target)]
+        while stack:
+            key, items = stack.pop()
+            if isinstance(items, list):
+                changes[key] = items
+            else:
+                for key_part, values in items.iteritems():
+                    stack.append((key + (key_part,), values))
+        return changes
 
-        rv = set()
-        for obj in root.traverse():
-            if isinstance(obj, git.Blob):
-                rv |= self._load_obj(obj)
-
-        return root, rv
+    def _update_changes(self, key, data):
+        changes = self._read_changes(key)
+        for key_changes in changes.itervalues():
+            for old_value, new_value, _ in key_changes:
+                if new_value is None and old_value in data:
+                    data.remove(old_value)
+                elif new_value is not None:
+                    data.add(new_value)
 
     def _load_obj(self, obj):
         rv = json.load(obj.data_stream)
@@ -87,81 +120,95 @@ class Index(object):
             return set(rv)
         return set([rv])
 
-    @lock
+    def save(self, message=None):
+        if message is None:
+            message = "Update index %s\n\n" % self.name
+            changes = self._read_changes(None)
+
+            for key_changes in changes.itervalues():
+                for _, _, msg in key_changes:
+                    message += "%s\n" % msg
+        with CommitBuilder(self.repo,
+                           message,
+                           ref=self.ref.path,
+                           initial=self.ref.commit.tree) as commit:
+            for key, key_changes in changes.iteritems():
+                self._update_key(commit, key, key_changes)
+        self.__class__.changes = None
+
     def insert(self, key, value):
         if len(key) != len(self.key_fields):
             raise ValueError
 
-        path = "/".join(key)
-        existing_tree, existing_items = self._read_path(path)
+        value = self.dump_value(value)
+        msg = "Insert key %s value %s" % (key, value)
+        target = self.changes
+        for part in key:
+            target = target[part]
+        target.append((None, value, msg))
+        return self
 
-        if existing_tree and self.unique:
-            raise ValueError("Tried to insert duplicate entry for unique index %s" % (key,))
-        elif existing_tree:
-            index_value = existing_items
-            index_value.add(self.dump_value(value))
-            index_value = list(sorted(index_value))
-        else:
-            index_value = self.dump_value(value)
-
-        commit = create_commit(self.repo,
-                               {path: json.dumps(index_value, indent=0)},
-                               message="Insert key %s" % (key,),
-                               initial=self.ref.commit.tree,
-                               parents=[self.ref.commit.hexsha])
-        self.ref.set_object(commit.sha1)
-
-    @lock
     def delete(self, key, value):
         if len(key) != len(self.key_fields):
             raise ValueError
 
+        value = self.dump_value(value)
+        msg = "Delete key %s value %s" % (key, value)
+        target = self.changes
+        for part in key:
+            target = target[part]
+        target.append((value, None, msg))
+        return self
+
+    def move(self, old_key, new_key, value):
+        assert old_key != new_key
+
+        if old_key is not None:
+            self.delete(old_key, value)
+        if new_key is not None:
+            self.insert(new_key, value)
+        return self
+
+    def _update_key(self, commit, key, key_changes):
+        existing = self._read(key, False)
+        new = existing.copy()
+
+        for old_value, new_value, _ in key_changes:
+            if new_value is None and old_value in existing:
+                new.remove(old_value)
+            if old_value is None:
+                new.add(new_value)
+
         path = "/".join(key)
-        try:
-            _, existing_items = self._read_path(path)
-        except KeyError:
-            existing_items = None
-        if not existing_items:
+
+        if new == existing:
             return
 
-        value_str = self.dump_value(value)
-        if len(existing_items) == 1:
-            if existing_items.pop() != value_str:
-                return
-            tree = {}
-            message = "Delete key %s" % (key,),
-            delete = [path]
-        else:
-            index_value = existing_items
-            index_value.remove(value_str)
-            index_value = list(sorted(index_value))
+        if not new:
+            commit.delete([path])
+            return
 
-            tree = {path: json.dumps(index_value, indent=0)}
-            message = "Delete key %s value %s" % (key, value)
-            delete = None
+        if self.unique and len(new) > 1:
+            raise ValueError("Tried to insert duplicate entry for unique index %s" % (key,))
 
-        commit = create_commit(self.repo,
-                               tree,
-                               message,
-                               delete=delete,
-                               initial=self.ref.commit.tree.hexsha,
-                               parents=[self.ref.commit.hexsha])
-        self.ref.set_object(commit.sha1)
+        index_value = list(sorted(new))
+
+        commit.add_tree({path: json.dumps(index_value, indent=0)})
 
     def dump_value(self, value):
         return str(value)
 
     def load_value(self, value):
-        return self.value_cls(*("/".split(value)))
+        return self.value_cls(*(value.split("/")))
 
-    @lock
     def clear(self):
         raise NotImplementedError
 
     def build(self, *args, **kwargs):
         raise NotImplementedError
 
-    def make_key(self, value):
+    @classmethod
+    def make_key(cls, value):
         return (value,)
 
 
@@ -171,8 +218,16 @@ class TaskGroupIndex(Index):
     unique = True
     value_cls = ProcessName
 
-    def make_key(self, value):
+    @classmethod
+    def make_key(cls, value):
         return (value[:2], value[2:4], value[4:])
+
+    def build(self, *args, **kwargs):
+        import trypush
+        for try_push in trypush.TryPush.load_all(self.repo):
+            self.insert(self.make_key(try_push.taskgroup_id),
+                        try_push.process_name)
+        self.save(message="Build TaskGroupIndex")
 
 
 class TryCommitIndex(Index):
@@ -181,5 +236,110 @@ class TryCommitIndex(Index):
     unique = True
     value_cls = ProcessName
 
-    def make_key(self, value):
+    @classmethod
+    def make_key(cls, value):
         return (value[:2], value[2:4], value[4:6], value[6:])
+
+    def build(self, *args, **kwargs):
+        import trypush
+        for try_push in trypush.TryPush.load_all(self.repo):
+            self.insert(self.make_key(try_push.try_rev),
+                        try_push.process_name)
+        self.save(message="Build TryCommitIndex")
+
+
+class SyncIndex(Index):
+    name = "sync-id-status"
+    key_fields = ("objtype", "subtype", "status", "obj_id")
+    unique = False
+    value_cls = ProcessName
+
+    @classmethod
+    def make_key(cls, sync):
+        return (sync.process_name.obj_type,
+                sync.process_name.subtype,
+                sync.status,
+                sync.process_name.obj_id)
+
+    def build(self, git_gecko, git_wpt, **kwargs):
+        from base import ProcessName
+        from downstrea import DownstreamSync
+        from upstream import UpstreamSync
+        from landing import LandingSync
+
+        for ref in git_gecko.references:
+            process_name = ProcessName.from_ref(ref.path)
+            sync_cls = None
+            if process_name.subtype == "upstream":
+                sync_cls = UpstreamSync
+            elif process_name.subtype == "downstream":
+                sync_cls = DownstreamSync
+            elif process_name.subtype == "landing":
+                sync_cls = LandingSync
+
+            if sync_cls:
+                sync = sync_cls(git_gecko, git_wpt, process_name)
+                self.insert(self.make_key(sync), process_name)
+        self.save(message="Build SyncIndex")
+
+
+class PrIdIndex(Index):
+    name = "pr-id"
+    key_fields = ("pr-id",)
+    unique = True
+    value_cls = ProcessName
+
+    @classmethod
+    def make_key(cls, sync):
+        return (str(sync.pr),)
+
+    def build(self, git_gecko, git_wpt, **kwargs):
+        from base import ProcessName
+        from upstream import UpstreamSync
+
+        for ref in git_gecko.references:
+            process_name = ProcessName.from_ref(ref.path)
+            if process_name.subtype == "upstream":
+                sync = UpstreamSync(git_gecko, git_wpt, process_name)
+                self.insert(self.make_key(sync), process_name)
+            elif process_name.subtype == "downstream":
+                self.insert((process_name.obj_id,), process_name)
+        self.save(message="Build PrIdIndex")
+
+
+class BugIdIndex(Index):
+    name = "bug-id"
+    key_fields = ("bug-id", "status")
+    unique = False
+    value_cls = ProcessName
+
+    @classmethod
+    def make_key(cls, sync):
+        return (sync.bug, sync.status)
+
+    def build(self, git_gecko, git_wpt, **kwargs):
+        from base import ProcessName
+        from downstream import DownstreamSync
+        from upstream import UpstreamSync
+        from landing import LandingSync
+
+        for ref in git_gecko.references:
+            process_name = ProcessName.from_ref(ref.path)
+            sync_cls = None
+            if process_name.subtype == "upstream":
+                sync_cls = UpstreamSync
+            elif process_name.subtype == "downstream":
+                sync_cls = DownstreamSync
+            elif process_name.subtype == "landing":
+                sync_cls = LandingSync
+
+            if sync_cls:
+                sync = sync_cls(git_gecko, git_wpt, process_name)
+                self.insert(self.make_key(sync), process_name)
+        self.save(message="Build BugIdIndex")
+
+
+indicies = {item.name: item for item in globals()
+            if type(item) == type(Index) and
+            issubclass(item, Index) and
+            item != Index}
