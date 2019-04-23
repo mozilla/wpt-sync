@@ -7,7 +7,6 @@ import subprocess
 import traceback
 import weakref
 from collections import defaultdict
-from fnmatch import fnmatch
 
 import enum
 import git
@@ -92,7 +91,6 @@ class ProcessIndex(object):
     def reset(self):
         self._all = set()
         self._by_obj_id = defaultdict(set)
-        self._by_status = defaultdict(set)
         self._built = False
 
     def build(self):
@@ -109,12 +107,8 @@ class ProcessIndex(object):
         obj_id_key = (process_name.obj_type,
                       process_name.subtype,
                       process_name.obj_id)
-        status_key = (process_name.obj_type,
-                      process_name.subtype,
-                      process_name.status)
 
         self._by_obj_id[obj_id_key].add(process_name)
-        self._by_status[status_key].add(process_name)
 
     def has(self, process_name):
         if not self._built:
@@ -125,7 +119,7 @@ class ProcessIndex(object):
         if not self._built:
             self.build()
         rv = set()
-        for key, values in self._by_status.iteritems():
+        for key, values in self._by_type.iteritems():
             if key[0] == obj_type:
                 rv |= values
         return rv
@@ -135,62 +129,44 @@ class ProcessIndex(object):
             self.build()
         return self._by_obj_id[(obj_type, subtype, str(obj_id))]
 
-    def get_by_status(self, obj_type, subtype, status):
-        if not self._built:
-            self.build()
-        return self._by_status[(obj_type, subtype, status)]
-
 
 class ProcessName(object):
     """Representation of a refname, excluding the refs/<type>/ prefix
     that is used to identify a sync operation.  This has the general form
-    <obj type>/<subtype>/<status>/<obj_id>[/<seq_id>]
+    <obj type>/<subtype>/<obj_id>[/<seq_id>]
 
     Here <obj type> represents the type of process e.g upstream or downstream,
-    <status> is the current sync status, <obj_id> is an identifier for the sync,
+    <obj_id> is an identifier for the sync,
     typically either a bug number or PR number, and <seq_id> is an optional id
     to cover cases where we might have multiple processes with the same obj_id.
-
-    This format means we are able to query all syncs with a given status easilly
-    by doing e.g.
-
-    git for-each-ref upstream/open/*
-
-    However it also means that we need to be able to update the ref name
-    whereever it is used when the status changes. This can be both in mutliple
-    repositories and with multiple types (e.g. tags vs branches). Therefore we
-    "attach" every VcsRefObject representing a concrete use of a ref to this
-    class and when changing the status propogate out the change to all users.
     """
     __metaclass__ = IdentityMap
 
-    def __init__(self, obj_type, subtype, status, obj_id, seq_id=None):
+    def __init__(self, obj_type, subtype, obj_id, seq_id=None):
         assert obj_type is not None
         assert subtype is not None
-        assert status is not None
         assert obj_id is not None
 
         self._obj_type = obj_type
         self._subtype = subtype
-        self._status = status
         self._obj_id = str(obj_id)
         self._seq_id = str(seq_id) if seq_id is not None else None
-        self._refs = set()
         self._lock = None
 
     @classmethod
-    def _cache_key(cls, obj_type, subtype, status, obj_id, seq_id=None):
+    def _cache_key(cls, obj_type, subtype, obj_id, seq_id=None):
         return (obj_type, subtype, str(obj_id), str(seq_id) if seq_id is not None else None)
 
     def __str__(self):
-        return self.name(self._obj_type,
-                         self._subtype,
-                         self._status,
-                         self._obj_id,
-                         self._seq_id)
+        rv = "%s/%s/%s" % (self._obj_type,
+                           self._subtype,
+                           self._obj_id)
+        if self._seq_id is not None:
+            rv = "%s/%s" % (rv, self._seq_id)
+        return rv
 
     def key(self):
-        return self._cache_key(self._obj_type, self._subtype, None, self._obj_id, self._seq_id)
+        return self._cache_key(self._obj_type, self._subtype, self._obj_id, self._seq_id)
 
     def __eq_(self, other):
         if self is other:
@@ -199,49 +175,11 @@ class ProcessName(object):
             return False
         return ((self._obj_type == other._obj_type) and
                 (self._subtype == other._subtype) and
-                (self._status == other._status) and
                 (self._obj_id == other._obj_id) and
                 (self._seq_id == other._seq_id))
 
     def __hash__(self):
         return hash(self.key())
-
-    def as_mut(self, lock):
-        return MutGuard(lock, self, self._refs)
-
-    @property
-    def lock_key(self):
-        return (self.subtype, self.obj_id)
-
-    @staticmethod
-    def name(obj_type, subtype, status, obj_id, seq_id=None):
-        rv = "%s/%s/%s/%s" % (obj_type,
-                              subtype,
-                              status,
-                              obj_id)
-        if seq_id is not None:
-            rv = "%s/%s" % (rv, seq_id)
-        return rv
-
-    def name_filter(self):
-        """Return a string that can be passed to git for-each-ref to determine
-        if a ProcessName matching the current name already exists"""
-        return self.name(self._obj_type,
-                         self._subtype,
-                         "*",
-                         self._obj_id,
-                         self._seq_id)
-
-    def attach_ref(self, ref):
-        # This two-way binding is kind of nasty, but we want the
-        # refs to update every time we update the property here
-        # and that makes it easy to achieve
-        self._refs.add(ref)
-        return self
-
-    def delete(self):
-        for ref in self._refs:
-            ref.delete()
 
     @property
     def obj_type(self):
@@ -259,19 +197,6 @@ class ProcessName(object):
     def seq_id(self):
         return int(self._seq_id) if self._seq_id is not None else 0
 
-    @property
-    def status(self):
-        return self._status
-
-    @status.setter
-    @mut()
-    def status(self, value):
-        logger.debug("Setting process %s status to %s" % (self, value))
-        if self._status != value:
-            self._status = value
-            for ref_obj in self._refs:
-                ref_obj.rename()
-
     @classmethod
     def from_ref(cls, ref):
         parts = ref.split("/")
@@ -279,12 +204,12 @@ class ProcessName(object):
             parts = parts[2:]
         if parts[0] not in ["sync", "try"]:
             return None
-        if len(parts) not in (4, 5):
+        if len(parts) not in (3, 4):
             return None
         return cls(*parts)
 
     @classmethod
-    def with_seq_id(cls, repo, obj_type, subtype, status, obj_id):
+    def with_seq_id(cls, repo, obj_type, subtype, obj_id):
         existing = ProcessIndex(repo).get_by_obj(obj_type, subtype, obj_id)
         existing_no_id = any(item.seq_id is None for item in existing)
         last_id = 0 if existing_no_id else -1
@@ -293,7 +218,7 @@ class ProcessName(object):
                 int(process_name.seq_id) > last_id):
                 last_id = int(process_name.seq_id)
         seq_id = last_id + 1
-        return cls(obj_type, subtype, status, obj_id, seq_id)
+        return cls(obj_type, subtype, obj_id, seq_id)
 
 
 class SyncPointName(object):
@@ -309,14 +234,6 @@ class SyncPointName(object):
         self._refs = []
 
         self._lock = None
-
-    def as_mut(self, lock):
-        # This doesn't do anything, but while ProcessName is mutable this must be too
-        return MutGuard(lock, self, self._refs)
-
-    @property
-    def lock_key(self):
-        return (self._subtype, self._obj_id)
 
     @property
     def obj_type(self):
@@ -334,27 +251,13 @@ class SyncPointName(object):
     def _cache_key(cls, subtype, obj_id):
         return (subtype, str(obj_id))
 
-    def attach_ref(self, ref):
-        return self
-
     def key(self):
         return (self._subtype, self._obj_id)
 
     def __str__(self):
-        return self.name(self._obj_type,
-                         self._subtype,
-                         self._obj_id)
-
-    @staticmethod
-    def name(obj_type, subtype, obj_id):
-        return "%s/%s/%s" % (obj_type,
-                             subtype,
-                             obj_id)
-
-    def name_filter(self):
-        return self.name(self._obj_type,
-                         self._subtype,
-                         self._obj_id)
+        return "%s/%s/%s" % (self._obj_type,
+                             self._subtype,
+                             self._obj_id)
 
 
 class VcsRefObject(object):
@@ -373,12 +276,12 @@ class VcsRefObject(object):
                              (repo.working_dir, self.process_path(process_name)))
         self.repo = repo
         self._ref = str(process_name)
-        self.process_name = process_name.attach_ref(self)
+        self.process_name = process_name
         self.commit_cls = commit_cls
         self._lock = None
 
     def as_mut(self, lock):
-        return MutGuard(lock, self, [self.process_name])
+        return MutGuard(lock, self)
 
     @property
     def lock_key(self):
@@ -428,12 +331,9 @@ class VcsRefObject(object):
     def _create(cls, lock, repo, process_name, obj, commit_cls=sync_commit.Commit):
         path = cls.process_path(process_name)
         logger.debug("Creating ref %s" % path)
-        for ref in repo.refs:
-            if fnmatch(ref.path, "refs/%s/%s" % (cls.ref_prefix,
-                                                 process_name.name_filter())):
-                raise ValueError("Ref %s exists which conflicts with %s" %
-                                 (ref.path, path))
         ref = git.Reference(repo, path)
+        if ref.is_valid():
+            raise ValueError("Ref %s exists" % (ref.path,))
         ref.set_object(obj)
         ProcessIndex(repo).insert(process_name)
         return cls(repo, process_name, commit_cls)
@@ -453,35 +353,9 @@ class VcsRefObject(object):
         ref = git.Reference(self.repo, self.path)
         ref.set_object(commit)
 
-    @mut()
-    def rename(self):
-        path = self.path
-        ref = self.ref
-        if not ref:
-            return
-        # This implicitly updates self.path
-        self._ref = str(self.process_name)
-        if self.path == path:
-            return
-        logger.debug("Renaming ref %s to %s" % (path, self.path))
-        new_ref = git.Reference(self.repo, self.path)
-        new_ref.set_object(ref.commit.hexsha)
-        logger.debug("Deleting ref %s pointing at %s.\n"
-                     "To recreate this ref run `git update-ref %s %s`" %
-                     (ref.path, ref.commit.hexsha, ref.path, ref.commit.hexsha))
-        ref.delete(self.repo, ref.path)
-        ProcessIndex(self.repo).reset()
-
 
 class BranchRefObject(VcsRefObject):
     ref_prefix = "heads"
-
-    def rename(self):
-        ref = self.ref
-        if not ref:
-            return
-        self._ref = str(self.process_name)
-        self.repo.git.branch(ref.name, self._ref, move=True)
 
 
 class DataRefObject(VcsRefObject):
@@ -633,9 +507,10 @@ class ProcessData(object):
 
     @classmethod
     def load_by_status(cls, repo, subtype, status):
-        process_names = ProcessIndex(repo).get_by_status(cls.obj_type,
-                                                         subtype,
-                                                         status)
+        import index
+        process_names = index.SyncIndex(repo).get((cls.obj_type,
+                                                   subtype,
+                                                   status))
         rv = set()
         for process_name in process_names:
             rv.add(cls(repo, process_name))
@@ -905,8 +780,6 @@ class SyncProcess(object):
 
         self.data = ProcessData(git_gecko, process_name)
 
-        assert self.data.ref in self.process_name._refs
-
         self.gecko_commits = CommitRange(git_gecko,
                                          self.data["gecko-base"],
                                          BranchRefObject(git_gecko,
@@ -1110,18 +983,14 @@ class SyncProcess(object):
 
     @property
     def status(self):
-        stored = self.data.get("status")
-        rv = self.process_name.status
-        if stored is not None:
-            assert rv == stored
-        return rv
+        return self.data.get("status")
 
     @status.setter
     @mut()
     def status(self, value):
         if value not in self.statuses:
             raise ValueError("Unrecognised status %s" % value)
-        current = self.process_name.status
+        current = self.status
         if current == value:
             return
         if (current, value) not in self.status_transitions:
@@ -1133,8 +1002,6 @@ class SyncProcess(object):
         index.BugIdIndex(self.git_gecko).delete(index.BugIdIndex.make_key(self),
                                                 self.process_name)
         self.data["status"] = value
-        with self.process_name.as_mut(self._lock):
-            self.process_name.status = value
         index.SyncIndex(self.git_gecko).insert(index.SyncIndex.make_key(self),
                                                self.process_name)
         index.BugIdIndex(self.git_gecko).insert(index.BugIdIndex.make_key(self),
@@ -1290,13 +1157,13 @@ class SyncProcess(object):
         data = {"gecko-base": gecko_base,
                 "wpt-base": wpt_base,
                 "pr": pr,
-                "bug": bug}
+                "bug": bug,
+                "status": status}
 
         # This is pretty ugly
         process_name = ProcessName.with_seq_id(git_gecko,
                                                cls.obj_type,
                                                cls.sync_type,
-                                               status,
                                                obj_id)
         if not cls.multiple_syncs and process_name.seq_id != 0:
             raise ValueError("Tried to create new %s sync for %s %s but one already exists" % (

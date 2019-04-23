@@ -242,7 +242,7 @@ class TryFuzzyCommit(TryCommit):
 class TryPush(base.ProcessData):
     """A try push is represented by an annotated tag with a path like
 
-    try/<pr_id>/<status>/<id>
+    try/<pr_id>/<id>
 
     Where id is a number to indicate the Nth try push for this PR.
     """
@@ -282,11 +282,11 @@ class TryPush(base.ProcessData):
             "stability": stability,
             "gecko-head": sync.gecko_commits.head.sha1,
             "wpt-head": sync.wpt_commits.head.sha1,
+            "status": "open",
         }
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
                                                     cls.obj_type,
                                                     sync.sync_type,
-                                                    "open",
                                                     getattr(sync, sync.obj_id))
         rv = super(TryPush, cls).create(lock, sync.git_gecko, process_name, data)
         # Add to the index
@@ -366,19 +366,19 @@ class TryPush(base.ProcessData):
 
     @property
     def status(self):
-        return self.ref.process_name.status
+        return self.get("status")
 
     @status.setter
     @mut()
     def status(self, value):
         if value not in self.statuses:
             raise ValueError("Unrecognised status %s" % value)
-        current = self.ref.process_name.status
+        current = self.get("status")
         if current == value:
             return
         if (current, value) not in self.status_transitions:
             raise ValueError("Tried to change status from %s to %s" % (current, value))
-        self.ref.process_name.status = value
+        self["status"] = value
 
     @property
     def wpt_head(self):

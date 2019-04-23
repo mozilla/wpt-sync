@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import os
 import re
 import subprocess
@@ -168,8 +169,11 @@ def get_parser():
 
     parser_try_push_add = subparsers.add_parser("build-index",
                                                 help="Build indexes")
-    parser_try_push_add.add_argument("try_rev", help="Revision on try")
     parser_try_push_add.set_defaults(func=do_build_index)
+
+    parser_try_push_add = subparsers.add_parser("migrate",
+                                                help="Migrate to latest date storage format")
+    parser_try_push_add.set_defaults(func=do_migrate)
 
     return parser
 
@@ -598,10 +602,36 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
 
 def do_build_index(git_gecko, git_wpt, **kwargs):
     import index
-    for idx_cls in [index.TaskGroupIndex, index.TryCommitIndex, index.SyncIndex,
-                    index.PrIdIndex, index.BugIdIndex]:
+    for idx_cls in index.indices:
         idx = idx_cls(git_gecko)
         idx.build(git_gecko, git_wpt)
+
+
+def do_migrate(git_gecko, git_wpt, **kwargs):
+    # Migrate refs from the refs/<type>/<subtype>/<status>/<obj_id>[/<seq_id>] format
+    # to refs/<type>/<subtype>/<obj_id>/<seq_id>
+
+    sync_ref = re.compile("^refs/"
+                          "(?P<reftype>[^/]*)/"
+                          "(?P<obj_type>[^/]*)/"
+                          "(?P<subtype>[^/]*)/"
+                          "(?P<status>[^/]*)/"
+                          "(?P<obj_id>[^/]*)/"
+                          "(?:(?P<seq_id>\d*))?$")
+    for ref in itertools.chain(git_gecko.refs, git_wpt.refs):
+        m = sync_ref.match(ref.path)
+        if not m:
+            continue
+        if m.group("reftype") not in ("heads", "syncs"):
+            continue
+        if m.group("obj_type") not in ("sync", "try"):
+            continue
+        new_ref = "refs/%s/%s/%s/%s/%s" % (m.group("reftype"),
+                                           m.group("obj_type"),
+                                           m.group("subtype"),
+                                           m.group("obj_id"),
+                                           m.group("seq_id") or "0")
+        ref.rename(new_ref)
 
 
 def set_config(opts):
