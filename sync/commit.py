@@ -16,14 +16,6 @@ logger = log.get_logger(__name__)
 METADATA_RE = re.compile("\s*([^\:]*): (.*)")
 
 
-class ShowError(Exception):
-    pass
-
-
-class ApplyError(Exception):
-    pass
-
-
 def get_metadata(text):
     data = {}
     for line in reversed(text.splitlines()):
@@ -429,11 +421,6 @@ class WptCommit(Commit):
             return pr
         except (TypeError, ValueError):
             return None
-
-    @property
-    def is_upstream(self):
-        import upstream
-        return upstream.UpstreamSync.has_metadata(self.msg)
 
 
 class Store(object):
