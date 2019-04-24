@@ -1,6 +1,7 @@
+import json
 import os
 import shutil
-from git import Repo
+import git
 
 import log
 
@@ -26,15 +27,20 @@ class GitSettings(object):
     def repo(self):
         if not os.path.exists(self.root):
             os.makedirs(self.root)
-            repo = Repo.init(self.root, bare=True)
+            repo = git.Repo.init(self.root, bare=True)
         else:
-            repo = Repo(self.root)
+            repo = git.Repo(self.root)
             logger.debug("Existing repo found at " + self.root)
 
         if self.cinnabar:
             repo.cinnabar = Cinnabar(repo)
 
+        self.setup(repo)
+
         return repo
+
+    def setup(self, repo):
+        pass
 
     def configure(self, file):
         r = self.repo()
@@ -46,6 +52,19 @@ class Gecko(GitSettings):
     name = "gecko"
     cinnabar = True
     fetch_args = ["mozilla"]
+
+    def setup(self, repo):
+        data_ref = git.Reference(repo, self.config["sync"]["ref"])
+        if not data_ref.is_valid():
+            import base
+            with base.CommitBuilder(repo, "Create initial sync metadata",
+                                    ref=data_ref) as commit:
+                path = "_metadata"
+                data = json.dumps({"name": "wptsync"})
+                commit.add_tree({path: data})
+        import index
+        for idx in index.indicies:
+            index.get_or_create(repo)
 
 
 class WebPlatformTests(GitSettings):

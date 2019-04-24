@@ -77,7 +77,7 @@ class IdentityMap(type):
         return value
 
 
-class ProcessIndex(object):
+class ProcessNameIndex(object):
     __metaclass__ = IdentityMap
 
     def __init__(self, repo):
@@ -94,8 +94,11 @@ class ProcessIndex(object):
         self._built = False
 
     def build(self):
-        for ref in self.repo.references:
-            process_name = ProcessName.from_ref(ref.path)
+        ref = git.Reference(self.repo, env.config["sync"]["ref"])
+        for item in ref.commit.tree.traverse():
+            if isinstance(item, git.Tree):
+                continue
+            process_name = ProcessName.from_path(item.path)
             if process_name is None:
                 continue
 
@@ -131,52 +134,50 @@ class ProcessIndex(object):
 
 
 class ProcessName(object):
-    """Representation of a refname, excluding the refs/<type>/ prefix
-    that is used to identify a sync operation.  This has the general form
-    <obj type>/<subtype>/<obj_id>[/<seq_id>]
+    """Representation of a name that is used to identify a sync operation.
+    This has the general form <obj type>/<subtype>/<obj_id>[/<seq_id>].
 
     Here <obj type> represents the type of process e.g upstream or downstream,
     <obj_id> is an identifier for the sync,
     typically either a bug number or PR number, and <seq_id> is an optional id
     to cover cases where we might have multiple processes with the same obj_id.
+
     """
     __metaclass__ = IdentityMap
 
-    def __init__(self, obj_type, subtype, obj_id, seq_id=None):
+    def __init__(self, obj_type, subtype, obj_id, seq_id):
         assert obj_type is not None
         assert subtype is not None
         assert obj_id is not None
+        assert seq_id is not None
 
         self._obj_type = obj_type
         self._subtype = subtype
         self._obj_id = str(obj_id)
-        self._seq_id = str(seq_id) if seq_id is not None else None
-        self._lock = None
+        self._seq_id = str(seq_id)
 
     @classmethod
     def _cache_key(cls, obj_type, subtype, obj_id, seq_id=None):
         return (obj_type, subtype, str(obj_id), str(seq_id) if seq_id is not None else None)
 
     def __str__(self):
-        rv = "%s/%s/%s" % (self._obj_type,
-                           self._subtype,
-                           self._obj_id)
-        if self._seq_id is not None:
-            rv = "%s/%s" % (rv, self._seq_id)
-        return rv
+        return "%s/%s/%s/%s" % (self._obj_type,
+                                self._subtype,
+                                self._obj_id,
+                                self.seq_id)
 
     def key(self):
         return self._cache_key(self._obj_type, self._subtype, self._obj_id, self._seq_id)
 
-    def __eq_(self, other):
+    def __eq__(self, other):
         if self is other:
             return True
         if self.__class__ != other.__class__:
             return False
-        return ((self._obj_type == other._obj_type) and
-                (self._subtype == other._subtype) and
-                (self._obj_id == other._obj_id) and
-                (self._seq_id == other._seq_id))
+        return ((self.obj_type == other.obj_type) and
+                (self.subtype == other.subtype) and
+                (self.obj_id == other.obj_id) and
+                (self.seq_id == other.seq_id))
 
     def __hash__(self):
         return hash(self.key())
@@ -195,24 +196,21 @@ class ProcessName(object):
 
     @property
     def seq_id(self):
-        return int(self._seq_id) if self._seq_id is not None else 0
+        return int(self._seq_id)
 
     @classmethod
-    def from_ref(cls, ref):
-        parts = ref.split("/")
-        if parts[0] == "refs":
-            parts = parts[2:]
+    def from_path(cls, path):
+        parts = path.split("/")
         if parts[0] not in ["sync", "try"]:
             return None
-        if len(parts) not in (3, 4):
+        if len(parts) != 4:
             return None
         return cls(*parts)
 
     @classmethod
     def with_seq_id(cls, repo, obj_type, subtype, obj_id):
-        existing = ProcessIndex(repo).get_by_obj(obj_type, subtype, obj_id)
-        existing_no_id = any(item.seq_id is None for item in existing)
-        last_id = 0 if existing_no_id else -1
+        existing = ProcessNameIndex(repo).get_by_obj(obj_type, subtype, obj_id)
+        last_id = -1
         for process_name in existing:
             if (process_name.seq_id is not None and
                 int(process_name.seq_id) > last_id):
@@ -231,7 +229,6 @@ class SyncPointName(object):
         self._obj_type = "sync"
         self._subtype = subtype
         self._obj_id = str(obj_id)
-        self._refs = []
 
         self._lock = None
 
@@ -270,13 +267,12 @@ class VcsRefObject(object):
 
     ref_prefix = None
 
-    def __init__(self, repo, process_name, commit_cls=sync_commit.Commit):
-        if not git.Reference(repo, self.process_path(process_name)).is_valid():
+    def __init__(self, repo, name, commit_cls=sync_commit.Commit):
+        if not git.Reference(repo, self.get_path(name)).is_valid():
             raise ValueError("No ref found in %s with path %s" %
-                             (repo.working_dir, self.process_path(process_name)))
+                             (repo.working_dir, self.get_path(name)))
         self.repo = repo
-        self._ref = str(process_name)
-        self.process_name = process_name
+        self.name = name
         self.commit_cls = commit_cls
         self._lock = None
 
@@ -285,7 +281,7 @@ class VcsRefObject(object):
 
     @property
     def lock_key(self):
-        return (self.process_name.subtype, self.process_name.obj_id)
+        return (self.name.subtype, self.name.obj_id)
 
     @classmethod
     def _cache_key(cls, repo, process_name, commit_cls=sync_commit.Commit):
@@ -295,28 +291,28 @@ class VcsRefObject(object):
         return commit_cls == self.commit_cls
 
     @classmethod
-    @constructor(lambda args: (args["process_name"].subtype,
-                               args["process_name"].obj_id))
-    def create(cls, lock, repo, process_name, obj, commit_cls=sync_commit.Commit):
-        path = cls.process_path(process_name)
-        if git.Reference(repo, cls.process_path(process_name)).is_valid():
+    @constructor(lambda args: (args["name"].subtype,
+                               args["name"].obj_id))
+    def create(cls, lock, repo, name, obj, commit_cls=sync_commit.Commit):
+        path = cls.get_path(name)
+        if git.Reference(repo, cls.get_path(name)).is_valid():
             raise ValueError("Ref %s already exists" % path)
 
-        return cls._create(lock, repo, process_name, obj, commit_cls)
+        return cls._create(lock, repo, name, obj, commit_cls)
 
     def __str__(self):
-        return self._ref
+        return self.path
 
     def delete(self):
-        self.repo.git.update_ref("-d", self.path)
+        self.ref.delete(self.repo, self.path)
 
     @classmethod
-    def process_path(cls, process_name):
-        return "refs/%s/%s" % (cls.ref_prefix, str(process_name))
+    def get_path(cls, name):
+        return "refs/%s/%s" % (cls.ref_prefix, str(name))
 
     @property
     def path(self):
-        return "refs/%s/%s" % (self.ref_prefix, self._ref)
+        return self.get_path(self.name)
 
     @property
     def ref(self):
@@ -326,17 +322,16 @@ class VcsRefObject(object):
         return None
 
     @classmethod
-    @constructor(lambda args: (args["process_name"].subtype,
-                               args["process_name"].obj_id))
-    def _create(cls, lock, repo, process_name, obj, commit_cls=sync_commit.Commit):
-        path = cls.process_path(process_name)
+    @constructor(lambda args: (args["name"].subtype,
+                               args["name"].obj_id))
+    def _create(cls, lock, repo, name, obj, commit_cls=sync_commit.Commit):
+        path = cls.get_path(name)
         logger.debug("Creating ref %s" % path)
         ref = git.Reference(repo, path)
         if ref.is_valid():
             raise ValueError("Ref %s exists" % (ref.path,))
         ref.set_object(obj)
-        ProcessIndex(repo).insert(process_name)
-        return cls(repo, process_name, commit_cls)
+        return cls(repo, name, commit_cls)
 
     @property
     def commit(self):
@@ -358,40 +353,42 @@ class BranchRefObject(VcsRefObject):
     ref_prefix = "heads"
 
 
-class DataRefObject(VcsRefObject):
-    ref_prefix = "syncs"
-
-
 class CommitBuilder(object):
-    def __init__(self, repo, message, initial=None, ref=None, commit_cls=sync_commit.Commit):
+    def __init__(self, repo, message, ref=None, commit_cls=sync_commit.Commit):
         self.repo = repo
-        self.message = message
+        self.message = message if message is not None else ""
         self.commit_cls = commit_cls
-        self.initial = initial
         self.ref = ref
         self.parents = None
         self.lock = RepoLock(repo)
         self._commit = None
+        self._count = 0
 
     def __enter__(self):
-        assert self._commit is None
+        self._count += 1
+        if self._count != 1:
+            return self
+
         self.lock.__enter__()
         # First we create an empty index
         if self.ref is not None:
-            ref = git.Reference(self.repo, self.ref)
-            if ref.is_valid():
-                self.parents = [ref.commit.hexsha]
+            if self.ref.is_valid():
+                self.parents = [self.ref.commit.hexsha]
 
-        if self.initial is None:
+        if self.ref is None or not self.ref.is_valid():
             read_tree_args = ()
             read_tree_kwargs = {"empty": True}
         else:
-            read_tree_args = (self.initial,)
+            read_tree_args = (self.ref.commit.tree,)
             read_tree_kwargs = {}
         self.repo.git.read_tree(*read_tree_args, **read_tree_kwargs)
         return self
 
     def __exit__(self, *args, **kwargs):
+        self._count -= 1
+        if self._count != 0:
+            return
+
         tree_id = self.repo.git.write_tree()
         args = ["-m", self.message]
         if self.parents is not None:
@@ -401,8 +398,7 @@ class CommitBuilder(object):
         sha1 = self.repo.git.commit_tree(*args)
         self.repo.git.read_tree(empty=True)
         if self.ref:
-            ref = git.Reference(self.repo, self.ref)
-            ref.set_object(sha1)
+            self.ref.set_object(sha1)
         self.lock.__exit__(*args, **kwargs)
         self._commit = self.commit_cls(self.repo, sha1)
 
@@ -427,79 +423,79 @@ class CommitBuilder(object):
 
 class ProcessData(object):
     __metaclass__ = IdentityMap
-    path = "data"
     obj_type = None
 
     def __init__(self, repo, process_name):
-        self.process_name = process_name
+        assert process_name.obj_type == self.obj_type
         self.repo = repo
-        self.ref = DataRefObject(repo, process_name)
+        self.process_name = process_name
+        self.ref = git.Reference(repo, env.config["sync"]["ref"])
+        self.path = self.get_path(process_name)
         self._data = self._load()
         self._lock = None
         self._updated = set()
         self._deleted = set()
-        self._index_changes = []
+        self._delete = False
 
     def __repr__(self):
         return "<%s %s>" % (self.__class__.__name__, self.process_name)
 
     def as_mut(self, lock):
-        return MutGuard(lock, self, [self.ref])
+        return MutGuard(lock, self)
 
     def exit_mut(self):
-        import index
-        if self._updated or self._deleted:
-            message = []
-            if self._updated:
-                message.append("Updated: %s" % (", ".join(self._updated),))
-            if self._deleted:
-                message.append("Deleted: %s" % (", ".join(self._deleted),))
-            self._save(self._data, message=" ".join(message))
+        message = "Update %s\n\n" % self.path
+        with CommitBuilder(self.repo, message=message, ref=self.ref) as commit:
+            import index
+            if self._delete:
+                self._delete_data("  Delete %s" % self.path)
+                self._delete = False
+
+            elif self._updated or self._deleted:
+                message = []
+                if self._updated:
+                    message.append("  Updated: %s" % (", ".join(self._updated),))
+                if self._deleted:
+                    message.append("  Deleted: %s" % (", ".join(self._deleted),))
+                self._save(self._data, message=" ".join(message), commit_builder=commit)
+
             self._updated = set()
             self._deleted = set()
-        for idx in index.indicies.values():
-            idx.save()
+
+            for idx in index.indicies.values():
+                idx.save(commit_builder=commit)
 
     @classmethod
     @constructor(lambda args: (args["process_name"].subtype,
                                args["process_name"].obj_id))
     def create(cls, lock, repo, process_name, data, message="Sync data"):
-        with CommitBuilder(repo, message) as commit:
-            commit.add_tree({cls.path: json.dumps(data)})
-        DataRefObject.create(lock, repo, process_name, commit.get().commit)
+        assert process_name.obj_type == cls.obj_type
+        path = cls.get_path(process_name)
+        ref = git.Reference(repo, env.config["sync"]["ref"])
+        try:
+            ref.commit.tree[path]
+        except KeyError:
+            pass
+        else:
+            raise ValueError("%s already exists at path %s" % (cls.__name__, ref.path))
+        with CommitBuilder(repo, message, ref=ref) as commit:
+            commit.add_tree({path: json.dumps(data)})
+        ProcessNameIndex(repo).insert(process_name)
         return cls(repo, process_name)
-
-    def _save(self, data, message):
-        commit = self.create_commit(self.repo,
-                                    self.path,
-                                    self._data,
-                                    ref=self.ref.path,
-                                    message=message)
-        self.ref.ref.set_commit(commit.sha1)
-
-    def _load(self):
-        return json.load(self.ref.ref.commit.tree[self.path].data_stream)
-
-    @staticmethod
-    def create_commit(repo, path, data, message, ref=None):
-        tree = {path: json.dumps(data)}
-        with CommitBuilder(repo, message=message, ref=ref) as commit:
-            commit.add_tree(tree)
-        return commit.get()
-
-    @property
-    def lock_key(self):
-        return (self.process_name.subtype, self.process_name.obj_id)
 
     @classmethod
     def _cache_key(cls, repo, process_name):
         return (repo, process_name.key())
 
     @classmethod
+    def get_path(self, process_name):
+        return str(process_name)
+
+    @classmethod
     def load_by_obj(cls, repo, subtype, obj_id):
-        process_names = ProcessIndex(repo).get_by_obj(cls.obj_type,
-                                                      subtype,
-                                                      obj_id)
+        process_names = ProcessNameIndex(repo).get_by_obj(cls.obj_type,
+                                                          subtype,
+                                                          obj_id)
         rv = set()
         for process_name in process_names:
             rv.add(cls(repo, process_name))
@@ -515,6 +511,32 @@ class ProcessData(object):
         for process_name in process_names:
             rv.add(cls(repo, process_name))
         return rv
+
+    def _save(self, data, message, commit_builder=None):
+        if commit_builder is None:
+            commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref)
+        else:
+            commit_builder.message += message
+        tree = {self.path: json.dumps(data)}
+        with commit_builder as commit:
+            commit.add_tree(tree)
+        return commit.get()
+
+    def _delete_data(self, message, commit_builder=None):
+        if commit_builder is None:
+            commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref)
+        with commit_builder as commit:
+            commit.delete([self.path])
+
+    def _load(self):
+        try:
+            return json.load(self.ref.commit.tree[self.path].data_stream)
+        except KeyError:
+            return {}
+
+    @property
+    def lock_key(self):
+        return (self.process_name.subtype, self.process_name.obj_id)
 
     def __getitem__(self, key):
         return self._data[key]
@@ -540,6 +562,14 @@ class ProcessData(object):
         if key in self._data:
             del self._data[key]
             self._deleted.add(key)
+
+    @mut()
+    def delete(self):
+        self._delete = True
+
+
+class SyncData(ProcessData):
+    obj_type = "sync"
 
 
 class CommitFilter(object):
@@ -598,8 +628,8 @@ class CommitRange(object):
 
     @property
     def lock_key(self):
-        return (self._head_ref.process_name.subtype,
-                self._head_ref.process_name.obj_id)
+        return (self._head_ref.name.subtype,
+                self._head_ref.name.obj_id)
 
     def __getitem__(self, index):
         return self.commits[index]
@@ -778,7 +808,7 @@ class SyncProcess(object):
 
         self.process_name = process_name
 
-        self.data = ProcessData(git_gecko, process_name)
+        self.data = SyncData(git_gecko, process_name)
 
         self.gecko_commits = CommitRange(git_gecko,
                                          self.data["gecko-base"],
@@ -800,7 +830,7 @@ class SyncProcess(object):
         self.wpt_worktree = Worktree(git_wpt, process_name)
 
         # Hold onto indexes for the lifetime of the SyncProcess object
-        self._indexes = {ProcessIndex(git_gecko)}
+        self._indexes = {ProcessNameIndex(git_gecko)}
 
     @classmethod
     def _cache_key(cls, git_gecko, git_wpt, process_name):
@@ -825,7 +855,7 @@ class SyncProcess(object):
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
         import index
-        idx = index.PrIdIndex.get_or_create(git_gecko)
+        idx = index.PrIdIndex(git_gecko)
         process_name = idx.get((str(pr_id),))
         if process_name:
             return cls(git_gecko, git_wpt, process_name)
@@ -848,7 +878,7 @@ class SyncProcess(object):
         idx_key = (bug,)
         if len(statuses) == 1:
             idx_key == (bug, list(statuses)[0])
-        idx = index.BugIdIndex.get_or_create(git_gecko)
+        idx = index.BugIdIndex(git_gecko)
 
         process_names = idx.get(idx_key)
         for process_name in process_names:
@@ -862,9 +892,9 @@ class SyncProcess(object):
 
     @classmethod
     def load_by_obj(cls, git_gecko, git_wpt, obj_id):
-        process_names = ProcessIndex(git_gecko).get_by_obj(cls.obj_type,
-                                                           cls.sync_type,
-                                                           obj_id)
+        process_names = ProcessNameIndex(git_gecko).get_by_obj(cls.obj_type,
+                                                               cls.sync_type,
+                                                               obj_id)
         rv = set()
         for process_name in process_names:
             rv.add(cls(git_gecko, git_wpt, process_name))
@@ -873,7 +903,7 @@ class SyncProcess(object):
     @classmethod
     def load_by_status(cls, git_gecko, git_wpt, status):
         import index
-        idx = index.SyncIndex.get_or_create(git_gecko)
+        idx = index.SyncIndex(git_gecko)
         key = (cls.obj_type, cls.sync_type, status)
         process_names = idx.get(key)
         rv = set()
@@ -1121,7 +1151,7 @@ class SyncProcess(object):
     def latest_try_push(self):
         try_pushes = self.try_pushes()
         if try_pushes:
-            try_pushes = sorted(try_pushes, key=lambda x: x.ref.process_name.seq_id)
+            try_pushes = sorted(try_pushes, key=lambda x: x.process_name.seq_id)
             return try_pushes[-1]
 
     def wpt_renames(self):
@@ -1168,20 +1198,20 @@ class SyncProcess(object):
         if not cls.multiple_syncs and process_name.seq_id != 0:
             raise ValueError("Tried to create new %s sync for %s %s but one already exists" % (
                 cls.obj_id, cls.sync_type, obj_id))
-        ProcessData.create(lock, git_gecko, process_name, data)
+        SyncData.create(lock, git_gecko, process_name, data)
         BranchRefObject.create(lock, git_gecko, process_name, gecko_head, sync_commit.GeckoCommit)
         BranchRefObject.create(lock, git_wpt, process_name, wpt_head, sync_commit.WptCommit)
 
         rv = cls(git_gecko, git_wpt, process_name)
 
-        idx = index.SyncIndex.get_or_create(git_gecko)
+        idx = index.SyncIndex(git_gecko)
         idx.insert(idx.make_key(rv), process_name).save()
 
         if cls.obj_id == "bug":
-            bug_idx = index.BugIdIndex.get_or_create(git_gecko)
+            bug_idx = index.BugIdIndex(git_gecko)
             bug_idx.insert(bug_idx.make_key(rv), process_name).save()
         elif cls.obj_id == "pr":
-            pr_idx = index.PrIdIndex.get_or_create(git_gecko)
+            pr_idx = index.PrIdIndex(git_gecko)
             pr_idx.insert(pr_idx.make_key(rv), process_name).save()
         return rv
 
@@ -1224,7 +1254,6 @@ class SyncProcess(object):
     def delete(self):
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
-        self.process_name.delete()
 
 
 class entry_point(object):

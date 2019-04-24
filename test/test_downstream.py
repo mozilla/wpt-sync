@@ -3,7 +3,7 @@ from datetime import datetime
 
 import taskcluster
 
-from sync import downstream, handlers, load, tc, tree, trypush
+from sync import downstream, handlers, load, tc, trypush
 from sync.lock import SyncLock
 
 
@@ -177,7 +177,8 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
                 assert sync.metadata_ready
                 assert not sync.next_try_push()
 
-                pull_request_commit(pr.number, [("Second test commit", {"README": "Another change\n"})])
+                pull_request_commit(pr.number, [("Second test commit",
+                                                 {"README": "Another change\n"})])
                 git_wpt.remotes.origin.fetch()
 
                 sync.update_commits()

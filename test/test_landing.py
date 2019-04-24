@@ -24,7 +24,6 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                         "LICENSE": "Some change"})])
     head_rev = pr._commits[0]["sha"]
 
-
     trypush.Mach = mock_mach
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = set_pr_status(pr, "success")

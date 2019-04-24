@@ -1,5 +1,6 @@
 import argparse
 import itertools
+import json
 import os
 import re
 import subprocess
@@ -610,6 +611,7 @@ def do_build_index(git_gecko, git_wpt, **kwargs):
 def do_migrate(git_gecko, git_wpt, **kwargs):
     # Migrate refs from the refs/<type>/<subtype>/<status>/<obj_id>[/<seq_id>] format
     # to refs/<type>/<subtype>/<obj_id>/<seq_id>
+    import base
 
     sync_ref = re.compile("^refs/"
                           "(?P<reftype>[^/]*)/"
@@ -617,7 +619,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                           "(?P<subtype>[^/]*)/"
                           "(?P<status>[^/]*)/"
                           "(?P<obj_id>[^/]*)/"
-                          "(?:(?P<seq_id>\d*))?$")
+                          "(?:(?P<seq_id>[0-9]*))?$")
     for ref in itertools.chain(git_gecko.refs, git_wpt.refs):
         m = sync_ref.match(ref.path)
         if not m:
@@ -632,6 +634,26 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                                            m.group("obj_id"),
                                            m.group("seq_id") or "0")
         ref.rename(new_ref)
+
+    # Migrate from refs/syncs/ to paths
+    sync_ref = re.compile("^refs/"
+                          "syncs/"
+                          "(?P<obj_type>[^/]*)/"
+                          "(?P<subtype>[^/]*)/"
+                          "(?P<obj_id>[^/]*)/"
+                          "(?P<seq_id>[0-9]*)$")
+    with base.CommitBuilder(ref.repo, "Migrate to single ref for data") as commit:
+        for ref in itertools.chain(git_gecko.refs, git_wpt.refs):
+            m = sync_ref.match(ref.path)
+            if not m:
+                continue
+            data = json.load(ref.commit.tree["data"].data_stream)
+            path = "%s/%s/%s/%s" % (m.group("obj type"),
+                                    m.group("subtype"),
+                                    m.group("obj_id"),
+                                    m.group("seq_id"))
+            tree = {path: json.dumps(data)}
+            commit.add_tree(tree)
 
 
 def set_config(opts):
