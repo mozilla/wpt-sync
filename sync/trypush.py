@@ -384,12 +384,8 @@ class TryPush(base.ProcessData):
     def wpt_head(self):
         return self.get("wpt-head")
 
-    @mut()
-    def delete(self):
-        self.ref.process_name.delete()
-
     def sync(self, git_gecko, git_wpt):
-        process_name = self.ref.process_name
+        process_name = self.process_name
         syncs = get_syncs(git_gecko,
                           git_wpt,
                           process_name.subtype,

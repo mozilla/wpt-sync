@@ -3,11 +3,13 @@ from collections import defaultdict
 
 import git
 
+import env
 import log
 from base import ProcessName, CommitBuilder
 
 
 logger = log.get_logger(__name__)
+env = env.Environment()
 
 
 class Index(object):
@@ -31,7 +33,7 @@ class Index(object):
             self.changes = defaultdict(constructors[-1])
 
         self.repo = repo
-        self.ref = git.Reference(repo, "refs/syncs/index/%s" % self.name)
+        self.ref = git.Reference(repo, env.config["sync"]["ref"])
 
     @classmethod
     def create(cls, repo):
@@ -39,17 +41,25 @@ class Index(object):
         data = {"name": cls.name,
                 "fields": list(cls.key_fields),
                 "unique": cls.unique}
-        tree = {"_metadata": json.dumps(data, indent=0)}
+        meta_path = "index/%s/_metadata" % cls.name
+        tree = {meta_path: json.dumps(data, indent=0)}
         with CommitBuilder(repo,
                            message="Create index %s" % cls.name,
-                           ref="refs/syncs/index/%s" % cls.name) as commit:
+                           ref=git.Reference(repo, env.config["sync"]["ref"])) as commit:
             commit.add_tree(tree)
         return cls(repo)
 
     @classmethod
+    def get_root_path(cls):
+        return "index/%s" % cls.name
+
+    @classmethod
     def get_or_create(cls, repo):
-        ref_name = "refs/syncs/index/%s" % cls.name
-        if not git.Reference(repo, ref_name).is_valid():
+        ref_name = "refs/syncs/data"
+        ref = git.Reference(repo, ref_name)
+        try:
+            ref.commit.tree["index/%s" % cls.name]
+        except KeyError:
             return cls.create(repo)
         return cls(repo)
 
@@ -69,7 +79,7 @@ class Index(object):
         return rv
 
     def _read(self, key, include_local=True):
-        path = "/".join(key)
+        path = "%s/%s" % (self.get_root_path(), "/".join(key))
         try:
             root = self.ref.commit.tree[path]
         except KeyError:
@@ -120,18 +130,21 @@ class Index(object):
             return set(rv)
         return set([rv])
 
-    def save(self, message=None):
+    def save(self, commit_builder=None, message=None):
+        if commit_builder is None:
+            commit_builder = CommitBuilder(self.repo,
+                                           message,
+                                           ref=self.ref)
         if message is None:
-            message = "Update index %s\n\n" % self.name
+            message = "Update index %s\n" % self.name
             changes = self._read_changes(None)
 
             for key_changes in changes.itervalues():
                 for _, _, msg in key_changes:
-                    message += "%s\n" % msg
-        with CommitBuilder(self.repo,
-                           message,
-                           ref=self.ref.path,
-                           initial=self.ref.commit.tree) as commit:
+                    message += "  %s\n" % msg
+            commit_builder.message += message
+
+        with commit_builder as commit:
             for key, key_changes in changes.iteritems():
                 self._update_key(commit, key, key_changes)
         self.__class__.changes = None
@@ -179,7 +192,9 @@ class Index(object):
             if old_value is None:
                 new.add(new_value)
 
-        path = "/".join(key)
+        path_suffix = "/".join(key)
+
+        path = "%s/%s" % (self.get_root_path(), path_suffix)
 
         if new == existing:
             return
