@@ -9,8 +9,6 @@ import settings
 
 root = logging.getLogger()
 
-configured = set()
-
 
 @settings.configure
 def setup(config):

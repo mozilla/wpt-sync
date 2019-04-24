@@ -102,15 +102,6 @@ method as_mut - Used to make the object mutable. Returns a MutGuard
 """
 
 
-def repo_lock(f):
-    def inner(repo, *args, **kwargs):
-        with RepoLock(repo):
-            return f(repo, *args, **kwargs)
-    inner.__name__ = f.__name__
-    inner.__doc__ = f.__doc__
-    return inner
-
-
 class LockError(Exception):
     pass
 

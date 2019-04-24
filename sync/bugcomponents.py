@@ -61,7 +61,7 @@ def remove_obsolete(path, moves=None):
             unmatched_patterns.add(path_pat)
             node_patterns[path_pat] = (node, match_values)
 
-    for base_path, dirs, files in os.walk(base_dir):
+    for base_path, _, files in os.walk(base_dir):
         for filename in files:
             path = os.path.relpath(os.path.join(base_path, filename),
                                    base_dir)

@@ -81,6 +81,7 @@ def setup(config):
     logger.info("Gecko repository: %s" % git_gecko.working_dir)
     logger.info("wpt repository: %s" % git_wpt.working_dir)
     logger.info("Tasks enabled: %s" % (", ".join(config["sync"]["enabled"].keys())))
+
     return git_gecko, git_wpt
 
 

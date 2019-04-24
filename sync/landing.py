@@ -106,10 +106,6 @@ class LandingSync(SyncProcess):
         return (all(item in metadata for item in required_keys) and
                 metadata["wpt-type"] == "landing")
 
-    def check_finished(self):
-        return self.git_gecko.is_ancestor(self.gecko_integration_branch(),
-                                          self.branch_name)
-
     def unlanded_gecko_commits(self):
         """Get a list of gecko commits that correspond to commits which have
         landed on the gecko integration branch, but are not yet merged into the
@@ -385,21 +381,6 @@ Automatic update from web-platform-tests\n%s
             err_msg = ("Landing wpt failed because reapplying commits failed:\n%s" % (e.message,))
             env.bz.comment(self.bug, err_msg)
             raise AbortError(err_msg)
-
-    @mut()
-    def manifest_update(self):
-        git_work = self.gecko_worktree.get()
-        git_work.git.reset(hard=True)
-        mach = Mach(git_work.working_dir)
-        mach.wpt_manifest_update()
-        if git_work.is_dirty():
-            manifest_path = os.path.join(env.config["gecko"]["path"]["meta"],
-                                         "MANIFEST.json")
-            git_work.git.add(manifest_path)
-            git_work.git.commit(amend=True, no_edit=True)
-        if git_work.is_dirty():
-            # This can happen if the mozilla/meta/MANIFEST.json is updated
-            git_work.git.reset(hard=True)
 
     @mut()
     def add_metadata(self, sync):
