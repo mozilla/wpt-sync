@@ -154,16 +154,6 @@ class GitHub(object):
         )
         return data["sha"]
 
-    def approve_pull(self, pr_id):
-        pr = self.get_pull(pr_id)
-        post_parameters = {"body": "Reviewed upstream",
-                           "event": "APPROVE"}
-        headers, data = pr._requester.requestJsonAndCheck(
-            "PUT",
-            pr.url + "/reviews",
-            input=post_parameters
-        )
-
     def pr_for_commit(self, sha):
         logger.info("Looking up PR for commit %s" % sha)
         owner, repo = self.repo_name.split("/")
@@ -319,10 +309,6 @@ class MockGitHub(GitHub):
     def is_approved(self, pr_id):
         pr = self.get_pull(pr_id)
         return pr._approved
-
-    def approve_pull(self, pr_id):
-        pr = self.get_pull(pr_id)
-        pr.approved = True
 
     def pr_for_commit(self, sha):
         return self.commit_prs.get(sha)

@@ -10,7 +10,6 @@ logger = log.get_logger(__name__)
 
 class GitSettings(object):
     name = None
-    bare = True
     cinnabar = False
 
     def __init__(self, config):
@@ -94,9 +93,6 @@ class Cinnabar(object):
                 raise ValueError("No hg rev corresponding to git rev %s" % rev)
             self.git2hg_cache[rev] = value
         return self.git2hg_cache[rev]
-
-    def fsck(self):
-        self.git.cinnabar("fsck")
 
 
 wrappers = {

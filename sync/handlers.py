@@ -1,5 +1,3 @@
-import traceback
-
 import downstream
 import log
 import landing
@@ -16,20 +14,6 @@ from lock import SyncLock
 env = Environment()
 
 logger = log.get_logger(__name__)
-
-
-def log_exceptions(f):
-    def inner(*args, **kwargs):
-        try:
-            return f(*args, **kwargs)
-        except Exception as e:
-            logger.critical("%s failed with error:%s" % (f.__name__, traceback.format_exc(e)))
-            # For now:
-            raise
-
-    inner.__name__ = f.__name__
-    inner.__doc__ = f.__doc__
-    return inner
 
 
 class Handler(object):

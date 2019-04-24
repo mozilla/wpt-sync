@@ -1,7 +1,6 @@
 import itertools
 import json
 import os
-import re
 import shutil
 import subprocess
 import traceback
@@ -18,8 +17,6 @@ import commit as sync_commit
 from env import Environment
 
 env = Environment()
-
-invalid_re = re.compile(".*[-_]")
 
 logger = log.get_logger(__name__)
 

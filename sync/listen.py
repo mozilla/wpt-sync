@@ -16,11 +16,10 @@ logger = log.get_logger(__name__)
 
 class Listener(ConsumerMixin):
     """Manages a single kombu.Consumer."""
-    def __init__(self, conn, exchanges, queues, extra_data):
+    def __init__(self, conn, exchanges, queues):
         self.connection = conn
         self._callbacks = {item: [] for item in exchanges}
         self._queues = queues
-        self._extra_data = extra_data
         self.connect_max_retries = 10
 
     def get_consumers(self, Consumer, channel):
@@ -84,7 +83,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None):
         queue.queue_declare()
         queue.queue_bind()
 
-    return Listener(conn, [item[1] for item in exchanges], queues, extra_data)
+    return Listener(conn, [item[1] for item in exchanges], queues)
 
 
 def run_pulse_listener(config):

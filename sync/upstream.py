@@ -155,17 +155,6 @@ class UpstreamSync(base.SyncProcess):
     def gecko_commit_filter(self):
         return BackoutCommitFilter(self.bug)
 
-    def update_wpt_refs(self):
-        # Check if the remote was updated under us
-        if (self.remote_branch is None or
-            self.remote_branch not in self.git_wpt.remotes.origin.refs):
-            return
-
-        remote_head = self.git_wpt.refs["origin/%s" % self.remote_branch]
-        if remote_head.commit.hexsha != self.wpt_commits.head.sha1:
-            self.wpt_commits.head = sync_commit.WptCommit(self.git_wpt,
-                                                          remote_head.commit.hexsha)
-
     @property
     def landable_status(self):
         return base.LandableStatus.upstream
