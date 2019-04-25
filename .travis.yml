@@ -32,7 +32,7 @@ matrix:
         - docker build -t wptsync_dev --file docker/Dockerfile.dev .
         - sudo chown -R 10001 .
       script:
-        - docker run -it --add-host=rabbitmq:127.0.0.1 wptsync_dev --test --no-flake8
+        - ./bin/run_docker_dev.sh test --no-flake8
 
     # Job 3: Static Analysis
     - env: static-analysis
