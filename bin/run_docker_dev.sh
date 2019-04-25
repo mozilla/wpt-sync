@@ -30,10 +30,6 @@ if [[ $command == "build" ]]; then
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $command == "test" ]]; then
     exec docker run -it --mount type=bind,source=$(pwd),target=/app/wpt-sync wptsync_dev --test
-elif [[ $command == "clean" ]]; then
-    rm -rf workspace
-    rm -rf repos
-    rm -rf devenv
 elif [[ $command == "run" ]]; then
     exec docker run -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
@@ -41,9 +37,11 @@ elif [[ $command == "run" ]]; then
     --env WPTSYNC_SSH_CONFIG=/app/wpt-sync/devenv/ssh_config \
     --env WPTSYNC_GECKO_CONFIG=/app/wpt-sync/devenv/gecko_config \
     --env WPTSYNC_WPT_CONFIG=/app/wpt-sync/devenv/wpt_config \
-    --mount type=bind,source=$(pwd),target=/app/wpt-sync \
+    --mount type=bind,source=$(pwd)/devenv,target=/app/wpt-sync/devenv \
+    --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
+    --mount type=bind,source=$(pwd)/test,target=/app/wpt-sync/test \
     --mount type=bind,source=$(pwd)/repos,target=/app/repos \
     --mount type=bind,source=$(pwd)/workspace,target=/app/workspace wptsync_dev $@
 else
-  echo "Usage: $0 build|test|clean|run [optional args to for <run>...]"
+  echo "Usage: $0 build|test|run [optional args to for <run>...]"
 fi
