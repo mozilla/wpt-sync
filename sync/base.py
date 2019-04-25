@@ -9,6 +9,7 @@ from collections import defaultdict
 
 import enum
 import git
+import pygit2
 from lock import MutGuard, RepoLock, mut, constructor
 
 import bug
@@ -352,14 +353,46 @@ class BranchRefObject(VcsRefObject):
 
 class CommitBuilder(object):
     def __init__(self, repo, message, ref=None, commit_cls=sync_commit.Commit):
-        self.repo = repo
+        """Object to be used as a context manager for commiting changes to the repo.
+
+        This class provides low-level access to the git repository in order to
+        make commits without requiring a checkout. It also enforces locking so that
+        only one process may make a commit at a time.
+
+        In order to use the object, one initalises it and then invokes it as a context
+        manager e.g.
+
+        with CommitBuilder(repo, "Some commit message" ref=ref) as commit_builder:
+            # Now we have acquired the lock so that the commit ref points to is fixed
+            commit_builder.add_tree({"some/path": "Some file data"})
+            commit_bulder.delete(["another/path"])
+        # On exiting the context, the commit is created, the ref updated to point at the
+        # new commit and the lock released
+
+        # To get the created commit we call get
+        commit = commit_builder.get()
+
+        The class may be used reentrantly. This is to support a pattern where a method
+        may be called either with an existing commit_builder instance or create a new
+        instance, and in either case use a with block.
+
+        In order to improve the performance of the low-level access here, we use libgit2
+        to access the repository.
+        """
+        # Class state
+        self.gitpython_repo = repo
+        self.repo = pygit2.Repository(repo.working_dir)
         self.message = message if message is not None else ""
         self.commit_cls = commit_cls
-        self.ref = ref
-        self.parents = None
-        self.lock = RepoLock(repo)
-        self._commit = None
+        self.ref = ref.path if ref else None
+
         self._count = 0
+
+        # State set for the life of the context manager
+        self.lock = RepoLock(repo)
+        self.parents = None
+        self.commit = None
+        self.index = None
 
     def __enter__(self):
         self._count += 1
@@ -367,18 +400,18 @@ class CommitBuilder(object):
             return self
 
         self.lock.__enter__()
-        # First we create an empty index
-        if self.ref is not None:
-            if self.ref.is_valid():
-                self.parents = [self.ref.commit.hexsha]
 
-        if self.ref is None or not self.ref.is_valid():
-            read_tree_args = ()
-            read_tree_kwargs = {"empty": True}
-        else:
-            read_tree_args = (self.ref.commit.tree,)
-            read_tree_kwargs = {}
-        self.repo.git.read_tree(*read_tree_args, **read_tree_kwargs)
+        # First we create an empty index
+        self.index = pygit2.Index()
+
+        if self.ref is not None:
+            try:
+                ref = self.repo.lookup_reference(self.ref)
+            except KeyError:
+                self.parents = []
+            else:
+                self.parents = [ref.peel().id]
+                self.index.read_tree(ref.peel().tree)
         return self
 
     def __exit__(self, *args, **kwargs):
@@ -386,36 +419,30 @@ class CommitBuilder(object):
         if self._count != 0:
             return
 
-        tree_id = self.repo.git.write_tree()
-        args = ["-m", self.message]
-        if self.parents is not None:
-            for item in self.parents:
-                args.extend(["-p", item])
-        args.append(tree_id)
-        sha1 = self.repo.git.commit_tree(*args)
-        self.repo.git.read_tree(empty=True)
-        if self.ref:
-            self.ref.set_object(sha1)
+        tree_id = self.index.write_tree(self.repo)
+
+        sha1 = self.repo.create_commit(self.ref,
+                                       self.repo.default_signature,
+                                       self.repo.default_signature,
+                                       self.message,
+                                       tree_id,
+                                       self.parents)
         self.lock.__exit__(*args, **kwargs)
-        self._commit = self.commit_cls(self.repo, sha1)
+        self._commit = self.commit_cls(self.gitpython_repo, sha1)
 
     def add_tree(self, tree):
         for path, data in tree.iteritems():
-            proc = self.repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
-                                             istream=subprocess.PIPE)
-            stdout, stderr = proc.communicate(data)
-            if proc.returncode is not 0:
-                raise git.GitCommandError(["git", "hash-object", "-w", "--path=%s" % path],
-                                          proc.returncode, stderr, stdout)
-            self.repo.git.update_index("100644", stdout, path, add=True, cacheinfo=True)
+            blob = self.repo.create_blob(data)
+            index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
+            self.index.add(index_entry)
 
     def delete(self, delete):
         if delete:
             for path in delete:
-                self.repo.git.rm(path, cached=True)
+                self.index.remove(path)
 
     def get(self):
-        return self._commit
+        return self.commit
 
 
 class ProcessData(object):
