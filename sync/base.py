@@ -2,7 +2,6 @@ import itertools
 import json
 import os
 import shutil
-import subprocess
 import traceback
 import weakref
 from collections import defaultdict
