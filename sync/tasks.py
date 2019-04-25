@@ -68,6 +68,7 @@ def get_handlers(config):
 
 @settings.configure
 def setup(config):
+    env.set_env(config, None, None)
     gecko_repo = repos.Gecko(config)
     git_gecko = gecko_repo.repo()
     wpt_repo = repos.WebPlatformTests(config)

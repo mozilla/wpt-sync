@@ -39,6 +39,9 @@ class GitSettings(object):
         pass
 
     def configure(self, file):
+        if not os.path.exists(self.root):
+            os.makedirs(self.root)
+            git.Repo.init(self.root, bare=True)
         r = self.repo()
         shutil.copyfile(file, os.path.normpath(os.path.join(r.git_dir, "config")))
         logger.debug("Config from {} copied to {}".format(file, os.path.join(r.git_dir, "config")))
