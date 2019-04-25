@@ -24,12 +24,9 @@ class GitSettings(object):
         return self.config[self.name]["repo"]["remote"].iteritems()
 
     def repo(self):
-        if not os.path.exists(self.root):
-            os.makedirs(self.root)
-            repo = git.Repo.init(self.root, bare=True)
-        else:
-            repo = git.Repo(self.root)
-            logger.debug("Existing repo found at " + self.root)
+        print self.root
+        repo = git.Repo(self.root)
+        logger.debug("Existing repo found at " + self.root)
 
         if self.cinnabar:
             repo.cinnabar = Cinnabar(repo)

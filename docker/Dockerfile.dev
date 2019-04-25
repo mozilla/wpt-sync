@@ -169,7 +169,7 @@ RUN /app/venv/bin/python /app/wpt-sync/setup.py develop --no-deps
 
 ENV PYTHONPATH=/app/wpt-sync
 ENV WPTSYNC_ROOT=/app/workspace
-ENV WPTSYNC_REPO_ROOT=/app/repos
+ENV WPTSYNC_REPO_ROOT=/app/
 # Allow git-cinnabar to find latest hg
 ENV PATH=/app/venv/bin:$PATH
 
