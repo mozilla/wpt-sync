@@ -29,8 +29,11 @@ if [[ $command == "build" ]]; then
     }
     docker build -t wptsync_dev --file docker/Dockerfile.dev .
 elif [[ $command == "test" ]]; then
-    exec docker run -it --mount type=bind,source=$(pwd),target=/app/wpt-sync wptsync_dev --test
-elif [[ $command == "run" ]]; then
+    exec docker run -it \
+         --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
+         --mount type=bind,source=$(pwd),target=/app/wpt-sync \
+         wptsync_dev --test
+elif [[ $]command == "run" ]]; then
     exec docker run -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
     --env WPTSYNC_CREDS=/app/wpt-sync/devenv/credentials.ini \
