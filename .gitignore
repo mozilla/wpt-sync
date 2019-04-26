@@ -21,5 +21,4 @@ build
 .cache
 celerybeat-schedule
 *.egg-info
-devenv
 *.retry
