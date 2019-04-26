@@ -34,8 +34,6 @@ You can include these customizations in a shell script or a docker-compose.yml:
 *   There's a dev-env convenience script for building the docker image and
     running the wptsync command in a corresponding container: `./bin/
     run_docker_dev.sh`. It is similar to the script we use in production.
-*   Alternately you can use __docker-compose__ (see below) or run docker
-    commands directly.
 
 ### Quick Setup
 
@@ -59,13 +57,6 @@ To run tests do the following
 ### Raw docker commands
 
 From repo root:
-
-The following will need to be setup before running the raw docker commands
-
-```
-mkdir -p devenv
-cp test/testdata/* devenv/
-```
 
 To build an image called `wptsync_dev` with the repo root as the build context:
 
@@ -129,46 +120,6 @@ sudo chown -R 10001 <path>
 ```
 
 You may not need to do this at all on mac.
-
-### Using docker-compose
-
-The docker-compose.yml file is provided as a convenience in the dev environment and it uses the same Dockerfile referenced in previous instructions.
-
-There are instructions in the docker-compose.yml file about how to customize
-your dev environment with appropriate mounts.
-
-From project dir you can run:
-
-```
-docker-compose build
-```
-
-Then to start the services with the default entrypoint (pulse listener):
-
-```
-docker-compose up
-```
-
-To start a bash shell that's initialized with the start_wptsync.sh script:
-
-```
-docker-compose run sync --shell
-```
-
-To run tests:
-
-```
-docker-compose run sync --test
-```
-
-
-To run an alternate command, e.g. foo, instead of the default entrypoint:
-
-```
-docker-compose run --entrypoint foo sync
-```
-
-You can also see an alternate way to run tests without docker-compose in `.travis.yml`.
 
 __Note__ that replacing the default entrypoint means that you're nolonger running the `start_wptsync.sh` script at container start-up and therefore some
 configuration may be missing or incomplete. For example, the Dockerfile (build-time) doesn't set up any credentials; instead, credentials are only set up in the container at run-time with the above-mentioned script.

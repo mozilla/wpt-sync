@@ -59,11 +59,11 @@ clean_pid() {
 }
 
 cp -v ${WPTSYNC_CONFIG:-/app/wpt-sync/sync.ini} /app/workspace/sync.ini
-cp -v ${WPTSYNC_NEW_RELIC_CONFIG:-/app/wpt-sync/newrelic.ini} /app/workspace/newrelic.ini
+cp -v ${WPTSYNC_NEW_RELIC_CONFIG:-/app/wpt-sync/config/newrelic.ini} /app/workspace/newrelic.ini
 
 if [ "$1" != "--test" ]; then
     eval "$(ssh-agent -s)"
-    cp -v ${WPTSYNC_SSH_CONFIG:-/app/wpt-sync/docker/ssh_config} /app/.ssh/config
+    cp -v ${WPTSYNC_SSH_CONFIG:-/app/wpt-sync/config/ssh_config} /app/.ssh/config
     # Install ssh keys
     cp -v ${WPTSYNC_GH_SSH_KEY:-/app/workspace/ssh/id_github} /app/.ssh/id_github
     cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/workspace/ssh/id_hgmo} /app/.ssh/id_hgmo
@@ -73,8 +73,8 @@ if [ "$1" != "--test" ]; then
         cp -v $WPTSYNC_CREDS /app/workspace/credentials.ini
     fi
     if [ "$1" != "--shell" ]; then
-        /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/docker/wpt_config}
-        /app/venv/bin/wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/docker/gecko_config}
+        /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/config/wpt_config}
+        /app/venv/bin/wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/config/gecko_config}
     fi
 fi
 
