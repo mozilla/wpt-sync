@@ -2,7 +2,7 @@ appnope==0.1.0
 attrs==19.1.0
 backports.shutil-get-terminal-size==1.0.0
 configparser==3.7.4
-coverage==4.4.2
+coverage==4.5.3
 decorator==4.2.1
 enum34==1.1.6
 flake8==3.5.0
