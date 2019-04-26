@@ -25,7 +25,7 @@ Pygments==2.3.1
 pytest==4.4.1
 pytest-cov==2.6.1
 pytest-env==0.6.2
-requests_mock==1.4.0
+requests_mock==1.5.2
 scandir==1.6
 simplegeneric==0.8.1
 six==1.11.0
