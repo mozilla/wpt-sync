@@ -4,7 +4,7 @@ RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 
 ENV RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq
-COPY ./docker/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+COPY ./config/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
 RUN echo LOG_BASE=/app/workspace/logs > /etc/rabbitmq/rabbitmq-env.conf
 
 COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
@@ -146,7 +146,7 @@ WORKDIR /app/wpt-sync
 RUN set -eux; \
     git config --global user.name moz-wptsync-bot; \
     git config --global user.email wptsync@mozilla.com; \
-    cp /app/wpt-sync/docker/known_hosts /app/.ssh/known_hosts; \
+    cp /app/wpt-sync/config/known_hosts /app/.ssh/known_hosts; \
     # Copy test credentials as a temporary placeholder in workspace, and to testdata
     cp /app/wpt-sync/test/testdata/credentials.ini /app/workspace/credentials.ini; \
     cp /app/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini; \
