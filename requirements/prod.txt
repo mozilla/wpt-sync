@@ -37,8 +37,8 @@ Mercurial==4.9.1 \
 mohawk==1.0.0 \
     --hash=sha256:aa57e6626a6ea323ab714779f23734de1d1feca8cb6fc00b65e65ce115c1696a \
     --hash=sha256:fca4e34d8f5492f1c33141c98b96e168a089e5692ce65fb747e4bb613f5fe552
-newrelic==2.106.1.88 \
-    --hash=sha256:0594dd63d7883d30c560e292d063a8dbc7b2ae11b889bec1e8eb9d0f11ab73a6
+newrelic==4.18.0.118 \
+    --hash=sha256:3cd496022c6906ee3cdbf27c67ec3e03922830bfebbca4549ef6f2e58cf719e2
 PyGithub==1.35 \
     --hash=sha256:fea1c5adedb0b2c641422efa7d22ad1af1b538a499faf25da14c0bb57e2cfefe
 PyJWT==1.5.3 \
