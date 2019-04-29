@@ -56,8 +56,9 @@ six==1.12.0 \
 smmap2==2.0.5 \
     --hash=sha256:0555a7bf4df71d1ef4218e4807bbf9b201f910174e6e08af2e138d4e517b4dde \
     --hash=sha256:29a9ffa0497e7f2be94ca0ed1ca1aa3cd4cf25a1f6b4f5f87f74b46ed91d609a
-slugid==1.0.7 \
-    --hash=sha256:6dab3c7eef0bb423fb54cb7752e0f466ddd0ee495b78b763be60e8a27f69e779
+slugid==2.0.0 \
+    --hash=sha256:a950d98b72691178bdd4d6c52743c4a2aa039207cf7a97d71060a111ff9ba297 \
+    --hash=sha256:aec8b0e01c4ad32e38e12d609eab3ec912fd129aaf6b2ded0199b56a5f8fd67c
 taskcluster==3.0.0 \
     --hash=sha256:e3be177449ee82905e1d8c60780082fa28e5ab13d14d51bc54a727e18b96f021
 urllib3==1.24.1 \
