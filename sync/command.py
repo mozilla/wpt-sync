@@ -603,7 +603,8 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
 
 def do_build_index(git_gecko, git_wpt, **kwargs):
     import index
-    for idx_cls in index.indices:
+    for idx_cls in index.indicies:
+        print "Building %s index" % idx_cls.name
         idx = idx_cls(git_gecko)
         idx.build(git_gecko, git_wpt)
 
@@ -611,30 +612,153 @@ def do_build_index(git_gecko, git_wpt, **kwargs):
 def do_migrate(git_gecko, git_wpt, **kwargs):
     # Migrate refs from the refs/<type>/<subtype>/<status>/<obj_id>[/<seq_id>] format
     # to refs/<type>/<subtype>/<obj_id>/<seq_id>
+    from collections import defaultdict
     import base
 
+    import pygit2
+
+    git2_gecko = pygit2.Repository(git_gecko.working_dir)
+    git2_wpt = pygit2.Repository(git_wpt.working_dir)
+
+    repo_map = {git_gecko: git2_gecko,
+                git_wpt: git2_wpt}
+    rev_repo_map = {value: key for key, value in repo_map.iteritems()}
+
+    special = {}
+
     sync_ref = re.compile("^refs/"
-                          "(?P<reftype>[^/]*)/"
-                          "(?P<obj_type>[^/]*)/"
-                          "(?P<subtype>[^/]*)/"
-                          "(?P<status>[^/]*)/"
-                          "(?P<obj_id>[^/]*)/"
-                          "(?:(?P<seq_id>[0-9]*))?$")
+                          "(?P<reftype>[^/]+)/"
+                          "(?P<obj_type>[^/]+)/"
+                          "(?P<subtype>[^/]+)/"
+                          "(?P<status>[^0-9/]+)/"
+                          "(?P<obj_id>[0-9]+)"
+                          "(?:/(?P<seq_id>[0-9]*))?$")
+    print "Updating refs"
+    seen = defaultdict(list)
+    total_refs = 0
+    processing_refs = 0
     for ref in itertools.chain(git_gecko.refs, git_wpt.refs):
-        m = sync_ref.match(ref.path)
+        git2_repo = repo_map[ref.repo]
+        ref = git2_repo.lookup_reference(ref.path)
+        total_refs += 1
+        if ref.name in special:
+            continue
+        m = sync_ref.match(ref.name)
         if not m:
             continue
         if m.group("reftype") not in ("heads", "syncs"):
             continue
         if m.group("obj_type") not in ("sync", "try"):
             continue
+        processing_refs += 1
+        assert m.group("subtype") in ("upstream", "downstream", "landing")
+        assert int(m.group("obj_id")) > 0
         new_ref = "refs/%s/%s/%s/%s/%s" % (m.group("reftype"),
                                            m.group("obj_type"),
                                            m.group("subtype"),
                                            m.group("obj_id"),
                                            m.group("seq_id") or "0")
-        ref.rename(new_ref)
+        seen[(git2_repo, new_ref)].append((ref, m.group("status")))
 
+    duplicate = {}
+    delete = set()
+    for (repo, new_ref), refs in seen.iteritems():
+        if len(refs) > 1:
+            # If we have multiple /syncs/ ref, but only one /heads/ ref, use the corresponding one
+            if new_ref.startswith("refs/syncs/"):
+                has_head = set()
+                no_head = set()
+                for ref, status in refs:
+                    if "refs/heads/%s" % ref.name[len("refs/syncs/")] in repo.references:
+                        has_head.add((ref.name, status))
+                    else:
+                        no_head.add((ref.name, status))
+                if len(has_head) == 1:
+                    print "  Using %s from %s" % (list(has_head)[0][0].path,
+                                                  " ".join(ref.name for ref, _ in refs))
+                    refs[:] = list(has_head)
+                    delete |= set((repo, ref_name) for ref_name, _ in no_head)
+
+        if len(refs) > 1:
+            # If we have a later status, prefer that over an earlier one
+            matches = {ref.name: sync_ref.match(ref.name) for ref, _ in refs}
+            by_status = {matches[ref.name].group("status"): (ref, status) for (ref, status) in refs}
+            for target_status in ["complete", "wpt-merged", "incomplete", "infra-fail"]:
+                if target_status in by_status:
+                    print "  Using %s from %s" % (by_status[target_status][0].name,
+                                                  " ".join(ref.name for ref, _ in refs))
+                    delete |= set((repo, ref.name) for ref, status in refs
+                                  if ref != by_status[target_status])
+                    refs[:] = [by_status[target_status]]
+
+        if len(refs) > 1:
+            duplicate[(repo, new_ref)] = refs
+
+    if duplicate:
+        print "  ERROR! Got duplicate %s source refs" % len(duplicate)
+        for (repo, new_ref), refs in duplicate.iteritems():
+            print "    %s %s: %s" % (repo.working_dir,
+                                     new_ref,
+                                     " ".join(ref.name for ref, _ in refs))
+        return
+
+    for (repo, new_ref), refs in seen.iteritems():
+        ref, _ = refs[0]
+
+        if ref.name.startswith("refs/syncs/sync/"):
+            if "refs/heads/%s" % ref.name[len("refs/syncs/"):] not in repo.references:
+                # Try with the post-migration head
+                m = sync_ref.match(ref.name)
+                ref_path = "refs/heads/%s/%s/%s/%s" % (m.group("obj_type"),
+                                                       m.group("subtype"),
+                                                       m.group("obj_id"),
+                                                       m.group("seq_id"))
+                if ref_path not in repo.references:
+                    print "  Missing head %s" % (ref.name)
+
+    created = 0
+    for i, ((repo, new_ref), refs) in enumerate(seen.iteritems()):
+        assert len(refs) == 1
+        ref, status = refs[0]
+        print "Updating %s" % ref.name
+
+        print "  Moving %s to %s %d/%d" % (ref.name, new_ref, i + 1, len(seen))
+
+        if "/syncs/" in ref.name:
+            ref_obj = ref.peel().id
+            data = json.loads(repo[ref.peel().tree["data"].id].data)
+            if data.get("status") != status:
+                with base.CommitBuilder(rev_repo_map[repo], "Add status", ref=ref.name) as commit:
+                    now_ref_obj = ref.peel().id
+                    if ref_obj != now_ref_obj:
+                        data = json.loads(repo[ref.peel().tree["data"].id].data)
+                    data["status"] = status
+                    commit.add_tree({"data": json.dumps(data)})
+                    print "Making commit"
+            commit = commit.get().sha1
+        else:
+            commit = ref.peel().id
+
+        print "  Got commit %s" % commit
+
+        if new_ref not in repo.references:
+            print "  Rename %s %s" % (ref.name, new_ref)
+            repo.references.create(new_ref, commit)
+            created += 1
+        else:
+            print "  %s already exists" % new_ref
+        delete.add((repo, ref.name))
+
+    for repo, ref_name in delete:
+        print "  Deleting %s" % ref_name
+        repo.references.delete(ref_name)
+
+    print "%s total refs" % total_refs
+    print "%s refs to process" % processing_refs
+    print "%s refs to create" % created
+    print "%s refs to delete" % len(delete)
+
+    print "Moving to single history"
     # Migrate from refs/syncs/ to paths
     sync_ref = re.compile("^refs/"
                           "syncs/"
@@ -642,18 +766,33 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                           "(?P<subtype>[^/]*)/"
                           "(?P<obj_id>[^/]*)/"
                           "(?P<seq_id>[0-9]*)$")
-    with base.CommitBuilder(ref.repo, "Migrate to single ref for data") as commit:
-        for ref in itertools.chain(git_gecko.refs, git_wpt.refs):
-            m = sync_ref.match(ref.path)
-            if not m:
-                continue
-            data = json.load(ref.commit.tree["data"].data_stream)
-            path = "%s/%s/%s/%s" % (m.group("obj type"),
-                                    m.group("subtype"),
-                                    m.group("obj_id"),
-                                    m.group("seq_id"))
-            tree = {path: json.dumps(data)}
-            commit.add_tree(tree)
+    delete = set()
+    initial_ref = git.Reference(git_gecko, "refs/syncs/data")
+    if initial_ref.is_valid():
+        existing_paths = {item.path for item in initial_ref.commit.tree.traverse()}
+    else:
+        existing_paths = set()
+    for ref in git_gecko.refs:
+        m = sync_ref.match(ref.path)
+        if not m:
+            continue
+        path = "%s/%s/%s/%s" % (m.group("obj_type"),
+                                m.group("subtype"),
+                                m.group("obj_id"),
+                                m.group("seq_id"))
+        if path not in existing_paths:
+            with base.CommitBuilder(git_gecko,
+                                    "Migrate %s to single ref for data" % ref.path,
+                                    ref="refs/syncs/data") as commit:
+                data = json.load(ref.commit.tree["data"].data_stream)
+                print "  Moving path %s" % (path,)
+                tree = {path: json.dumps(data)}
+                commit.add_tree(tree)
+        delete.add(ref.path)
+
+    git2_repo = repo_map[git_gecko]
+    for ref_name in delete:
+        git2_repo.references.delete(ref_name)
 
 
 def set_config(opts):
