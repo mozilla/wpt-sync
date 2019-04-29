@@ -34,8 +34,9 @@ Mercurial==4.9.1 \
     --hash=sha256:1bdd21bb87d1e05fb5cd395d488d0e0cc2f2f90ce0fd248e31a03595da5ccb47 \
     --hash=sha256:3c25abd3a32cc179500f53fef4c56d6a61767ad1b280fe659aae6c0417697d7a \
     --hash=sha256:d6c4e5e51ffc13d6412c526690a455dffc206a81627afe6e9f59e81c3d5c1fd9
-mohawk==0.3.4 \
-    --hash=sha256:b3f85ffa93a5c7d2f9cc591246ef9f8ac4a9fa716bfd5bae0377699a2d89d78c
+mohawk==1.0.0 \
+    --hash=sha256:aa57e6626a6ea323ab714779f23734de1d1feca8cb6fc00b65e65ce115c1696a \
+    --hash=sha256:fca4e34d8f5492f1c33141c98b96e168a089e5692ce65fb747e4bb613f5fe552
 newrelic==2.106.1.88 \
     --hash=sha256:0594dd63d7883d30c560e292d063a8dbc7b2ae11b889bec1e8eb9d0f11ab73a6
 PyGithub==1.35 \
