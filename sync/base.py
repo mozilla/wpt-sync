@@ -393,7 +393,12 @@ class CommitBuilder(object):
         self.repo = pygit2.Repository(repo.working_dir)
         self.message = message if message is not None else ""
         self.commit_cls = commit_cls
-        self.ref = ref.path if ref else None
+        if not ref:
+            self.ref = None
+        elif hasattr(ref, "path"):
+            self.ref = ref.path
+        else:
+            self.ref = ref
 
         self._count = 0
 
@@ -402,6 +407,7 @@ class CommitBuilder(object):
         self.parents = None
         self.commit = None
         self.index = None
+        self.has_changes = False
 
     def __enter__(self):
         self._count += 1
@@ -428,24 +434,29 @@ class CommitBuilder(object):
         if self._count != 0:
             return
 
-        tree_id = self.index.write_tree(self.repo)
+        if not self.has_changes:
+            sha1 = self.parents[0]
+        else:
+            tree_id = self.index.write_tree(self.repo)
 
-        sha1 = self.repo.create_commit(self.ref,
-                                       self.repo.default_signature,
-                                       self.repo.default_signature,
-                                       self.message,
-                                       tree_id,
-                                       self.parents)
+            sha1 = self.repo.create_commit(self.ref,
+                                           self.repo.default_signature,
+                                           self.repo.default_signature,
+                                           self.message,
+                                           tree_id,
+                                           self.parents)
         self.lock.__exit__(*args, **kwargs)
-        self._commit = self.commit_cls(self.gitpython_repo, sha1)
+        self.commit = self.commit_cls(self.gitpython_repo, sha1)
 
     def add_tree(self, tree):
+        self.has_changes = True
         for path, data in tree.iteritems():
             blob = self.repo.create_blob(data)
             index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
             self.index.add(index_entry)
 
     def delete(self, delete):
+        self.has_changes = True
         if delete:
             for path in delete:
                 self.index.remove(path)
