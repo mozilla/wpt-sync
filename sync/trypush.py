@@ -305,11 +305,9 @@ class TryPush(base.ProcessData):
 
     @classmethod
     def load_all(cls, git_gecko):
-        rv = set()
-        process_names = base.ProcessIndex(git_gecko).get_by_type("try")
+        process_names = base.ProcessNameIndex(git_gecko).get("try")
         for process_name in process_names:
-            rv.add(cls(git_gecko, process_name))
-        return rv
+            yield cls(git_gecko, process_name)
 
     @classmethod
     def for_commit(cls, git_gecko, sha1):
