@@ -13,7 +13,7 @@ class TestIndex(index.Index):
 
 
 def test_create(env, git_gecko):
-    idx = TestIndex.create(git_gecko)
+    TestIndex.create(git_gecko)
     ref = git.Reference(git_gecko, env.config["sync"]["ref"])
     assert ref.is_valid()
     tree = ref.commit.tree["index/test"]
