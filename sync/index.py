@@ -239,9 +239,10 @@ class TaskGroupIndex(Index):
 
     def build(self, *args, **kwargs):
         import trypush
-        for try_push in trypush.TryPush.load_all(self.repo):
-            self.insert(self.make_key(try_push.taskgroup_id),
-                        try_push.process_name)
+        for try_push in trypush.TryPush.load_all(self.gitpython_repo):
+            if try_push.taskgroup_id is not None:
+                self.insert(self.make_key(try_push.taskgroup_id),
+                            try_push.process_name)
         self.save(message="Build TaskGroupIndex")
 
 
@@ -257,9 +258,10 @@ class TryCommitIndex(Index):
 
     def build(self, *args, **kwargs):
         import trypush
-        for try_push in trypush.TryPush.load_all(self.repo):
-            self.insert(self.make_key(try_push.try_rev),
-                        try_push.process_name)
+        for try_push in trypush.TryPush.load_all(self.gitpython_repo):
+            if try_push.try_rev:
+                self.insert(self.make_key(try_push.try_rev),
+                            try_push.process_name)
         self.save(message="Build TryCommitIndex")
 
 
@@ -277,13 +279,11 @@ class SyncIndex(Index):
                 sync.process_name.obj_id)
 
     def build(self, git_gecko, git_wpt, **kwargs):
-        from base import ProcessName
-        from downstrea import DownstreamSync
+        from downstream import DownstreamSync
         from upstream import UpstreamSync
         from landing import LandingSync
 
-        for ref in git_gecko.references:
-            process_name = ProcessName.from_ref(ref.path)
+        for process_name in iter_process_names(git_gecko):
             sync_cls = None
             if process_name.subtype == "upstream":
                 sync_cls = UpstreamSync
@@ -309,11 +309,9 @@ class PrIdIndex(Index):
         return (str(sync.pr),)
 
     def build(self, git_gecko, git_wpt, **kwargs):
-        from base import ProcessName
         from upstream import UpstreamSync
 
-        for ref in git_gecko.references:
-            process_name = ProcessName.from_ref(ref.path)
+        for process_name in iter_process_names(git_gecko):
             if process_name.subtype == "upstream":
                 sync = UpstreamSync(git_gecko, git_wpt, process_name)
                 self.insert(self.make_key(sync), process_name)
@@ -333,13 +331,11 @@ class BugIdIndex(Index):
         return (sync.bug, sync.status)
 
     def build(self, git_gecko, git_wpt, **kwargs):
-        from base import ProcessName
         from downstream import DownstreamSync
         from upstream import UpstreamSync
         from landing import LandingSync
 
-        for ref in git_gecko.references:
-            process_name = ProcessName.from_ref(ref.path)
+        for process_name in iter_process_names(git_gecko):
             sync_cls = None
             if process_name.subtype == "upstream":
                 sync_cls = UpstreamSync
@@ -354,7 +350,14 @@ class BugIdIndex(Index):
         self.save(message="Build BugIdIndex")
 
 
-indicies = {item.name: item for item in globals()
+def iter_process_names(repo):
+    for item in git.Reference(repo, env.config["sync"]["ref"]).commit.tree:
+        process_name = ProcessName.from_path(item.path)
+        if process_name is not None:
+            yield process_name
+
+
+indicies = {item for item in globals().values()
             if type(item) == type(Index) and
             issubclass(item, Index) and
             item != Index}
