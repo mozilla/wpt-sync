@@ -1,3 +1,5 @@
+import git
+
 from sync import index
 
 
@@ -10,10 +12,12 @@ class TestIndex(index.Index):
         return value
 
 
-def test_create(git_gecko):
+def test_create(env, git_gecko):
     idx = TestIndex.create(git_gecko)
-    assert idx.ref.is_valid()
-    idx.ref.delete(git_gecko, idx.ref.path)
+    ref = git.Reference(git_gecko, env.config["sync"]["ref"])
+    assert ref.is_valid()
+    tree = ref.commit.tree["index/test"]
+    assert isinstance(tree, git.Tree)
 
 
 def test_insert(git_gecko):
@@ -24,7 +28,6 @@ def test_insert(git_gecko):
     idx.save()
     assert idx.get(("key1", "key2")) == set(["some_example_data"])
     assert idx.get(("key1",)) == set(["some_example_data"])
-    idx.ref.delete(git_gecko, idx.ref.path)
 
 
 def test_insert_multiple(git_gecko):
@@ -40,7 +43,6 @@ def test_insert_multiple(git_gecko):
                                              "more_example_data"])
     assert idx.get(("key1",)) == set(["some_example_data",
                                       "more_example_data"])
-    idx.ref.delete(git_gecko, idx.ref.path)
 
 
 def test_delete(git_gecko):
@@ -51,7 +53,6 @@ def test_delete(git_gecko):
     assert idx.get(("key1", "key2")) == set()
     idx.save()
     assert idx.get(("key1", "key2")) == set()
-    idx.ref.delete(git_gecko, idx.ref.path)
 
 
 def test_delete_multiple(git_gecko):
@@ -62,4 +63,3 @@ def test_delete_multiple(git_gecko):
     assert idx.get(("key1", "key2")) == set(["more_example_data"])
     idx.save()
     assert idx.get(("key1", "key2")) == set(["more_example_data"])
-    idx.ref.delete(git_gecko, idx.ref.path)

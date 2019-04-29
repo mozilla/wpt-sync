@@ -63,7 +63,7 @@ class Gecko(GitSettings):
                 commit.add_tree({path: data})
         import index
         for idx in index.indicies:
-            index.get_or_create(repo)
+            idx.get_or_create(repo)
 
 
 class WebPlatformTests(GitSettings):
