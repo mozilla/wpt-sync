@@ -87,7 +87,9 @@ class ProcessNameIndex(object):
 
     def reset(self):
         self._all = set()
-        self._by_obj_id = defaultdict(set)
+        self._data = defaultdict(
+            lambda: defaultdict(
+                lambda: defaultdict(set)))
         self._built = False
 
     def build(self):
@@ -104,30 +106,38 @@ class ProcessNameIndex(object):
 
     def insert(self, process_name):
         self._all.add(process_name)
-        obj_id_key = (process_name.obj_type,
-                      process_name.subtype,
-                      process_name.obj_id)
 
-        self._by_obj_id[obj_id_key].add(process_name)
+        self._data[
+            process_name.obj_type][
+                process_name.subtype][
+                    process_name.obj_id].add(process_name)
 
     def has(self, process_name):
         if not self._built:
             self.build()
         return process_name in self._all
 
-    def get_by_type(self, obj_type):
+    def get(self, obj_type, subtype=None, obj_id=None):
         if not self._built:
             self.build()
-        rv = set()
-        for key, values in self._by_type.iteritems():
-            if key[0] == obj_type:
-                rv |= values
-        return rv
 
-    def get_by_obj(self, obj_type, subtype, obj_id):
-        if not self._built:
-            self.build()
-        return self._by_obj_id[(obj_type, subtype, str(obj_id))]
+        target = self._data
+        for key in [obj_type, subtype, obj_id]:
+            if key is None:
+                break
+            target = target[key]
+
+        rv = set()
+        stack = [target]
+
+        while stack:
+            item = stack.pop()
+            if isinstance(item, set):
+                rv |= item
+            else:
+                stack.extend(item.itervalues())
+
+        return rv
 
 
 class ProcessName(object):
@@ -206,7 +216,7 @@ class ProcessName(object):
 
     @classmethod
     def with_seq_id(cls, repo, obj_type, subtype, obj_id):
-        existing = ProcessNameIndex(repo).get_by_obj(obj_type, subtype, obj_id)
+        existing = ProcessNameIndex(repo).get(obj_type, subtype, obj_id)
         last_id = -1
         for process_name in existing:
             if (process_name.seq_id is not None and
@@ -516,9 +526,9 @@ class ProcessData(object):
 
     @classmethod
     def load_by_obj(cls, repo, subtype, obj_id):
-        process_names = ProcessNameIndex(repo).get_by_obj(cls.obj_type,
-                                                          subtype,
-                                                          obj_id)
+        process_names = ProcessNameIndex(repo).get(cls.obj_type,
+                                                   subtype,
+                                                   obj_id)
         rv = set()
         for process_name in process_names:
             rv.add(cls(repo, process_name))
@@ -915,9 +925,9 @@ class SyncProcess(object):
 
     @classmethod
     def load_by_obj(cls, git_gecko, git_wpt, obj_id):
-        process_names = ProcessNameIndex(git_gecko).get_by_obj(cls.obj_type,
-                                                               cls.sync_type,
-                                                               obj_id)
+        process_names = ProcessNameIndex(git_gecko).get(cls.obj_type,
+                                                        cls.sync_type,
+                                                        obj_id)
         rv = set()
         for process_name in process_names:
             rv.add(cls(git_gecko, git_wpt, process_name))
