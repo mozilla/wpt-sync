@@ -472,6 +472,7 @@ class ProcessData(object):
     def __init__(self, repo, process_name):
         assert process_name.obj_type == self.obj_type
         self.repo = repo
+        self.pygit2_repo = pygit2.Repository(repo.working_dir)
         self.process_name = process_name
         self.ref = git.Reference(repo, env.config["sync"]["ref"])
         self.path = self.get_path(process_name)
@@ -489,7 +490,7 @@ class ProcessData(object):
 
     def exit_mut(self):
         message = "Update %s\n\n" % self.path
-        with CommitBuilder(self.repo, message=message, ref=self.ref) as commit:
+        with CommitBuilder(self.repo, message=message, ref=self.ref.path) as commit:
             import index
             if self._delete:
                 self._delete_data("  Delete %s" % self.path)
@@ -506,7 +507,8 @@ class ProcessData(object):
             self._updated = set()
             self._deleted = set()
 
-            for idx in index.indicies.values():
+            for idx_cls in index.indicies:
+                idx = idx_cls(self.repo)
                 idx.save(commit_builder=commit)
 
     @classmethod
@@ -558,7 +560,7 @@ class ProcessData(object):
 
     def _save(self, data, message, commit_builder=None):
         if commit_builder is None:
-            commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref)
+            commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         else:
             commit_builder.message += message
         tree = {self.path: json.dumps(data)}
@@ -568,15 +570,18 @@ class ProcessData(object):
 
     def _delete_data(self, message, commit_builder=None):
         if commit_builder is None:
-            commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref)
+            commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         with commit_builder as commit:
             commit.delete([self.path])
 
     def _load(self):
+        ref = self.pygit2_repo.references[self.ref.path]
+        repo = self.pygit2_repo
         try:
-            return json.load(self.ref.commit.tree[self.path].data_stream)
+            data = repo[repo[ref.peel().tree.id][self.path].id].data
         except KeyError:
             return {}
+        return json.loads(data)
 
     @property
     def lock_key(self):
