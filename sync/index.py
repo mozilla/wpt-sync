@@ -32,8 +32,8 @@ class Index(object):
                 fn()
             self.changes = defaultdict(constructors[-1])
 
-        self.repo = repo
-        self.ref = git.Reference(repo, env.config["sync"]["ref"])
+        self.gitpython_repo = repo
+        self.repo = pygit2.Repository(repo.working_dir)
 
     @classmethod
     def create(cls, repo):
@@ -45,7 +45,7 @@ class Index(object):
         tree = {meta_path: json.dumps(data, indent=0)}
         with CommitBuilder(repo,
                            message="Create index %s" % cls.name,
-                           ref=git.Reference(repo, env.config["sync"]["ref"])) as commit:
+                           ref=env.config["sync"]["ref"]) as commit:
             commit.add_tree(tree)
         return cls(repo)
 
@@ -55,7 +55,7 @@ class Index(object):
 
     @classmethod
     def get_or_create(cls, repo):
-        ref_name = "refs/syncs/data"
+        ref_name = env.config["sync"]["ref"]
         ref = git.Reference(repo, ref_name)
         try:
             ref.commit.tree["index/%s" % cls.name]
@@ -80,19 +80,9 @@ class Index(object):
 
     def _read(self, key, include_local=True):
         path = "%s/%s" % (self.get_root_path(), "/".join(key))
-        try:
-            root = self.ref.commit.tree[path]
-        except KeyError:
-            data = set()
-        else:
-            if isinstance(root, git.Blob):
-                data = self._load_obj(root)
-            else:
-                data = set()
-                for obj in root.traverse():
-                    if isinstance(obj, git.Blob):
-                        items = self._load_obj(obj)
-                    data |= items
+        data = set()
+        for obj in iter_blobs(self.repo, env.config["sync"]["path"], path):
+            data |= self._load_obj(obj)
         if include_local:
             self._update_changes(key, data)
         return data
@@ -125,16 +115,17 @@ class Index(object):
                     data.add(new_value)
 
     def _load_obj(self, obj):
-        rv = json.load(obj.data_stream)
+        rv = json.loads(obj.data)
         if isinstance(rv, list):
             return set(rv)
         return set([rv])
 
     def save(self, commit_builder=None, message=None):
         if commit_builder is None:
-            commit_builder = CommitBuilder(self.repo,
+            commit_builder = CommitBuilder(self.gitpython_repo,
                                            message,
-                                           ref=self.ref)
+                                           ref=env.config["sync"]["ref"])
+        changes = self._read_changes(None)
         if message is None:
             message = "Update index %s\n" % self.name
             changes = self._read_changes(None)
@@ -355,6 +346,29 @@ def iter_process_names(repo):
         process_name = ProcessName.from_path(item.path)
         if process_name is not None:
             yield process_name
+
+
+def iter_blobs(repo, ref, path):
+    stack = []
+    ref = repo.references[env.config["sync"]["ref"]]
+    root = repo[ref.peel().tree.id]
+    if path is not None:
+        if path not in root:
+            return
+        root_entry = root[path]
+        root = repo[root_entry.id]
+        if root_entry.type == "blob":
+            yield root
+            return
+
+    stack.append(root)
+    while stack:
+        tree = stack.pop()
+        for item in tree:
+            if item.type == "blob":
+                yield repo[item.id]
+            else:
+                stack.append(repo[item.id])
 
 
 indicies = {item for item in globals().values()
