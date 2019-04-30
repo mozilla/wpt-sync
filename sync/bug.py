@@ -29,7 +29,7 @@ def bug_number_from_url(url):
         return bugs[0]
 
 
-status_re = re.compile("\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
+status_re = re.compile(r"\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
 
 
 def get_sync_data(whiteboard):

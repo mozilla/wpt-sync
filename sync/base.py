@@ -431,7 +431,7 @@ def create_commit(repo, tree, message, parents=None, commit_cls=sync_commit.Comm
         proc = repo.git.hash_object(w=True, path=path, stdin=True, as_process=True,
                                     istream=subprocess.PIPE)
         stdout, stderr = proc.communicate(data)
-        if proc.returncode is not 0:
+        if proc.returncode != 0:
             raise git.GitCommandError(["git", "hash-object", "-w", "--path=%s" % path],
                                       proc.returncode, stderr, stdout)
         repo.git.update_index("100644", stdout, path, add=True, cacheinfo=True)
