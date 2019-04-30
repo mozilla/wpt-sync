@@ -27,8 +27,9 @@ GitPython==2.1.11 \
 idna==2.8 \
     --hash=sha256:c357b3f628cf53ae2c4c05627ecc484553142ca23264e593d327bcde5e9c3407 \
     --hash=sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c
-kombu==4.1.0 \
-    --hash=sha256:01f0da9fe222a2183345004243d1518c0fbe5875955f1b24842f2d9c65709ade
+kombu==4.5.0 \
+    --hash=sha256:389ba09e03b15b55b1a7371a441c894fd8121d174f5583bbbca032b9ea8c9edd \
+    --hash=sha256:7b92303af381ef02fad6899fd5f5a9a96031d781356cd8e505fa54ae5ddee181
 Mercurial==4.4.2 \
     --hash=sha256:dc2f72caccd6b760226753d48c2f4e8889fe176a6b23ef50775caac55ce28b85
 mohawk==0.3.4 \
