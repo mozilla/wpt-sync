@@ -30,8 +30,10 @@ idna==2.8 \
 kombu==4.5.0 \
     --hash=sha256:389ba09e03b15b55b1a7371a441c894fd8121d174f5583bbbca032b9ea8c9edd \
     --hash=sha256:7b92303af381ef02fad6899fd5f5a9a96031d781356cd8e505fa54ae5ddee181
-Mercurial==4.4.2 \
-    --hash=sha256:dc2f72caccd6b760226753d48c2f4e8889fe176a6b23ef50775caac55ce28b85
+Mercurial==4.9.1 \
+    --hash=sha256:1bdd21bb87d1e05fb5cd395d488d0e0cc2f2f90ce0fd248e31a03595da5ccb47 \
+    --hash=sha256:3c25abd3a32cc179500f53fef4c56d6a61767ad1b280fe659aae6c0417697d7a \
+    --hash=sha256:d6c4e5e51ffc13d6412c526690a455dffc206a81627afe6e9f59e81c3d5c1fd9
 mohawk==0.3.4 \
     --hash=sha256:b3f85ffa93a5c7d2f9cc591246ef9f8ac4a9fa716bfd5bae0377699a2d89d78c
 newrelic==2.106.1.88 \
