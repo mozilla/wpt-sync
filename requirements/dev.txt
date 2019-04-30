@@ -3,7 +3,7 @@ attrs==19.1.0
 backports.shutil-get-terminal-size==1.0.0
 configparser==3.7.4
 coverage==4.5.3
-decorator==4.2.1
+decorator==4.4.0
 enum34==1.1.6
 flake8==3.5.0
 funcsigs==1.0.2
