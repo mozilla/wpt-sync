@@ -15,8 +15,9 @@ chardet==3.0.4 \
     --hash=sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691
 enum34==1.1.6 \
     --hash=sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79
-filelock==3.0.0 \
-    --hash=sha256:b3ad481724adfb2280773edd95ce501e497e88fa4489c6e41e637ab3fd9a456c
+filelock==3.0.10 \
+    --hash=sha256:b8d5ca5ca1c815e1574aee746650ea7301de63d87935b3463d26368b76e31633 \
+    --hash=sha256:d610c1bb404daf85976d7a82eb2ada120f04671007266b708606565dd03b5be6
 gitdb2==2.0.3 \
     --hash=sha256:cf9a4b68e8c4da8d42e48728c944ff7af2d8c9db303ac1ab32eac37aa4194b0e
 GitPython==2.1.8 \
