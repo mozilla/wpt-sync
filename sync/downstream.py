@@ -756,12 +756,13 @@ class DownstreamSync(base.SyncProcess):
 
 
 @base.entry_point("downstream")
-def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
+def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=True):
     """ Start a new downstream sync """
     if pr_data["user"]["login"] == env.config["web-platform-tests"]["github"]["user"]:
         raise ValueError("Tried to create a downstream sync for a PR created "
                          "by the wpt bot")
-    update_repositories(git_gecko, git_wpt)
+    if repo_update:
+        update_repositories(git_gecko, git_wpt)
     pr_id = pr_data["number"]
     if DownstreamSync.for_pr(git_gecko, git_wpt, pr_id):
         return
@@ -790,8 +791,9 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True):
 @base.entry_point("downstream")
 @mut('sync')
 def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
-                          raise_on_error=False):
-    update_repositories(git_gecko, git_wpt)
+                          raise_on_error=False, repo_update=True):
+    if repo_update:
+        update_repositories(git_gecko, git_wpt)
     if sync.skip:
         return
     try:
