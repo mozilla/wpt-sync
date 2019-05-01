@@ -2,10 +2,14 @@ import json
 import os
 import shutil
 import git
+import pygit2
 
 import log
 
 logger = log.get_logger(__name__)
+
+
+pygit2_map = {}
 
 
 class GitSettings(object):
@@ -24,8 +28,9 @@ class GitSettings(object):
         return self.config[self.name]["repo"]["remote"].iteritems()
 
     def repo(self):
-        print self.root
         repo = git.Repo(self.root)
+        pygit2_map[repo] = pygit2.Repository(repo.git_dir)
+
         logger.debug("Existing repo found at " + self.root)
 
         if self.cinnabar:
@@ -99,3 +104,9 @@ wrappers = {
     "gecko": Gecko,
     "web-platform-tests": WebPlatformTests,
 }
+
+
+def pygit2_get(repo):
+    if repo not in pygit2_map:
+        pygit2_map[repo] = pygit2.Repository(repo.git_dir)
+    return pygit2_map[repo]
