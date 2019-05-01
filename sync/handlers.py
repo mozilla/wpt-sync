@@ -51,13 +51,13 @@ def handle_pr(git_gecko, git_wpt, event):
         merge_sha = (event["pull_request"]["merge_commit_sha"]
                      if event["pull_request"]["merged"] else None)
         with SyncLock.for_process(sync.process_name) as lock:
-            sync = sync.to_writer(lock)
-            update_func(git_gecko,
-                        git_wpt,
-                        sync,
-                        event["action"],
-                        merge_sha,
-                        event["pull_request"]["base"]["sha"])
+            with sync.as_mut(lock):
+                update_func(git_gecko,
+                            git_wpt,
+                            sync,
+                            event["action"],
+                            merge_sha,
+                            event["pull_request"]["base"]["sha"])
 
 
 def handle_status(git_gecko, git_wpt, event):
@@ -204,7 +204,7 @@ class TaskHandler(Handler):
             logger.info("Decision task is not yet complete, status %s" % result)
             return
 
-        with SyncLock.for_process(try_push._ref.process_name) as lock:
+        with SyncLock.for_process(try_push.process_name) as lock:
             with try_push.as_mut(lock):
                 # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
                 # But the retriggered decision task itself is still in the original taskgroup
