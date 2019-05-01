@@ -249,6 +249,9 @@ def update_taskgroup_ids(git_gecko, git_wpt):
     for try_push in trypush.TryPush.load_all(git_gecko):
         if not try_push.taskgroup_id:
             logger.info("Setting taskgroup id for try push %s" % try_push)
+            if try_push.try_rev is None:
+                logger.warning("Try push %s has no associated revision" % try_push.process_name)
+                continue
             taskgroup_id, state, result = tc.get_taskgroup_id("try", try_push.try_rev)
             if state == "completed":
                 handle_sync("task", {"origin": {"revision": try_push.try_rev},
