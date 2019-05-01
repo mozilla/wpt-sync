@@ -217,7 +217,7 @@ class DownstreamSync(base.SyncProcess):
         so we always assume that any try push is valid"""
 
         latest_try_push = self.latest_try_push
-        if latest_try_push and self.affected_tests() and latest_try_push.expired():
+        if latest_try_push and latest_try_push.expired():
             latest_try_push = None
 
         # Check if the try push is for the current PR head
