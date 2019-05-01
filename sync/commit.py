@@ -47,12 +47,12 @@ def first_non_merge(commits):
 class GitNotes(object):
     def __init__(self, commit):
         self.commit = commit
-        self.repo = pygit2.Repository(commit.repo.working_dir)
+        self.pygit2_repo = pygit2_get(commit.repo)
         self._data = self._read()
 
     def _read(self):
         try:
-            text = self.repo.lookup_note(self.commit.sha1).message
+            text = self.pygit2_repo.lookup_note(self.commit.sha1).message
         except KeyError:
             return {}
         data = get_metadata(text)
@@ -68,11 +68,12 @@ class GitNotes(object):
     def __setitem__(self, key, value):
         self._data[key] = value
         data = "\n".join("%s: %s" % item for item in self._data.iteritems())
-        self.repo.create_note(data,
-                              self.repo.default_signature,
-                              self.repo.default_signature,
-                              self.commit.sha1,
-                              force=True)
+        self.pygit2_repo.create_note(data,
+                                     self.pygit2_repo.default_signature,
+                                     self.pygit2_repo.default_signature,
+                                     self.commit.sha1,
+                                     "refs/notes/commits",
+                                     True)
 
 
 class Commit(object):
