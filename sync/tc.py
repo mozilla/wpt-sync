@@ -253,7 +253,9 @@ def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
 
 
 def is_suite(suite, task):
-    t = task.get("task", {}).get("extra", {}).get("suite", {}).get("name", "")
+    t = task.get("task", {}).get("extra", {}).get("suite", {})
+    if isinstance(t, dict):
+        t = t.get("name", "")
     return t.startswith(suite)
 
 
@@ -335,7 +337,7 @@ def get_taskgroup_id(project, revision):
     jobs_data = fetch_json(jobs_url, params=jobs_params)
 
     if not jobs_data["results"]:
-        logger.info("No decision task found for %s %s" % (project, revision))
+        logger.warning("No decision task found for %s %s" % (project, revision))
         return None, None, None
 
     if len(jobs_data["results"]) > 1:
