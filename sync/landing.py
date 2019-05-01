@@ -27,6 +27,7 @@ from gitutils import update_repositories
 from lock import SyncLock, constructor, mut
 from projectutil import Mach
 from errors import AbortError, RetryableError
+from repos import pygit2_get
 
 env = Environment()
 
@@ -653,8 +654,10 @@ def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
 
 def load_sync_point(git_gecko, git_wpt):
     """Read the last sync point from the batch sync process"""
-    mozilla_data = git_gecko.git.show("%s:testing/web-platform/meta/mozilla-sync" %
-                                      LandingSync.gecko_integration_branch())
+    pygit2_repo = pygit2_get(git_gecko)
+    integration_sha = pygit2_repo.revparse_single(LandingSync.gecko_integration_branch()).id
+    blob_id = pygit2_repo[integration_sha].tree["testing/web-platform/meta/mozilla-sync"].id
+    mozilla_data = pygit2_repo[blob_id].data
     sync_point = SyncPoint()
     sync_point.loads(mozilla_data)
     return sync_point
