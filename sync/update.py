@@ -36,15 +36,16 @@ def construct_event(name, payload, **kwargs):
     return event
 
 
-def schedule_pr_task(action, pr):
+def schedule_pr_task(action, pr, repo_update=True):
     event = construct_event("pull_request",
-                            {"action": action, "number": pr.number, "pull_request": pr.raw_data})
+                            {"action": action, "number": pr.number, "pull_request": pr.raw_data},
+                            _wptsync={"repo_update": repo_update})
     logger.info("Action %s for pr %s" % (action, pr.number))
     args = ("github", event)
     handle_sync(*args)
 
 
-def schedule_status_task(commit, status):
+def schedule_status_task(commit, status, repo_update=True):
     event = construct_event("status",
                             {"sha": commit.sha,
                              "context": status.context,
@@ -52,13 +53,14 @@ def schedule_status_task(commit, status):
                              "description": status.description,
                              "target_url": status.target_url,
                              "branches": []  # Hopefully we don't use this
-                             })
+                             },
+                            _wptsync={"repo_update": repo_update})
     logger.info("Status changed for commit %s" % commit.sha)
     args = ("github", event)
     handle_sync(*args)
 
 
-def update_for_status(pr):
+def update_for_status(pr, repo_update=True):
     commits = pr.get_commits()
     head = commits.reversed[0]
     for status in head.get_combined_status().statuses:
@@ -67,11 +69,13 @@ def update_for_status(pr):
             return
 
 
-def update_for_action(pr, action):
+def update_for_action(pr, action, repo_update=True):
     event = construct_event("pull_request",
                             {"action": action,
                              "number": pr.number,
-                             "pull_request": pr.raw_data})
+                             "pull_request": pr.raw_data,
+                             },
+                            _wptsync={"repo_update": repo_update})
     logger.info("Running action %s for PR %s" % (action, pr.number))
     handle_sync("github", event)
 
@@ -123,7 +127,7 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
     handle_sync(*args)
 
 
-def update_pr(git_gecko, git_wpt, pr, force_rebase=False):
+def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
     if sync and sync.status == "complete":
@@ -152,8 +156,8 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False):
             else:
                 if pr.state != "open" and not pr.merged:
                     return
-            schedule_pr_task("opened", pr)
-            update_for_status(pr)
+            schedule_pr_task("opened", pr, repo_update=repo_update)
+            update_for_status(pr, repo_update=repo_update)
     elif isinstance(sync, downstream.DownstreamSync):
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock):
@@ -169,7 +173,7 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False):
                 if pr.state == "open" or pr.merged:
                     if pr.head.sha != sync.wpt_commits.head:
                         # Upstream has different commits, so run a push handler
-                        schedule_pr_task("push", pr)
+                        schedule_pr_task("push", pr, repo_update=repo_update)
 
                     elif sync.latest_valid_try_push:
                         if not sync.latest_valid_try_push.taskgroup_id:
@@ -180,9 +184,9 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False):
                             update_tasks(git_gecko, git_wpt, sync=sync)
 
                 if not pr.merged:
-                    update_for_status(pr)
+                    update_for_status(pr, repo_update=repo_update)
                 else:
-                    update_for_action(pr, "closed")
+                    update_for_action(pr, "closed", repo_update=repo_update)
 
     elif isinstance(sync, upstream.UpstreamSync):
         with SyncLock.for_process(sync.process_name) as lock:
@@ -288,7 +292,7 @@ def retrigger(git_gecko, git_wpt, unlandable_prs):
         try:
             logger.info("Retriggering %s (status %s)" % (pr_id, status))
             pr = env.gh_wpt.get_pull(int(pr_id))
-            update_pr(git_gecko, git_wpt, pr)
+            update_pr(git_gecko, git_wpt, pr, repo_update=False)
         except Exception:
             errors.append(pr_id)
 

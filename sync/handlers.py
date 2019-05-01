@@ -30,6 +30,7 @@ def handle_pr(git_gecko, git_wpt, event):
     env.gh_wpt.load_pull(event["pull_request"])
 
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
+    repo_update = event.get("_wptsync", {}).get("repo_update", True)
 
     if not sync:
         # If we don't know about this sync then it's a new thing that we should
@@ -37,7 +38,8 @@ def handle_pr(git_gecko, git_wpt, event):
         # TODO: maybe want to create a new sync here irrespective of the event
         # type because we missed some events.
         if event["action"] == "opened":
-            downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"])
+            downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"],
+                                  repo_update=repo_update)
     else:
         if isinstance(sync, downstream.DownstreamSync):
             update_func = downstream.update_pr
@@ -63,7 +65,9 @@ def handle_status(git_gecko, git_wpt, event):
         # Never handle changes to our own status
         return
 
-    update_repositories(None, git_wpt, False)
+    repo_update = event.get("_wptsync", {}).get("repo_update", True)
+    if repo_update:
+        update_repositories(None, git_wpt, False)
 
     rev = event["sha"]
     # First check if the PR is head of any pull request

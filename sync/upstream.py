@@ -756,12 +756,13 @@ def try_land_syncs(lock, syncs):
 
 @base.entry_point("upstream")
 @mut('sync')
-def update_sync(git_gecko, git_wpt, sync, raise_on_error=True):
+def update_sync(git_gecko, git_wpt, sync, raise_on_error=True, repo_update=True):
     if sync.status in ("wpt-merged", "complete"):
         logger.info("Nothing to do for sync with status %s" % sync.status)
         return set(), set(), set()
 
-    update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
+    if repo_update:
+        update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
     assert isinstance(sync, UpstreamSync)
     update_syncs = {sync.bug: (sync, sync.gecko_commits.head.sha1)}
     pushed_syncs, failed_syncs = update_sync_prs(sync._lock,
