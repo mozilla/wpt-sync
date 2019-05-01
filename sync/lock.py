@@ -115,13 +115,17 @@ class Lock(object):
 
     def __enter__(self):
         if self.path in self.locks:
-            raise LockError("Tried to reacquire lock for %s in same process")
+            # If this is already locked by the current process
+            # then locking again is a no-op
+            return self.locks[self.path]
         self.locks[self.path] = self
         self.lock.acquire()
+        self.locked = True
         return self
 
     def __exit__(self, *args, **kwargs):
-        assert self.locks[self.path] is self
+        if self.locks[self.path] != self:
+            return
         del self.locks[self.path]
         self.lock.release()
 
