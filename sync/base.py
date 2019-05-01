@@ -9,12 +9,13 @@ from collections import defaultdict
 import enum
 import git
 import pygit2
-from lock import MutGuard, RepoLock, mut, constructor
 
 import bug
 import log
 import commit as sync_commit
 from env import Environment
+from lock import MutGuard, RepoLock, mut, constructor
+from repos import pygit2_get
 
 env = Environment()
 
@@ -275,10 +276,12 @@ class VcsRefObject(object):
     ref_prefix = None
 
     def __init__(self, repo, name, commit_cls=sync_commit.Commit):
-        if not git.Reference(repo, self.get_path(name)).is_valid():
+        self.repo = repo
+        self.pygit2_repo = pygit2_get(repo)
+
+        if not self.get_path(name) in self.pygit2_repo.references:
             raise ValueError("No ref found in %s with path %s" %
                              (repo.working_dir, self.get_path(name)))
-        self.repo = repo
         self.name = name
         self.commit_cls = commit_cls
         self._lock = None
@@ -302,16 +305,18 @@ class VcsRefObject(object):
                                args["name"].obj_id))
     def create(cls, lock, repo, name, obj, commit_cls=sync_commit.Commit):
         path = cls.get_path(name)
-        if git.Reference(repo, cls.get_path(name)).is_valid():
-            raise ValueError("Ref %s already exists" % path)
-
-        return cls._create(lock, repo, name, obj, commit_cls)
+        logger.debug("Creating ref %s" % path)
+        pygit2_repo = pygit2_get(repo)
+        if path in pygit2_repo.references:
+            raise ValueError("Ref %s exists" % (path,))
+        pygit2_repo.references.create(path, pygit2_repo.revparse_single(obj).id)
+        return cls(repo, name, commit_cls)
 
     def __str__(self):
         return self.path
 
     def delete(self):
-        self.ref.delete(self.repo, self.path)
+        self.pygit2_repo.references[self.path].delete()
 
     @classmethod
     def get_path(cls, name):
@@ -323,22 +328,9 @@ class VcsRefObject(object):
 
     @property
     def ref(self):
-        ref = git.Reference(self.repo, self.path)
-        if ref.is_valid():
-            return ref
+        if self.path in self.pygit2_repo.references:
+            return git.Reference(self.repo, self.path)
         return None
-
-    @classmethod
-    @constructor(lambda args: (args["name"].subtype,
-                               args["name"].obj_id))
-    def _create(cls, lock, repo, name, obj, commit_cls=sync_commit.Commit):
-        path = cls.get_path(name)
-        logger.debug("Creating ref %s" % path)
-        ref = git.Reference(repo, path)
-        if ref.is_valid():
-            raise ValueError("Ref %s exists" % (ref.path,))
-        ref.set_object(obj)
-        return cls(repo, name, commit_cls)
 
     @property
     def commit(self):
@@ -351,9 +343,11 @@ class VcsRefObject(object):
     @mut()
     def commit(self, commit):
         if isinstance(commit, sync_commit.Commit):
-            commit = commit.commit
-        ref = git.Reference(self.repo, self.path)
-        ref.set_object(commit)
+            sha1 = commit.sha1
+        else:
+            sha1 = commit
+        sha1 = self.pygit2_repo.revparse_single(sha1).id
+        self.pygit2_repo.references[self.path].set_target(sha1)
 
 
 class BranchRefObject(VcsRefObject):
