@@ -264,7 +264,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
             if try_push.taskgroup_id is None:
                 update.update_taskgroup_ids(git_gecko, git_wpt)
                 assert try_push.taskgroup_id is not None
-            with try_push.as_mut(lock):
+            with try_push.as_mut(lock), current_landing.as_mut(lock):
                 if (try_push.status == "complete" and
                     try_push.failure_limit_exceeded() and
                     accept_failures):
@@ -541,11 +541,13 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
     print("Retriggering upstream syncs with errors")
     for sync in upstream.UpstreamSync.load_by_status(git_gecko, git_wpt, "open"):
         if sync.error:
-            try:
-                upstream.update_sync(git_gecko, git_wpt, sync)
-            except errors.AbortError as e:
-                print("Update failed:\n%s" % e)
-                pass
+            with SyncLock.for_process(sync.process_name) as lock:
+                with sync.as_mut(lock):
+                    try:
+                        upstream.update_sync(git_gecko, git_wpt, sync, repo_update=False)
+                    except errors.AbortError as e:
+                        print("Update failed:\n%s" % e)
+                        pass
 
     print("Retriggering downstream syncs on master")
     sync_point = load_sync_point(git_gecko, git_wpt)
