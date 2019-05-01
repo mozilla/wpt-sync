@@ -34,11 +34,11 @@ elif [[ $command == "test" ]]; then
          wptsync_dev --test $@
 elif [[ $command == "run" ]]; then
     exec docker run -it --add-host=rabbitmq:127.0.0.1 \
-    --env WPTSYNC_CONFIG=/app/wpt-sync/config/dev/sync.ini \
-    --env WPTSYNC_CREDS=/app/wpt-sync/config/dev/credentials.ini \
-    --env WPTSYNC_SSH_CONFIG=/app/wpt-sync/config/ssh_config \
-    --env WPTSYNC_GECKO_CONFIG=/app/wpt-sync/config/gecko_config \
-    --env WPTSYNC_WPT_CONFIG=/app/wpt-sync/config/wpt_config \
+    --env WPTSYNC_CONFIG=${WPTSYNC_CONFIG:-/app/wpt-sync/config/dev/sync.ini} \
+    --env WPTSYNC_CREDS=${WPTSYNC_CREDS:-/app/wpt-sync/config/dev/credentials.ini} \
+    --env WPTSYNC_SSH_CONFIG=${WPTSYNC_SSH_CONFIG:-/app/wpt-sync/config/ssh_config} \
+    --env WPTSYNC_GECKO_CONFIG=${WPTSYNC_GECKO_CONFIG:/app/wpt-sync/config/gecko_config} \
+    --env WPTSYNC_WPT_CONFIG==${WPTSYNC_WPT_CONFIG:/app/wpt-sync/config/wpt_config} \
     --mount type=bind,source=$(pwd)/devenv,target=/app/wpt-sync/devenv \
     --mount type=bind,source=$(pwd)/config,target=/app/wpt-sync/config \
     --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
