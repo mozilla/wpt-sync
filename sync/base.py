@@ -654,7 +654,8 @@ class CommitRange(object):
         # This ended up a little confused because these used to both be
         # VcsRefObjects, but now the base is stored as a ref not associated
         # with a process_name. This should be refactored.
-        self._base = commit_cls(repo, base)
+        self._base_commit = None
+        self._base = base
         self._head_ref = head_ref
         self.commit_cls = commit_cls
         self.commit_filter = commit_filter
@@ -692,7 +693,9 @@ class CommitRange(object):
 
     @property
     def base(self):
-        return self._base
+        if self._base_commit is None:
+            self._base_commit = self.commit_cls(self.repo, self._base)
+        return self._base_commit
 
     @property
     def head(self):
@@ -739,6 +742,7 @@ class CommitRange(object):
         self._commits = None
         self._base_sha = value
         self._base = self.commit_cls(self.repo, value)
+        self._base_commit = None
 
     @head.setter
     @mut()
