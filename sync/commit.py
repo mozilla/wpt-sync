@@ -8,6 +8,7 @@ from mozautomation import commitparser
 import log
 from env import Environment
 from errors import AbortError
+from repos import pygit2_get
 
 
 env = Environment()
@@ -76,15 +77,34 @@ class GitNotes(object):
 
 class Commit(object):
     def __init__(self, repo, commit):
-        if isinstance(commit, Commit):
-            _commit = commit.commit
-        elif isinstance(commit, git.Commit):
-            _commit = commit
-        else:
-            _commit = repo.commit(commit)
         self.repo = repo
-        self.commit = _commit
-        self.sha1 = self.commit.hexsha
+        self.pygit2_repo = pygit2_get(repo)
+        _commit = None
+        _pygit2_commit = None
+        if hasattr(commit, "hexsha"):
+            # gitpython commit object
+            sha1 = commit.hexsha
+            _commit = commit
+        elif hasattr(commit, "hex"):
+            # pygit2 oid object
+            sha1 = commit.hex
+        elif hasattr(commit, "sha1"):
+            # Commit subclass
+            sha1 = commit.sha1
+        elif isinstance(commit, (str, unicode)):
+            commit = self.pygit2_repo.revparse_single(commit)
+            sha1 = str(commit.id)
+        elif hasattr(commit, "id"):
+            # pygit2 commit
+            sha1 = commit.id
+            _pygit2_commit = commit
+        else:
+            raise ValueError("Unrecognised commit %r" % commit)
+        if sha1 not in self.pygit2_repo:
+            raise ValueError("Commit with SHA1 %s not found" % sha1)
+        self.sha1 = sha1
+        self._commit = _commit
+        self._pygit2_commit = _pygit2_commit
         self._notes = None
 
     def __eq__(self, other):
@@ -97,6 +117,18 @@ class Commit(object):
 
     def __ne__(self, other):
         return not self == other
+
+    @property
+    def commit(self):
+        if self._commit is None:
+            self._commit = self.repo.commit(self.sha1)
+        return self._commit
+
+    @property
+    def pygit2_commit(self):
+        if self._pygit2_commit is None:
+            self._pygit2_commit = self.pygit2_repo[self.sha1]
+        return self._pygit2_commit
 
     @property
     def notes(self):
@@ -112,19 +144,14 @@ class Commit(object):
 
     @property
     def msg(self):
-        return self.commit.message
+        return self.pygit2_commit.message
 
     @property
     def author(self):
-        author = self.commit.author
-        if not isinstance(author, (str, unicode)):
-            # This is presumably a gitpython Actor object
-            rv = author.name
-            if author.email:
-                rv = "%s <%s>" % (rv, author.email)
-        else:
-            rv = author
-        return rv
+        author = self.pygit2_commit.author
+        name = author.name
+        email = author.email if author.email else "unknown"
+        return "%s <%s>" % (name, email)
 
     @property
     def metadata(self):
@@ -132,7 +159,7 @@ class Commit(object):
 
     @property
     def is_merge(self):
-        return len(self.commit.parents) > 1
+        return len(self.pygit2_commit.parent_ids) > 1
 
     @classmethod
     def create(cls, repo, msg, metadata, author=None, amend=False):
@@ -311,7 +338,7 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
 class GeckoCommit(Commit):
     @property
     def bug(self):
-        bugs = commitparser.parse_bugs(self.commit.message.split("\n")[0])
+        bugs = commitparser.parse_bugs(self.msg.split("\n")[0])
         if len(bugs) > 1:
             logger.warning("Got multiple bugs for commit %s: %s" %
                            (self.canonical_rev, ", ".join(str(item) for item in bugs)))
@@ -325,7 +352,7 @@ class GeckoCommit(Commit):
 
     @property
     def is_backout(self):
-        return commitparser.is_backout(self.commit.message)
+        return commitparser.is_backout(self.msg)
 
     @property
     def is_downstream(self):
@@ -341,7 +368,7 @@ class GeckoCommit(Commit):
         commits = []
         bugs = []
         if self.is_backout:
-            nodes_bugs = commitparser.parse_backouts(self.commit.message)
+            nodes_bugs = commitparser.parse_backouts(self.msg)
             if nodes_bugs is None:
                 # We think this a backout, but have no idea what it backs out
                 # it's not clear how to handle that case so for now we pretend it isn't
