@@ -383,8 +383,8 @@ class CommitBuilder(object):
         to access the repository.
         """
         # Class state
-        self.gitpython_repo = repo
-        self.repo = pygit2.Repository(repo.working_dir)
+        self.repo = repo
+        self.pygit2_repo = pygit2_get(repo)
         self.message = message if message is not None else ""
         self.commit_cls = commit_cls
         if not ref:
@@ -415,7 +415,7 @@ class CommitBuilder(object):
 
         if self.ref is not None:
             try:
-                ref = self.repo.lookup_reference(self.ref)
+                ref = self.pygit2_repo.lookup_reference(self.ref)
             except KeyError:
                 self.parents = []
             else:
@@ -431,21 +431,21 @@ class CommitBuilder(object):
         if not self.has_changes:
             sha1 = self.parents[0]
         else:
-            tree_id = self.index.write_tree(self.repo)
+            tree_id = self.index.write_tree(self.pygit2_repo)
 
-            sha1 = self.repo.create_commit(self.ref,
-                                           self.repo.default_signature,
-                                           self.repo.default_signature,
-                                           self.message,
-                                           tree_id,
-                                           self.parents)
+            sha1 = self.pygit2_repo.create_commit(self.ref,
+                                                  self.pygit2_repo.default_signature,
+                                                  self.pygit2_repo.default_signature,
+                                                  self.message,
+                                                  tree_id,
+                                                  self.parents)
         self.lock.__exit__(*args, **kwargs)
-        self.commit = self.commit_cls(self.gitpython_repo, sha1)
+        self.commit = self.commit_cls(self.repo, sha1)
 
     def add_tree(self, tree):
         self.has_changes = True
         for path, data in tree.iteritems():
-            blob = self.repo.create_blob(data)
+            blob = self.pygit2_repo.create_blob(data)
             index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
             self.index.add(index_entry)
 
@@ -466,7 +466,7 @@ class ProcessData(object):
     def __init__(self, repo, process_name):
         assert process_name.obj_type == self.obj_type
         self.repo = repo
-        self.pygit2_repo = pygit2.Repository(repo.working_dir)
+        self.pygit2_repo = pygit2_get(repo)
         self.process_name = process_name
         self.ref = git.Reference(repo, env.config["sync"]["ref"])
         self.path = self.get_path(process_name)
