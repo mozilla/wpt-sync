@@ -115,11 +115,8 @@ elif [ "$1" == "--worker" ]; then
     newrelic-admin run-program \
          /app/venv/bin/wptsync listen
 elif [ "$1" == "--test" ]; then
-    command="test"
-    if [ "$2" == "--no-flake8" ]; then
-        command="$command --no-flake8"
-    fi
-    /app/venv/bin/wptsync $command
+    shift 1;
+    /app/venv/bin/wptsync test "$@"
 else
     /app/venv/bin/wptsync "$@"
 fi
