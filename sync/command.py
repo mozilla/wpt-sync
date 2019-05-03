@@ -152,6 +152,10 @@ def get_parser():
 
     parser_retrigger = subparsers.add_parser("retrigger",
                                              help="Retrigger syncs that are not read")
+    parser_retrigger.add_argument("--no-upstream", action="store_false", default=True,
+                                  dest="upstream", help="Don't retrigger upstream syncs")
+    parser_retrigger.add_argument("--no-downstream", action="store_false", default=True,
+                                  dest="downstream", help="Don't retrigger downstream syncs")
     parser_retrigger.set_defaults(func=do_retrigger)
 
     parser_try_push_add = subparsers.add_parser("add-try",
@@ -197,7 +201,7 @@ def sync_from_path(git_gecko, git_wpt):
         cls = landing.LandingSync
     else:
         raise ValueError
-    process_name = base.ProcessName.from_ref(branch)
+    process_name = base.ProcessName.from_path(branch)
     return cls(git_gecko, git_wpt, process_name)
 
 
@@ -538,25 +542,27 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
 
     update_repositories(git_gecko, git_wpt, True)
 
-    print("Retriggering upstream syncs with errors")
-    for sync in upstream.UpstreamSync.load_by_status(git_gecko, git_wpt, "open"):
-        if sync.error:
-            with SyncLock.for_process(sync.process_name) as lock:
-                with sync.as_mut(lock):
-                    try:
-                        upstream.update_sync(git_gecko, git_wpt, sync, repo_update=False)
-                    except errors.AbortError as e:
-                        print("Update failed:\n%s" % e)
-                        pass
+    if kwargs["upstream"]:
+        print("Retriggering upstream syncs with errors")
+        for sync in upstream.UpstreamSync.load_by_status(git_gecko, git_wpt, "open"):
+            if sync.error:
+                with SyncLock.for_process(sync.process_name) as lock:
+                    with sync.as_mut(lock):
+                        try:
+                            upstream.update_sync(git_gecko, git_wpt, sync, repo_update=False)
+                        except errors.AbortError as e:
+                            print("Update failed:\n%s" % e)
+                            pass
 
-    print("Retriggering downstream syncs on master")
-    sync_point = load_sync_point(git_gecko, git_wpt)
-    prev_wpt_head = sync_point["upstream"]
-    unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
+    if kwargs["downstream"]:
+        print("Retriggering downstream syncs on master")
+        sync_point = load_sync_point(git_gecko, git_wpt)
+        prev_wpt_head = sync_point["upstream"]
+        unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
 
-    errors = update.retrigger(git_gecko, git_wpt, unlandable)
-    if errors:
-        print("The following PRs have errors:\n%s" % "\n".join(errors))
+        errors = update.retrigger(git_gecko, git_wpt, unlandable)
+        if errors:
+            print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
 def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
