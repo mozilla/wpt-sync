@@ -33,6 +33,7 @@ class Command(object):
         """
         assert subcommand and len(subcommand)
         command = [os.path.join(self.path, self.name)] + list(subcommand)
+        logger.info("Running command:\n %s" % " ".join(command))
         return subprocess.check_output(command, cwd=self.path, **opts)
 
     def __getattr__(self, name):
