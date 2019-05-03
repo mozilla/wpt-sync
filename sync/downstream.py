@@ -207,7 +207,7 @@ class DownstreamSync(base.SyncProcess):
 
     @property
     def requires_stability_try(self):
-        return self.requires_try and bool(self.affected_tests())
+        return self.requires_try and self.has_affected_tests_readonly
 
     @property
     def latest_valid_try_push(self):
@@ -231,7 +231,24 @@ class DownstreamSync(base.SyncProcess):
         return latest_try_push
 
     @mut()
-    def next_try_push(self, try_cls=trypush.TrySyntaxCommit):
+    def try_paths(self):
+        """Return a mapping of {test_type: path} for tests that should be run on try.
+
+        Paths are relative to the gecko root"""
+        affected_tests = self.affected_tests()
+        base_path = env.config["gecko"]["path"]["wpt"]
+        if not affected_tests:
+            infra_path = os.path.join(base_path, "infrastructure/")
+            return {
+                "testharness": [infra_path],
+                "reftest": [infra_path],
+                "wdspec": [infra_path],
+            }
+        return {test_type: [os.path.join(base_path, path) for path in paths]
+                for test_type, paths in affected_tests.iteritems()}
+
+    @mut()
+    def next_try_push(self, try_cls=trypush.TryFuzzyCommit):
         """Schedule a new try push for the sync, if required.
 
         A stability try push will only be scheduled if the upstream PR is
@@ -243,19 +260,23 @@ class DownstreamSync(base.SyncProcess):
             return
 
         self.update_commits()
+        # Ensure affected tests is up to date
+        self.affected_tests()
 
         action = self.next_action
         if action == DownstreamAction.try_push:
             return TryPush.create(self._lock,
                                   self,
-                                  self.affected_tests(),
+                                  affected_tests=self.try_paths(),
                                   stability=False,
+                                  hacks=False,
                                   try_cls=try_cls)
         elif action == DownstreamAction.try_push_stability:
             return TryPush.create(self._lock,
                                   self,
-                                  self.affected_tests(),
+                                  affected_tests=self.try_paths(),
                                   stability=True,
+                                  hacks=False,
                                   try_cls=try_cls)
 
     @mut()
@@ -635,6 +656,7 @@ class DownstreamSync(base.SyncProcess):
                                                                body)
         return new_msg, {}
 
+    @mut()
     def affected_tests(self, revish=None):
         # TODO? support files, harness changes -- don't want to update metadata
         if "affected-tests" not in self.data:
@@ -652,6 +674,13 @@ class DownstreamSync(base.SyncProcess):
                     tests_by_type[test_type].append(path)
             self.data["affected-tests"] = tests_by_type
         return self.data["affected-tests"]
+
+    @property
+    def has_affected_tests_readonly(self):
+        if "affected-tests" not in self.data:
+            logger.warning("Trying to get affected tests before it's set")
+            return True
+        return bool(self.data["affected-tests"])
 
     @mut()
     def update_metadata(self, log_files, stability=False):
@@ -695,7 +724,7 @@ class DownstreamSync(base.SyncProcess):
         logger.info("Trying to generate results notification for PR %s" % self.pr)
 
         complete_try_push = None
-        for try_push in sorted(self.try_pushes(), key=lambda x: -x._ref.process_name.seq_id):
+        for try_push in sorted(self.try_pushes(), key=lambda x: -x.process_name.seq_id):
             if try_push.status == "complete" and not try_push.stability:
                 complete_try_push = try_push
                 break
