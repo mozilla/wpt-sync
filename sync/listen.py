@@ -1,3 +1,5 @@
+import json
+import logging
 import os
 import urlparse
 
@@ -14,13 +16,37 @@ here = os.path.dirname(__file__)
 logger = log.get_logger(__name__)
 
 
+def get_listen_logger(config):
+    logger = logging.getLogger(__name__)
+
+    log_dir = os.path.join(config["root"],
+                           config["paths"]["logs"])
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    basic_formatter = logging.Formatter('[%(asctime)s] %(levelname)s:%(name)s:%(message)s')
+
+    file_handler = logging.handlers.TimedRotatingFileHandler(os.path.join(log_dir, "listen.log"),
+                                                             when="D", utc=True)
+    file_handler.setFormatter(basic_formatter)
+
+    logger.addHandler(file_handler)
+    logger.propagate = False
+
+    return logger
+
+
 class Listener(ConsumerMixin):
     """Manages a single kombu.Consumer."""
-    def __init__(self, conn, exchanges, queues):
+    def __init__(self, conn, exchanges, queues, logger):
         self.connection = conn
         self._callbacks = {item: [] for item in exchanges}
         self._queues = queues
         self.connect_max_retries = 10
+        self.logger = logger
 
     def get_consumers(self, Consumer, channel):
         consumer = Consumer(self._queues, callbacks=[self.on_message], auto_declare=False)
@@ -39,6 +65,7 @@ class Listener(ConsumerMixin):
         callbacks = self._callbacks.get(exchange)
         try:
             if callbacks:
+                self.logger.debug(json.dumps(body["_meta"]))
                 for cb in callbacks:
                     cb(body)
             else:
@@ -48,7 +75,7 @@ class Listener(ConsumerMixin):
             message.ack()
 
 
-def get_listener(conn, userid, exchanges=None, extra_data=None):
+def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
     """Obtain a Pulse consumer that can handle received messages.
 
     Returns a ``Listener`` instance bound to listen to the requested exchanges.
@@ -83,7 +110,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None):
         queue.queue_declare()
         queue.queue_bind()
 
-    return Listener(conn, [item[1] for item in exchanges], queues)
+    return Listener(conn, [item[1] for item in exchanges], queues, logger)
 
 
 def run_pulse_listener(config):
@@ -111,17 +138,19 @@ def run_pulse_listener(config):
                             userid=config['pulse']['username'],
                             password=config['pulse']['password'])
 
+    listen_logger = get_listen_logger(config)
+
     with conn:
         try:
             listener = get_listener(conn, userid=config['pulse']['username'], exchanges=exchanges)
             listener.add_callback(config['pulse']['github']['exchange'],
-                                  GitHubFilter(config))
+                                  GitHubFilter(config, listen_logger))
             listener.add_callback(config['pulse']['hgmo']['exchange'],
-                                  PushFilter(config))
+                                  PushFilter(config, listen_logger))
             listener.add_callback(config['pulse']['treeherder']['exchange'],
-                                  TaskFilter(config))
+                                  TaskFilter(config, listen_logger))
             listener.add_callback(config['pulse']['taskcluster']['exchange'],
-                                  TaskGroupFilter(config))
+                                  TaskGroupFilter(config, listen_logger))
             listener.run()
         except KeyboardInterrupt:
             pass
@@ -131,11 +160,14 @@ class Filter(object):
     name = None
     task = tasks.handle
 
-    def __init__(self, config):
+    def __init__(self, config, logger):
         self.config = config
+        self.logger = logger
 
     def __call__(self, body):
         if self.accept(body):
+            self.logger.info("Message accepted %s" % self.name)
+            self.logger.debug(json.dumps(body))
             self.task.apply_async((self.name, body))
 
     def accept(self, body):
