@@ -44,7 +44,9 @@ elif [[ $command == "run" ]]; then
     --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
     --mount type=bind,source=$(pwd)/test,target=/app/wpt-sync/test \
     --mount type=bind,source=$(pwd)/repos,target=/app/repos \
-    --mount type=bind,source=$(pwd)/workspace,target=/app/workspace wptsync_dev $@
+    --mount type=bind,source=$(pwd)/workspace,target=/app/workspace \
+    --mount type=bind,source=$(pwd)/workspace/logs/rabbitmq,target=/var/log/rabbitmq \
+    wptsync_dev $@
 else
   echo "Usage: $0 build|test|run [optional args to for <run>...]"
 fi
