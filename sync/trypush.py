@@ -201,7 +201,7 @@ class TrySyntaxCommit(TryCommit):
 class TryFuzzyCommit(TryCommit):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
-                                             hacks=True, **kwargs)
+                                             hacks=hacks, **kwargs)
         self.exclude = self.extra_args.get("exclude", ["pgo", "ccov", "macosx"])
         self.include = self.extra_args.get("include", ["web-platform-tests"])
 
@@ -219,19 +219,28 @@ class TryFuzzyCommit(TryCommit):
 
     def _push(self):
         self.worktree.git.reset("--hard")
-        self.worktree.git.clean("-fdx")
+        # Gross hack to create a objdir until we figure out why this is failing
+        # from here but not from the shell
+        try:
+            os.makedirs(os.path.join(self.worktree.working_dir, "obj-x86_64-pc-linux-gnu"))
+        except OSError:
+            pass
         mach = Mach(self.worktree.working_dir)
         query = self.query
 
         logger.info("Pushing to try with fuzzy query: %s" % query)
 
-        if self.tests_by_type:
-            raise NotImplementedError
-
         args = ["fuzzy", "-q", query, "--artifact"]
         if self.rebuild:
             args.append("--rebuild")
             args.append(self.rebuild)
+
+        if self.tests_by_type is not None:
+            paths = set()
+            for values in self.tests_by_type.itervalues():
+                paths |= set(values)
+            args.extend(paths)
+
         try:
             output = mach.try_(*args, stderr=subprocess.STDOUT)
             return 0, output
@@ -349,6 +358,15 @@ class TryPush(base.ProcessData):
     @property
     def try_rev(self):
         return self.get("try-rev")
+
+    @try_rev.setter
+    @mut()
+    def try_rev(self, value):
+        idx = TryCommitIndex(self.repo)
+        if self.try_rev is not None:
+            idx.delete(idx.make_key(self.try_rev), self.process_name)
+        self._data["try-rev"] = value
+        idx.insert(idx.make_key(self.try_rev), self.process_name)
 
     @property
     def taskgroup_id(self):
@@ -567,9 +585,15 @@ class TryPush(base.ProcessData):
         if self.try_rev is None:
             if wpt_tasks:
                 logger.info("Got try push with no rev; setting it from a task")
-                self._data["try-rev"] = wpt_tasks[0]["task"]["payload"]["env"]["GECKO_HEAD_REV"]
-                idx = TryCommitIndex(self.repo)
-                idx.insert(idx.make_key(self.try_rev), self.process_name)
+                try_rev = (iter(wpt_tasks).next()
+                           .get("task", {})
+                           .get("payload", {})
+                           .get("env", {})
+                           .get("GECKO_HEAD_REV"))
+                if try_rev:
+                    self.try_rev = try_rev
+                else:
+                    raise ValueError("Unknown try rev for %s" % self.process_name)
 
         include_tasks = wpt_tasks.filter(included)
         logger.info("Downloading logs for try revision %s" % self.try_rev)
