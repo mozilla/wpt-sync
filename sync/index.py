@@ -295,7 +295,7 @@ class SyncIndex(Index):
                 self.insert(self.make_key(sync), process_name)
         self.save(message="Build SyncIndex")
         for item in corrupt:
-            log.warning("Corrupt process %s" % item)
+            logger.warning("Corrupt process %s" % item)
 
 
 class PrIdIndex(Index):
@@ -326,7 +326,7 @@ class PrIdIndex(Index):
         self.save(message="Build PrIdIndex")
 
         for item in corrupt:
-            log.warning("Corrupt process %s" % item)
+            logger.warning("Corrupt process %s" % item)
 
 
 class BugIdIndex(Index):
@@ -365,7 +365,7 @@ class BugIdIndex(Index):
         self.save(message="Build BugIdIndex")
 
         for item in corrupt:
-            log.warning("Corrupt process %s" % item)
+            logger.warning("Corrupt process %s" % item)
 
 
 def iter_process_names(repo):
