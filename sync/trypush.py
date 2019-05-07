@@ -1,6 +1,8 @@
 import os
 import re
+import shutil
 import subprocess
+import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import chain
@@ -466,6 +468,10 @@ class TryPush(base.ProcessData):
         success = self.wpt_tasks().filter(tc.is_status_fn(tc.SUCCESS))
         return float(len(success)) / len(wpt_tasks)
 
+    def log_path(self):
+        return os.path.join(env.config["root"], env.config["paths"]["try_logs"],
+                            "try", self.try_rev)
+
     @mut()
     def download_logs(self, raw=True, report=True, exclude=None):
         """Download all the logs for the current try push
@@ -497,14 +503,12 @@ class TryPush(base.ProcessData):
 
         include_tasks = wpt_tasks.filter(included)
         logger.info("Downloading logs for try revision %s" % self.try_rev)
-        dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
-                            "try", self.try_rev)
         file_names = []
         if raw:
             file_names.append("wpt_raw.log")
         if report:
             file_names.append("wptreport.json")
-        include_tasks.download_logs(dest, file_names)
+        include_tasks.download_logs(self.log_path(), file_names)
         return include_tasks
 
     @mut()
@@ -517,3 +521,12 @@ class TryPush(base.ProcessData):
                 if log:
                     raw_logs.append(log)
         return raw_logs
+
+    @mut()
+    def cleanup_logs(self):
+        logger.info("Removing downloaded for try push %s" % self.process_name)
+        try:
+            shutil.rmtree(self.log_path())
+        except Exception:
+            logger.warning("Failed to remove logs %s:%s" %
+                           (self.log_path(), traceback.format_exc()))
