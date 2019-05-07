@@ -97,107 +97,6 @@ class TryCommit(object):
         return try_rev
 
 
-class TrySyntaxCommit(TryCommit):
-    def create(self):
-        self.reset = self.worktree.head.commit.hexsha
-        message = self.try_message(self.tests_by_type, self.rebuild)
-        if self.hacks:
-            self.apply_hacks()
-        self.worktree.index.commit(message=message)
-
-    @staticmethod
-    def try_message(tests_by_type=None, rebuild=0):
-        """Build a try message
-
-        Args:
-            tests_by_type: dict of test paths grouped by wpt test type.
-                           If dict is empty, no tests are affected so schedule just
-                           first chunk of web-platform-tests.
-                           If dict is None, schedule all wpt test jobs.
-            rebuild: Number of times to repeat each test, max 20
-            base: base directory for tests
-
-        Returns:
-            str: try message
-        """
-        test_data = {
-            "test_jobs": [],
-            "prefixed_paths": []
-        }
-        # Example: try: -b do -p win32,win64,linux64,linux,macosx64 -u
-        # web-platform-tests[linux64-stylo,Ubuntu,10.10,Windows 8,Windows 10]
-        #  -t none --artifact
-        try_message = ("try: -b do -p win32,win64,linux64,linux -u {test_jobs} "
-                       "-t none --artifact")
-        if rebuild:
-            try_message += " --rebuild {}".format(rebuild)
-
-        test_type_suite = {
-            "testharness": ["web-platform-tests-e10s-1",
-                            "web-platform-tests-1"],
-            "reftest": ["web-platform-tests-reftests",
-                        "web-platform-tests-reftests-e10s-1"],
-            "wdspec": ["web-platform-tests-wdspec"],
-        }
-
-        test_type_flavor = {
-            "testharness": "web-platform-tests",
-            "reftest": "web-platform-tests-reftests",
-            "wdspec": "web-platform-tests-wdspec"
-        }
-
-        platform_suffix = "[linux64-stylo,Ubuntu,10.10,Windows 10]"
-
-        def platform_filter(suite):
-            return platform_suffix if "-wdspec-" not in suite else ""
-
-        path_flavors = None
-
-        if tests_by_type is None:
-            suites = ["web-platform-tests"]
-        elif len(tests_by_type) == 0:
-            suites = [test_type_suite["testharness"]]
-            # run first chunk of the wpt job if no tests are affected
-            suites = chain.from_iterable(test_type_suite.itervalues())
-        else:
-            suites = chain.from_iterable(value for key, value in test_type_suite.iteritems()
-                                         if key in tests_by_type)
-            path_flavors = {value: tests_by_type[key] for key, value in test_type_flavor.iteritems()
-                            if key in tests_by_type}
-
-        test_data["test_jobs"] = ",".join("%s%s" % (suite, platform_filter(suite))
-                                          for suite in suites)
-        if path_flavors:
-            try_message += " --try-test-paths {prefixed_paths}"
-            test_data["prefixed_paths"] = []
-
-            base = env.config["gecko"]["path"]["wpt"]
-            for flavor, paths in path_flavors.iteritems():
-                if paths:
-                    for p in paths:
-                        if base is not None and not p.startswith(base):
-                            # try server expects paths relative to m-c root dir
-                            p = os.path.join(base, p)
-                        test_data["prefixed_paths"].append(flavor + ":" + p)
-            test_data["prefixed_paths"] = " ".join(test_data["prefixed_paths"])
-
-        msg = try_message.format(**test_data)
-
-        # If a try push message has length > 2**16 the tryserver can't handle it, so
-        # we truncate at that length for now. This may mean we don't run some tests.
-        max_length = 2**16
-        if len(msg) > max_length:
-            logger.warning("Try message length %s > 2^16, so truncating" % len(msg))
-            max_index = msg[:max_length].rindex(" ") if msg[max_length] != " " else (max_length - 1)
-            msg = msg[:max_index]
-        return msg
-
-    def _push(self):
-        logger.info("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
-        status, stdout, stderr = self.worktree.git.push('try', with_extended_output=True)
-        return status, "\n".join([stdout, stderr])
-
-
 class TryFuzzyCommit(TryCommit):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
@@ -268,7 +167,7 @@ class TryPush(base.ProcessData):
     @constructor(lambda args: (args["sync"].process_name.subtype,
                                args["sync"].process_name.obj_id))
     def create(cls, lock, sync, affected_tests=None, stability=False, hacks=True,
-               try_cls=TrySyntaxCommit, rebuild_count=None, check_open=True, **kwargs):
+               try_cls=TryFuzzyCommit, rebuild_count=None, check_open=True, **kwargs):
         logger.info("Creating try push for PR %s" % sync.pr)
         if check_open and not tree.is_open("try"):
             logger.info("try is closed")
