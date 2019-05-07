@@ -184,15 +184,23 @@ class Commit(object):
         return msg
 
     def is_empty(self, prefix=None):
-        if prefix:
-            args = ("--", prefix)
-        else:
-            args = ()
-        return self.repo.git.show(self.sha1,
-                                  format="",
-                                  patch=True,
-                                  stdout_as_string=False,
-                                  *args).strip() == ""
+        if len(self.pygit2_commit.parents) == 1:
+            # Fast-path for non-merge commits
+            diff = self.pygit2_repo.diff(self.pygit2_commit,
+                                         self.pygit2_commit.parents[0])
+            if not prefix:
+                # Empty if there are no deltas in the diff
+                return not any(diff.deltas)
+
+            for delta in diff.deltas:
+                if (delta.old_file.path.startswith(prefix) or
+                    delta.new_file.path.startswith(prefix)):
+                    return False
+            return True
+
+        return self.show(src_prefix=prefix,
+                         format="",
+                         patch=True).strip() == ""
 
     def tags(self):
         return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n")

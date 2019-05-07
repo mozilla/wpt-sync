@@ -9,6 +9,14 @@ def test_wpt_empty(git_gecko, local_gecko_commit):
     gecko_commit = sync_commit.GeckoCommit(git_gecko, commit)
     assert not gecko_commit.is_empty()
     assert not gecko_commit.has_wpt_changes()
+    assert gecko_commit.is_empty("testing/web-platform/tests")
+
+
+def test_empty(git_gecko, gecko_worktree):
+    gecko_worktree.git.commit(allow_empty=True, message="Empty commit")
+    commit = gecko_worktree.head.commit
+    gecko_commit = sync_commit.GeckoCommit(git_gecko, commit)
+    assert gecko_commit.is_empty()
 
 
 def test_move_utf16(git_gecko, git_wpt_upstream, git_wpt, wpt_worktree, local_gecko_commit):
