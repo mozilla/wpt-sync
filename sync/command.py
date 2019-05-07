@@ -112,8 +112,8 @@ def get_parser():
                                help="Sync type")
     parser_status.add_argument("obj_id", help="Object id (pr number or bug)")
     parser_status.add_argument("new_status", help="Status to set")
-    parser_status.add_argument("--old-status", default="*", help="Current status")
-    parser_status.add_argument("--seq-id", nargs="?", default="*", help="Sequence number")
+    parser_status.add_argument("--old-status", help="Current status")
+    parser_status.add_argument("--seq-id", nargs="?", help="Sequence number")
     parser_status.set_defaults(func=do_status)
 
     parser_notify = subparsers.add_parser("notify", help="Generate notifications")
@@ -418,15 +418,20 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
                                git_wpt,
                                obj_id)
 
-    if kwargs["old_status"]:
+    if kwargs["old_status"] is not None:
         objs = {item for item in objs if item.status == kwargs["old_status"]}
 
-    if kwargs["seq_id"]:
+    if kwargs["seq_id"] is not None:
         objs = {item for item in objs if item.seq_id == kwargs["seq_id"]}
 
+    if not objs:
+        logger.error("No matching syncs found")
+
     for obj in objs:
-        with SyncLock.for_process(obj.process_name):
-            obj.status = kwargs["new_status"]
+        logger.info("Setting status of %s to %s" % (obj.process_name, kwargs["new_status"]))
+        with SyncLock.for_process(obj.process_name) as lock:
+            with obj.as_mut(lock):
+                obj.status = kwargs["new_status"]
 
 
 def do_notify(git_gecko, git_wpt, pr_id, **kwargs):
