@@ -5,7 +5,7 @@ import git
 
 import env
 import log
-from base import ProcessName, CommitBuilder
+from base import ProcessName, CommitBuilder, iter_process_names
 from repos import pygit2_get
 
 
@@ -277,7 +277,7 @@ class SyncIndex(Index):
 
         corrupt = []
 
-        for process_name in iter_process_names(self.pygit2_repo):
+        for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
             sync_cls = None
             if process_name.subtype == "upstream":
                 sync_cls = UpstreamSync
@@ -313,7 +313,7 @@ class PrIdIndex(Index):
 
         corrupt = []
 
-        for process_name in iter_process_names(self.pygit2_repo):
+        for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
             if process_name.subtype == "downstream":
                 try:
                     sync = DownstreamSync(git_gecko, git_wpt, process_name)
@@ -346,7 +346,7 @@ class BugIdIndex(Index):
 
         corrupt = []
 
-        for process_name in iter_process_names(self.pygit2_repo):
+        for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
             sync_cls = None
             if process_name.subtype == "upstream":
                 sync_cls = UpstreamSync
@@ -366,26 +366,6 @@ class BugIdIndex(Index):
 
         for item in corrupt:
             logger.warning("Corrupt process %s" % item)
-
-
-def iter_process_names(repo):
-    ref = repo.references[env.config["sync"]["ref"]]
-    root = repo[ref.peel().tree.id]
-    path = "sync"
-    root_entry = root[path]
-    root = repo[root_entry.id]
-
-    stack = [("sync", root)]
-    while stack:
-        path, tree = stack.pop()
-        for item in tree:
-            item_path = "%s/%s" % (path, item.name)
-            if item.type == "tree":
-                stack.append((item_path, repo[item.id]))
-            else:
-                process_name = ProcessName.from_path(item_path)
-                if process_name is not None:
-                    yield process_name
 
 
 def iter_blobs(repo, path):

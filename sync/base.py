@@ -69,11 +69,35 @@ class IdentityMap(type):
         return value
 
 
+def iter_process_names(pygit2_repo, kind=["sync", "try"]):
+    """Iterator over all ProcessName objects"""
+    ref = pygit2_repo.references[env.config["sync"]["ref"]]
+    root = pygit2_repo[ref.peel().tree.id]
+    stack = []
+    for root_path in kind:
+        tree_entry = root[root_path]
+        tree = pygit2_repo[tree_entry.id]
+
+        stack.append((root_path, tree))
+
+    while stack:
+        path, tree = stack.pop()
+        for item in tree:
+            item_path = "%s/%s" % (path, item.name)
+            if item.type == "tree":
+                stack.append((item_path, pygit2_repo[item.id]))
+            else:
+                process_name = ProcessName.from_path(item_path)
+                if process_name is not None:
+                    yield process_name
+
+
 class ProcessNameIndex(object):
     __metaclass__ = IdentityMap
 
     def __init__(self, repo):
         self.repo = repo
+        self.pygit2_repo = pygit2_get(repo)
         self.reset()
 
     @classmethod
@@ -88,14 +112,7 @@ class ProcessNameIndex(object):
         self._built = False
 
     def build(self):
-        ref = git.Reference(self.repo, env.config["sync"]["ref"])
-        for item in ref.commit.tree.traverse():
-            if isinstance(item, git.Tree):
-                continue
-            process_name = ProcessName.from_path(item.path)
-            if process_name is None:
-                continue
-
+        for process_name in iter_process_names(self.pygit2_repo):
             self.insert(process_name)
         self._built = True
 
@@ -492,10 +509,7 @@ class ProcessData(object):
         process_names = ProcessNameIndex(repo).get(cls.obj_type,
                                                    subtype,
                                                    obj_id)
-        rv = set()
-        for process_name in process_names:
-            rv.add(cls(repo, process_name))
-        return rv
+        return {cls(repo, process_name) for process_name in process_names}
 
     @classmethod
     def load_by_status(cls, repo, subtype, status):
