@@ -343,8 +343,11 @@ class UpstreamSync(SyncProcess):
     def push_commits(self):
         remote_branch = self.get_or_create_remote_branch()
         logger.info("Pushing commits from bug %s to branch %s" % (self.bug, remote_branch))
-        self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
-                                         force=True, set_upstream=True)
+        push_info = self.git_wpt.remotes.origin.push("refs/heads/%s:%s" % (self.branch_name, remote_branch),
+                                                     force=True, set_upstream=True)
+        for item in push_info:
+            if item.flags & item.ERROR:
+                raise AbortError(item.summary)
 
     @mut()
     def update_github(self):
