@@ -7,21 +7,22 @@ import git
 from github import GithubException
 from mozautomation import commitparser
 
-import base
 import log
 import commit as sync_commit
+from base import entry_point
 from downstream import DownstreamSync
 from errors import AbortError
 from env import Environment
 from gitutils import update_repositories, gecko_repo
 from lock import SyncLock, constructor, mut
+from sync import CommitFilter, LandableStatus, SyncProcess
 
 env = Environment()
 
 logger = log.get_logger(__name__)
 
 
-class BackoutCommitFilter(base.CommitFilter):
+class BackoutCommitFilter(CommitFilter):
     def __init__(self, bug_id):
         self.bug = bug_id
         self.seen = set()
@@ -47,7 +48,7 @@ class BackoutCommitFilter(base.CommitFilter):
         return remove_complete_backouts(commits)
 
 
-class UpstreamSync(base.SyncProcess):
+class UpstreamSync(SyncProcess):
     sync_type = "upstream"
     obj_id = "bug"
     statuses = ("open", "wpt-merged", "complete", "incomplete")
@@ -157,7 +158,7 @@ class UpstreamSync(base.SyncProcess):
 
     @property
     def landable_status(self):
-        return base.LandableStatus.upstream
+        return LandableStatus.upstream
 
     @property
     def bug(self):
@@ -754,7 +755,7 @@ def try_land_syncs(lock, syncs):
     return landed_syncs
 
 
-@base.entry_point("upstream")
+@entry_point("upstream")
 @mut('sync')
 def update_sync(git_gecko, git_wpt, sync, raise_on_error=True, repo_update=True):
     if sync.status in ("wpt-merged", "complete"):
@@ -780,7 +781,7 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True, repo_update=True)
     return pushed_syncs, failed_syncs, landed_syncs
 
 
-@base.entry_point("upstream")
+@entry_point("upstream")
 def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
                base_rev=None):
     rev = git_gecko.cinnabar.hg2git(hg_rev)
@@ -821,7 +822,7 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
     return pushed_syncs, landed_syncs, failed_syncs
 
 
-@base.entry_point("upstream")
+@entry_point("upstream")
 @mut('sync')
 def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     landed = False
@@ -864,7 +865,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
     return landed
 
 
-@base.entry_point("upstream")
+@entry_point("upstream")
 @mut('sync')
 def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
     """Update the sync status for a PR event on github

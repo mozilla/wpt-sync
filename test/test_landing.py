@@ -220,14 +220,14 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     # Merge the upstream change
-    remote_branch = sync_1.remote_branch
-    git_wpt_upstream.git.checkout(remote_branch)
-    git_wpt_upstream.git.rebase("master")
-    git_wpt_upstream.git.checkout("master")
-    git_wpt_upstream.git.merge(remote_branch, ff_only=True)
-
     with SyncLock.for_process(sync_1.process_name) as lock:
         with sync_1.as_mut(lock):
+            remote_branch = sync_1.remote_branch
+            git_wpt_upstream.git.checkout(remote_branch)
+            git_wpt_upstream.git.rebase("master")
+            git_wpt_upstream.git.checkout("master")
+            git_wpt_upstream.git.merge(remote_branch, ff_only=True)
+
             sync_1.finish()
 
     # Add second gecko change

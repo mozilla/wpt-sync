@@ -6,7 +6,6 @@ from collections import defaultdict
 import git
 from mozautomation import commitparser
 
-import base
 import bug
 import bugcomponents
 import commit as sync_commit
@@ -20,14 +19,15 @@ import load
 import trypush
 import update
 import upstream
-from base import SyncProcess
+from base import entry_point
 from commit import first_non_merge
 from env import Environment
 from gitutils import update_repositories
 from lock import SyncLock, constructor, mut
-from projectutil import Mach
 from errors import AbortError, RetryableError
+from projectutil import Mach
 from repos import pygit2_get
+from sync import LandableStatus, SyncProcess
 
 env = Environment()
 
@@ -640,13 +640,13 @@ def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
                                             "origin/master")
     for pr, commits in pr_commits:
         if pr is None:
-            status = base.LandableStatus.no_pr
+            status = LandableStatus.no_pr
         elif upstream.UpstreamSync.has_metadata(first_non_merge(commits).msg):
-            status = base.LandableStatus.upstream
+            status = LandableStatus.upstream
         else:
             sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
             if not sync:
-                status = base.LandableStatus.no_sync
+                status = LandableStatus.no_sync
             else:
                 status = sync.landable_status
         yield (pr, commits, status)
@@ -790,7 +790,7 @@ def current(git_gecko, git_wpt):
     return landings.pop() if landings else None
 
 
-@base.entry_point("landing")
+@entry_point("landing")
 def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
     prs = set()
     for commit in commits:
@@ -810,7 +810,7 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
                 update.update_pr(git_gecko, git_wpt, pr_data)
 
 
-@base.entry_point("landing")
+@entry_point("landing")
 def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                    include_incomplete=False, retry=False):
     """Create or continue a landing of wpt commits to gecko.
@@ -898,7 +898,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
     return landing
 
 
-@base.entry_point("landing")
+@entry_point("landing")
 @mut('try_push', 'sync')
 def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                       accept_failures=False):
@@ -1018,7 +1018,7 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
                                 env.bz.comment(sync.bug, "Result changes from PR not available.")
 
 
-@base.entry_point("landing")
+@entry_point("landing")
 def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
                base_rev=None):
     rev = git_gecko.cinnabar.hg2git(hg_rev)

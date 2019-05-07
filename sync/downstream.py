@@ -14,18 +14,19 @@ from collections import defaultdict
 import enum
 import git
 
-import base
 import bugcomponents
 import gitutils
 import log
 import notify
 import trypush
 import commit as sync_commit
+from base import entry_point
 from env import Environment
 from errors import AbortError
 from gitutils import update_repositories
 from lock import SyncLock, mut, constructor
 from projectutil import Mach, WPT
+from sync import LandableStatus, SyncProcess
 from trypush import TryPush
 
 logger = log.get_logger(__name__)
@@ -50,7 +51,7 @@ class DownstreamAction(enum.Enum):
                 DownstreamAction.wait_approved: "waiting for PR to be approved"}.get(self, "")
 
 
-class DownstreamSync(base.SyncProcess):
+class DownstreamSync(SyncProcess):
     sync_type = "downstream"
     obj_id = "pr"
     statuses = ("open", "complete")
@@ -102,13 +103,13 @@ class DownstreamSync(base.SyncProcess):
     @property
     def landable_status(self):
         if self.skip:
-            return base.LandableStatus.skip
+            return LandableStatus.skip
         if self.metadata_ready:
-            return base.LandableStatus.ready
+            return LandableStatus.ready
         if self.error:
-            return base.LandableStatus.error
+            return LandableStatus.error
 
-        return base.LandableStatus.missing_try_results
+        return LandableStatus.missing_try_results
 
     @property
     def pr_head(self):
@@ -784,7 +785,7 @@ class DownstreamSync(base.SyncProcess):
         return rv
 
 
-@base.entry_point("downstream")
+@entry_point("downstream")
 def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=True):
     """ Start a new downstream sync """
     if pr_data["user"]["login"] == env.config["web-platform-tests"]["github"]["user"]:
@@ -817,7 +818,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=Tru
             # Now wait for the status to change before we take any actions
 
 
-@base.entry_point("downstream")
+@entry_point("downstream")
 @mut('sync')
 def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                           raise_on_error=False, repo_update=True):
@@ -843,7 +844,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
         logger.error(e)
 
 
-@base.entry_point("downstream")
+@entry_point("downstream")
 @mut('try_push', 'sync')
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     if not try_push.taskgroup_id:
@@ -905,7 +906,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             sync.try_notify()
 
 
-@base.entry_point("downstream")
+@entry_point("downstream")
 @mut('sync')
 def pull_request_approved(git_gecko, git_wpt, sync):
     try:
@@ -915,7 +916,7 @@ def pull_request_approved(git_gecko, git_wpt, sync):
         raise
 
 
-@base.entry_point("downstream")
+@entry_point("downstream")
 @mut('sync')
 def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
     try:
