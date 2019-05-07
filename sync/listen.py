@@ -65,7 +65,6 @@ class Listener(ConsumerMixin):
         callbacks = self._callbacks.get(exchange)
         try:
             if callbacks:
-                self.logger.debug(json.dumps(body["_meta"]))
                 for cb in callbacks:
                     cb(body)
             else:
@@ -142,7 +141,10 @@ def run_pulse_listener(config):
 
     with conn:
         try:
-            listener = get_listener(conn, userid=config['pulse']['username'], exchanges=exchanges)
+            listener = get_listener(conn,
+                                    userid=config['pulse']['username'],
+                                    exchanges=exchanges,
+                                    logger=listen_logger)
             listener.add_callback(config['pulse']['github']['exchange'],
                                   GitHubFilter(config, listen_logger))
             listener.add_callback(config['pulse']['hgmo']['exchange'],
@@ -180,8 +182,8 @@ class GitHubFilter(Filter):
     event_filters["status"] = lambda x: x["payload"]["context"] != "upstream/gecko"
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, config, logger):
+        super(GitHubFilter, self).__init__(config, logger)
         repo_path = urlparse.urlparse(config["web-platform-tests"]["repo"]["url"]).path
         self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
@@ -194,8 +196,8 @@ class GitHubFilter(Filter):
 class PushFilter(Filter):
     name = "push"
 
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, config, logger):
+        super(PushFilter, self).__init__(config, logger)
         self.repos = set(config["gecko"]["repo"].keys())
 
     def accept(self, body):
