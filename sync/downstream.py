@@ -746,6 +746,9 @@ class DownstreamSync(SyncProcess):
         msg = notify.get_msg(try_tasks, central_tasks)
         env.bz.comment(self.bug, msg)
         self.results_notified = True
+        with SyncLock.for_process(self.process_name) as lock:
+            with complete_try_push.as_mut(lock):
+                complete_try_push.cleanup_logs()
 
     def reverts_syncs(self):
         """Return a set containing the previous syncs reverted by this one, if any"""
