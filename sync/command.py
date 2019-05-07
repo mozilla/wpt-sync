@@ -486,7 +486,7 @@ def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
 
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import update
-    from base import LandableStatus
+    from sync import LandableStatus
     from downstream import DownstreamAction, DownstreamSync
     from landing import load_sync_point, landable_commits, unlanded_with_type
 
