@@ -118,13 +118,14 @@ class TryFuzzyCommit(TryCommit):
 
     def _push(self):
         self.worktree.git.reset("--hard")
+        mach = Mach(self.worktree.working_dir)
         # Gross hack to create a objdir until we figure out why this is failing
         # from here but not from the shell
         try:
-            os.makedirs(os.path.join(self.worktree.working_dir, "obj-x86_64-pc-linux-gnu"))
+            if not os.path.exists(os.path.join(self.worktree.working_dir, "obj-x86_64-pc-linux-gnu")):
+                mach.python("-c", "")
         except OSError:
             pass
-        mach = Mach(self.worktree.working_dir)
         query = self.query
 
         logger.info("Pushing to try with fuzzy query: %s" % query)
