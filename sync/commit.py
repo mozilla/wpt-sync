@@ -171,8 +171,8 @@ class Commit(object):
             commit_kwargs["no_edit"] = True
         else:
             if author is not None:
-                commit_kwargs["author"] = author
-        repo.git.commit(message=msg, **commit_kwargs)
+                commit_kwargs["author"] = author.encode("utf8")
+        repo.git.commit(message=msg.encode("utf8"), **commit_kwargs)
         return cls(repo, repo.head.commit.hexsha)
 
     @staticmethod
