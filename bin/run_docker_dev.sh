@@ -8,6 +8,8 @@ set -eo pipefail
 command=$1
 shift
 
+DOCKER_TAG=${DOCKER_TAG:-wptsync_dev}
+
 if [[ $command == "build" ]]; then
     {
       set +e
@@ -46,7 +48,7 @@ elif [[ $command == "run" ]]; then
     --mount type=bind,source=$(pwd)/repos,target=/app/repos \
     --mount type=bind,source=$(pwd)/workspace,target=/app/workspace \
     --mount type=bind,source=$(pwd)/workspace/logs/rabbitmq,target=/var/log/rabbitmq \
-    wptsync_dev $@
+    $DOCKER_TAG $@
 else
   echo "Usage: $0 build|test|run [optional args to for <run>...]"
 fi
