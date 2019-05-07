@@ -9,6 +9,7 @@ import log
 logger = log.get_logger(__name__)
 
 
+wrapper_map = {}
 pygit2_map = {}
 
 
@@ -29,6 +30,7 @@ class GitSettings(object):
 
     def repo(self):
         repo = git.Repo(self.root)
+        wrapper_map[repo] = self
         pygit2_map[repo] = pygit2.Repository(repo.git_dir)
 
         logger.debug("Existing repo found at " + self.root)
@@ -110,3 +112,7 @@ def pygit2_get(repo):
     if repo not in pygit2_map:
         pygit2_map[repo] = pygit2.Repository(repo.git_dir)
     return pygit2_map[repo]
+
+
+def wrapper_get(repo):
+    return wrapper_map.get(repo)

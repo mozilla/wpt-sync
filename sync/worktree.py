@@ -3,10 +3,14 @@ import shutil
 import traceback
 from datetime import datetime, timedelta
 
+import git
+import pygit2
+
 import log
 from base import ProcessName
 from env import Environment
 from lock import MutGuard, SyncLock, mut
+from repos import pygit2_get, wrapper_get
 
 
 env = Environment()
@@ -15,46 +19,103 @@ logger = log.get_logger(__name__)
 
 
 def cleanup(git_gecko, git_wpt):
-    for git in [git_gecko, git_wpt]:
-        git.git.worktree("prune")
-        worktrees = git.git.worktree("list", "--porcelain")
-        groups = [item for item in worktrees.split("\n\n") if item.strip()]
-        for group in groups:
-            data = {}
-            lines = group.split("\n")
-            for line in lines:
-                if " " in line:
-                    key, value = line.split(" ", 1)
-                else:
-                    key, value = line, None
-                data[key] = value
+    for repo in [git_gecko, git_wpt]:
+        pygit2_repo = pygit2_get(repo)
+        cleanup_repo(pygit2_repo, get_max_worktree_count(repo))
 
-            if "bare" in data or "branch" not in data:
-                continue
 
-            logger.info("Checking worktree %s for branch %s" % (data["worktree"], data["branch"]))
-            worktree_path = data["worktree"]
+def cleanup_repo(pygit2_repo, max_count=None):
+    # TODO: Always cleanup repos where the sync is finished
+    prune_worktrees(pygit2_repo)
+    unprunable = []
+    prunable = []
+    now = datetime.now()
+    for worktree in worktrees(pygit2_repo):
+        if not os.path.exists(worktree.path):
+            worktree.prune(True)
+            continue
 
-            process_name = ProcessName.from_ref(data["branch"])
-            if process_name is None:
-                continue
+        pygit2_repo = pygit2.Repository(worktree.path)
+        head_branch = pygit2_repo.head.name
 
-            if not os.path.exists(worktree_path):
-                continue
+        if not head_branch:
+            logger.warning("No head associated with worktree %s" % worktree.path)
+            unprunable.append(worktree)
+            continue
 
-            with SyncLock.for_process(process_name):
-                if process_name.status != "open":
-                    logger.info("Removing worktree for closed sync %s" % worktree_path)
-                    shutil.rmtree(worktree_path)
-                    continue
+        if head_branch.startswith("refs/heads/"):
+            head_branch = head_branch[len("refs/heads/"):]
 
-                now = datetime.now()
-                # Data hasn't been touched in two days
-                if (datetime.fromtimestamp(os.stat(worktree_path).st_mtime) <
-                    now - timedelta(days=2)):
-                    logger.info("Removing worktree without recent activity %s" % worktree_path)
-                    shutil.rmtree(worktree_path)
-        git.git.worktree("prune")
+        process_name = ProcessName.from_path(head_branch)
+        if process_name is None:
+            logger.warning("No sync process associated with worktree %s" % worktree.path)
+            unprunable.append(worktree)
+            continue
+
+        prunable.append((datetime.fromtimestamp(os.stat(worktree.path).st_mtime),
+                         process_name,
+                         worktree))
+
+    if max_count and len(unprunable) > max_count:
+        logger.error("Unable to cleanup worktrees, because there are too many unprunable worktrees")
+
+    if not max_count:
+        delete_count = 0
+    else:
+        delete_count = max(len(unprunable) + len(prunable) - max_count, 0)
+
+    prunable.sort()
+    for time, process_name, worktree in prunable:
+        if time < (now - timedelta(days=2)):
+            logger.info("Removing worktree without recent activity %s" % worktree.path)
+            delete_worktree(process_name, worktree)
+            delete_count -= 1
+        elif delete_count > 0:
+            logger.info("Removing LRU worktree %s" % worktree.path)
+            delete_worktree(process_name, worktree)
+            delete_count -= 1
+        else:
+            break
+
+
+def delete_worktree(process_name, worktree):
+    with SyncLock.for_process(process_name):
+        try:
+            shutil.rmtree(worktree.path)
+        except Exception:
+            logger.warning("Failed to remove worktree %s:%s" %
+                           (worktree.path, traceback.format_exc()))
+        else:
+            logger.debug("Removed worktree %s" % (worktree.path,))
+        worktree.prune(True)
+
+
+def worktrees(pygit2_repo):
+    for name in pygit2_repo.list_worktrees():
+        yield pygit2_repo.lookup_worktree(name)
+
+
+def prune_worktrees(pygit2_repo):
+    for worktree in worktrees(pygit2_repo):
+        # For some reason libgit2 thinks worktrees are not prunable when their
+        # working dir is gone
+        if worktree.is_prunable or not os.path.exists(worktree.path):
+            logger.info("Deleting worktree at path %s" % worktree.path)
+            worktree.prune(True)
+
+
+def get_max_worktree_count(repo):
+    repo_wrapper = wrapper_get(repo)
+    if not repo_wrapper:
+        return None
+    repo_name = repo_wrapper.name
+    max_count = env.config[repo_name]["worktree"]["max-count"]
+    if not max_count:
+        return None
+    max_count = int(max_count)
+    if max_count <= 0:
+        return None
+    return max_count
 
 
 class Worktree(object):
@@ -65,6 +126,7 @@ class Worktree(object):
 
     def __init__(self, repo, process_name):
         self.repo = repo
+        self.pygit2_repo = pygit2_get(repo)
         self._worktree = None
         self.process_name = process_name
         self.path = os.path.join(env.config["root"],
@@ -96,11 +158,17 @@ class Worktree(object):
         # * Add the list of paths to check out under $REPO/worktrees/info/sparse-checkout
         # * Go to the worktree and check it out
         if self._worktree is None:
+            count = len(list(worktrees(self.pygit2_repo)))
+            max_count = get_max_worktree_count(self.repo)
+            if max_count and count >= max_count:
+                cleanup_repo(self.pygit2_repo, max_count - 1)
             if not os.path.exists(self.path):
-                self.repo.git.worktree("prune")
-                self.repo.git.worktree("add",
-                                       os.path.abspath(self.path),
-                                       str(self.process_name))
+                logger.info("Creating worktree %s" % self.path)
+                prune_worktrees(self.pygit2_repo)
+                self.pygit2_repo.add_worktree(self.process_name.obj_id,
+                                              os.path.abspath(self.path),
+                                              self.pygit2_repo.lookup_reference(
+                                                  "refs/heads/%s" % self.process_name))
             self._worktree = git.Repo(self.path)
         # TODO: In general the worktree should be on the right branch, but it would
         # be good to check. In the specific case of landing, we move the wpt worktree
@@ -109,13 +177,12 @@ class Worktree(object):
 
     @mut()
     def delete(self):
-        if os.path.exists(self.path):
-            logger.info("Deleting worktree at %s" % self.path)
-            try:
-                shutil.rmtree(self.path)
-            except Exception:
-                logger.warning("Failed to remove worktree %s:%s" %
-                               (self.path, traceback.format_exc()))
+        worktree = self.pygit2_repo.lookup_worktree(self.process_name.obj_id)
+        if worktree is None:
+            for worktree in worktrees(self.pygit2_repo):
+                if worktree.path == self.path:
+                    break
             else:
-                logger.debug("Removed worktree %s" % (self.path,))
-        self.repo.git.worktree("prune")
+                # No worktree found
+                return
+        delete_worktree(self.process_name, self.pygit2_repo)
