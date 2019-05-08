@@ -1,8 +1,9 @@
 import itertools
 import random
 import re
-import urlparse
 import sys
+import time
+import urlparse
 
 import github
 import log
@@ -141,8 +142,18 @@ class GitHub(object):
         return None
 
     def is_mergeable(self, pr_id):
-        pr = self.get_pull(pr_id)
-        return pr.mergeable
+        mergeable = None
+        count = 0
+        while mergeable is None and count < 6:
+            # GitHub sometimes doesn't have the mergability information ready;
+            # In this case mergeable is None and we need to wait and try again
+            pr = self.get_pull(pr_id)
+            mergeable = pr.mergeable
+            if mergeable is None:
+                time.sleep(2**count)
+                count += 1
+                del self.pr_cache[self.pr]
+        return bool(mergeable)
 
     def merge_pull(self, pr_id):
         pr = self.get_pull(pr_id)
