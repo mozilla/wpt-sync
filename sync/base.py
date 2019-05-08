@@ -180,10 +180,7 @@ class ProcessName(object):
         return (obj_type, subtype, str(obj_id), str(seq_id) if seq_id is not None else None)
 
     def __str__(self):
-        return "%s/%s/%s/%s" % (self._obj_type,
-                                self._subtype,
-                                self._obj_id,
-                                self.seq_id)
+        return "%s/%s/%s/%s" % self.as_tuple()
 
     def key(self):
         return self._cache_key(self._obj_type, self._subtype, self._obj_id, self._seq_id)
@@ -193,10 +190,7 @@ class ProcessName(object):
             return True
         if self.__class__ != other.__class__:
             return False
-        return ((self.obj_type == other.obj_type) and
-                (self.subtype == other.subtype) and
-                (self.obj_id == other.obj_id) and
-                (self.seq_id == other.seq_id))
+        return self.as_tuple() == other.as_tuple()
 
     def __hash__(self):
         return hash(self.key())
@@ -217,9 +211,15 @@ class ProcessName(object):
     def seq_id(self):
         return int(self._seq_id)
 
+    def as_tuple(self):
+        return (self.obj_type, self.subtype, self.obj_id, self.seq_id)
+
     @classmethod
     def from_path(cls, path):
-        parts = path.split("/")
+        return cls.from_tuple(path.split("/"))
+
+    @classmethod
+    def from_tuple(cls, parts):
         if parts[0] not in ["sync", "try"]:
             return None
         if len(parts) != 4:
