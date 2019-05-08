@@ -239,7 +239,7 @@ class UpstreamSync(SyncProcess):
         matching_commits = []
 
         if len(self.gecko_commits) == 0:
-            return
+            return False
 
         # Find the commits that were already upstreamed. Some gecko commits may not
         # result in an upstream commit, if the patch has no effect. But if we find
@@ -253,7 +253,7 @@ class UpstreamSync(SyncProcess):
             matching_commits.pop()
 
         if len(matching_commits) == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
-            return
+            return False
 
         if len(matching_commits) == 0:
             self.wpt_commits.head = self.wpt_commits.base
@@ -352,7 +352,7 @@ class UpstreamSync(SyncProcess):
                 raise AbortError(item.summary)
 
     @mut()
-    def update_github(self):
+    def update_github(self, push_required=True):
         if self.pr:
             state = env.gh_wpt.pull_state(self.pr)
             if not len(self.gecko_commits):
@@ -378,7 +378,8 @@ class UpstreamSync(SyncProcess):
         if not len(self.upstreamed_gecko_commits):
             return
 
-        self.push_commits()
+        if push_required:
+            self.push_commits()
         if not self.pr:
             self.create_pr()
 
@@ -689,6 +690,7 @@ def update_sync_heads(lock, syncs_by_bug):
 
 def update_modified_sync(git_gecko, git_wpt, sync):
     assert sync._lock is not None
+    push_required = True
     if len(sync.gecko_commits) == 0:
         # In the case that there are no gecko commits, we presumably had a backout
         # In this case we don't touch the wpt commits, but just mark the PR
@@ -704,7 +706,7 @@ def update_modified_sync(git_gecko, git_wpt, sync):
     else:
         sync.status = "open"
         try:
-            sync.update_wpt_commits()
+            push_required = sync.update_wpt_commits()
         except AbortError:
             # If we got a merge conflict and the PR doesn't exist yet then try
             # recreating the commits on top of the current sync point in order that
@@ -716,13 +718,13 @@ def update_modified_sync(git_gecko, git_wpt, sync):
                 sync_point = load_sync_point(git_gecko, git_wpt)
                 sync.set_wpt_base(sync_point["upstream"])
                 try:
-                    sync.update_wpt_commits()
+                    push_required = sync.update_wpt_commits()
                 except AbortError:
                     # Reset the base to origin/master
                     sync.set_wpt_base("origin/master")
                     raise
 
-    sync.update_github()
+    sync.update_github(push_required)
 
 
 def update_sync_prs(lock, git_gecko, git_wpt, create_endpoints, update_syncs,
@@ -778,7 +780,7 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True, repo_update=True)
                                                  update_syncs,
                                                  raise_on_error=raise_on_error)
 
-    if sync.repository == "central" and sync not in failed_syncs:
+    if sync not in failed_syncs:
         landed_syncs = try_land_syncs(sync._lock, [sync])
     else:
         landed_syncs = set()
