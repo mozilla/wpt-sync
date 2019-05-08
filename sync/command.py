@@ -172,13 +172,15 @@ def get_parser():
                                      help="Rebuild count")
     parser_try_push_add.set_defaults(func=do_try_push_add)
 
-    parser_try_push_add = subparsers.add_parser("build-index",
-                                                help="Build indexes")
-    parser_try_push_add.set_defaults(func=do_build_index)
+    parser_build_index = subparsers.add_parser("build-index",
+                                               help="Build indexes")
+    parser_build_index.set_defaults(func=do_build_index)
 
-    parser_try_push_add = subparsers.add_parser("migrate",
-                                                help="Migrate to latest date storage format")
-    parser_try_push_add.set_defaults(func=do_migrate)
+    parser_migrate = subparsers.add_parser("migrate",
+                                           help="Migrate to latest data storage format")
+    parser_migrate.set_defaults(func=do_migrate)
+
+
 
     return parser
 
