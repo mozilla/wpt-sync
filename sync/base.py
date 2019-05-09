@@ -493,7 +493,7 @@ class ProcessData(object):
         except KeyError:
             pass
         else:
-            raise ValueError("%s already exists at path %s" % (cls.__name__, ref.path))
+            raise ValueError("%s already exists at path %s" % (cls.__name__, path))
         with CommitBuilder(repo, message, ref=ref) as commit:
             commit.add_tree({path: json.dumps(data)})
         ProcessNameIndex(repo).insert(process_name)
