@@ -16,6 +16,7 @@ from env import Environment
 from gitutils import update_repositories, gecko_repo
 from lock import SyncLock, constructor, mut
 from sync import CommitFilter, LandableStatus, SyncProcess
+from repos import pygit2_get
 
 env = Environment()
 
@@ -190,35 +191,33 @@ class UpstreamSync(SyncProcess):
 
     @property
     def remote_branch(self):
-        remote = self.data.get("remote-branch")
-        if remote is None:
-            remote = self.git_wpt.git.rev_parse("%s@{upstream}" % self.branch_name,
-                                                abbrev_ref=True,
-                                                with_exceptions=False)
-            if remote:
-                remote = remote[len("origin/"):]
-                self.remote_branch = remote
-            else:
-                # We get the empty string back, but want to always use None
-                # to indicate a missing remote
-                remote = None
-        return remote
+        return self.data.get("remote-branch")
 
     @remote_branch.setter
     @mut()
     def remote_branch(self, value):
+        if value:
+            assert not value.startswith("refs/")
         self.data["remote-branch"] = value
 
     @mut()
     def get_or_create_remote_branch(self):
         if not self.remote_branch:
+            pygit2_gecko = pygit2_get(self.git_gecko)
+            pygit2_wpt = pygit2_get(self.git_wpt)
+            if self.branch_name in pygit2_gecko.branches:
+                upstream = pygit2_gecko.branches[self.branch_name].upstream
+                if upstream:
+                    self.remote_branch = upstream.shortname
+
+        if not self.remote_branch:
             count = 0
-            remote_refs = self.git_wpt.remotes.origin.refs
-            name = "gecko/%s" % self.bug
-            while name in remote_refs:
+            refs = pygit2_wpt.references
+            initial_path = path = "refs/remotes/origin/gecko/%s" % self.bug
+            while path in refs:
                 count += 1
-                name = "gecko/%s/%s" % (self.bug, count)
-            self.remote_branch = name
+                path = "%s/%s" % (initial_path, count)
+            self.remote_branch = path[len("refs/remotes/origin/"):]
         return self.remote_branch
 
     @property
@@ -317,6 +316,8 @@ class UpstreamSync(SyncProcess):
         if self.pr:
             return self.pr
 
+        assert self.remote_branch is not None
+        assert self.remote_branch in self.git_wpt.remotes.origin.refs
         while not env.gh_wpt.get_branch(self.remote_branch):
             logger.debug("Waiting for branch")
             time.sleep(1)
