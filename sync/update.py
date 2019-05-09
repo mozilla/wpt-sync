@@ -177,7 +177,8 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
 
                     elif sync.latest_valid_try_push:
                         if not sync.latest_valid_try_push.taskgroup_id:
-                            update_taskgroup_ids(git_gecko, git_wpt)
+                            update_taskgroup_ids(git_gecko, git_wpt,
+                                                 sync.latest_valid_try_push)
 
                         if (sync.latest_valid_try_push.taskgroup_id and
                             not sync.latest_valid_try_push.status == "complete"):
