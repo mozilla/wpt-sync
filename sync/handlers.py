@@ -104,9 +104,9 @@ def handle_status(git_gecko, git_wpt, event):
         update_func = downstream.commit_status_changed
     if update_func is not None:
         with SyncLock.for_process(sync.process_name) as lock:
-            sync = sync.as_mut(lock)
-            update_func(git_gecko, git_wpt, sync, event["context"], event["state"],
-                        event["target_url"], event["sha"])
+            with sync.as_mut(lock):
+                update_func(git_gecko, git_wpt, sync, event["context"], event["state"],
+                            event["target_url"], event["sha"])
 
 
 def handle_push(git_gecko, git_wpt, event):
