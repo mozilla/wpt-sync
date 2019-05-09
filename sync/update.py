@@ -246,8 +246,12 @@ def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
                 update_pr(git_gecko, git_wpt, pr)
 
 
-def update_taskgroup_ids(git_gecko, git_wpt):
-    for try_push in trypush.TryPush.load_all(git_gecko):
+def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
+    if try_push is None:
+        try_pushes = trypush.TryPush.load_all(git_gecko)
+    else:
+        try_pushes = [try_push]
+    for try_push in try_pushes:
         if not try_push.taskgroup_id:
             logger.info("Setting taskgroup id for try push %s" % try_push)
             if try_push.try_rev is None:
