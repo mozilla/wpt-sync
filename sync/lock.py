@@ -120,7 +120,6 @@ class Lock(object):
             return self.locks[self.path]
         self.locks[self.path] = self
         self.lock.acquire()
-        self.locked = True
         return self
 
     def __exit__(self, *args, **kwargs):
