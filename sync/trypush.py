@@ -5,7 +5,6 @@ import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
-from itertools import chain
 
 import taskcluster
 import yaml
@@ -124,7 +123,8 @@ class TryFuzzyCommit(TryCommit):
         # Gross hack to create a objdir until we figure out why this is failing
         # from here but not from the shell
         try:
-            if not os.path.exists(os.path.join(self.worktree.working_dir, "obj-x86_64-pc-linux-gnu")):
+            if not os.path.exists(os.path.join(self.worktree.working_dir,
+                                               "obj-x86_64-pc-linux-gnu")):
                 mach.python("-c", "")
         except OSError:
             pass

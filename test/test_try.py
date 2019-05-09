@@ -64,7 +64,7 @@ def test_download_logs_excluded(mock_tasks, try_push):
     ))
     with SyncLock.for_process(try_push.process_name) as lock:
         with try_push.as_mut(lock):
-            try_push.try_rev = "1"*40
+            try_push.try_rev = "1" * 40
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
                 with patch.object(tc.TaskGroupView, "download_logs", Mock()):
                     download_tasks = try_push.download_logs(exclude=["foo"])

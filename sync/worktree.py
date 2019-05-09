@@ -192,7 +192,8 @@ class Worktree(object):
 
             if self.worktree_name not in all_worktrees:
                 if path_exists:
-                    logger.warning("Found existing content in worktree path %s, removing" % self.path)
+                    logger.warning("Found existing content in worktree path %s, removing" %
+                                   self.path)
                     shutil.rmtree(self.path)
                 logger.info("Creating worktree %s at %s" % (self.worktree_name, self.path))
                 if not os.path.exists(os.path.dirname(self.path)):
