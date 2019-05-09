@@ -154,6 +154,20 @@ class Bugzilla(object):
             return None
         return bug._bug.get("whiteboard", "")
 
+    def get_status(self, bug):
+        if not isinstance(bug, bugsy.Bug):
+            bug = self._get_bug(bug)
+        return (bug.status, bug.resolution)
+
+    def set_status(self, bug, status, resolution=None):
+        if not isinstance(bug, bugsy.Bug):
+            bug = self._get_bug(bug)
+        bug.status = status
+        if resolution is not None:
+            assert status == "RESOLVED"
+            bug.resolution = resolution
+        self.bugzilla.put("bug")
+
 
 class MockBugzilla(Bugzilla):
     def __init__(self, config):
@@ -189,3 +203,9 @@ class MockBugzilla(Bugzilla):
 
     def get_whiteboard(self, bug):
         return "fake data"
+
+    def get_status(self, bug):
+        return ("NEW", None)
+
+    def set_status(self, bug, status):
+        self._log("Setting bug %s status %s" % (bug, status))

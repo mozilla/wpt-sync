@@ -925,6 +925,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
     try:
         if action == "closed" and not merge_sha:
             sync.pr_status = "closed"
+            env.bz.set_status(sync.bug, "RESOLVED", "INVALID")
             sync.finish()
         elif action == "closed":
             # We are storing the wpt base as a reference
@@ -935,6 +936,8 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
             sync.status = "open"
             sync.pr_status = "open"
             sync.next_try_push()
+            if env.bz.get_status()[0] == "RESOLVED":
+                env.bz.set_status(sync.bug, "REOPENED")
     except Exception as e:
         sync.error = e
         raise
