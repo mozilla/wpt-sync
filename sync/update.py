@@ -289,19 +289,27 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
 def retrigger(git_gecko, git_wpt, unlandable_prs):
     from sync import LandableStatus
 
-    errors = []
-    for pr_id, commits, status in unlandable_prs:
-        if status in (LandableStatus.ready,
-                      LandableStatus.skip,
-                      LandableStatus.upstream,
-                      LandableStatus.no_pr):
-            continue
+    retriggerable_prs = [(pr_id, commits, status)
+                         for (pr_id, commits, status) in unlandable_prs
+                         if status not in (LandableStatus.ready,
+                                           LandableStatus.skip,
+                                           LandableStatus.upstream,
+                                           LandableStatus.no_pr)]
 
-        try:
-            logger.info("Retriggering %s (status %s)" % (pr_id, status))
-            pr = env.gh_wpt.get_pull(int(pr_id))
-            update_pr(git_gecko, git_wpt, pr, repo_update=False)
-        except Exception:
-            errors.append(pr_id)
+    errors = []
+    for pr_data in retriggerable_prs:
+        error = do_retrigger(git_gecko, git_wpt, pr_data)
+        if error:
+            errors.append(error)
 
     return errors
+
+
+def do_retrigger(git_gecko, git_wpt, pr_data):
+    pr_id, commits, status = pr_data
+    try:
+        logger.info("Retriggering %s (status %s)" % (pr_id, status))
+        pr = env.gh_wpt.get_pull(int(pr_id))
+        update_pr(git_gecko, git_wpt, pr, repo_update=False)
+    except Exception:
+        return pr_id
