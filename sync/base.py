@@ -75,7 +75,10 @@ def iter_process_names(pygit2_repo, kind=["sync", "try"]):
     root = pygit2_repo[ref.peel().tree.id]
     stack = []
     for root_path in kind:
-        tree_entry = root[root_path]
+        try:
+            tree_entry = root[root_path]
+        except KeyError:
+            continue
         tree = pygit2_repo[tree_entry.id]
 
         stack.append((root_path, tree))
