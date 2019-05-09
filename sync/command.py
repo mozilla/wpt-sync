@@ -124,7 +124,9 @@ def get_parser():
 
     parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
     parser_test.add_argument("--no-flake8", dest="flake8", action="store_false",
-                             default=True, help="Arguments to pass to pytest")
+                             default=True, help="Don't run flake8")
+    parser_test.add_argument("--no-pytest", dest="pytest", action="store_false",
+                             default=True, help="Don't run pytest")
     parser_test.add_argument("args", nargs="*", help="Arguments to pass to pytest")
     parser_test.set_defaults(func=do_test)
 
@@ -461,14 +463,16 @@ def do_test(*args, **kwargs):
         logger.info("Running flake8")
         cmd = ["flake8"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/sync/")
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
 
-    args = kwargs["args"]
-    if not any(item.startswith("test") for item in args):
-        args.append("test")
+    if kwargs.pop("pytest", True):
+        args = kwargs["args"]
+        if not any(item.startswith("test") for item in args):
+            args.append("test")
 
-    logger.info("Running pytest")
-    cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
-    subprocess.check_call(cmd, cwd="/app/wpt-sync/")
+        logger.info("Running pytest")
+        cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
 def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
