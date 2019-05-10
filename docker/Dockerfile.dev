@@ -1,4 +1,4 @@
-FROM python:2.7-stretch
+FROM ubuntu:18.04
 
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
@@ -16,61 +16,32 @@ RUN chmod +x /app/get_ini.py
 RUN set -eux; \
     apt-get update; \
     apt-get upgrade -y; \
-    apt-get install -y git sudo less emacs-nox wget gnupg apt-transport-https; \
+    apt-get install -y \
+        apt-transport-https \
+        curl \
+        emacs-nox \
+        git \
+        gnupg \
+        less \
+        python \
+        python-virtualenv \
+        python-pip \
+        sudo \
+        wget \
+        ;\
     pip install --upgrade pip
 
-# install tini for process management so we can use its -g option
-ENV TINI_VERSION v0.17.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
-RUN chmod +x /tini
-
-### Install latest erlang
-# add buster sources.list
 RUN set -eux; \
-# add buster sources.list
-    sed 's/stretch/buster/g' /etc/apt/sources.list \
-        | tee /etc/apt/sources.list.d/buster.list; \
-        # update apt-preferences such that we get only erlang* and libtinfo* from only buster 
-    { \
-        echo 'Package: *'; \
-        echo 'Pin: release n=buster*'; \
-        echo 'Pin-Priority: -10'; \
-        echo; \
-        echo 'Package: erlang*'; \
-        echo 'Pin: release n=buster*'; \
-        echo 'Pin-Priority: 999'; \
-        echo; \
-        echo 'Package: erlang*'; \
-        echo 'Pin: release n=stretch*'; \
-        echo 'Pin-Priority: -10'; \
-        echo; \
-        echo 'Package: libtinfo*'; \
-        echo 'Pin: release n=buster*'; \
-        echo 'Pin-Priority: 999'; \
-        echo; \
-        echo 'Package: libtinfo*'; \
-        echo 'Pin: release n=stretch*'; \
-        echo 'Pin-Priority: -10'; \
-        echo; \
-        echo 'Package: libssl* *'; \
-        echo 'Pin: release n=buster*'; \
-        echo 'Pin-Priority: 999'; \
-        echo; \
-        echo 'Package: libssl*' \
-        echo 'Pin: release n=stretch*'; \
-        echo 'Pin-Priority: -10'; \
-    } | tee /etc/apt/preferences.d/buster-erlang
-
-# install Erlang
-RUN set -eux; \
-    # start with "erlang-base-hipe" because it and "erlang-base" (non-hipe) are exclusive
-    apt-get update; \
-    if apt-cache show erlang-base-hipe 2>/dev/null | grep -q 'Package: erlang-base-hipe'; then \
-        apt-get install -y --no-install-recommends \
-        erlang-base-hipe \
+    sudo apt-key adv --keyserver "hkps.pool.sks-keyservers.net" --recv-keys "0x6B73A36E6026DFCA"; \
+    wget -O - "https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc" | \
+        sudo apt-key add - \
         ; \
-    fi; \
-    apt-get install -y --no-install-recommends \
+    sudo echo "deb https://dl.bintray.com/rabbitmq-erlang/debian bionic erlang" >> \
+        /etc/apt/sources.list.d/bintray.rabbitmq.list; \
+    sudo echo "deb https://dl.bintray.com/rabbitmq/debian bionic main" >> \
+        /etc/apt/sources.list.d/bintray.rabbitmq.list; \
+    sudo apt-get update -y; \
+    sudo apt-get install -y \
         libssl-dev \
         erlang-asn1 \
         erlang-crypto \
@@ -82,31 +53,19 @@ RUN set -eux; \
         erlang-public-key \
         erlang-ssl \
         erlang-xmerl \
-        ; \
-    rm -rf /var/lib/apt/lists/*
-### Done erlang
+        erlang-base-hipe \
+        erlang-crypto \
+        rabbitmq-server;
 
-### Install rabbitmq
-RUN set -eux; \
-    echo "deb https://dl.bintray.com/rabbitmq/debian stretch main"| \
-        sudo tee /etc/apt/sources.list.d/bintray.rabbitmq.list; \
-    wget -O- https://dl.bintray.com/rabbitmq/Keys/rabbitmq-release-signing-key.asc | \
-        sudo apt-key add - \
-        ; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends \
-        socat \
-        rabbitmq-server \
-        ; \
-    rm -rf /var/lib/apt/lists/*
-### Done rabbitmq
+# install tini for process management so we can use its -g option
+ENV TINI_VERSION v0.17.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
 
-RUN apt-get purge -y --auto-remove wget gnupg apt-transport-https
+RUN apt-get purge -y --auto-remove gnupg apt-transport-https
 
 RUN adduser app sudo; \
-    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers; \
-    # allow rabbmitmq to write to /app/workspace/logs
-    usermod -a -G app rabbitmq
+    echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;
 
 COPY . /app/wpt-sync
 RUN chown -R app:app /app/wpt-sync
@@ -116,12 +75,15 @@ USER app
 # Set up files and config
 RUN mkdir /app/workspace \
     /app/workspace/logs \
+    /app/workspace/logs/rabbitmq \
     /app/data \
     /app/testdata \
     /app/repos \
     /app/git-cinnabar \
     /app/fzf \
     /app/.ssh
+
+RUN sudo chown -R rabbitmq:rabbitmq /app/workspace/logs/rabbitmq
 
 # Install git-cinnabar
 WORKDIR /app/git-cinnabar
