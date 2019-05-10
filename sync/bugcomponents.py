@@ -2,8 +2,6 @@ import re
 import os
 from ast import literal_eval
 from collections import defaultdict
-from lib2to3 import pygram, pytree, patcomp
-from lib2to3.pgen2 import driver
 
 from . import log
 from env import Environment
@@ -43,6 +41,9 @@ def match(path, pattern):
 
 
 def remove_obsolete(path, moves=None):
+    from lib2to3 import pygram, pytree, patcomp
+    from lib2to3.pgen2 import driver
+
     files_pattern = "with_stmt< 'with' power< 'Files' trailer< '(' arg=any any* ')' > any* > any* >"
     base_dir = os.path.dirname(path) or "."
     d = driver.Driver(pygram.python_grammar,

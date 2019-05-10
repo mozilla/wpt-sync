@@ -182,8 +182,6 @@ def get_parser():
                                            help="Migrate to latest data storage format")
     parser_migrate.set_defaults(func=do_migrate)
 
-
-
     return parser
 
 
