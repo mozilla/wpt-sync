@@ -901,12 +901,14 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 @entry_point("landing")
 @mut('try_push', 'sync')
 def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
-                      accept_failures=False):
+                      accept_failures=False, tasks=None):
     intermittents = []
 
-    if not try_push.success():
+    if tasks is None:
+        tasks = try_push.tasks()
+    if not tasks.success():
         target_success_rate = 0.5 if not try_push.stability else 0.8
-        if not accept_failures and len(try_push.failed_builds()):
+        if not accept_failures and len(tasks.failed_builds()):
             message = ("Try push had build failures")
             sync.error = message
             env.bz.comment(sync.bug, message)
@@ -914,7 +916,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
             try_push.infra_fail = True
             raise AbortError(message)
         elif (not accept_failures and not try_push.stability and
-              try_push.failure_limit_exceeded(target_success_rate)):
+              tasks.failure_limit_exceeded(target_success_rate)):
             record_too_many_failures(sync, try_push)
             try_push.status = "complete"
             return
@@ -932,13 +934,13 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
             try_push.status = "complete"
             return
         else:
-            retriggered = try_push.retriggered_wpt_states(force_update=True)
+            retriggered = tasks.retriggered_wpt_states()
             if not retriggered:
-                if not accept_failures and try_push.failure_limit_exceeded(target_success_rate):
+                if not accept_failures and tasks.failure_limit_exceeded(target_success_rate):
                     record_too_many_failures(sync, try_push)
                     try_push.status = "complete"
                     return
-                num_new_jobs = try_push.retrigger_failures()
+                num_new_jobs = tasks.retrigger_failures()
                 logger.info("%s new tasks scheduled on try for %s" % (num_new_jobs, sync.bug))
                 if num_new_jobs:
                     env.bz.comment(sync.bug,
@@ -951,10 +953,10 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                 total = float(sum(data["states"].itervalues()))
 
                 # assuming that only failures cause metadata updates
-                if data["states"][tc.SUCCESS] / total >= try_push._min_success:
+                if data["states"][tc.SUCCESS] / total >= tasks._min_success:
                     intermittents.append(name)
 
-            update_metadata(sync, try_push, intermittents)
+            update_metadata(sync, try_push, tasks, intermittents)
 
     try_push.status = "complete"
     push_to_gecko(git_gecko, git_wpt, sync, allow_push)
@@ -964,14 +966,19 @@ def record_too_many_failures(sync, try_push):
     message = (
         "Latest try push for bug %s has too many failures.\n"
         "See %s"
-    ) % (sync.bug, try_push.treeherder_url(try_push.try_rev))
+    ) % (sync.bug, try_push.treeherder_url)
     logger.error(message)
     sync.error = message
     env.bz.comment(sync.bug, message)
 
 
-def update_metadata(sync, try_push, intermittents=None):
-    wpt_tasks = try_push.download_logs(raw=False, report=True, exclude=intermittents)
+def update_metadata(sync, try_push, tasks=None, intermittents=None):
+    if tasks is None:
+        tasks = try_push.tasks()
+    wpt_tasks = try_push.download_logs(tasks.wpt_tasks,
+                                       raw=False,
+                                       report=True,
+                                       exclude=intermittents)
     log_files = []
     for task in wpt_tasks:
         for run in task.get("status", {}).get("runs", []):

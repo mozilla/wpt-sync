@@ -17,18 +17,19 @@ def test_try_task_states(mock_tasks, try_push):
     with SyncLock.for_process(try_push.process_name) as lock:
         with try_push.as_mut(lock):
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
-                states = try_push.wpt_states()
-            assert not try_push.success()
-            assert set(states.keys()) == {"baz", "foo", "bar"}
-            assert states["foo"]["states"][tc.SUCCESS] == 5
-            assert states["foo"]["states"][tc.FAIL] == 2
-            assert states["bar"]["states"][tc.SUCCESS] == 5
-            assert states["bar"]["states"][tc.FAIL] == 1
-            assert states["baz"]["states"][tc.FAIL] == 1
-            retriggered_states = try_push.retriggered_wpt_states()
-            assert try_push.success_rate() == float(10) / len(tasks())
-            # baz is not retriggered, only occurs once
-            assert retriggered_states.keys() == ["foo", "bar"]
+                tasks = try_push.tasks()
+                states = tasks.wpt_states()
+                assert not tasks.success()
+                assert set(states.keys()) == {"baz", "foo", "bar"}
+                assert states["foo"]["states"][tc.SUCCESS] == 5
+                assert states["foo"]["states"][tc.FAIL] == 2
+                assert states["bar"]["states"][tc.SUCCESS] == 5
+                assert states["bar"]["states"][tc.FAIL] == 1
+                assert states["baz"]["states"][tc.FAIL] == 1
+                retriggered_states = tasks.retriggered_wpt_states()
+                assert tasks.success_rate() == float(10) / len(tasks)
+                # baz is not retriggered, only occurs once
+                assert retriggered_states.keys() == ["foo", "bar"]
 
 
 def test_try_task_states_all_success(mock_tasks, try_push):
@@ -36,8 +37,9 @@ def test_try_task_states_all_success(mock_tasks, try_push):
     with SyncLock.for_process(try_push.process_name) as lock:
         with try_push.as_mut(lock):
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
-                assert try_push.success()
-                assert try_push.success_rate() == 1.0
+                tasks = try_push.tasks()
+                assert tasks.success()
+                assert tasks.success_rate() == 1.0
 
 
 def test_retrigger_failures(mock_tasks, try_push):
@@ -52,7 +54,8 @@ def test_retrigger_failures(mock_tasks, try_push):
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
                 with patch('sync.trypush.auth_tc.retrigger',
                            return_value=["job"] * retrigger_count):
-                    jobs = try_push.retrigger_failures(count=retrigger_count)
+                    tasks = try_push.tasks()
+                    jobs = tasks.retrigger_failures(count=retrigger_count)
     assert jobs == retrigger_count * len(set(failed + ex))
 
 
@@ -67,7 +70,8 @@ def test_download_logs_excluded(mock_tasks, try_push):
             try_push.try_rev = "1" * 40
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
                 with patch.object(tc.TaskGroupView, "download_logs", Mock()):
-                    download_tasks = try_push.download_logs(exclude=["foo"])
+                    tasks = try_push.tasks()
+                    download_tasks = try_push.download_logs(tasks, exclude=["foo"])
                     task_names = [t["task"]["metadata"]["name"] for t in download_tasks]
                     assert task_names.count("foo") == 5
                     assert task_names.count("bar") == 7
