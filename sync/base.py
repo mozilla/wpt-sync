@@ -331,7 +331,8 @@ class BranchRefObject(VcsRefObject):
 
 
 class CommitBuilder(object):
-    def __init__(self, repo, message, ref=None, commit_cls=sync_commit.Commit):
+    def __init__(self, repo, message, ref=None, commit_cls=sync_commit.Commit,
+                 initial_empty=False):
         """Object to be used as a context manager for commiting changes to the repo.
 
         This class provides low-level access to the git repository in order to
@@ -363,6 +364,7 @@ class CommitBuilder(object):
         self.pygit2_repo = pygit2_get(repo)
         self.message = message if message is not None else ""
         self.commit_cls = commit_cls
+        self.initial_empty = initial_empty
         if not ref:
             self.ref = None
         elif hasattr(ref, "path"):
@@ -396,7 +398,10 @@ class CommitBuilder(object):
                 self.parents = []
             else:
                 self.parents = [ref.peel().id]
-                self.index.read_tree(ref.peel().tree)
+                if not self.initial_empty:
+                    self.index.read_tree(ref.peel().tree)
+        else:
+            self.parents = []
         return self
 
     def __exit__(self, *args, **kwargs):
@@ -405,7 +410,10 @@ class CommitBuilder(object):
             return
 
         if not self.has_changes:
-            sha1 = self.parents[0]
+            if self.parents:
+                sha1 = self.parents[0]
+            else:
+                return None
         else:
             tree_id = self.index.write_tree(self.pygit2_repo)
 
@@ -463,15 +471,15 @@ class ProcessData(object):
         with CommitBuilder(self.repo, message=message, ref=self.ref.path) as commit:
             import index
             if self._delete:
-                self._delete_data("  Delete %s" % self.path)
+                self._delete_data("Delete %s" % self.path)
                 self._delete = False
 
             elif self._updated or self._deleted:
                 message = []
                 if self._updated:
-                    message.append("  Updated: %s" % (", ".join(self._updated),))
+                    message.append("Updated: %s\n" % (", ".join(self._updated),))
                 if self._deleted:
-                    message.append("  Deleted: %s" % (", ".join(self._deleted),))
+                    message.append("Deleted: %s\n" % (", ".join(self._deleted),))
                 self._save(self._data, message=" ".join(message), commit_builder=commit)
 
             self._updated = set()
