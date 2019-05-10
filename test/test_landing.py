@@ -1,6 +1,6 @@
 import os
 
-from mock import Mock, patch
+from mock import Mock, patch, ANY
 
 from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
@@ -134,7 +134,7 @@ def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push,
         with sync.as_mut(lock), try_push.as_mut(lock):
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
                 with patch('sync.trypush.auth_tc.retrigger',
-                           return_value=["job"] * try_push._retrigger_count):
+                           return_value=["job"] * trypush.TryPushTasks._retrigger_count):
                     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
                     assert "Pushed to try (stability)" in env.bz.output.getvalue()
                     assert try_push.status == "complete"
@@ -169,7 +169,7 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_wit
                 try_push.download_logs = Mock(return_value=[])
                 try_push["stability"] = True
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-        try_push.download_logs.assert_called_with(raw=False, report=True, exclude=["foo"])
+        try_push.download_logs.assert_called_with(ANY, raw=False, report=True, exclude=["foo"])
         assert sync.status == "open"
         assert try_push.status == "complete"
 

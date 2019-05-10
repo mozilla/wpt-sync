@@ -266,17 +266,18 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
     if current_landing and current_landing.latest_try_push:
         with SyncLock("landing", None) as lock:
             try_push = current_landing.latest_try_push
-            logger.info("Found try push %s" % try_push.treeherder_url(try_push.try_rev))
+            logger.info("Found try push %s" % try_push.treeherder_url)
             if try_push.taskgroup_id is None:
                 update.update_taskgroup_ids(git_gecko, git_wpt)
                 assert try_push.taskgroup_id is not None
             with try_push.as_mut(lock), current_landing.as_mut(lock):
+                tasks = try_push.tasks()
                 if (try_push.status == "complete" and
-                    try_push.failure_limit_exceeded() and
+                    tasks.failure_limit_exceeded() and
                     accept_failures):
                     try_push.status = "open"
                 if (try_push.status == "open" and
-                    try_push.wpt_tasks(force_update=True).is_complete(allow_unscheduled=True)):
+                    tasks.complete(allow_unscheduled=True)):
                     if try_push.infra_fail:
                         update_landing()
                     else:
@@ -285,7 +286,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                                   try_push,
                                                   current_landing,
                                                   allow_push=kwargs["push"],
-                                                  accept_failures=accept_failures)
+                                                  accept_failures=accept_failures,
+                                                  tasks=tasks)
                 elif try_push.status == "complete" and not try_push.infra_fail:
                     update_landing()
                     if current_landing.latest_try_push == try_push:
@@ -294,7 +296,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                                   try_push,
                                                   current_landing,
                                                   allow_push=kwargs["push"],
-                                                  accept_failures=accept_failures)
+                                                  accept_failures=accept_failures,
+                                                  tasks=tasks)
                 elif try_push.status == "complete":
                     if kwargs["retry"]:
                         update_landing()
@@ -528,7 +531,7 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                 if next_action == DownstreamAction.wait_try:
                     latest_try_push = sync.latest_try_push
                     reason = "%s %s" % (reason,
-                                        latest_try_push.treeherder_url(latest_try_push.try_rev))
+                                        latest_try_push.treeherder_url)
                 msg = "%s (%s)" % (msg, reason)
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)

@@ -135,7 +135,7 @@ class TryFuzzyCommit(TryCommit):
         args = ["fuzzy", "-q", query, "--artifact"]
         if self.rebuild:
             args.append("--rebuild")
-            args.append(self.rebuild)
+            args.append(str(self.rebuild))
 
         if self.tests_by_type is not None:
             paths = set()
@@ -162,9 +162,6 @@ class TryPush(base.ProcessData):
     status_transitions = [("open", "complete"),
                           ("complete", "open"),  # For reopening "failed" landing try pushes
                           ("infra-fail", "complete")]
-    _retrigger_count = 6
-    # min rate of job success to proceed with metadata update
-    _min_success = 0.7
 
     @classmethod
     @constructor(lambda args: (args["sync"].process_name.subtype,
@@ -210,7 +207,7 @@ class TryPush(base.ProcessData):
         env.bz.comment(sync.bug,
                        "Pushed to try%s %s" %
                        (" (stability)" if stability else "",
-                        cls.treeherder_url(try_rev)))
+                        rv.treeherder_url))
 
         return rv
 
@@ -236,17 +233,14 @@ class TryPush(base.ProcessData):
         if process_name:
             return cls(git_gecko, process_name)
 
-    @staticmethod
-    def treeherder_url(try_rev):
-        return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % try_rev
+    @property
+    def treeherder_url(self):
+        return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % self.try_rev
 
     def __eq__(self, other):
         if not other.__class__ == self.__class__:
             return False
         return other.process_name == self.process_name
-
-    def failure_limit_exceeded(self, target_rate=_min_success):
-        return self.success_rate() < target_rate
 
     @property
     def created(self):
@@ -311,7 +305,7 @@ class TryPush(base.ProcessData):
         if len(syncs) == 0:
             return None
         if len(syncs) == 1:
-            return syncs[0]
+            return syncs.pop()
         for item in syncs:
             if item.status == "open":
                 return item
@@ -356,8 +350,7 @@ class TryPush(base.ProcessData):
         """Is the current try push a stability test"""
         self["infra-fail"] = value
 
-    @mut()
-    def tasks(self, force_update=False):
+    def tasks(self):
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
@@ -365,119 +358,29 @@ class TryPush(base.ProcessData):
                                   server
         :return: List of tasks
         """
-        if not force_update and "tasks" in self._data:
-            tasks = tc.TaskGroup(self.taskgroup_id, self._data["tasks"])
-        else:
-            task_id = tc.normalize_task_id(self.taskgroup_id)
-            if task_id != self.taskgroup_id:
-                self.taskgroup_id = task_id
+        task_id = tc.normalize_task_id(self.taskgroup_id)
+        if task_id != self.taskgroup_id:
+            self.taskgroup_id = task_id
 
-            tasks = tc.TaskGroup(self.taskgroup_id)
-            tasks.refresh()
+        tasks = tc.TaskGroup(self.taskgroup_id)
+        tasks.refresh()
 
-        if tasks.view().is_complete(allow_unscheduled=True):
-            self._data["tasks"] = tasks.tasks
-        return tasks
-
-    def wpt_tasks(self, force_update=False):
-        tasks = self.tasks(force_update)
-        wpt_tasks = tasks.view(tc.is_suite_fn("web-platform-tests"))
-        return wpt_tasks
-
-    @mut()
-    def validate_tasks(self):
-        wpt_tasks = self.wpt_tasks()
-        err = None
-        if not len(wpt_tasks):
-            err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
-        else:
-            exception_tasks = wpt_tasks.filter(tc.is_status_fn(tc.EXCEPTION))
-            if float(len(exception_tasks)) / len(wpt_tasks) > (1 - self._min_success):
-                err = ("Too many exceptions found among wpt tests. "
-                       "Check decision task {}".format(self.taskgroup_id))
-        if err:
-            logger.error(err)
-            self.infra_fail = True
-            return False
-        return True
-
-    @mut()
-    def retrigger_failures(self, count=_retrigger_count):
-        task_states = self.wpt_states()
-
-        def is_failure(task_data):
-            states = task_data["states"]
-            return states[tc.FAIL] > 0 or states[tc.EXCEPTION] > 0
-
-        failures = [data["task_id"] for name, data in task_states.iteritems() if is_failure(data)]
-        retriggered_count = 0
-        for task_id in failures:
-            jobs = auth_tc.retrigger(task_id, count=count)
-            if jobs:
-                retriggered_count += len(jobs)
-        return retriggered_count
-
-    def wpt_states(self, force_update=False):
-        # e.g. {"test-linux32-stylo-disabled/opt-web-platform-tests-e10s-6": {
-        #           "task_id": "abc123"
-        #           "states": {
-        #               "completed": 5,
-        #               "failed": 1
-        #           }
-        #       }}
-        by_name = self.wpt_tasks(force_update).by_name()
-        task_states = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-        for name, tasks in by_name.iteritems():
-            for task in tasks:
-                task_id = task.get("status", {}).get("taskId")
-                state = task.get("status", {}).get("state")
-                task_states[name]["states"][state] += 1
-                # need one task_id per job group for retriggering
-                task_states[name]["task_id"] = task_id
-        return task_states
-
-    def is_complete(self, allow_unscheduled=False):
-        return self.wpt_tasks().is_complete(allow_unscheduled)
-
-    def failed_builds(self):
-        builds = self.wpt_tasks().filter(tc.is_build)
-        return builds.filter(tc.is_status_fn({tc.FAIL, tc.EXCEPTION}))
-
-    def retriggered_wpt_states(self, force_update=False):
-        # some retrigger requests may have failed, and we try to ignore
-        # manual/automatic retriggers made outside of wptsync
-        threshold = max(1, self._retrigger_count / 2)
-        task_counts = self.wpt_states(force_update)
-        return {name: data for name, data in task_counts.iteritems()
-                if sum(data["states"].itervalues()) > threshold}
-
-    def success(self):
-        """Check if all the wpt tasks in a try push ended with a successful status"""
-        wpt_tasks = self.wpt_tasks()
-        if wpt_tasks:
-            return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
-        else:
-            return False
-
-    def success_rate(self):
-        wpt_tasks = self.wpt_tasks()
-
-        if not wpt_tasks:
-            return float(0)
-
-        success = self.wpt_tasks().filter(tc.is_status_fn(tc.SUCCESS))
-        return float(len(success)) / len(wpt_tasks)
+        return TryPushTasks(tasks)
 
     def log_path(self):
         return os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
 
     @mut()
-    def download_logs(self, raw=True, report=True, exclude=None):
+    def download_logs(self, wpt_tasks, raw=True, report=True, exclude=None):
         """Download all the logs for the current try push
 
         :return: List of paths to raw logs
         """
+        # Allow passing either TryPushTasks or the actual TaskGroupView
+        if hasattr(wpt_tasks, "wpt_tasks"):
+            wpt_tasks = wpt_tasks.wpt_tasks
+
         if exclude is None:
             exclude = []
 
@@ -487,7 +390,6 @@ class TryPush(base.ProcessData):
             state = t.get("status", {}).get("state")
             return name not in exclude or state == tc.SUCCESS
 
-        wpt_tasks = self.wpt_tasks()
         if self.try_rev is None:
             if wpt_tasks:
                 logger.info("Got try push with no rev; setting it from a task")
@@ -512,7 +414,7 @@ class TryPush(base.ProcessData):
         return include_tasks
 
     @mut()
-    def download_raw_logs(self, exclude=None):
+    def download_raw_logs(self, wpt_tasks, exclude=None):
         wpt_tasks = self.download_logs(raw=True, report=True, exclude=exclude)
         raw_logs = []
         for task in wpt_tasks:
@@ -530,3 +432,100 @@ class TryPush(base.ProcessData):
         except Exception:
             logger.warning("Failed to remove logs %s:%s" %
                            (self.log_path(), traceback.format_exc()))
+
+
+class TryPushTasks(object):
+    _retrigger_count = 6
+    # min rate of job success to proceed with metadata update
+    _min_success = 0.7
+
+    def __init__(self, tasks):
+        """Wrapper object that implements sync-specific business logic on top of a
+        list of tasks"""
+        self.wpt_tasks = tasks.view(tc.is_suite_fn("web-platform-tests"))
+
+    def __len__(self):
+        return len(self.wpt_tasks)
+
+    def complete(self, allow_unscheduled=False):
+        return self.wpt_tasks.is_complete(allow_unscheduled)
+
+    def validate(self):
+        err = None
+        if not len(self.wpt_tasks):
+            err = "No wpt tests found. Check decision task {}".format(self.taskgroup_id)
+        else:
+            exception_tasks = self.wpt_tasks.filter(tc.is_status_fn(tc.EXCEPTION))
+            if float(len(exception_tasks)) / len(self.wpt_tasks) > (1 - self._min_success):
+                err = ("Too many exceptions found among wpt tests. "
+                       "Check decision task {}".format(self.taskgroup_id))
+        if err:
+            logger.error(err)
+            return False
+        return True
+
+    def retrigger_failures(self, count=_retrigger_count):
+        task_states = self.wpt_states()
+
+        def is_failure(task_data):
+            states = task_data["states"]
+            return states[tc.FAIL] > 0 or states[tc.EXCEPTION] > 0
+
+        failures = [data["task_id"] for name, data in task_states.iteritems() if is_failure(data)]
+        retriggered_count = 0
+        for task_id in failures:
+            jobs = auth_tc.retrigger(task_id, count=count)
+            if jobs:
+                retriggered_count += len(jobs)
+        return retriggered_count
+
+    def wpt_states(self):
+        # e.g. {"test-linux32-stylo-disabled/opt-web-platform-tests-e10s-6": {
+        #           "task_id": "abc123"
+        #           "states": {
+        #               "completed": 5,
+        #               "failed": 1
+        #           }
+        #       }}
+        by_name = self.wpt_tasks.by_name()
+        task_states = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+        for name, tasks in by_name.iteritems():
+            for task in tasks:
+                task_id = task.get("status", {}).get("taskId")
+                state = task.get("status", {}).get("state")
+                task_states[name]["states"][state] += 1
+                # need one task_id per job group for retriggering
+                task_states[name]["task_id"] = task_id
+        return task_states
+
+    def failed_builds(self):
+        builds = self.wpt_tasks.filter(tc.is_build)
+        return builds.filter(tc.is_status_fn({tc.FAIL, tc.EXCEPTION}))
+
+    def retriggered_wpt_states(self):
+        # some retrigger requests may have failed, and we try to ignore
+        # manual/automatic retriggers made outside of wptsync
+        threshold = max(1, self._retrigger_count / 2)
+        task_counts = self.wpt_states()
+        return {name: data for name, data in task_counts.iteritems()
+                if sum(data["states"].itervalues()) > threshold}
+
+    def success(self):
+        """Check if all the wpt tasks in a try push ended with a successful status"""
+        wpt_tasks = self.wpt_tasks
+        if wpt_tasks:
+            return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
+        else:
+            return False
+
+    def success_rate(self):
+        wpt_tasks = self.wpt_tasks
+
+        if not wpt_tasks:
+            return float(0)
+
+        success = wpt_tasks.filter(tc.is_status_fn(tc.SUCCESS))
+        return float(len(success)) / len(wpt_tasks)
+
+    def failure_limit_exceeded(self, target_rate=_min_success):
+        return self.success_rate() < target_rate

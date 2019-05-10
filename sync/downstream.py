@@ -740,10 +740,11 @@ class DownstreamSync(SyncProcess):
             logger.info("Not all mozilla-central results available for PR %s" % self.pr)
             return
 
-        try_tasks = complete_try_push.wpt_tasks()
-        complete_try_push.download_logs(report=True, raw=False)
+        with try_push.as_mut(self._lock):
+            try_tasks = complete_try_push.tasks()
+            complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False)
 
-        msg = notify.get_msg(try_tasks, central_tasks)
+        msg = notify.get_msg(try_tasks.wpt_tasks, central_tasks)
         env.bz.comment(self.bug, msg)
         self.results_notified = True
         with SyncLock.for_process(self.process_name) as lock:
@@ -856,21 +857,22 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
     if not try_push.status == "complete":
         # Ensure we don't have some old set of tasks
-        try_push.wpt_tasks(force_update=True)
-        if not try_push.is_complete(allow_unscheduled=True):
+
+        tasks = try_push.tasks()
+        if not tasks.complete(allow_unscheduled=True):
             logger.info("Try push is not complete")
             return
 
-        if not try_push.validate_tasks():
+        if not tasks.validate():
+            try_push.infra_fail = True
             if len(sync.latest_busted_try_pushes()) > 5:
                 message = ("Too many busted try pushes. "
                            "Check the try results for infrastructure issues.")
                 sync.error = message
                 env.bz.comment(sync.bug, message)
                 try_push.status = "complete"
-                try_push.infra_fail = True
                 raise AbortError(message)
-        elif len(try_push.failed_builds()):
+        elif len(tasks.failed_builds()):
             message = ("Try push had build failures")
             sync.error = message
             env.bz.comment(sync.bug, message)
@@ -880,9 +882,15 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         else:
             logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
             disabled = []
-            if not try_push.success():
+            if not tasks.success():
                 if sync.affected_tests():
-                    log_files = try_push.download_raw_logs()
+                    log_files = []
+                    wpt_tasks = try_push.download_logs(tasks.wpt_tasks, raw=False)
+                    for task in wpt_tasks:
+                        for run in task.get("status", {}).get("runs", []):
+                            log = run.get("_log_paths", {}).get("wptreport.json")
+                            if log:
+                                log_files.append(log)
                     if not log_files:
                         raise ValueError("No log files found for try push %r" % try_push)
                     disabled = sync.update_metadata(log_files, stability=try_push.stability)
