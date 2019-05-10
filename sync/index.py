@@ -20,21 +20,25 @@ class Index(object):
     value_cls = tuple
 
     # Overridden in subclasses using the constructor
+    # This provides a kind of borg pattern where all instances of
+    # the class have the same changes data
     changes = None
 
     def __init__(self, repo):
         if self.__class__.changes is None:
-            constructors = [list]
-            for _ in self.key_fields[:-1]:
-                def fn():
-                    idx = len(constructors) - 1
-                    constructors.append(lambda: defaultdict(constructors[idx]))
-                    return constructors[-1]
-                fn()
-            self.changes = defaultdict(constructors[-1])
-
+            self.reset()
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
+
+    def reset(self):
+        constructors = [list]
+        for _ in self.key_fields[:-1]:
+            def fn():
+                idx = len(constructors) - 1
+                constructors.append(lambda: defaultdict(constructors[idx]))
+                return constructors[-1]
+            fn()
+        self.__class__.changes = defaultdict(constructors[-1])
 
     @classmethod
     def create(cls, repo):
@@ -90,6 +94,8 @@ class Index(object):
 
     def _read_changes(self, key):
         target = self.changes
+        if target is None:
+            return {}
         if key:
             for part in key:
                 target = target[part]
@@ -121,15 +127,21 @@ class Index(object):
             return set(rv)
         return set([rv])
 
-    def save(self, commit_builder=None, message=None):
+    def save(self, commit_builder=None, message=None, overwrite=False):
+        changes = self._read_changes(None)
+        if not changes:
+            return
+
         if commit_builder is None:
             commit_builder = CommitBuilder(self.repo,
                                            message,
-                                           ref=env.config["sync"]["ref"])
-        changes = self._read_changes(None)
+                                           ref=env.config["sync"]["ref"],
+                                           initial_empty=overwrite)
+        else:
+            assert commit_builder.initial_empty == overwrite
+
         if message is None:
             message = "Update index %s\n" % self.name
-            changes = self._read_changes(None)
 
             for key_changes in changes.itervalues():
                 for _, _, msg in key_changes:
@@ -139,7 +151,7 @@ class Index(object):
         with commit_builder as commit:
             for key, key_changes in changes.iteritems():
                 self._update_key(commit, key, key_changes)
-        self.__class__.changes = None
+        self.reset()
 
     def insert(self, key, value):
         if len(key) != len(self.key_fields):
@@ -179,7 +191,7 @@ class Index(object):
         new = existing.copy()
 
         for old_value, new_value, _ in key_changes:
-            if new_value is None and old_value in existing:
+            if new_value is None and old_value in new:
                 new.remove(old_value)
             if old_value is None:
                 new.add(new_value)
@@ -208,9 +220,6 @@ class Index(object):
     def load_value(self, value):
         return self.value_cls(*(value.split("/")))
 
-    def clear(self):
-        raise NotImplementedError
-
     def build(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -235,7 +244,7 @@ class TaskGroupIndex(Index):
             if try_push.taskgroup_id is not None:
                 self.insert(self.make_key(try_push.taskgroup_id),
                             try_push.process_name)
-        self.save(message="Build TaskGroupIndex")
+        self.save(message="Build index %s" % self.name, overwrite=True)
 
 
 class TryCommitIndex(Index):
@@ -254,7 +263,7 @@ class TryCommitIndex(Index):
             if try_push.try_rev:
                 self.insert(self.make_key(try_push.try_rev),
                             try_push.process_name)
-        self.save(message="Build TryCommitIndex")
+        self.save(message="Build index %s" % self.name, overwrite=True)
 
 
 class SyncIndex(Index):
@@ -293,7 +302,7 @@ class SyncIndex(Index):
                     corrupt.append(process_name)
                     continue
                 self.insert(self.make_key(sync), process_name)
-        self.save(message="Build SyncIndex")
+        self.save(message="Build index %s" % self.name, overwrite=True)
         for item in corrupt:
             logger.warning("Corrupt process %s" % item)
 
@@ -323,7 +332,7 @@ class PrIdIndex(Index):
                 self.insert(self.make_key(sync), process_name)
             elif process_name.subtype == "downstream":
                 self.insert((process_name.obj_id,), process_name)
-        self.save(message="Build PrIdIndex")
+        self.save(message="Build index %s" % self.name, overwrite=True)
 
         for item in corrupt:
             logger.warning("Corrupt process %s" % item)
@@ -362,7 +371,7 @@ class BugIdIndex(Index):
                     corrupt.append(process_name)
                     continue
                 self.insert(self.make_key(sync), process_name)
-        self.save(message="Build BugIdIndex")
+        self.save(message="Build index %s" % self.name, overwrite=True)
 
         for item in corrupt:
             logger.warning("Corrupt process %s" % item)
