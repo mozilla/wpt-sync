@@ -16,8 +16,9 @@ functools32==3.2.3.post2\
     --hash=sha256:f6253dfbe0538ad2e387bd8fdfd9293c925d63553f5813c4e587745416501e6d
 mccabe==0.6.1\
     --hash=sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42
-more-itertools==5.0.0 \
-    --hash=sha256:c0a5785b1109a6bd7fac76d6837fd1feca158e54e521ccd2ae8bfe393cc9d4fc
+more-itertools==7.0.0 \
+    --hash=sha256:2112d2ca570bb7c3e53ea1a35cd5df42bb0fd10c45f0fb97178679c3c03d64c7 \
+    --hash=sha256:c3e4748ba1aad8dba30a4886b0b1a2004f9a863837b8654e7059eebf727afa5a
 pluggy==0.9.0 \
     --hash=sha256:84d306a647cc805219916e62aab89caa97a33a1dd8c342e87a37f91073cd4746
 py==1.8.0 \
