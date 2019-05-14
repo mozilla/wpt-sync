@@ -3,7 +3,8 @@ _venv
 repos
 workspace
 ansible
-devenv
+config/dev
+config/prod
 *~
 *.pyc
 test/testdata/**
