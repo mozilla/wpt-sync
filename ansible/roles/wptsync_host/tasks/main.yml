@@ -6,6 +6,20 @@
     groups: docker
     append: yes
 
+- name: Add the wptsync user uid as a user in the host
+  user:
+    name: wptsync
+    comment: App user
+    uid: "{{ app_uid }}"
+    create_home: false
+
+- name: Add the rabbitmq user uid as a user in the host
+  user:
+    name: rabbitmq
+    comment: App rabbitmq user
+    uid: "{{ rabbitmq_uid }}"
+    create_home: false
+
 - name: ensure git is installed
   yum:
     name: git
