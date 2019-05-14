@@ -58,7 +58,7 @@ clean_pid() {
     fi
 }
 
-if [ "$1" != "--test" && "$1" != "--shell" ]; then
+if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
     eval "$(ssh-agent -s)"
     # Install ssh keys
     cp -v ${WPTSYNC_GH_SSH_KEY:-/app/config/dev/ssh/id_github} /app/.ssh/id_github
