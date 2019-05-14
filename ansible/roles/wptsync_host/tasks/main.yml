@@ -29,7 +29,7 @@
   git:
     repo: "{{ wptsync_repo_url | mandatory }}"
     dest: "{{ wptsync_repo_path | mandatory }}"
-    version: origin/master
+    version: "{{ lookup('env','WPT_REV') | default('origin/master') }}"
     depth: 1
     accept_hostkey: yes
     force: yes
