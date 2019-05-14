@@ -24,7 +24,7 @@
   - name: docker save and compress
     shell: "docker save {{ _image_name }} | bzip2 > {{ _tempdir }}/{{ _image_name }}.tar.bz2"
   - name: check for image archive
-    file: 
+    file:
       path: "{{ _tempdir }}/{{ _image_name }}.tar.bz2"
       state: file
 

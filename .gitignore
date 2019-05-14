@@ -1,24 +1,31 @@
-credentials.ini
-_venv
+# Temp files
 \#*
 *~
-repos
-try_logs
-logs
-work
-workspace
 .\#*
-*.pyc
-sync.db
-data
+*.db-journal
+.cache
+*.retry
+
+# App configuraton and workspace
+credentials.ini
+config/dev/ssh
+config/prod
+repo
+workspace
+celerybeat-schedule
+
+# Test files
 test/testdata/**
 !test/testdata/*.ini
 !test/testdata/wpt_config
 !test/testdata/gecko_config
-*.db-journal
-dist
-build
-.cache
-celerybeat-schedule
+
+
+# Python / virtualenv
+_venv
+_virtualenv
 *.egg-info
-*.retry
+*.pyc
+
+# Ansible
+ansible_workspace

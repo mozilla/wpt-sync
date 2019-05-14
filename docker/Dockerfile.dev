@@ -3,8 +3,8 @@ FROM ubuntu:18.04
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 
-ENV RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq
-COPY ./config/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+RUN groupadd --gid 10002 rabbitmq && \
+    useradd --uid 10002 --gid 10002 rabbitmq --home /home/rabbitmq --create-home
 
 COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
 RUN chmod +x /app/start_wptsync.sh
@@ -70,13 +70,15 @@ RUN adduser app sudo; \
 COPY . /app/wpt-sync
 RUN chown -R app:app /app/wpt-sync
 
+COPY ./config/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
+RUN echo LOG_BASE=/app/workspace/logs/rabbitmq >> /etc/rabbitmq/rabbitmq-env.conf
+
 USER app
 
 # Set up files and config
 RUN mkdir /app/workspace \
     /app/workspace/logs \
     /app/workspace/logs/rabbitmq \
-    /app/data \
     /app/testdata \
     /app/repos \
     /app/git-cinnabar \
@@ -84,6 +86,11 @@ RUN mkdir /app/workspace \
     /app/.ssh
 
 RUN sudo chown -R rabbitmq:rabbitmq /app/workspace/logs/rabbitmq
+
+ENV RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq
+
+COPY ./config/ssh_config /app/.ssh/config
+RUN sudo chown -R app:app /app/.ssh/
 
 # Install git-cinnabar
 WORKDIR /app/git-cinnabar
@@ -142,9 +149,8 @@ WORKDIR /app/wpt-sync
 # /app/wpt-sync: bind mount to src dir (only on dev) or dir with wheels?
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs
 # config files, credentials, ssh config
-# /app/data: bind mount to dir where service will find credentials, ssh config
 # /app/repos: bind mount to ebs volume for gecko and wpt repos (or local dev repos)
-VOLUME ["/app/wpt-sync", "/app/workspace", "/app/repos", "/app/data"]
+VOLUME ["/app/wpt-sync", "/app/workspace", "/app/repos", "/app/config"]
 
 ENTRYPOINT ["/tini", "-v", "-g", "--", "/app/start_wptsync.sh"]
 CMD ["--worker"]

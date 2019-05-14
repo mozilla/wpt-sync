@@ -58,23 +58,16 @@ clean_pid() {
     fi
 }
 
-cp -v ${WPTSYNC_CONFIG:-/app/wpt-sync/sync.ini} /app/workspace/sync.ini
-cp -v ${WPTSYNC_NEW_RELIC_CONFIG:-/app/wpt-sync/config/newrelic.ini} /app/workspace/newrelic.ini
-
-if [ "$1" != "--test" ]; then
+if [ "$1" != "--test" && "$1" != "--shell" ]; then
     eval "$(ssh-agent -s)"
-    cp -v ${WPTSYNC_SSH_CONFIG:-/app/wpt-sync/config/ssh_config} /app/.ssh/config
     # Install ssh keys
-    cp -v ${WPTSYNC_GH_SSH_KEY:-/app/workspace/ssh/id_github} /app/.ssh/id_github
-    cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/workspace/ssh/id_hgmo} /app/.ssh/id_hgmo
+    cp -v ${WPTSYNC_GH_SSH_KEY:-/app/config/dev/ssh/id_github} /app/.ssh/id_github
+    cp -v ${WPTSYNC_HGMO_SSH_KEY:-/app/config/dev/ssh/id_hgmo} /app/.ssh/id_hgmo
     ssh-add /app/.ssh/id_github
     ssh-add /app/.ssh/id_hgmo
-    if [ -n "$WPTSYNC_CREDS" ]; then
-        cp -v $WPTSYNC_CREDS /app/workspace/credentials.ini
-    fi
     if [ "$1" != "--shell" ]; then
-        /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/wpt-sync/config/wpt_config}
-        /app/venv/bin/wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/wpt-sync/config/gecko_config}
+        /app/venv/bin/wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/config/wpt_config}
+        /app/venv/bin/wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/config/gecko_config}
     fi
 fi
 
@@ -92,9 +85,9 @@ elif [ "$1" == "--worker" ]; then
     echo "Starting celerybeat"
 
     set +x
-    export NEW_RELIC_LICENSE_KEY=$(/app/get_ini.py /app/workspace/credentials.ini newrelic license_key)
+    export NEW_RELIC_LICENSE_KEY=$(/app/get_ini.py /app/config/prod/credentials.ini newrelic license_key)
     set -x
-    export NEW_RELIC_CONFIG_FILE=/app/workspace/newrelic.ini
+    export NEW_RELIC_CONFIG_FILE=/app/config/newrelic.ini
 
     newrelic-admin run-program \
                    /app/venv/bin/celery beat --detach --app sync.worker \

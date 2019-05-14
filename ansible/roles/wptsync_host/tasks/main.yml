@@ -44,10 +44,14 @@
     mode: 0775
   with_items:
     - "{{ mount_repos | mandatory }}"
+    - "{{ mount_repos | mandatory }}/gecko"
+    - "{{ mount_repos | mandatory }}/web-platform-tests"
     - "{{ mount_workspace| mandatory }}"
     - "{{ mount_workspace| mandatory }}/logs"
-    - "{{ mount_data | mandatory }}"
-    - "{{ mount_data | mandatory }}/{{ ssh_dir | mandatory }}"
+    - "{{ mount_workspace| mandatory }}/locks"
+    - "{{ mount_config | mandatory }}"
+    - "{{ mount_config | mandatory }}/prod"
+    - "{{ mount_config | mandatory }}/prod/{{ ssh_dir | mandatory }}"
 
 - name: install docker-run helper script
   template:
@@ -58,48 +62,54 @@
     - run_docker.sh
   become_user: wpt_user
 
+- name: install config
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: wptsync
+    group: wptsync
+    mode: 0600
+  with_items:
+    - { src: "{{ _sync_ini }}", dest: "{{ mount_config }}/prod/sync.ini" }
+    - { src: "{{ host_config }}/gecko_config", dest: "{{ mount_config }}/gecko_config" }
+    - { src: "{{ host_config }}/wpt_config", dest: "{{ mount_config }}/wpt_config" }
+    - { src: "{{ host_config }}/newrelic.ini", dest: "{{ mount_config }}/newrelic.ini" }
+    - { src: "{{ host_config }}/rabbitmq.conf", dest: "{{ mount_config }}/rabbitmq.conf" }
+
 - name: install credentials (if environment variables are configured)
   copy:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
-    owner: wpt_user
+    owner: wptsync
+    group: wptsync
     mode: 0600
   with_items:
-    - { src: "{{ _ssh_hgmo }}", dest: "{{ mount_data }}/{{ ssh_dir }}/id_hgmo" }
-    - { src: "{{ _ssh_hgmo }}.pub", dest: "{{ mount_data }}/{{ ssh_dir }}/id_hgmo.pub" }
-    - { src: "{{ _ssh_github }}", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github" }
-    - { src: "{{ _ssh_github }}.pub", dest: "{{ mount_data }}/{{ ssh_dir }}/id_github.pub" }
-    - { src: "{{ _credentials }}", dest: "{{ mount_data }}/credentials_prod.ini" }
-  when: update_credentials and _credentials and _ssh_github and _ssh_hgmo
+    - { src: "{{ _ssh_hgmo }}", dest: "{{ mount_config }}/prod/{{ ssh_dir }}/id_hgmo" }
+    - { src: "{{ _ssh_hgmo }}.pub", dest: "{{ mount_config }}/prod/{{ ssh_dir }}/id_hgmo.pub" }
+    - { src: "{{ _ssh_github }}", dest: "{{ mount_config }}/prod/{{ ssh_dir }}/id_github" }
+    - { src: "{{ _ssh_github }}.pub", dest: "{{ mount_config }}/prod/{{ ssh_dir }}/id_github.pub" }
+    - { src: "{{ _credentials }}", dest: "{{ mount_config }}/prod/credentials.ini" }
+  when: update_credentials
 
 - name: chown mount-directories to docker container's UID (this may take a while)
-  command: "/usr/bin/chown -R {{ docker_uid }}:{{ docker_uid }} {{ item }}"
+  file:
+    path: "{{ item }}"
+    owner: wptsync
+    group: wptsync
+    recurse: yes
   with_items:
     - "{{ mount_repos | mandatory }}"
     - "{{ mount_workspace| mandatory }}"
-    - "{{ mount_data }}/{{ ssh_dir }}/id_hgmo"
-    - "{{ mount_data }}/{{ ssh_dir }}/id_github"
-    - "{{ mount_data }}/credentials_prod.ini"
 
-- name: ensure rabbitmq user can create files in workspace/logs
+- name: ensure rabbitmq user can create files in workspace/logs/rabbitmq
   file:
     path: "{{ item }}"
     state: directory
     mode: 0775
+    owner: rabbitmq
+    group: wptsync
   with_items:
-    - "{{ mount_workspace| mandatory }}/logs"
-
-- name: ensure rabbitmq user can create files in workspace/logs
-  file:
-    path: "{{ item }}"
-    state: file
-    mode: 0664
-  with_items:
-    - "{{ mount_workspace| mandatory }}/logs/shutdown_err"
-    - "{{ mount_workspace| mandatory }}/logs/startup_err"
-    - "{{ mount_workspace| mandatory }}/logs/shutdown_log"
-    - "{{ mount_workspace| mandatory }}/logs/startup_log"
-    - "{{ mount_workspace| mandatory }}/logs/rabbit.log"
+    - "{{ mount_workspace| mandatory }}/logs/rabbitmq"
 
 - import_tasks: push-docker-img.yml
   when: rebuild
