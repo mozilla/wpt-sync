@@ -23,6 +23,7 @@ RUN set -eux; \
         git \
         gnupg \
         less \
+        locales \
         python \
         python-virtualenv \
         python-pip \
@@ -63,6 +64,11 @@ ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
 RUN apt-get purge -y --auto-remove gnupg apt-transport-https
+
+RUN locale-gen en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
 
 RUN adduser app sudo; \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;
