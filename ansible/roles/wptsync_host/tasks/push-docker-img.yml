@@ -6,12 +6,6 @@
     group: wpt
     mode: 0644
 
-- name: decompress docker image
-  command: "/usr/bin/bunzip2 {{internal_volume}}/{{ _image_name }}.tar.bz2"
-  args:
-    chdir: "{{ internal_volume }}"
-  become_user: wpt_user
-
 - name: load new docker image from archive
-  command: "/usr/bin/docker load -i {{internal_volume}}/{{ _image_name }}.tar"
+  command: "/usr/bin/docker load -i {{internal_volume}}/{{ _image_name }}.tar.bz2"
   become_user: wpt_user
