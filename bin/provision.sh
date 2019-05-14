@@ -19,6 +19,16 @@ if [ "$#" -ne 2 ]; then
     exit 1
 fi
 
+if [ ! -f $(pwd)/config/prod/sync.ini ]; then
+    echo Please add a sync.ini file to $(PWD)/config/prod
+fi
+
+if [ -z ${WPT_CREDENTIALS} ]; then
+    if [ ! -f $(pwd)/config/prod/credentials.ini ]; then
+        echo Please add a credentials.ini file to $(PWD)/config/prod
+    fi
+fi
+
 img="wptsync_dev:$(git rev-parse HEAD)"
 tag="${1-}"
 msg="${2-}"
@@ -27,7 +37,7 @@ ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     ansible/wptsync_deploy.yml -vvv \
     --extra-vars _repo_root=$(pwd) \
     --extra-vars _image_name=$img \
-    --extra-vars _tempdir=$(pwd)/devenv/ansible_workspace \
+    --extra-vars _tempdir=$(pwd)/ansible_workspace \
 
 echo Creating tag $tag. Remember to push it.
 git tag -a $tag -m "$msg"

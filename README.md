@@ -25,9 +25,11 @@ brew cask install docker
 
 ### Prerequisites
 
-Depending on what command you want to run, (e.g. wptsync listen), you may need
-to provide custom configration files at docker run-time by placing them in
-locations that are bind-mounted to the container and setting container environment variables. See `Dockerfile.dev` and `start_wptsync.sh`
+Depending on what command you want to run, (e.g. wptsync listen), you
+may need to provide custom configration files at docker run-time by
+placing them in locations that are bind-mounted to the container and
+setting container environment variables. See `Dockerfile.dev` and
+`start_wptsync.sh`
 
 You can include these customizations in a shell script or a docker-compose.yml:
 
@@ -53,6 +55,15 @@ To run tests do the following
 ./bin/run_docker_dev.sh test
 ```
 
+### Configuration
+
+Development configuration files are checked in to `config/` and
+`config/dev`. `config/dev/ssh` contains (usually non-functional) ssh keys
+and is not checked in to the repository.
+
+For production, configuration goes in `config/prod`, following the
+layout of `config/dev`. This is never committed to the repository. See
+`docs/deployment.md` for more information.
 
 ### Raw docker commands
 
@@ -68,16 +79,19 @@ docker build -t wptsync_dev --add-host=rabbitmq:127.0.0.1 --file wpt-sync/docker
 To start all the services in the container:
 
 ```
-docker run -it --add-host=rabbitmq:127.0.0.1 \
---env WPTSYNC_CONFIG=/app/wpt-sync/devenv/sync.ini \
---env WPTSYNC_CREDS=/app/wpt-sync/devenv/credentials.ini \
---env WPTSYNC_SSH_CONFIG=/app/wpt-sync/devenv/ssh_config \
---env WPTSYNC_GECKO_CONFIG=/app/wpt-sync/devenv/gecko_config\
---env WPTSYNC_WPT_CONFIG=/app/wpt-sync/devenv/wpt_config \
---mount type=bind,source=$(pwd),target=/app/wpt-sync \
---mount type=bind,source=$(pwd)/repos,target=/app/repos \
---mount type=bind,source=$(pwd)/workspace,target=/app/workspace \
-wptsync_dev
+exec docker run -it --add-host=rabbitmq:127.0.0.1 \
+  --env WPTSYNC_CONFIG=${WPTSYNC_CONFIG:-/app/config/dev/sync.ini} \
+  --env WPTSYNC_CREDS=${WPTSYNC_CREDS:-/app/config/dev/credentials.ini} \
+  --env WPTSYNC_GECKO_CONFIG=${WPTSYNC_GECKO_CONFIG:/app/config/gecko_config} \
+  --env WPTSYNC_WPT_CONFIG=${WPTSYNC_WPT_CONFIG:/app/config/wpt_config} \
+  --env WPTSYNC_GH_SSH_KEY=${WPTSYNC_GH_SSH_KEY:/app/config/dev/ssh/id_github} \
+  --env WPTSYNC_HGMO_SSH_KEY=${WPTSYNC_HGMO_SSH_KEY:/app/config/dev/ssh/id_hgmo} \
+  --mount type=bind,source=$(pwd)/config,target=/app/config \
+  --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
+  --mount type=bind,source=$(pwd)/test,target=/app/wpt-sync/test \
+  --mount type=bind,source=$(pwd)/repos,target=/app/repos \
+  --mount type=bind,source=$(pwd)/workspace,target=/app/workspace \
+  wptsync_dev
 ```
 
 This runs the script designated by ENTRYPOINT in the Dockerfile with an `init`process. You could use `--env-file` instead of `--env` to set environment variables in the container.
@@ -111,7 +125,7 @@ volumes it's expecting.
 
 Inside the Docker container we run as the app user with uid 10001. This user
 requires write permissions to directories `repos`, `workspace`, and
-`data`.
+`config/dev/ssh`.
 
 If you're on Linux, for each path run
 

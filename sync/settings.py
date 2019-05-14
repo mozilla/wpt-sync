@@ -38,9 +38,9 @@ def load():
     if _config is None:
         root, _ = get_root()
         ini_path = os.environ.get("WPTSYNC_CONFIG",
-                                  os.path.join(root, "sync.ini"))
+                                  os.path.join(root, "config", "dev", "sync.ini"))
         creds_path = os.environ.get("WPTSYNC_CREDS",
-                                    os.path.join(root, "credentials.ini"))
+                                    os.path.join(root, "config", "dev", "credentials.ini"))
         ini_sync = read_ini(ini_path)
         ini_credentials = read_ini(creds_path)
         _config = load_files(ini_sync, ini_credentials)
