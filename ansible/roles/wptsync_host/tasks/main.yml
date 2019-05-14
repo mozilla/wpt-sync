@@ -107,7 +107,8 @@
     state: directory
     mode: 0775
     owner: rabbitmq
-    group: wptsync
+    group: rabbitmq
+    recurse: yes
   with_items:
     - "{{ mount_workspace| mandatory }}/logs/rabbitmq"
 
