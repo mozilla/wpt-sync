@@ -15,8 +15,8 @@ from env import Environment
 
 
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
+INDEX_BASE = "https://index.taskcluster.net/v1/"
 ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
-TREEHERDER_BASE = "https://treeherder.mozilla.org/"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 SUCCESS = "completed"
@@ -100,6 +100,25 @@ def parse_job_name(job_name):
     job_name = job_name.replace("/", "-")
 
     return job_name
+
+
+def result_from_run(run):
+    result_map = {"completed": "success",
+                  "failed": "fail"}
+
+    state = run.get("state")
+
+    if state in result_map:
+        return result_map[state]
+
+    if state == "exception":
+        if run.get("reasonResolved") == "canceled":
+            return "canceled"
+        if run.get("reasonResolved") == "superseded":
+            return "superseded"
+        return "exception"
+
+    return "unknown"
 
 
 class TaskGroup(object):
@@ -279,6 +298,19 @@ def is_status_fn(statuses):
     return lambda x: is_status(statuses, x)
 
 
+def lookup_index(index_name):
+    if index_name is None:
+        return None
+    idx_url = INDEX_BASE + "task/" + index_name
+    r = requests.get(idx_url)
+    idx = r.json()
+    task_id = idx.get("taskId")
+    if task_id:
+        return task_id
+    logger.warning("Task not found from index: %s" % (index_name, idx.get("message", "")))
+    return task_id
+
+
 def get_task(task_id):
     if task_id is None:
         return
@@ -287,7 +319,18 @@ def get_task(task_id):
     task = r.json()
     if task.get("taskGroupId"):
         return task
-    logger.debug("Task %s not found: %s" % (task_id, task.get("message", "")))
+    logger.warning("Task %s not found: %s" % (task_id, task.get("message", "")))
+
+
+def get_task_status(task_id):
+    if task_id is None:
+        return
+    status_url = "%stask/%s/status" % (QUEUE_BASE, task_id)
+    r = requests.get(status_url)
+    status = r.json()
+    if status.get("status"):
+        return status["status"]
+    logger.warning("Task %s not found: %s" % (task_id, status.get("message", "")))
 
 
 def download(log_url, log_path, retry):
@@ -318,40 +361,19 @@ def fetch_json(url, params=None):
 
 
 def get_taskgroup_id(project, revision):
-    resultset_url = urlparse.urljoin(TREEHERDER_BASE,
-                                     "/api/project/%s/push/" % project)
-    resultset_params = {
-        'revision': revision,
-    }
+    idx = "gecko.v2.%s.revision.%s.firefox.decision" % (project, revision)
+    task_id = lookup_index(idx)
+    if task_id is None:
+        raise ValueError("Failed to look up task id from index %s" % idx)
+    status = get_task_status(task_id)
+    if status is None:
+        raise ValueError("Failed to look up status for task %s" % task_id)
 
-    revision_data = fetch_json(resultset_url, resultset_params)
-    result_set = revision_data["results"][0]["id"]
+    state = status["state"]
+    run = status["runs"][-1]
+    result = result_from_run(run)
 
-    jobs_url = urlparse.urljoin(TREEHERDER_BASE, "/api/project/%s/jobs/" % project)
-    jobs_params = {
-        'result_set_id': result_set,
-        'count': 2000,
-        'exclusion_profile': 'false',
-        'job_type_name': "Gecko Decision Task",
-    }
-    jobs_data = fetch_json(jobs_url, params=jobs_params)
-
-    if not jobs_data["results"]:
-        logger.warning("No decision task found for %s %s" % (project, revision))
-        return None, None, None
-
-    if len(jobs_data["results"]) > 1:
-        logger.warning("Multiple decision tasks found for %s" % revision)
-
-    job_id = jobs_data["results"][-1]["id"]
-
-    job_url = urlparse.urljoin(TREEHERDER_BASE, "/api/project/%s/jobs/%s/" %
-                               (project, job_id))
-    job_data = fetch_json(job_url)
-
-    return (normalize_task_id(job_data["taskcluster_metadata"]["task_id"]),
-            job_data["state"],
-            job_data["result"])
+    return (task_id, state, result)
 
 
 def cleanup():
