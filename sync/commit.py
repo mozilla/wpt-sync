@@ -172,7 +172,7 @@ class Commit(object):
         else:
             if author is not None:
                 commit_kwargs["author"] = author.encode("utf8")
-        repo.git.commit(message=msg.encode("utf8"), **commit_kwargs)
+        repo.git.commit(message=msg, **commit_kwargs)
         return cls(repo, repo.head.commit.hexsha)
 
     @staticmethod
@@ -181,6 +181,8 @@ class Commit(object):
             metadata_str = "\n".join("%s: %s" % item for item in sorted(metadata.items()))
             new_lines = "\n\n" if not msg.endswith("\n") else "\n"
             msg = "".join([msg, new_lines, metadata_str])
+        if isinstance(msg, unicode):
+            msg = msg.encode("utf8")
         return msg
 
     def is_empty(self, prefix=None):
@@ -267,7 +269,7 @@ def _apply_patch(patch, message, rev_name, dest_repo, skip_empty=True, msg_filte
     if metadata_extra:
         metadata.update(metadata_extra)
 
-    msg = Commit.make_commit_msg(msg, metadata).encode("utf8")
+    msg = Commit.make_commit_msg(msg, metadata)
 
     with Store(dest_repo, rev_name + ".message", msg) as message_path:
         strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
