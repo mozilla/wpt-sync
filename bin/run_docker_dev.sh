@@ -43,8 +43,10 @@ sudo chown -R 10001:10001 config/dev workspace repos
 sudo chown -R 10002:10002 workspace/logs/rabbitmq"
 elif [[ $command == "test" ]]; then
     exec docker run -it \
-         --env WPTSYNC_CONFIG=/app/wpt-sync/config/dev/sync.ini \
+         --env WPTSYNC_CONFIG=/app/config/test/sync.ini \
+         --env WPTSYNC_CREDS=/app/config/test/credentials.ini \
          --mount type=bind,source=$(pwd),target=/app/wpt-sync \
+         --mount type=bind,source=$(pwd)/test/config,target=/app/config/test \
          wptsync_dev --test $@
 elif [[ $command == "run" ]]; then
     exec docker run -it --add-host=rabbitmq:127.0.0.1 \

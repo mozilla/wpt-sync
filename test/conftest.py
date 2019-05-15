@@ -79,6 +79,8 @@ def cleanup(config):
 
 @pytest.fixture(scope="function")
 def env(request, mock_mach, mock_wpt):
+    assert os.environ.get("WPTSYNC_CONFIG") == "/app/config/test/sync.ini"
+    assert os.environ.get("WPTSYNC_CREDS") == "/app/config/test/credentials.ini"
     clear_env()
     config = settings.load()
     cleanup(config)
