@@ -37,7 +37,7 @@ RUN set -eux; \
     wget -O - "https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc" | \
         sudo apt-key add - \
         ; \
-    sudo echo "deb https://dl.bintray.com/rabbitmq-erlang/debian bionic erlang" >> \
+    sudo echo "deb https://dl.bintray.com/rabbitmq-erlang/debian bionic erlang-21.x" >> \
         /etc/apt/sources.list.d/bintray.rabbitmq.list; \
     sudo echo "deb https://dl.bintray.com/rabbitmq/debian bionic main" >> \
         /etc/apt/sources.list.d/bintray.rabbitmq.list; \
