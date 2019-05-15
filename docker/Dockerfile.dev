@@ -121,11 +121,6 @@ RUN set -eux; \
     git config --global user.name moz-wptsync-bot; \
     git config --global user.email wptsync@mozilla.com; \
     cp /app/wpt-sync/config/known_hosts /app/.ssh/known_hosts; \
-    # Copy test credentials as a temporary placeholder in workspace, and to testdata
-    cp /app/wpt-sync/test/testdata/credentials.ini /app/workspace/credentials.ini; \
-    cp /app/wpt-sync/test/testdata/sync.ini /app/workspace/sync.ini; \
-    cp /app/wpt-sync/test/testdata/credentials.ini /app/testdata/credentials.ini; \
-    cp /app/wpt-sync/test/testdata/sync.ini /app/testdata/sync.ini; \
     # Configure ipython
     mkdir -p /app/.ipython/profile_default/startup/ \
     && cp 00-startup.py /app/.ipython/profile_default/startup/; \
