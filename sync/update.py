@@ -258,11 +258,14 @@ def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
                 logger.warning("Try push %s has no associated revision" % try_push.process_name)
                 continue
             taskgroup_id, state, result = tc.get_taskgroup_id("try", try_push.try_rev)
+            logger.info("Got taskgroup id %s" % taskgroup_id)
             if state == "completed":
                 handle_sync("task", {"origin": {"revision": try_push.try_rev},
                                      "taskId": taskgroup_id,
                                      "state": state,
                                      "result": result})
+            else:
+                logger.warning("Not setting taskgroup id because decision task is in state %s" % state)
 
 
 def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
