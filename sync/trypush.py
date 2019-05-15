@@ -141,6 +141,10 @@ class TryFuzzyCommit(TryCommit):
             paths = set()
             for values in self.tests_by_type.itervalues():
                 paths |= set(values)
+            max_tests = env.config["gecko"]["try"].get("max-tests")
+            if max_tests and len(paths) > max_tests:
+                logger.warning("Capping number of affected tests at %d" % max_tests)
+                paths = paths[:max_tests]
             args.extend(paths)
 
         try:
