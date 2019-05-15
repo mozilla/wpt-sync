@@ -10,7 +10,7 @@
 credentials.ini
 config/dev/ssh
 config/prod
-repo
+repos
 workspace
 celerybeat-schedule
 
