@@ -9,7 +9,7 @@ set -o xtrace
 # for cleanup. We don't want to use `exec` for any commands that
 # we might want to kill with TERM or clean up after.
 
-trap cleanup HUP INT QUIT TERM
+trap cleanup HUP INT QUIT TERM ERR EXIT
 
 CELERY_WORKER=syncworker1
 CELERY_PID_FILE=${WPTSYNC_ROOT}/%n.pid
