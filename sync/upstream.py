@@ -560,7 +560,9 @@ def updates_for_backout(git_gecko, git_wpt, commit):
     for backed_out_commit in backed_out_commits:
         syncs = UpstreamSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug,
                                      statuses={"open", "incomplete"}, flat=True)
-        assert len(syncs) in (0, 1)
+        if len(syncs) not in (0, 1):
+            raise ValueError("Lookup of upstream syncs for bug %s returned syncs: %r" %
+                             (len(syncs), syncs))
         if syncs:
             sync = syncs.pop()
             if commit in sync.gecko_commits:
@@ -579,7 +581,7 @@ def updates_for_backout(git_gecko, git_wpt, commit):
         backout_bug = None
         for bug in bugs:
             open_bug_syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug,
-                                                  statuses=["open", "incomplete"])
+                                                  statuses={"open", "incomplete"})
             if bug not in update_syncs and not open_bug_syncs:
                 backout_bug = bug
                 break
@@ -627,7 +629,9 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
                 syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug, statuses=statuses,
                                              flat=True)
                 sync = None
-                assert len(syncs) in (0, 1)
+                if len(syncs) not in (0, 1):
+                    raise ValueError("Lookup of upstream syncs for bug %s returned syncs: %r" %
+                                     (len(syncs), syncs))
                 if syncs:
                     sync = syncs[0]
 
