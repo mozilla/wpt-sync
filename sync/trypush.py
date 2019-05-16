@@ -358,8 +358,6 @@ class TryPush(base.ProcessData):
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
-        :param bool force_update: Force the tasks to be refreshed from the
-                                  server
         :return: List of tasks
         """
         task_id = tc.normalize_task_id(self.taskgroup_id)
