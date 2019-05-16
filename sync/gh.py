@@ -152,7 +152,7 @@ class GitHub(object):
             if mergeable is None:
                 time.sleep(2**count)
                 count += 1
-                del self.pr_cache[self.pr]
+                del self.pr_cache[pr_id]
         return bool(mergeable)
 
     def merge_pull(self, pr_id):
