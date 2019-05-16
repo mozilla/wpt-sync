@@ -944,7 +944,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
             sync.status = "open"
             sync.pr_status = "open"
             sync.next_try_push()
-            if env.bz.get_status()[0] == "RESOLVED":
+            if env.bz.get_status(sync.bug)[0] == "RESOLVED":
                 env.bz.set_status(sync.bug, "REOPENED")
     except Exception as e:
         sync.error = e

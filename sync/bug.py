@@ -166,7 +166,7 @@ class Bugzilla(object):
         if resolution is not None:
             assert status == "RESOLVED"
             bug.resolution = resolution
-        self.bugzilla.put("bug")
+        self.bugzilla.put(bug)
 
 
 class MockBugzilla(Bugzilla):
