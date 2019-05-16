@@ -18,6 +18,9 @@ logger = log.get_logger(__name__)
 
 class CommitFilter(object):
     """Filter of a range of commits"""
+    def __init__(self):
+        self._commits = {}
+
     def path_filter(self):
         """Path filter for the commit range,
         returning a list of paths that match or None to
@@ -29,6 +32,11 @@ class CommitFilter(object):
 
         :param commit: wpt_commit.Commit object
         :returns: A boolean indicating whether to include the commit"""
+        if commit.sha1 not in self._commits:
+            self._commits[commit.sha1] = self._filter_commit(commit)
+        return self._commits[commit.sha1]
+
+    def _filter_commit(self, commit):
         return True
 
     def filter_commits(self, commits):

@@ -27,10 +27,9 @@ class BackoutCommitFilter(CommitFilter):
     def __init__(self, bug_id):
         self.bug = bug_id
         self.seen = set()
+        self._commits = {}
 
-    def filter_commit(self, commit):
-        if commit.is_empty(env.config["gecko"]["path"]["wpt"]):
-            return False
+    def _filter_commit(self, commit):
         if commit.metadata.get("wptsync-skip"):
             return False
         if DownstreamSync.has_metadata(commit.msg):
@@ -41,6 +40,8 @@ class BackoutCommitFilter(CommitFilter):
                 if backout_commit.sha1 in self.seen:
                     return True
         if commit.bug == self.bug:
+            if commit.is_empty(env.config["gecko"]["path"]["wpt"]):
+                return False
             self.seen.add(commit.sha1)
             return True
         return False
