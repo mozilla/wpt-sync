@@ -58,6 +58,7 @@ class Listener(ConsumerMixin):
     def add_callback(self, exchange, func):
         if exchange is None:
             raise ValueError("Expected string, got None")
+
         self._callbacks[exchange].append(func)
 
     def on_message(self, body, message):
@@ -118,18 +119,19 @@ def run_pulse_listener(config):
 
     Connection details are managed at https://pulseguardian.mozilla.org/.
     """
-    exchanges = [(config['pulse']['github']['queue'],
-                  config['pulse']['github']['exchange'],
-                  config['pulse']['github']['routing_key']),
-                 (config['pulse']['hgmo']['queue'],
-                  config['pulse']['hgmo']['exchange'],
-                  config['pulse']['hgmo']['routing_key']),
-                 (config['pulse']['taskcluster']['queue'],
-                  config['pulse']['taskcluster']['exchange'],
-                  config['pulse']['taskcluster']['routing_key']),
-                 (config['pulse']['treeherder']['queue'],
-                  config['pulse']['treeherder']['exchange'],
-                  config['pulse']['treeherder']['routing_key']), ]
+    exchanges = []
+    queues = {}
+    for queue_name, queue_props in config['pulse'].iteritems():
+        if (isinstance(queue_props, dict) and
+            set(queue_props.keys()) == {"queue", "exchange", "routing_key"}):
+            queues[queue_name] = queue_props
+
+    for queue in queues.itervalues():
+        logger.info("Connecting to pulse queue:%(queue)s exchange:%(exchange)s"
+                    " route:%(routing_key)s" % queue)
+        exchanges.append((queue['queue'],
+                          queue['exchange'],
+                          queue['routing_key']))
 
     conn = kombu.Connection(hostname=config['pulse']['host'],
                             port=config['pulse']['port'],
@@ -139,20 +141,25 @@ def run_pulse_listener(config):
 
     listen_logger = get_listen_logger(config)
 
+    filter_map = {
+        'github': GitHubFilter,
+        'hgmo': PushFilter,
+        'taskcluster-taskgroup': TaskGroupFilter,
+        'taskcluster-try-completed': TaskFilter,
+        'taskcluster-try-failed': TaskFilter,
+        'taskcluster-try-exception': TaskFilter,
+    }
+
     with conn:
         try:
             listener = get_listener(conn,
                                     userid=config['pulse']['username'],
                                     exchanges=exchanges,
                                     logger=listen_logger)
-            listener.add_callback(config['pulse']['github']['exchange'],
-                                  GitHubFilter(config, listen_logger))
-            listener.add_callback(config['pulse']['hgmo']['exchange'],
-                                  PushFilter(config, listen_logger))
-            listener.add_callback(config['pulse']['treeherder']['exchange'],
-                                  TaskFilter(config, listen_logger))
-            listener.add_callback(config['pulse']['taskcluster']['exchange'],
-                                  TaskGroupFilter(config, listen_logger))
+            for queue_name, queue in queues.iteritems():
+                queue_filter = filter_map[queue_name](config, listen_logger)
+                listener.add_callback(queue['exchange'], queue_filter)
+
             listener.run()
         except KeyboardInterrupt:
             pass
@@ -222,5 +229,4 @@ class TaskFilter(Filter):
     name = "task"
 
     def accept(self, body):
-        return (body["display"]["jobName"] == "Gecko Decision Task" and
-                body["state"] == "completed")
+        return True

@@ -370,10 +370,9 @@ def get_taskgroup_id(project, revision):
         raise ValueError("Failed to look up status for task %s" % task_id)
 
     state = status["state"]
-    run = status["runs"][-1]
-    result = result_from_run(run)
+    runs = status["runs"]
 
-    return (task_id, state, result)
+    return (task_id, state, runs)
 
 
 def cleanup():

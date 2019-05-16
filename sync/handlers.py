@@ -7,6 +7,7 @@ import update
 import upstream
 import worktree
 from env import Environment
+from errors import RetryableError
 from gitutils import pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
 from lock import SyncLock
@@ -186,35 +187,59 @@ class TaskHandler(Handler):
     Gecko Decision Tasks."""
 
     def __call__(self, git_gecko, git_wpt, body):
-        sha1 = body["origin"]["revision"]
-        task_id = tc.normalize_task_id(body["taskId"])
-        state = body["state"]
-        result = body["result"]
-
-        try_push = trypush.TryPush.for_commit(git_gecko, sha1)
-        if not try_push:
-            logger.debug("No try push for SHA1 %s taskId %s" % (sha1, task_id))
-            return
+        task_id = body["status"]["taskId"]
+        state = body["status"]["state"]
 
         # Enforce the invariant that the taskgroup id is not set until
         # the decision task is complete. This allows us to determine if a
         # try push should have the expected wpt tasks just by checking if
         # this is set
-        if state != "completed" or result == "superseded":
-            logger.info("Decision task is not yet complete, status %s" % result)
+        if state not in ("completed", "failed", "exception"):
+            logger.info("Decision task is not yet complete, status %s" % state)
+            return
+
+        task = tc.get_task(task_id)
+        sha1 = task.get("payload", {}).get("env", {}).get("GECKO_HEAD_REV")
+
+        if sha1 is None:
+            raise ValueError("Failed to get commit sha1 from task message")
+
+        if state == "exception":
+            run_id = body.get("runId")
+            runs = body.get("status", {}).get("runs", [])
+            if 0 <= run_id < len(runs):
+                reason = runs[run_id].get("reasonResolved")
+                if reason in ["superseded",
+                              "claim-expired",
+                              "worker-shutdown",
+                              "intermittent-task"]:
+                    logger.info("Task %s had an exception for reason %s, "
+                                "assuming taskcluster will retry" %
+                                (task_id, reason))
+                    return
+
+        try_push = trypush.TryPush.for_commit(git_gecko, sha1)
+        if not try_push:
+            logger.debug("No try push for SHA1 %s taskId %s" % (sha1, task_id))
+            owner = task.get("metadata", {}).get("owner")
+            if owner == "wptsync@mozilla.com":
+                # This could be a race condition if the decision task completes before this
+                # task is in the index
+                raise RetryableError("Got a wptsync task with no corresponding try push")
             return
 
         with SyncLock.for_process(try_push.process_name) as lock:
             with try_push.as_mut(lock):
                 # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
                 # But the retriggered decision task itself is still in the original taskgroup
-                if result == "success":
-                    logger.info("Setting taskgroup id for try push %r to %s" % (try_push, task_id))
+                if state == "completed":
+                    logger.info("Setting taskgroup id for try push %r to %s" %
+                                (try_push, task_id))
                     try_push.taskgroup_id = task_id
-                elif result in ("fail", "exception"):
+                elif state in ("failed", "exception"):
                     sync = try_push.sync(git_gecko, git_wpt)
                     message = ("Decision task got status %s for task %s%s" %
-                               (result, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
+                               (state, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
                     logger.error(message)
                     task = tc.get_task(task_id)
                     taskgroup = tc.TaskGroup(task["taskGroupId"])
