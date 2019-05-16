@@ -52,10 +52,10 @@ elif [[ $command == "run" ]]; then
     exec docker run -it --add-host=rabbitmq:127.0.0.1 \
     --env WPTSYNC_CONFIG=${WPTSYNC_CONFIG:-/app/config/dev/sync.ini} \
     --env WPTSYNC_CREDS=${WPTSYNC_CREDS:-/app/config/dev/credentials.ini} \
-    --env WPTSYNC_GECKO_CONFIG=${WPTSYNC_GECKO_CONFIG:/app/config/gecko_config} \
-    --env WPTSYNC_WPT_CONFIG=${WPTSYNC_WPT_CONFIG:/app/config/wpt_config} \
-    --env WPTSYNC_GH_SSH_KEY=${WPTSYNC_GH_SSH_KEY:/app/config/dev/ssh/id_github} \
-    --env WPTSYNC_HGMO_SSH_KEY=${WPTSYNC_HGMO_SSH_KEY:/app/config/dev/ssh/id_hgmo} \
+    --env WPTSYNC_GECKO_CONFIG=${WPTSYNC_GECKO_CONFIG:-/app/config/gecko_config} \
+    --env WPTSYNC_WPT_CONFIG=${WPTSYNC_WPT_CONFIG:-/app/config/wpt_config} \
+    --env WPTSYNC_GH_SSH_KEY=${WPTSYNC_GH_SSH_KEY:-/app/config/dev/ssh/id_github} \
+    --env WPTSYNC_HGMO_SSH_KEY=${WPTSYNC_HGMO_SSH_KEY:-/app/config/dev/ssh/id_hgmo} \
     --mount type=bind,source=$(pwd)/config,target=/app/config \
     --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
     --mount type=bind,source=$(pwd)/test,target=/app/wpt-sync/test \
