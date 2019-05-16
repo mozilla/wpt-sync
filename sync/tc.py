@@ -2,7 +2,6 @@ import os
 import requests
 import shutil
 import traceback
-import urlparse
 import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
