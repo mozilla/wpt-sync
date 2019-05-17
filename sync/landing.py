@@ -403,7 +403,7 @@ Automatic update from web-platform-tests\n%s
             logger.info("Cherry-pick failed, trying again with only test-related changes")
             # Try to reset all metadata files that aren't related to an affected test.
             affected_metadata = {os.path.join(env.config["gecko"]["path"]["meta"], item) + ".ini"
-                                 for item in sync.affected_tests()}
+                                 for item in sync.affected_tests_readonly()}
             checkout = []
             status = gitutils.status(worktree)
             for head_path, data in status.iteritems():
@@ -734,8 +734,11 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
                                                   flat=True)
             for sync in syncs:
                 if sync.merge_sha == commits[-1].sha1 and not sync.wpt_commits:
-                    # If we merged with a merge commit, the set of commits here will be empty
-                    sync.set_wpt_base(sync_commit.WptCommit(git_wpt, commits[0].sha1 + "~").sha1)
+                    # TODO: this shouldn't be mutating here
+                    with SyncLock("upstream", None) as lock:
+                        with sync.as_mut(lock):
+                            # If we merged with a merge commit, the set of commits here will be empty
+                            sync.set_wpt_base(sync_commit.WptCommit(git_wpt, commits[0].sha1 + "~").sha1)
 
                 # Only check the first commit since later ones could be added in the PR
                 sync_revs = {item.canonical_rev for item in sync.upstreamed_gecko_commits}
