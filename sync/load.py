@@ -46,7 +46,7 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
     return syncs
 
 
-def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None):
+def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None, seq_id=None):
     import downstream
     import landing
     import upstream
@@ -60,4 +60,6 @@ def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None):
     syncs = cls.load_by_obj(git_gecko, git_wpt, obj_id)
     if status:
         syncs = {sync for sync in syncs if sync.status == status}
+    if seq_id is not None:
+        syncs = {sync for sync in syncs if sync.seq_id == seq_id}
     return syncs

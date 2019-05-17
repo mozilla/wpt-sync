@@ -685,3 +685,13 @@ class SyncProcess(object):
     def delete(self):
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
+
+        for try_push in self.try_pushes():
+            with try_push.as_mut(self._lock):
+                try_push.delete()
+
+        for git, commit_cls in [(self.git_wpt, sync_commit.WptCommit),
+                                (self.git_gecko, sync_commit.GeckoCommit)]:
+            BranchRefObject(git, self.process_name, commit_cls=commit_cls).delete()
+
+        self.data.delete()
