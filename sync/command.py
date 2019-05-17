@@ -102,6 +102,7 @@ def get_parser():
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
     parser_delete.add_argument("sync_type", help="Type of sync to delete")
     parser_delete.add_argument("obj_id", help="Bug or PR id for the sync")
+    parser_delete.add_argument("--seq-id", help="Sync sequence id")
     parser_delete.add_argument("--try", action="store_true", help="Delete try pushes for a sync")
     parser_delete.set_defaults(func=do_delete)
 
@@ -359,7 +360,8 @@ def do_push(git_gecko, git_wpt, *args, **kwargs):
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush
     if kwargs["try"]:
-        try_pushes = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id)
+        try_pushes = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id,
+                                                 seq_id=kwargs["seq_id"])
         for try_push in try_pushes:
             with SyncLock.for_process(try_push.process_name) as lock:
                 with try_push.as_mut(lock):
@@ -369,10 +371,7 @@ def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
         for sync in syncs:
             with SyncLock.for_process(sync.process_name) as lock:
                 with sync.as_mut(lock):
-                    for try_push in sync.try_pushes():
-                        with try_push.as_mut(lock):
-                            try_push.delete()
-                sync.delete()
+                    sync.delete()
 
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
