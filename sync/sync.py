@@ -307,6 +307,7 @@ class SyncProcess(object):
                   is true, just returns a list of matching syncs.
         """
         import index
+        bug = str(bug)
         statuses = set(statuses) if statuses is not None else set(cls.statuses)
         rv = defaultdict(set)
         idx_key = (bug,)
