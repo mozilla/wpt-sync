@@ -603,6 +603,7 @@ class SyncProcess(object):
     def new(cls, lock, git_gecko, git_wpt, gecko_base, gecko_head,
             wpt_base="origin/master", wpt_head=None,
             bug=None, pr=None, status="open"):
+        # TODO: this object creation is extremely non-atomic :/
         import index
         if cls.obj_id == "bug":
             assert bug is not None
