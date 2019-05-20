@@ -896,10 +896,12 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
             for _, sync, _ in commits:
                 if isinstance(sync, downstream.DownstreamSync):
-                    try:
-                        sync.try_notify()
-                    except Exception as e:
-                        logger.error(e.message)
+                    with SyncLock.for_process(sync.process_name) as lock:
+                        with sync.as_mut(lock):
+                            try:
+                                sync.try_notify()
+                            except Exception as e:
+                                logger.error(e.message)
 
     return landing
 
