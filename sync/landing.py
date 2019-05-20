@@ -403,7 +403,8 @@ Automatic update from web-platform-tests\n%s
             logger.info("Cherry-pick failed, trying again with only test-related changes")
             # Try to reset all metadata files that aren't related to an affected test.
             affected_metadata = {os.path.join(env.config["gecko"]["path"]["meta"], item) + ".ini"
-                                 for item in sync.affected_tests_readonly()}
+                                 for items in sync.affected_tests_readonly.itervalues()
+                                 for item in items}
             checkout = []
             status = gitutils.status(worktree)
             for head_path, data in status.iteritems():

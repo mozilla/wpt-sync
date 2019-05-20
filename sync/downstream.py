@@ -680,7 +680,7 @@ class DownstreamSync(SyncProcess):
     def affected_tests_readonly(self):
         if "affected-tests" not in self.data:
             logger.warning("Trying to get affected tests before it's set")
-            return []
+            return {}
         return self.data["affected-tests"]
 
     @property
