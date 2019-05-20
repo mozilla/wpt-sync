@@ -435,6 +435,16 @@ class TryPush(base.ProcessData):
             logger.warning("Failed to remove logs %s:%s" %
                            (self.log_path(), traceback.format_exc()))
 
+    @mut()
+    def delete(self):
+        super(TryPush, self).delete()
+        for (idx_cls, data) in [(TaskGroupIndex, self.taskgroup_id),
+                                (TryCommitIndex, self.try_rev)]:
+            if data is not None:
+                idx = idx_cls(self.repo)
+                key = idx.make_key(data)
+                idx.delete(key, data)
+
 
 class TryPushTasks(object):
     _retrigger_count = 6

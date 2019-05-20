@@ -685,6 +685,7 @@ class SyncProcess(object):
 
     @mut()
     def delete(self):
+        import index
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
 
@@ -695,5 +696,10 @@ class SyncProcess(object):
         for git, commit_cls in [(self.git_wpt, sync_commit.WptCommit),
                                 (self.git_gecko, sync_commit.GeckoCommit)]:
             BranchRefObject(git, self.process_name, commit_cls=commit_cls).delete()
+
+        for idx_cls in [index.SyncIndex, index.PrIdIndex, index.BugIdIndex]:
+            key = idx_cls.make_key(self)
+            idx = idx_cls(self.git_gecko)
+            idx.delete(key, self.process_name).save()
 
         self.data.delete()
