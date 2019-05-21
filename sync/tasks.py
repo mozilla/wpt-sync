@@ -3,6 +3,7 @@ import traceback
 import time
 
 import filelock
+import newrelic.agent
 
 import bug
 import env
@@ -92,6 +93,7 @@ def handle(self, task, body):
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
+        newrelic.agent.add_custom_parameter("task", task)
         git_gecko, git_wpt = setup()
         try:
             handlers[task](git_gecko, git_wpt, body)

@@ -1,3 +1,5 @@
+import newrelic.agent
+
 import downstream
 import log
 import landing
@@ -27,7 +29,8 @@ class Handler(object):
 
 def handle_pr(git_gecko, git_wpt, event):
     pr_id = event["number"]
-
+    newrelic.agent.add_custom_parameter("pr", pr_id)
+    newrelic.agent.add_custom_parameter("action", event["action"])
     env.gh_wpt.load_pull(event["pull_request"])
 
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
@@ -74,6 +77,10 @@ def handle_status(git_gecko, git_wpt, event):
     # First check if the PR is head of any pull request
     pr_id = pr_for_commit(git_wpt, rev)
 
+    newrelic.agent.add_custom_parameter("rev", rev)
+    newrelic.agent.add_custom_parameter("context", event["context"])
+    newrelic.agent.add_custom_parameter("state", event["state"])
+
     if not pr_id:
         # This usually happens if we got behind, so the commit is no longer the latest one
         # There are a few possibilities for what happened:
@@ -116,6 +123,10 @@ def handle_push(git_gecko, git_wpt, event):
 
 
 def handle_pull_request_review(git_gecko, git_wpt, event):
+    newrelic.agent.add_custom_parameter("action", event["action"])
+    newrelic.agent.add_custom_parameter("pr", event["pull_request"]["number"])
+    newrelic.agent.add_custom_parameter("state", event["review"]["state"])
+
     if event["action"] != "submitted":
         return
     if event["review"]["state"] != "approved":
@@ -142,6 +153,7 @@ class GitHubHandler(Handler):
 
     def __call__(self, git_gecko, git_wpt, body):
         handler = self.dispatch_event[body["event"]]
+        newrelic.agent.add_custom_parameter("event", body["event"])
         if handler:
             return handler(git_gecko, git_wpt, body["payload"])
         # TODO: other events to check if we can merge a PR
@@ -155,6 +167,7 @@ class PushHandler(Handler):
             repo_name = repo.rsplit("/", 1)[1]
         else:
             repo_name = repo
+
         # Commands can override the base rev and select only certain processses
         base_rev = body.get("_wptsync", {}).get("base_rev")
         processes = body.get("_wptsync", {}).get("processes")
@@ -163,6 +176,10 @@ class PushHandler(Handler):
         # matters for us
         rev = body["payload"]["data"]["heads"][0]
         logger.info("Handling commit %s to repo %s" % (rev, repo))
+
+        newrelic.agent.add_custom_parameter("repo", repo)
+        newrelic.agent.add_custom_parameter("repo", rev)
+
         update_repositories(git_gecko, git_wpt, include_autoland=True, wait_gecko_commit=rev)
         try:
             git_rev = git_gecko.cinnabar.hg2git(rev)
@@ -189,6 +206,9 @@ class TaskHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
         task_id = body["status"]["taskId"]
         state = body["status"]["state"]
+
+        newrelic.agent.add_custom_parameter("tc_task", task_id)
+        newrelic.agent.add_custom_parameter("state", state)
 
         # Enforce the invariant that the taskgroup id is not set until
         # the decision task is complete. This allows us to determine if a
@@ -260,6 +280,8 @@ class TaskHandler(Handler):
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
         taskgroup_id = tc.normalize_task_id(body["taskGroupId"])
+
+        newrelic.agent.add_custom_parameter("tc_task", taskgroup_id)
 
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
         if not try_push:
