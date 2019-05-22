@@ -37,8 +37,10 @@ ipython-genutils==0.2.0 \
     --hash=sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8
 kombu==4.5.0 \
     --hash=sha256:7b92303af381ef02fad6899fd5f5a9a96031d781356cd8e505fa54ae5ddee181
-mercurial==4.9.1 \
-    --hash=sha256:1bdd21bb87d1e05fb5cd395d488d0e0cc2f2f90ce0fd248e31a03595da5ccb47
+mercurial==5.0 \
+    --hash=sha256:54ec76a0138d9b883873cfb2c651380659cd24aa99d92f8816982c6d0edd712a \
+    --hash=sha256:c095244fca362ac1ca530a4d1fb072504c17ecfad68a98bfafc2fe03b31af5a7 \
+    --hash=sha256:fb4ea8d2c4bb07107a6096be4809d8395d7a73cfb06efb4ab913fdc6a0de0159
 mock==2.0.0 \
     --hash=sha256:5ce3c71c5545b472da17b72268978914d0252980348636840bd34a00b5cc96c1
 mohawk==1.0.0 \
