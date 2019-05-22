@@ -28,6 +28,7 @@ class Handler(object):
 
 
 def handle_pr(git_gecko, git_wpt, event):
+    newrelic.agent.set_transaction_name("handle_pr")
     pr_id = event["number"]
     newrelic.agent.add_custom_parameter("pr", pr_id)
     newrelic.agent.add_custom_parameter("action", event["action"])
@@ -65,6 +66,7 @@ def handle_pr(git_gecko, git_wpt, event):
 
 
 def handle_status(git_gecko, git_wpt, event):
+    newrelic.agent.set_transaction_name("handle_status")
     if event["context"] == "upstream/gecko":
         # Never handle changes to our own status
         return
@@ -118,11 +120,13 @@ def handle_status(git_gecko, git_wpt, event):
 
 
 def handle_push(git_gecko, git_wpt, event):
+    newrelic.agent.set_transaction_name("handle_push")
     update_repositories(None, git_wpt, False)
     landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
 
 
 def handle_pull_request_review(git_gecko, git_wpt, event):
+    newrelic.agent.set_transaction_name("handle_pull_request_review")
     newrelic.agent.add_custom_parameter("action", event["action"])
     newrelic.agent.add_custom_parameter("pr", event["pull_request"]["number"])
     newrelic.agent.add_custom_parameter("state", event["review"]["state"])
@@ -152,6 +156,7 @@ class GitHubHandler(Handler):
     }
 
     def __call__(self, git_gecko, git_wpt, body):
+        newrelic.agent.set_transaction_name("GitHubHandler")
         handler = self.dispatch_event[body["event"]]
         newrelic.agent.add_custom_parameter("event", body["event"])
         if handler:
@@ -162,6 +167,7 @@ class GitHubHandler(Handler):
 
 class PushHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
+        newrelic.agent.set_transaction_name("PushHandler")
         repo = body["_meta"]["routing_key"]
         if "/" in repo:
             repo_name = repo.rsplit("/", 1)[1]
@@ -204,6 +210,7 @@ class TaskHandler(Handler):
     Gecko Decision Tasks."""
 
     def __call__(self, git_gecko, git_wpt, body):
+        newrelic.agent.set_transaction_name("TaskHandler")
         task_id = body["status"]["taskId"]
         state = body["status"]["state"]
 
@@ -279,6 +286,7 @@ class TaskHandler(Handler):
 
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
+        newrelic.agent.set_transaction_name("TaskGroupHandler")
         taskgroup_id = tc.normalize_task_id(body["taskGroupId"])
 
         newrelic.agent.add_custom_parameter("tc_task", taskgroup_id)
@@ -303,11 +311,13 @@ class TaskGroupHandler(Handler):
 
 class LandingHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
+        newrelic.agent.set_transaction_name("LandingHandler")
         return landing.update_landing(git_gecko, git_wpt)
 
 
 class CleanupHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
+        newrelic.agent.set_transaction_name("CleanupHandler")
         logger.info("Running cleanup")
         worktree.cleanup(git_gecko, git_wpt)
         tc.cleanup()
@@ -315,6 +325,7 @@ class CleanupHandler(Handler):
 
 class RetriggerHandler(Handler):
     def __call__(self, git_gecko, git_wpt):
+        newrelic.agent.set_transaction_name("RetriggerHandler")
         logger.info("Running retrigger")
         update_repositories(git_gecko, git_wpt)
         sync_point = landing.load_sync_point(git_gecko, git_wpt)
