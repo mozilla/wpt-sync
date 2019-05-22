@@ -912,6 +912,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                       accept_failures=False, tasks=None):
     intermittents = []
 
+    if not accept_failures and try_push.status == "complete":
+        return
+
     if tasks is None:
         tasks = try_push.tasks()
     if not tasks.success():
