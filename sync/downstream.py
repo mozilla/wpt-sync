@@ -10,9 +10,11 @@ import os
 import re
 import traceback
 from collections import defaultdict
+from datetime import datetime
 
 import enum
 import git
+import newrelic
 
 import bugcomponents
 import gitutils
@@ -313,6 +315,80 @@ class DownstreamSync(SyncProcess):
                     break
 
             self.wpt_commits.base = self.data["wpt-base"] = base_commit.sha1
+
+    @mut()
+    def update_github_check(self):
+        title = "gecko/sync"
+        head_sha = self.wpt_commits.head.sha1
+
+        # TODO: maybe just get this from GitHub rather than store it
+        existing = self.data.get("check")
+        check_id = None
+        if existing is not None:
+            if existing.get("sha1") == head_sha:
+                check_id = existing.get("id")
+
+        url = env.bz.bugzilla_url(self.bug)
+        external_id = self.bug
+
+        # For now hardcode the status at completed
+        status = "completed"
+        conclusion = "neutral"
+
+        completed_at = datetime.now()
+
+        output = {"title": "Gecko sync for PR %s" % self.pr,
+                  "summary": "Gecko sync status: %s" % self.landable_status.reason_str(),
+                  "test": self.build_check_text(head_sha)}
+
+        try:
+            logger.info("Generating GH check status")
+            resp = env.gh_wpt.set_check(title, check_id=check_id, commit_sha=head_sha, url=url,
+                                        external_id=external_id, status=status, started_at=None,
+                                        conclusion=conclusion, completed_at=completed_at,
+                                        output=output)
+            self.data["check"] = {"id": resp["id"], "sha1": head_sha}
+        except AssertionError:
+            raise
+        except Exception as e:
+            # Just log errors trying to update the check status, but otherwise don't fail
+            newrelic.agent.record_exception()
+            import traceback
+            logger.error("Creating PR status check failed")
+            logger.error(traceback.format_exc(e))
+
+    def build_check_text(self, commit_sha):
+        text = """
+
+        # Summary
+
+        [Bugzilla](%(bug_link)s)
+
+        # Try pushes
+        %(try_push_section)s
+
+        %(error_section)s
+        """
+        try_pushes = [try_push for try_push in
+                      sorted(self.try_pushes(), key=lambda x: -x.process_name.seq_id)
+                      if try_push.wpt_head == commit_sha]
+        if not try_pushes:
+            try_push_section = "No current try pushes"
+        else:
+            items = []
+            for try_push in try_pushes:
+                link_str = "Try push" + (" (stability)" if try_push.stability else "")
+                items.append(" * [%s](%s): %s%s" % (link_str,
+                                                    try_push.treeherder_url,
+                                                    try_push.status,
+                                                    " infra-fail" if try_push.infra_fail
+                                                    else ""))
+                try_push_section = "\n".join(items)
+
+        error_section = "# Errors:\n ```%s```" % self.error if self.error else ""
+        return text % {"bug_link": env.bz.bugzilla_url(self.bug),
+                       "try_push_section": try_push_section,
+                       "error_section": error_section}
 
     def files_changed(self):
         # TODO: Would be nice to do this from mach with a gecko worktree
@@ -820,6 +896,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=Tru
         with sync.as_mut(lock):
             try:
                 sync.update_commits()
+                sync.update_github_check()
             except Exception as e:
                 sync.error = e
                 if raise_on_error:
@@ -842,11 +919,13 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
         if status == "pending":
             # We got new commits that we missed
             sync.update_commits()
+            sync.update_github_check()
             return
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
         if check_state == "success":
             sync.next_try_push()
+            sync.update_github_check()
     except Exception as e:
         sync.error = e
         if raise_on_error:
@@ -870,53 +949,60 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             logger.info("Try push is not complete")
             return
 
-        if not tasks.validate():
-            try_push.infra_fail = True
-            if len(sync.latest_busted_try_pushes()) > 5:
-                message = ("Too many busted try pushes. "
-                           "Check the try results for infrastructure issues.")
+        try:
+            if not tasks.validate():
+                try_push.infra_fail = True
+                if len(sync.latest_busted_try_pushes()) > 5:
+                    message = ("Too many busted try pushes. "
+                               "Check the try results for infrastructure issues.")
+                    sync.error = message
+                    env.bz.comment(sync.bug, message)
+                    try_push.status = "complete"
+                    raise AbortError(message)
+            elif len(tasks.failed_builds()):
+                message = ("Try push had build failures")
                 sync.error = message
                 env.bz.comment(sync.bug, message)
                 try_push.status = "complete"
+                try_push.infra_fail = True
                 raise AbortError(message)
-        elif len(tasks.failed_builds()):
-            message = ("Try push had build failures")
-            sync.error = message
-            env.bz.comment(sync.bug, message)
+            else:
+                logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
+                disabled = []
+                if not tasks.success():
+                    if sync.affected_tests():
+                        log_files = []
+                        wpt_tasks = try_push.download_logs(tasks.wpt_tasks, raw=False)
+                        for task in wpt_tasks:
+                            for run in task.get("status", {}).get("runs", []):
+                                log = run.get("_log_paths", {}).get("wptreport.json")
+                                if log:
+                                    log_files.append(log)
+                        if not log_files:
+                            raise ValueError("No log files found for try push %r" % try_push)
+                        disabled = sync.update_metadata(log_files, stability=try_push.stability)
+                    else:
+                        env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, "
+                                                  "but the try push wasn't a success. "
+                                                  "Check the try results for infrastructure "
+                                                  "issues"))
+                        # TODO: consider marking the push an error here so that we can't
+                        # land without manual intervention
+
+                if try_push.stability and disabled:
+                    logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
+                    # TODO notify relevant people about test expectation changes, stability
+                    env.bz.comment(sync.bug, ("The following tests were disabled "
+                                              "based on stability try push:\n %s" %
+                                              "\n".join(disabled)))
+
             try_push.status = "complete"
-            try_push.infra_fail = True
-            raise AbortError(message)
-        else:
-            logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
-            disabled = []
-            if not tasks.success():
-                if sync.affected_tests():
-                    log_files = []
-                    wpt_tasks = try_push.download_logs(tasks.wpt_tasks, raw=False)
-                    for task in wpt_tasks:
-                        for run in task.get("status", {}).get("runs", []):
-                            log = run.get("_log_paths", {}).get("wptreport.json")
-                            if log:
-                                log_files.append(log)
-                    if not log_files:
-                        raise ValueError("No log files found for try push %r" % try_push)
-                    disabled = sync.update_metadata(log_files, stability=try_push.stability)
-                else:
-                    env.bz.comment(sync.bug, ("The PR was not expected to affect any tests, "
-                                              "but the try push wasn't a success. Check the try "
-                                              "results for infrastructure issues"))
-                    # TODO: consider marking the push an error here so that we can't land without
-                    # manual intervention
-
-            if try_push.stability and disabled:
-                logger.info("The following tests were disabled:\n%s" % "\n".join(disabled))
-                # TODO notify relevant people about test expectation changes, stability
-                env.bz.comment(sync.bug, ("The following tests were disabled "
-                                          "based on stability try push:\n %s" %
-                                          "\n".join(disabled)))
-    try_push.status = "complete"
-
-    next_try_push = sync.next_try_push()
+            next_try_push = sync.next_try_push()
+        finally:
+            sync.update_github_check()
+    else:
+        next_try_push = sync.next_try_push()
+        sync.update_github_check()
 
     if not next_try_push or next_try_push.stability:
         pr = env.gh_wpt.get_pull(sync.pr)
@@ -929,6 +1015,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 def pull_request_approved(git_gecko, git_wpt, sync):
     try:
         sync.next_try_push()
+        sync.update_github_check()
     except Exception as e:
         sync.error = e
         raise
@@ -953,6 +1040,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
             sync.next_try_push()
             if env.bz.get_status(sync.bug)[0] == "RESOLVED":
                 env.bz.set_status(sync.bug, "REOPENED")
+        sync.update_github_check()
     except Exception as e:
         sync.error = e
         raise
