@@ -20,8 +20,9 @@ Deprecated==1.2.5 \
     --hash=sha256:749f6cdcfbdc3f79258f8154bad43fced95adc632c337675d0385959895894bc
 enum34==1.1.6 \
     --hash=sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79
-filelock==3.0.10 \
-    --hash=sha256:d610c1bb404daf85976d7a82eb2ada120f04671007266b708606565dd03b5be6
+filelock==3.0.12 \
+    --hash=sha256:18d82244ee114f543149c66a6e0c14e9c4f8a1044b5cdaadd0f82159d6a6ff59 \
+    --hash=sha256:929b7d63ec5b7d6b71b0fa5ac14e030b3f70b75747cef1b10da9b879fef15836
 funcsigs==1.0.2 \
     --hash=sha256:330cc27ccbf7f1e992e69fef78261dc7c6569012cf397db8d3de0234e6c937ca
 gitdb2==2.0.5 \
