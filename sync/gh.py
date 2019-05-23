@@ -193,6 +193,84 @@ class GitHub(object):
                        re.escape("<!-- Reviewable:end -->"), re.DOTALL)
         return r.sub("", text)
 
+    def _construct_check_data(self, name, commit_sha=None, check_id=None, url=None,
+                              external_id=None, status=None, started_at=None,
+                              conclusion=None, completed_at=None, output=None, actions=None):
+        if check_id is not None and commit_sha is not None:
+            raise ValueError("Only one of check_id and commit_sha may be supplied")
+
+        if status is not None:
+            if status not in ("queued", "in_progress", "completed"):
+                raise ValueError("Invalid status %s" % status)
+
+        if started_at is not None:
+            started_at = started_at.isoformat()
+
+        if status == "completed" and conclusion is None:
+            raise ValueError("Got a completed status but no conclusion")
+
+        if conclusion is not None and completed_at is None:
+            raise ValueError("Got a conclusion but no completion time")
+
+        if conclusion is not None:
+            if conclusion not in ("success", "failure", "neutral", "cancelled",
+                                  "timed_out", "action_required"):
+                raise ValueError("Invalid conclusion %s" % conclusion)
+
+        if completed_at is not None:
+            completed_at = completed_at.isoformat()
+
+        if output is not None:
+            if not "title"in output:
+                raise ValueError("Output requires a title")
+            if not "summary"in output:
+                raise ValueError("Output requires a summary")
+
+        req_data = {
+            "name": name,
+        }
+
+        for (name, value) in [("head_sha", commit_sha),
+                              ("id", check_id),
+                              ("url", url),
+                              ("external_id", external_id),
+                              ("status", status),
+                              ("started_at", started_at),
+                              ("conclusion", conclusion),
+                              ("completed_at", completed_at),
+                              ("output", output),
+                              ("actions", actions)]:
+            req_data[name] = value
+
+        req_method = "POST" if check_id is None else "PATCH"
+
+        return req_method, req_data
+
+    def set_check(self, name, commit_sha=None, check_id=None, url=None, external_id=None,
+                  status=None, started_at=None, conclusion=None, completed_at=None,
+                  output=None, actions=None):
+
+        req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
+                                                          url, external_id, status,
+                                                          started_at, conclusion, completed_at,
+                                                          output, actions)
+
+        req_headers = {"Accept": "application/vnd.github.antiope-preview+json"}
+
+        url = self.repo.url + "/check-runs"
+        if check_id is not None:
+            url += ("/%s" % check_id)
+
+        headers, data = self.repo._requester.requestJsonAndCheck(
+            req_method,
+            url,
+            input=req_data,
+            headers=req_headers
+        )
+
+        # Not sure what to return here
+        return data
+
 
 class AttrDict(dict):
     def __getattr__(self, name):
@@ -208,6 +286,7 @@ class MockGitHub(GitHub):
         self.commit_prs = {}
         self._id = itertools.count(1)
         self.output = sys.stdout
+        self.checks = {}
 
     def _log(self, data):
         self.output.write(data)
@@ -328,3 +407,22 @@ class MockGitHub(GitHub):
         for number in self.prs:
             if minimum_id and number >= minimum_id:
                 yield self.get_pull(number)
+
+    def set_check(self, name, check_id=None, commit_sha=None, url=None, external_id=None,
+                  status=None, started_at=None, conclusion=None, completed_at=None,
+                  output=None, actions=None):
+
+        req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
+                                                          url, external_id, status,
+                                                          started_at, conclusion, completed_at,
+                                                          output, actions)
+
+        if req_data["head_sha"] not in self.checks:
+            assert req_method == "POST"
+            check_id = len(self.checks)
+        else:
+            assert req_method == "PATCH"
+            check_id = self.checks["head_sha"][0]
+
+        self.checks[req_data["head_sha"]] = (check_id, req_method, req_data)
+        return {"id": check_id}

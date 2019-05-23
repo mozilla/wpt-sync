@@ -29,6 +29,9 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
         "wpt-pr": str(pr["number"]),
         "wpt-commit": pr["head"]
     }
+    assert sync.data["check"] == {"id": 0, "sha1": pr["head"]}
+    assert len(env.gh_wpt.checks) == 1
+    assert len(env.gh_wpt.checks[pr["head"]])
     assert "Creating a bug in component Testing :: web-platform" in env.bz.output.getvalue()
 
 
