@@ -354,8 +354,14 @@ class UpstreamSync(SyncProcess):
             if item.flags & item.ERROR:
                 raise AbortError(item.summary)
 
+    def push_required(self):
+        return not (self.remote_branch and
+                    self.remote_branch in self.git_wpt.remotes.origin.refs and
+                    self.git_wpt.remotes.origin.refs[self.remote_branch].commit.hexsha ==
+                    self.wpt_commits.head.sha1)
+
     @mut()
-    def update_github(self, push_required=True):
+    def update_github(self):
         if self.pr:
             state = env.gh_wpt.pull_state(self.pr)
             if not len(self.gecko_commits):
@@ -381,7 +387,7 @@ class UpstreamSync(SyncProcess):
         if not len(self.upstreamed_gecko_commits):
             return
 
-        if push_required:
+        if self.push_required():
             self.push_commits()
         if not self.pr:
             self.create_pr()
@@ -696,7 +702,6 @@ def update_sync_heads(lock, syncs_by_bug):
 
 def update_modified_sync(git_gecko, git_wpt, sync):
     assert sync._lock is not None
-    push_required = True
     if len(sync.gecko_commits) == 0:
         # In the case that there are no gecko commits, we presumably had a backout
         # In this case we don't touch the wpt commits, but just mark the PR
@@ -712,7 +717,7 @@ def update_modified_sync(git_gecko, git_wpt, sync):
     else:
         sync.status = "open"
         try:
-            push_required = sync.update_wpt_commits()
+            sync.update_wpt_commits()
         except AbortError:
             # If we got a merge conflict and the PR doesn't exist yet then try
             # recreating the commits on top of the current sync point in order that
@@ -724,13 +729,13 @@ def update_modified_sync(git_gecko, git_wpt, sync):
                 sync_point = load_sync_point(git_gecko, git_wpt)
                 sync.set_wpt_base(sync_point["upstream"])
                 try:
-                    push_required = sync.update_wpt_commits()
+                    sync.update_wpt_commits()
                 except AbortError:
                     # Reset the base to origin/master
                     sync.set_wpt_base("origin/master")
                     raise
 
-    sync.update_github(push_required)
+    sync.update_github()
 
 
 def update_sync_prs(lock, git_gecko, git_wpt, create_endpoints, update_syncs,
