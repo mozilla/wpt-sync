@@ -266,9 +266,11 @@ def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
                         if item != image]
         if not dependencies:
             return True
-        return any(task_is_incomplete(tasks_by_id[parent_id], tasks_by_id,
+        # Not sure how to handle a case where a dependent doesn't exist,  ignore it
+        return any(task_is_incomplete(tasks_by_id[dependent_id], tasks_by_id,
                                       allow_unscheduled)
-                   for parent_id in dependencies)
+                   for dependent_id in dependencies
+                   if dependent_id in tasks_by_id)
     return False
 
 
