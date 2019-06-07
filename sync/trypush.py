@@ -6,6 +6,7 @@ import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+import newrelic
 import taskcluster
 import yaml
 
@@ -72,6 +73,7 @@ class TryCommit(object):
 
                 self.worktree.index.add([tc_config])
 
+    @newrelic.agent.function_trace()
     def push(self):
         status, output = self._push()
         return self.read_treeherder(status, output)
