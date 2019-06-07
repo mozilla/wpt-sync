@@ -231,6 +231,20 @@ Automatic update from web-platform-tests\n%s
 
         logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
 
+        if isinstance(sync, upstream.UpstreamSync):
+            remote_paths = list(upstream_changed)
+            local_paths = [os.path.join(env.config["gecko"]["path"]["wpt"], path)
+                           for path in upstream_changed]
+            has_changes = False
+            for local_path, remote_path in zip(local_paths, remote_paths):
+                if (self.git_wpt.git.show("origin/master:%s" % remote_path) !=
+                    git_work_gecko.git.show("HEAD:%s" % local_path)):
+                    logger.info("Changes in %s" % local_path)
+                    has_changes = True
+            if not has_changes:
+                logger.info("Upstream sync doesn't introduce any gecko changes")
+                return
+
         if copy:
             commit = self.copy_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
                                   message, author, metadata)
