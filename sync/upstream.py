@@ -217,7 +217,7 @@ class UpstreamSync(SyncProcess):
             initial_path = path = "refs/remotes/origin/gecko/%s" % self.bug
             while path in refs:
                 count += 1
-                path = "%s/%s" % (initial_path, count)
+                path = "%s-%s" % (initial_path, count)
             self.remote_branch = path[len("refs/remotes/origin/"):]
         return self.remote_branch
 
@@ -279,8 +279,9 @@ class UpstreamSync(SyncProcess):
         landed = [self.git_gecko.is_ancestor(commit.sha1, env.config["gecko"]["refs"]["central"])
                   for commit in self.gecko_commits]
         if not all(item == landed[0] for item in landed):
-            raise ValueError("Got some commits landed and some not for upstream sync %s" %
-                             self.branch_name)
+            logger.warning("Got some commits landed and some not for upstream sync %s" %
+                           self.branch_name)
+            return False
         return landed[0]
 
     @property
