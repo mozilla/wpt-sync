@@ -637,8 +637,15 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
                                              flat=True)
                 sync = None
                 if len(syncs) not in (0, 1):
-                    raise ValueError("Lookup of upstream syncs for bug %s returned syncs: %r" %
-                                     (len(syncs), syncs))
+                    logger.warning("Lookup of upstream syncs for bug %s returned syncs: %r" %
+                                   (len(syncs), syncs))
+                    # Try to pick the most recent sync
+                    for status in ["open", "incomplete"]:
+                        status_syncs = [s for s in syncs if s.status == status]
+                        if status_syncs:
+                            status_syncs.sort(key=lambda x: int(x.process_name.obj_id))
+                            sync = status_syncs.pop()
+                            break
                 if syncs:
                     sync = syncs[0]
 
