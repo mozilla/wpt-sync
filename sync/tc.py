@@ -6,7 +6,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-import newrelic
+import newrelic.agent
 import slugid
 import taskcluster
 
