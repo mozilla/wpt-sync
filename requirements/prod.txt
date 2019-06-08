@@ -50,8 +50,9 @@ newrelic==4.20.0.120 \
     --hash=sha256:df880bc3b5da8d4ecb6c3e743d21b0a08cfbd911e5eef8873511480ceb20a2a5
 pathlib2==2.3.3 \
     --hash=sha256:5887121d7f7df3603bca2f710e7219f3eca0eb69e0b7cc6e0a022e155ac931a7
-pbr==5.2.0 \
-    --hash=sha256:6901995b9b686cb90cceba67a0f6d4d14ae003cd59bc12beb61549bdfbe3bc89
+pbr==5.2.1 \
+    --hash=sha256:0ce920b865091450bbcd452b35cf6d6eb8a6d9ce13ad2210d6e77557f85cf32b \
+    --hash=sha256:93d2dc6ee0c9af4dbc70bc1251d0e545a9910ca8863774761f92716dece400b6
 pexpect==4.7.0 \
     --hash=sha256:2094eefdfcf37a1fdbfb9aa090862c1a4878e5c7e0e7e7088bdb511c558e5cd1
 pickleshare==0.7.5 \
