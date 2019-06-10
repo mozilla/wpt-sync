@@ -318,6 +318,9 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def update_github_check(self):
+        if not env.config["web-platform-tests"]["github"]["write-checks"]:
+            return
+
         title = "gecko/sync"
         head_sha = self.wpt_commits.head.sha1
 
