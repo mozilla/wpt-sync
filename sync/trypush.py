@@ -473,7 +473,7 @@ class TryPushTasks(object):
             exception_tasks = self.wpt_tasks.filter(tc.is_status_fn(tc.EXCEPTION))
             if float(len(exception_tasks)) / len(self.wpt_tasks) > (1 - self._min_success):
                 err = ("Too many exceptions found among wpt tests. "
-                       "Check decision task {}" % self.wpt_tasks.taskgroup.taskgroup_id)
+                       "Check decision task %s" % self.wpt_tasks.taskgroup.taskgroup_id)
         if err:
             logger.error(err)
             return False
