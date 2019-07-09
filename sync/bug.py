@@ -97,6 +97,7 @@ class Bugzilla(object):
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
             url=None):
         bug = bugsy.Bug(self.bugzilla,
+                        type="task",
                         summary=summary,
                         product=product,
                         component=component)
