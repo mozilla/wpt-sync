@@ -576,7 +576,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
             print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
-def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
+def do_try_push_add(git_gecko, git_wpt, sync_type=None, sync_id=None, **kwargs):
     import downstream
     import landing
     import trypush
@@ -585,9 +585,9 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
     if sync_type is None:
         sync = sync_from_path(git_gecko, git_wpt)
     elif sync_type == "downstream":
-        sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, obj_id)
+        sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, sync_id)
     elif sync_type == "landing":
-        syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, obj_id, flat=True)
+        syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, sync_id, flat=True)
         if syncs:
             sync = syncs[0]
     else:
@@ -610,12 +610,13 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, obj_id=None, **kwargs):
             return kwargs["try_rev"]
 
     with SyncLock.for_process(sync.process_name) as lock:
-        trypush = trypush.TryPush.create(lock,
-                                         sync,
-                                         None,
-                                         stability=kwargs["stability"],
-                                         try_cls=FakeTry, rebuild_count=kwargs["rebuild_count"],
-                                         check_open=False)
+        with sync.as_mut(lock):
+            trypush = trypush.TryPush.create(lock,
+                                             sync,
+                                             None,
+                                             stability=kwargs["stability"],
+                                             try_cls=FakeTry, rebuild_count=kwargs["rebuild_count"],
+                                             check_open=False)
 
     print "Now run an update for the sync"
 
