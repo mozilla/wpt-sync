@@ -766,7 +766,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
 
                 # Only check the first commit since later ones could be added in the PR
                 sync_revs = {item.canonical_rev for item in sync.upstreamed_gecko_commits}
-                if any(commit.metadata["gecko-commit"] in sync_revs for commit in commits):
+                if any(commit.metadata.get("gecko-commit") in sync_revs for commit in commits):
                     break
             else:
                 sync = None
