@@ -62,7 +62,20 @@
     - run_docker.sh
   become_user: wpt_user
 
-- name: install config
+- name: install system config
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: wptsync
+    group: wptsync
+    mode: 0600
+  with_items:
+    - { src: "{{ host_config }}/gecko_config", dest: "{{ mount_config }}/gecko_config" }
+    - { src: "{{ host_config }}/wpt_config", dest: "{{ mount_config }}/wpt_config" }
+    - { src: "{{ host_config }}/newrelic.ini", dest: "{{ mount_config }}/newrelic.ini" }
+    - { src: "{{ host_config }}/rabbitmq.conf", dest: "{{ mount_config }}/rabbitmq.conf" }
+
+- name: install sync config (if environment variables are configured)
   copy:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
@@ -71,10 +84,7 @@
     mode: 0600
   with_items:
     - { src: "{{ _sync_ini }}", dest: "{{ mount_config }}/prod/sync.ini" }
-    - { src: "{{ host_config }}/gecko_config", dest: "{{ mount_config }}/gecko_config" }
-    - { src: "{{ host_config }}/wpt_config", dest: "{{ mount_config }}/wpt_config" }
-    - { src: "{{ host_config }}/newrelic.ini", dest: "{{ mount_config }}/newrelic.ini" }
-    - { src: "{{ host_config }}/rabbitmq.conf", dest: "{{ mount_config }}/rabbitmq.conf" }
+  when: update_credentials
 
 - name: install credentials (if environment variables are configured)
   copy:

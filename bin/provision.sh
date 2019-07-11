@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run this from wptsync repo root
-set -euo pipefail
+set -eo pipefail
 
 # The "install credentials" step will be skipped unless all three of these
 # environment variables are set.
@@ -19,13 +19,15 @@ if [ "$#" -ne 2 ]; then
     exit 1
 fi
 
-if [ ! -f $(pwd)/config/prod/sync.ini ]; then
-    echo Please add a sync.ini file to $(PWD)/config/prod
+if [ ! -z ${WPT_CONFIG} ]; then
+    if [ ! -f ${PWD}/config/prod/sync.ini ]; then
+        echo Please add a sync.ini file to ${PWD}/config/prod
+    fi
 fi
 
-if [ -z ${WPT_CREDENTIALS} ]; then
-    if [ ! -f $(pwd)/config/prod/credentials.ini ]; then
-        echo Please add a credentials.ini file to $(PWD)/config/prod
+if [ ! -z ${WPT_CREDENTIALS} ]; then
+    if [ ! -f ${PWD}/config/prod/credentials.ini ]; then
+        echo Please add a credentials.ini file to ${PWD}/config/prod
     fi
 fi
 

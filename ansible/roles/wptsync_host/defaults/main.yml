@@ -9,6 +9,7 @@ rebuild: true
 # credentials will be updated on server unless any of the environment variables
 # below are unset on the control machine
 update_credentials: "{{ lookup('env','WPT_CREDENTIALS') | default(false, true) }}"
+update_config: "{{ lookup('env','WPT_CONFIG') | default(false, true) }}"
 # default filter sets these to false if environment variable is empty string
 host_config: "{{ _repo_root }}/config"
 host_prod_config: "{{ _repo_root }}/config/prod"
