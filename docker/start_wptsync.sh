@@ -89,7 +89,8 @@ elif [ "$1" == "--worker" ]; then
     set -x
     export NEW_RELIC_CONFIG_FILE=/app/config/newrelic.ini
 
-    newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
+    # TODO: need to configure the API key correctly to record deploys
+    # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
 
     newrelic-admin run-program \
                    /app/venv/bin/celery beat --detach --app sync.worker \
