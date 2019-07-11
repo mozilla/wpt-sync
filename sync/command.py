@@ -542,7 +542,7 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         if kwargs["retrigger"]:
             errors = update.retrigger(git_gecko, git_wpt, unlandable)
             if errors:
-                print("The following PRs have errors:\n%s" % "\n".join(errors))
+                print("The following PRs have errors:\n%s" % "\n".join(str(item) for item in errors))
 
 
 def do_retrigger(git_gecko, git_wpt, **kwargs):
