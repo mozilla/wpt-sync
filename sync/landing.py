@@ -225,9 +225,11 @@ Automatic update from web-platform-tests\n%s
         message = sync_commit.try_filter(message)
 
         upstream_changed = set()
-        for commit in wpt_commits:
-            stats = commit.commit.stats
-            upstream_changed |= set(stats.files.keys())
+        diffs = wpt_commits[-1].commit.diff(wpt_commits[0].commit.parents[0])
+        for diff in diffs:
+            new_path = diff.b_path
+            if new_path:
+                upstream_changed.add(new_path)
 
         logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
 
@@ -237,10 +239,15 @@ Automatic update from web-platform-tests\n%s
                            for path in upstream_changed]
             has_changes = False
             for local_path, remote_path in zip(local_paths, remote_paths):
-                if (self.git_wpt.git.show("origin/master:%s" % remote_path) !=
-                    git_work_gecko.git.show("HEAD:%s" % local_path)):
-                    logger.info("Changes in %s" % local_path)
+                try:
+                    if (self.git_wpt.git.show("origin/master:%s" % remote_path) !=
+                        git_work_gecko.git.show("HEAD:%s" % local_path)):
+                        logger.info("Changes in %s" % local_path)
+                        has_changes = True
+                        break
+                except git.GitCommandError:
                     has_changes = True
+                    break
             if not has_changes:
                 logger.info("Upstream sync doesn't introduce any gecko changes")
                 return
