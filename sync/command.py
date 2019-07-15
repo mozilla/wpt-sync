@@ -410,7 +410,9 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     import landing
     import trypush
     if obj_type == "try":
-        objs = trypush.TryPush.load_by_obj(git_gecko, obj_id)
+        objs = trypush.TryPush.load_by_obj(git_gecko,
+                                           sync_type,
+                                           obj_id)
     else:
         if sync_type == "upstream":
             cls = upstream.UpstreamSync
@@ -420,13 +422,14 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
             cls = landing.LandingSync
         objs = cls.load_by_obj(git_gecko,
                                git_wpt,
+                               sync_type,
                                obj_id)
 
     if kwargs["old_status"] is not None:
         objs = {item for item in objs if item.status == kwargs["old_status"]}
 
     if kwargs["seq_id"] is not None:
-        objs = {item for item in objs if item.seq_id == kwargs["seq_id"]}
+        objs = {item for item in objs if item.process_name.seq_id == int(kwargs["seq_id"])}
 
     if not objs:
         logger.error("No matching syncs found")
