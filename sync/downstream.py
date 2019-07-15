@@ -476,6 +476,7 @@ class DownstreamSync(SyncProcess):
         assert self.metadata_commit
         gecko_work = self.gecko_worktree.get()
         if gecko_work.is_dirty():
+            logger.info("Updating metadata commit")
             try:
                 gecko_work.git.commit(amend=True, no_edit=True)
             except git.GitCommandError as e:
@@ -778,7 +779,6 @@ class DownstreamSync(SyncProcess):
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
         logger.debug("Updating metadata")
-        mach.wpt_manifest_update()
         output = mach.wpt_update(*args)
         prefix = "disabled:"
         disabled = []
@@ -948,9 +948,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
         tasks = try_push.tasks()
         if not tasks.complete(allow_unscheduled=True):
-            logger.info("Try push is not complete")
+            logger.info("Try push %s is not complete" % try_push.treeherder_url)
             return
-
+        logger.info("Try push %s is complete" % try_push.treeherder_url)
         try:
             if not tasks.validate():
                 try_push.infra_fail = True

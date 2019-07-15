@@ -175,6 +175,13 @@ def get_parser():
                                      help="Rebuild count")
     parser_try_push_add.set_defaults(func=do_try_push_add)
 
+    parser_download_logs = subparsers.add_parser("download-logs",
+                                                 help="Download logs for a given try push")
+    parser_download_logs.add_argument("--log-path",
+                                      help="Destination path for the logs")
+    parser_download_logs.add_argument("taskgroup_id", help="id of the taskgroup (decision task)")
+    parser_download_logs.set_defaults(func=do_download_logs)
+
     parser_build_index = subparsers.add_parser("build-index",
                                                help="Build indexes")
     parser_build_index.set_defaults(func=do_build_index)
@@ -620,6 +627,24 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, sync_id=None, **kwargs):
                                              check_open=False)
 
     print "Now run an update for the sync"
+
+
+def do_download_logs(git_gecko, git_wpt, log_path, taskgroup_id, **kwargs):
+    import tc
+    import trypush
+    import tempfile
+
+    if log_path is None:
+        log_path = tempfile.mkdtemp()
+
+    taskgroup_id = tc.normalize_task_id(taskgroup_id)
+
+    tasks = tc.TaskGroup(taskgroup_id)
+    tasks.refresh()
+
+    try_tasks = trypush.TryPushTasks(tasks)
+    try_tasks.wpt_tasks.download_logs(os.path.join(log_path, taskgroup_id),
+                                      ["wptreport.json"])
 
 
 def do_build_index(git_gecko, git_wpt, **kwargs):
