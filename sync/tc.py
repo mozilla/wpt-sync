@@ -1,6 +1,7 @@
 import os
 import requests
 import shutil
+import time
 import traceback
 import uuid
 from collections import defaultdict
@@ -16,7 +17,6 @@ from env import Environment
 
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 INDEX_BASE = "https://index.taskcluster.net/v1/"
-ARTIFACTS_BASE = "https://public-artifacts.taskcluster.net/"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 SUCCESS = "completed"
@@ -38,10 +38,13 @@ class TaskclusterClient(object):
     @property
     def queue(self):
         if not self._queue:
-            self._queue = taskcluster.Queue({"credentials": {
-                "clientId": env.config["taskcluster"]["client_id"],
-                "accessToken": env.config["taskcluster"]["token"]
-            }})
+            self._queue = taskcluster.Queue({
+                "credentials": {
+                    "clientId": env.config["taskcluster"]["client_id"],
+                    "accessToken": env.config["taskcluster"]["token"]
+                },
+                "rootUrl": "https://taskcluster.net",
+            })
         return self._queue
 
     def retrigger(self, task_id, count=1, retries=5):
@@ -220,15 +223,24 @@ class TaskGroupView(object):
         if not file_names:
             return []
 
-        urls = [ARTIFACTS_BASE + "{task}/{run}/public/test_info//%s" % file_name
-                for file_name in file_names]
         logger.info("Downloading logs to %s" % destination)
         for task in self.tasks:
             status = task.get("status", {})
+            if not status.get("runs"):
+                continue
+            artifacts_base_url = QUEUE_BASE + "task/%s/artifacts" % status["taskId"]
+            try:
+                artifacts = fetch_json(artifacts_base_url)
+            except requests.HTTPError as e:
+                logger.warning(e.message)
+            artifact_urls = ["%s/%s" % (artifacts_base_url, item["name"])
+                             for item in artifacts["artifacts"]
+                             if any(item["name"].endswith("/" + file_name)
+                                    for file_name in file_names)]
             for run in status.get("runs", []):
                 if "_log_paths" not in run:
                     run["_log_paths"] = {}
-                for url in urls:
+                for url in artifact_urls:
                     params = {
                         "task": status["taskId"],
                         "run": run["runId"],
@@ -340,12 +352,18 @@ def download(log_url, log_path, retry):
     while retry > 0:
         try:
             logger.debug("Downloading from %s" % log_url)
-            r = requests.get(log_url, stream=True)
+            t0 = time.time()
+            resp = requests.get(log_url, stream=True)
+            if resp.status_code < 200 or resp.status_code >= 300:
+                logger.info("Download failed with status %s" % resp.status_code)
+                retry -= 1
+                continue
             tmp_path = log_path + ".tmp"
             with open(tmp_path, 'wb') as f:
-                r.raw.decode_content = True
-                shutil.copyfileobj(r.raw, f)
+                resp.raw.decode_content = True
+                shutil.copyfileobj(resp.raw, f)
             os.rename(tmp_path, log_path)
+            logger.debug("Download took %s" % (time.time() - t0))
             return True
         except Exception as e:
             logger.warning(traceback.format_exc(e))
@@ -354,12 +372,15 @@ def download(log_url, log_path, retry):
 
 
 def fetch_json(url, params=None):
+    t0 = time.time()
+    logger.debug("Getting json from %s" % url)
     headers = {
         'Accept': 'application/json',
         'User-Agent': 'wpt-sync',
     }
     response = requests.get(url=url, params=params, headers=headers, timeout=30)
     response.raise_for_status()
+    logger.debug("Getting json took %s" % (time.time() - t0))
     return response.json()
 
 
