@@ -7,7 +7,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def get_pr_sync(git_gecko, git_wpt, pr_id):
+def get_pr_sync(git_gecko, git_wpt, pr_id, log=True):
     import downstream
     import upstream
 
@@ -15,10 +15,11 @@ def get_pr_sync(git_gecko, git_wpt, pr_id):
     sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if not sync:
         sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
-    if sync:
-        logger.info("Got sync %r for PR %s" % (sync, pr_id))
-    else:
-        logger.info("No sync found for PR %s" % pr_id)
+    if log:
+        if sync:
+            logger.info("Got sync %r for PR %s" % (sync, pr_id))
+        else:
+            logger.info("No sync found for PR %s" % pr_id)
     return sync
 
 
