@@ -224,40 +224,43 @@ class TaskGroupView(object):
             return []
 
         logger.info("Downloading logs to %s" % destination)
+        t0 = time.time()
+        session = requests.Session()
         for task in self.tasks:
             status = task.get("status", {})
             if not status.get("runs"):
                 continue
             artifacts_base_url = QUEUE_BASE + "task/%s/artifacts" % status["taskId"]
             try:
-                artifacts = fetch_json(artifacts_base_url)
+                artifacts = fetch_json(artifacts_base_url, session=session)
             except requests.HTTPError as e:
                 logger.warning(e.message)
             artifact_urls = ["%s/%s" % (artifacts_base_url, item["name"])
                              for item in artifacts["artifacts"]
                              if any(item["name"].endswith("/" + file_name)
                                     for file_name in file_names)]
-            for run in status.get("runs", []):
-                if "_log_paths" not in run:
-                    run["_log_paths"] = {}
-                for url in artifact_urls:
-                    params = {
-                        "task": status["taskId"],
-                        "run": run["runId"],
-                    }
-                    params["file_name"] = url.rsplit("/", 1)[1]
-                    log_url = url.format(**params)
-                    log_name = "{task}_{run}_{file_name}".format(**params)
-                    success = False
-                    logger.debug("Trying to download {}".format(log_url))
-                    log_path = os.path.abspath(os.path.join(destination, log_name))
-                    if not os.path.exists(log_path):
-                        success = download(log_url, log_path, retry)
-                    else:
-                        success = True
-                    if not success:
-                        logger.warning("Failed to download log from {}".format(log_url))
-                    run["_log_paths"][params["file_name"]] = log_path
+
+            run = status["runs"][-1]
+            if "_log_paths" not in run:
+                run["_log_paths"] = {}
+            for url in artifact_urls:
+                params = {
+                    "task": status["taskId"],
+                    "run": run["runId"],
+                }
+                params["file_name"] = url.rsplit("/", 1)[1]
+                log_name = "{task}_{run}_{file_name}".format(**params)
+                success = False
+                logger.debug("Trying to download {}".format(url))
+                log_path = os.path.abspath(os.path.join(destination, log_name))
+                if not os.path.exists(log_path):
+                    success = download(url, log_path, retry, session=session)
+                else:
+                    success = True
+                if not success:
+                    logger.warning("Failed to download log from {}".format(url))
+                run["_log_paths"][params["file_name"]] = log_path
+        logger.info("Downloading logs took %s" % (time.time() - t0))
 
 
 def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
@@ -348,12 +351,14 @@ def get_task_status(task_id):
     logger.warning("Task %s not found: %s" % (task_id, status.get("message", "")))
 
 
-def download(log_url, log_path, retry):
+def download(log_url, log_path, retry, session=None):
+    if session is None:
+        session = requests.Session()
     while retry > 0:
         try:
             logger.debug("Downloading from %s" % log_url)
             t0 = time.time()
-            resp = requests.get(log_url, stream=True)
+            resp = session.get(log_url, stream=True)
             if resp.status_code < 200 or resp.status_code >= 300:
                 logger.info("Download failed with status %s" % resp.status_code)
                 retry -= 1
@@ -371,17 +376,19 @@ def download(log_url, log_path, retry):
     return False
 
 
-def fetch_json(url, params=None):
+def fetch_json(url, params=None, session=None):
+    if session is None:
+        session = requests.Session()
     t0 = time.time()
     logger.debug("Getting json from %s" % url)
     headers = {
         'Accept': 'application/json',
         'User-Agent': 'wpt-sync',
     }
-    response = requests.get(url=url, params=params, headers=headers, timeout=30)
-    response.raise_for_status()
+    resp = session.get(url=url, params=params, headers=headers, timeout=30)
+    resp.raise_for_status()
     logger.debug("Getting json took %s" % (time.time() - t0))
-    return response.json()
+    return resp.json()
 
 
 def get_taskgroup_id(project, revision):
