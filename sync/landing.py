@@ -666,13 +666,14 @@ def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
     for pr, commits in pr_commits:
         if pr is None:
             status = LandableStatus.no_pr
-        elif upstream.UpstreamSync.has_metadata(first_non_merge(commits).msg):
-            status = LandableStatus.upstream
         else:
-            sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
-            if not sync:
+            sync = load.get_pr_sync(git_gecko, git_wpt, pr, log=False)
+            if sync is None:
                 status = LandableStatus.no_sync
+            elif isinstance(sync, upstream.UpstreamSync):
+                status = LandableStatus.upstream
             else:
+                assert isinstance(sync, downstream.DownstreamSync)
                 status = sync.landable_status
         yield (pr, commits, status)
 
