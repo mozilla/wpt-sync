@@ -13,6 +13,8 @@ import taskcluster
 
 import log
 from env import Environment
+from errors import RetryableError
+from threadexecutor import ThreadExecutor
 
 
 QUEUE_BASE = "https://queue.taskcluster.net/v1/"
@@ -225,42 +227,61 @@ class TaskGroupView(object):
 
         logger.info("Downloading logs to %s" % destination)
         t0 = time.time()
-        session = requests.Session()
-        for task in self.tasks:
-            status = task.get("status", {})
-            if not status.get("runs"):
-                continue
-            artifacts_base_url = QUEUE_BASE + "task/%s/artifacts" % status["taskId"]
-            try:
-                artifacts = fetch_json(artifacts_base_url, session=session)
-            except requests.HTTPError as e:
-                logger.warning(e.message)
-            artifact_urls = ["%s/%s" % (artifacts_base_url, item["name"])
-                             for item in artifacts["artifacts"]
-                             if any(item["name"].endswith("/" + file_name)
-                                    for file_name in file_names)]
-
-            run = status["runs"][-1]
-            if "_log_paths" not in run:
-                run["_log_paths"] = {}
-            for url in artifact_urls:
-                params = {
-                    "task": status["taskId"],
-                    "run": run["runId"],
-                }
-                params["file_name"] = url.rsplit("/", 1)[1]
-                log_name = "{task}_{run}_{file_name}".format(**params)
-                success = False
-                logger.debug("Trying to download {}".format(url))
-                log_path = os.path.abspath(os.path.join(destination, log_name))
-                if not os.path.exists(log_path):
-                    success = download(url, log_path, retry, session=session)
-                else:
-                    success = True
-                if not success:
-                    logger.warning("Failed to download log from {}".format(url))
-                run["_log_paths"][params["file_name"]] = log_path
+        executor = ThreadExecutor(8, work_fn=get_task_artifacts, init_fn=start_session)
+        errors = executor.run([((), {
+            "destination": destination,
+            "task": item,
+            "file_names": file_names,
+            "retry": retry
+        }) for item in self.tasks])
+        # TODO: not sure if we can avoid tolerating some errors here, but
+        # there is probably some sign of badness less than all the downloads
+        # erroring
+        for error in errors:
+            logger.warning(traceback.format_exc(error))
+        if len(errors) == len(self.tasks):
+            raise RetryableError("Downloading logs all failed")
         logger.info("Downloading logs took %s" % (time.time() - t0))
+
+
+def start_session():
+    return {"session": requests.Session()}
+
+
+def get_task_artifacts(destination, task, file_names, session, retry):
+    status = task.get("status", {})
+    if not status.get("runs"):
+        logger.debug("No runs for task %s" % status["taskId"])
+        return
+    artifacts_base_url = QUEUE_BASE + "task/%s/artifacts" % status["taskId"]
+    try:
+        artifacts = fetch_json(artifacts_base_url, session=session)
+    except requests.HTTPError as e:
+        logger.warning(e.message)
+    artifact_urls = ["%s/%s" % (artifacts_base_url, item["name"])
+                     for item in artifacts["artifacts"]
+                     if any(item["name"].endswith("/" + file_name)
+                            for file_name in file_names)]
+
+    run = status["runs"][-1]
+    if "_log_paths" not in run:
+        run["_log_paths"] = {}
+    for url in artifact_urls:
+        params = {
+            "task": status["taskId"],
+            "file_name": url.rsplit("/", 1)[1]
+        }
+        log_name = "{task}_{file_name}".format(**params)
+        success = False
+        logger.debug("Trying to download {}".format(url))
+        log_path = os.path.abspath(os.path.join(destination, log_name))
+        if not os.path.exists(log_path):
+            success = download(url, log_path, retry, session=session)
+        else:
+            success = True
+        if not success:
+            logger.warning("Failed to download log from {}".format(url))
+        run["_log_paths"][params["file_name"]] = log_path
 
 
 def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
@@ -360,7 +381,7 @@ def download(log_url, log_path, retry, session=None):
             t0 = time.time()
             resp = session.get(log_url, stream=True)
             if resp.status_code < 200 or resp.status_code >= 300:
-                logger.info("Download failed with status %s" % resp.status_code)
+                logger.warning("Download failed with status %s" % resp.status_code)
                 retry -= 1
                 continue
             tmp_path = log_path + ".tmp"
