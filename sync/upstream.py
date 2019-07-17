@@ -87,25 +87,6 @@ class UpstreamSync(SyncProcess):
         return self
 
     @classmethod
-    def for_pr(cls, git_gecko, git_wpt, pr_id):
-        try:
-            wpt_head = git_wpt.commit("origin/pr/%s" % pr_id).hexsha
-        except git.BadName:
-            return None
-        for status in cls.statuses:
-            syncs = cls.load_by_status(git_gecko, git_wpt, status)
-
-            for sync in syncs:
-                if sync.pr == pr_id:
-                    return sync
-                elif (sync.pr is None and
-                      sync.wpt_commits.head and
-                      sync.wpt_commits.head.sha1 == wpt_head):
-                    # This is to handle cases where the pr was not correctly stored
-                    sync.pr = pr_id
-                    return sync
-
-    @classmethod
     def from_pr(cls, lock, git_gecko, git_wpt, pr_id, body):
         gecko_commits = []
         bug = None
@@ -165,14 +146,6 @@ class UpstreamSync(SyncProcess):
     @property
     def bug(self):
         return self.process_name.obj_id
-
-    @property
-    def pr(self):
-        return self.data.get("pr")
-
-    @pr.setter
-    def pr(self, value):
-        self.data["pr"] = value
 
     @property
     def pr_status(self):
