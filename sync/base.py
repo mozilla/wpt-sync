@@ -69,6 +69,29 @@ class IdentityMap(type):
         return value
 
 
+def iter_tree(pygit2_repo, root_path=""):
+    """Iterator over all paths ins a tree"""
+    ref = pygit2_repo.references[env.config["sync"]["ref"]]
+    root_obj = pygit2_repo[ref.peel().tree.id]
+
+    tree_entry = root_obj[root_path]
+    root_tree = pygit2_repo[tree_entry.id]
+
+    stack = []
+    stack.append((root_path, root_tree))
+
+    while stack:
+        path, tree = stack.pop()
+        for item in tree:
+            item_path = "%s/%s" % (path, item.name)
+            if item.type == "tree":
+                stack.append((item_path, pygit2_repo[item.id]))
+            else:
+                name = tuple(item for item in item_path[len(root_path):].split("/")
+                             if item)
+                yield name, item
+
+
 def iter_process_names(pygit2_repo, kind=["sync", "try"]):
     """Iterator over all ProcessName objects"""
     ref = pygit2_repo.references[env.config["sync"]["ref"]]

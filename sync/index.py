@@ -5,7 +5,7 @@ import git
 
 import env
 import log
-from base import ProcessName, CommitBuilder, iter_process_names
+from base import ProcessName, CommitBuilder, iter_tree, iter_process_names
 from repos import pygit2_get
 
 
@@ -191,9 +191,11 @@ class Index(object):
         new = existing.copy()
 
         for old_value, new_value, _ in key_changes:
-            if new_value is None and old_value in new:
+            if new_value is None and old_value is None:
+                new = set()
+            elif new_value is None and old_value in new:
                 new.remove(old_value)
-            if old_value is None:
+            elif old_value is None:
                 new.add(new_value)
 
         path_suffix = "/".join(key)
@@ -221,11 +223,31 @@ class Index(object):
         return self.value_cls(*(value.split("/")))
 
     def build(self, *args, **kwargs):
+        # Delete all entries in existing keys
+        for key in self.keys():
+            assert len(key) == len(self.key_fields)
+            target = self.changes
+            for part in key:
+                target = target[part]
+            target.append((None, None, "Clear key %s" % (key,)))
+        entries, errors = self.build_entries(*args, **kwargs)
+        for key, value in entries:
+            self.insert(key, value)
+        self.save(message="Build index %s" % self.name)
+        for error in errors:
+            logger.warning(error)
+
+    def build_entries(self, *args, **kwargs):
         raise NotImplementedError
 
     @classmethod
     def make_key(cls, value):
         return (value,)
+
+    def keys(self):
+        return set(key for key, _ in
+                   iter_tree(self.pygit2_repo, root_path=self.get_root_path())
+                   if not key[-1] == "_metadata")
 
 
 class TaskGroupIndex(Index):
@@ -238,13 +260,14 @@ class TaskGroupIndex(Index):
     def make_key(cls, value):
         return (value[:2], value[2:4], value[4:])
 
-    def build(self, *args, **kwargs):
+    def build_entries(self, *args, **kwargs):
         import trypush
+        entries = []
         for try_push in trypush.TryPush.load_all(self.repo):
             if try_push.taskgroup_id is not None:
-                self.insert(self.make_key(try_push.taskgroup_id),
-                            try_push.process_name)
-        self.save(message="Build index %s" % self.name, overwrite=True)
+                entries.append((self.make_key(try_push.taskgroup_id),
+                                try_push.process_name))
+        return entries, []
 
 
 class TryCommitIndex(Index):
@@ -257,13 +280,14 @@ class TryCommitIndex(Index):
     def make_key(cls, value):
         return (value[:2], value[2:4], value[4:6], value[6:])
 
-    def build(self, *args, **kwargs):
+    def build_entries(self, *args, **kwargs):
+        entries = []
         import trypush
         for try_push in trypush.TryPush.load_all(self.repo):
             if try_push.try_rev:
-                self.insert(self.make_key(try_push.try_rev),
-                            try_push.process_name)
-        self.save(message="Build index %s" % self.name, overwrite=True)
+                entries.append((self.make_key(try_push.try_rev),
+                                try_push.process_name))
+        return entries, []
 
 
 class SyncIndex(Index):
@@ -279,12 +303,13 @@ class SyncIndex(Index):
                 sync.status,
                 str(sync.process_name.obj_id))
 
-    def build(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko, git_wpt, **kwargs):
         from downstream import DownstreamSync
         from upstream import UpstreamSync
         from landing import LandingSync
 
-        corrupt = []
+        entries = []
+        errors = []
 
         for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
             sync_cls = None
@@ -299,12 +324,10 @@ class SyncIndex(Index):
                 try:
                     sync = sync_cls(git_gecko, git_wpt, process_name)
                 except ValueError:
-                    corrupt.append(process_name)
+                    errors.append("Corrupt process %s" % process_name)
                     continue
-                self.insert(self.make_key(sync), process_name)
-        self.save(message="Build index %s" % self.name, overwrite=True)
-        for item in corrupt:
-            logger.warning("Corrupt process %s" % item)
+                entries.append((self.make_key(sync), process_name))
+        return entries, errors
 
 
 class PrIdIndex(Index):
@@ -317,25 +340,28 @@ class PrIdIndex(Index):
     def make_key(cls, sync):
         return (str(sync.pr),)
 
-    def build(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko, git_wpt, **kwargs):
         from downstream import DownstreamSync
+        from upstream import UpstreamSync
 
-        corrupt = []
+        entries = []
+        errors = []
 
         for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
+            cls = None
             if process_name.subtype == "downstream":
-                try:
-                    sync = DownstreamSync(git_gecko, git_wpt, process_name)
-                except ValueError:
-                    corrupt.append(process_name)
-                    continue
-                self.insert(self.make_key(sync), process_name)
-            elif process_name.subtype == "downstream":
-                self.insert((process_name.obj_id,), process_name)
-        self.save(message="Build index %s" % self.name, overwrite=True)
-
-        for item in corrupt:
-            logger.warning("Corrupt process %s" % item)
+                cls = DownstreamSync
+            elif process_name.subtype == "upstream":
+                cls = UpstreamSync
+            if not cls:
+                continue
+            try:
+                sync = cls(git_gecko, git_wpt, process_name)
+            except ValueError:
+                errors.append("Corrupt process %s" % process_name)
+                continue
+            entries.append((self.make_key(sync), process_name))
+        return entries, errors
 
 
 class BugIdIndex(Index):
@@ -348,12 +374,13 @@ class BugIdIndex(Index):
     def make_key(cls, sync):
         return (str(sync.bug), sync.status)
 
-    def build(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko, git_wpt, **kwargs):
         from downstream import DownstreamSync
         from upstream import UpstreamSync
         from landing import LandingSync
 
-        corrupt = []
+        entries = []
+        errors = []
 
         for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
             sync_cls = None
@@ -363,18 +390,16 @@ class BugIdIndex(Index):
                 sync_cls = DownstreamSync
             elif process_name.subtype == "landing":
                 sync_cls = LandingSync
+            else:
+                assert False
 
-            if sync_cls:
-                try:
-                    sync = sync_cls(git_gecko, git_wpt, process_name)
-                except ValueError:
-                    corrupt.append(process_name)
-                    continue
-                self.insert(self.make_key(sync), process_name)
-        self.save(message="Build index %s" % self.name, overwrite=True)
-
-        for item in corrupt:
-            logger.warning("Corrupt process %s" % item)
+            try:
+                sync = sync_cls(git_gecko, git_wpt, process_name)
+            except ValueError as e:
+                errors.append("Corrupt process %s:\n%s" % (process_name, e))
+                continue
+            entries.append((self.make_key(sync), process_name))
+        return entries, errors
 
 
 def iter_blobs(repo, path):
