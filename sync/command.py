@@ -184,6 +184,8 @@ def get_parser():
 
     parser_build_index = subparsers.add_parser("build-index",
                                                help="Build indexes")
+    parser_build_index.add_argument("index_name", nargs="*",
+                                    help="Index names to rebuild (default all)")
     parser_build_index.set_defaults(func=do_build_index)
 
     parser_migrate = subparsers.add_parser("migrate",
@@ -650,9 +652,15 @@ def do_download_logs(git_gecko, git_wpt, log_path, taskgroup_id, **kwargs):
                                       ["wptreport.json"])
 
 
-def do_build_index(git_gecko, git_wpt, **kwargs):
+def do_build_index(git_gecko, git_wpt, index_name, **kwargs):
     import index
+    if not index_name:
+        index_names = None
+    else:
+        index_names = set(index_name)
     for idx_cls in index.indicies:
+        if index_names and idx_cls.name not in index_names:
+            continue
         print "Building %s index" % idx_cls.name
         idx = idx_cls(git_gecko)
         idx.build(git_gecko, git_wpt)
