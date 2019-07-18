@@ -544,7 +544,10 @@ Automatic update from web-platform-tests\n%s
                 "wpt-head": self.wpt_commits.head.sha1
             }
             msg = sync_commit.Commit.make_commit_msg(
-                "Bug %s - [wpt-sync] Update web-platform-tests to %s, a=testonly" %
+                """Bug %s - [wpt-sync] Update web-platform-tests to %s, a=testonly
+
+MANUAL PUSH: wpt sync bot
+                """ %
                 (self.bug, self.wpt_commits.head.sha1), metadata)
             git_work.git.commit(message=msg, allow_empty=True)
         else:
