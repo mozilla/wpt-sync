@@ -772,12 +772,19 @@ class DownstreamSync(SyncProcess):
     @mut()
     def update_metadata(self, log_files, stability=False):
         meta_path = env.config["gecko"]["path"]["meta"]
-        args = log_files
-        if stability:
-            args.extend(["--stability", "wpt-sync Bug %s" % self.bug])
-
         gecko_work = self.gecko_worktree.get()
+
         mach = Mach(gecko_work.working_dir)
+        args = []
+
+        if stability:
+            help_text = mach.wpt_update("--help")
+            if "--stability " in help_text:
+                args.extend(["--stability", "wpt-sync Bug %s" % self.bug])
+            else:
+                args.append("--update-intermittent")
+        args.extend(log_files)
+
         logger.debug("Updating metadata")
         output = mach.wpt_update(*args)
         prefix = "disabled:"
