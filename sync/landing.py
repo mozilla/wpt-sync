@@ -571,7 +571,7 @@ MANUAL PUSH: wpt sync bot
             self.update_landing_commit()
 
     @mut()
-    def update_metadata(self, log_files):
+    def update_metadata(self, log_files, update_intermittents=False):
         """Update the web-platform-tests metadata based on the logs
         generated in a try run.
 
@@ -583,8 +583,15 @@ MANUAL PUSH: wpt sync bot
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
         logger.info("Updating metadata from %s logs" % len(log_files))
-        mach.wpt_manifest_update()
-        mach.wpt_update(*log_files)
+        args = []
+        if update_intermittents:
+            help_text = mach.wpt_update("--help")
+            if "--update-intermittent " in help_text:
+                args.append("--update-intermittent")
+            # We didn't use --stability here since it's unclear which
+            # bug it will be associated with
+        args.extend(log_files)
+        mach.wpt_update(*args)
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
             gecko_work.git.add(meta_path, all=True)
@@ -1012,7 +1019,7 @@ def update_metadata(sync, try_push, tasks=None, intermittents=None):
                 log_files.append(log)
     if not log_files:
         logger.warning("No log files found for try push %r" % try_push)
-    sync.update_metadata(log_files)
+    sync.update_metadata(log_files, update_intermittents=True)
 
 
 def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
