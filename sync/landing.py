@@ -4,7 +4,6 @@ import shutil
 from collections import defaultdict
 
 import git
-from mozautomation import commitparser
 
 import bug
 import bugcomponents
@@ -777,20 +776,10 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
             return sync
 
         sync = None
-        if upstream.UpstreamSync.has_metadata(first_commit.msg):
-            sync = upstream_sync(bug.bug_number_from_url(first_commit.metadata["bugzilla-url"]))
-        if sync is None:
-            sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr)
+        sync = load.get_pr_sync(git_gecko, git_wpt, pr)
+        if isinstance(sync, downstream.DownstreamSync):
             if sync and "affected-tests" in sync.data and sync.data["affected-tests"] is None:
                 del sync.data["affected-tests"]
-        if sync is None:
-            # Last ditch attempt at finding an upstream sync for this commit in the
-            # case that the metadata happens to be broken
-            bugs = commitparser.parse_bugs(first_commit.msg.split("\n")[0])
-            for bug_number in bugs:
-                sync = upstream_sync(bug_number)
-                if sync:
-                    break
         if not include_incomplete:
             if not sync:
                 # TODO: schedule a downstream sync for this pr
