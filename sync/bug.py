@@ -13,6 +13,11 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
+# Hack because bugsy has an incomplete list of statuses
+if "REOPENED" not in bugsy.bug.VALID_STATUS:
+    bugsy.bug.VALID_STATUS.append("REOPENED")
+
+
 def bz_url_from_api_url(api_url):
     if api_url is None:
         return None
