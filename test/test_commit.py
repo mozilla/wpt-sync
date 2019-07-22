@@ -1,3 +1,4 @@
+import pytest
 from mock import patch, PropertyMock
 
 from sync import commit as sync_commit
@@ -32,3 +33,15 @@ def test_move_utf16(git_gecko, git_wpt_upstream, git_wpt, wpt_worktree, local_ge
 
     assert git_wpt.git.show("%s:test_file" % wpt_commit.sha1,
                             stdout_as_string=False).decode("utf16") == u"\U0001F60A"
+
+
+@pytest.mark.parametrize("msg,expected",
+                         [("Example", {}),
+                          ("wpt-pr: 123", {"wpt-pr": "123"}),
+                          ("Example\n\nwpt-pr: 123\nabc: def", {"wpt-pr": "123",
+                                                                "abc": "def"}),
+                          ("Foo\n wpt-pr: 123\n\nBar\nwpt-data: foo", {"wpt-pr": "123",
+                                                                       "wpt-data": "foo"}),
+                          ("wpt-pr: 123\nwpt-pr: 234", {"wpt-pr": "234"})])
+def test_metadata(msg, expected):
+    assert sync_commit.get_metadata(msg) == expected

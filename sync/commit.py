@@ -19,7 +19,7 @@ METADATA_RE = re.compile(r"\s*([^:]*): (.*)")
 
 def get_metadata(text):
     data = {}
-    for line in reversed(text.splitlines()):
+    for line in text.splitlines():
         if line:
             m = METADATA_RE.match(line)
             if m:
