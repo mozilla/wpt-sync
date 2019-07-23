@@ -29,8 +29,9 @@ funcsigs==1.0.2 \
     --hash=sha256:330cc27ccbf7f1e992e69fef78261dc7c6569012cf397db8d3de0234e6c937ca
 gitdb2==2.0.5 \
     --hash=sha256:e3a0141c5f2a3f635c7209d56c496ebe1ad35da82fe4d3ec4aaa36278d70648a
-GitPython==2.1.11 \
-    --hash=sha256:563221e5a44369c6b79172f455584c9ebbb122a13368cc82cb4b5addff788f82
+GitPython==2.1.12 \
+    --hash=sha256:7428f1cc5e72d53e65c3259d5cebc22fb2b07f973c49d95b3c3d26c64890a3c3 \
+    --hash=sha256:a0f744a4941eac5d99033eb0adcbec83bf443ee173fda4292d92a906aedce952
 idna==2.8 \
     --hash=sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c
 ipython==5.8.0 \
