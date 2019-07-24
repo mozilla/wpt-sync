@@ -155,6 +155,11 @@ class Commit(object):
         return "%s <%s>" % (name, email)
 
     @property
+    def email(self):
+        author = self.pygit2_commit.author
+        return author.email
+
+    @property
     def metadata(self):
         return get_metadata(self.msg)
 
