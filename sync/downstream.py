@@ -287,7 +287,10 @@ class DownstreamSync(SyncProcess):
         if self.bug is not None:
             return
         comment = self.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
-        bug = env.bz.new(summary="[wpt-sync] Sync PR %s - %s" % (pr_id, pr_title),
+        summary = "[wpt-sync] Sync PR %s - %s" % (pr_id, pr_title)
+        if len(summary) > 255:
+            summary = summary[:254] + u"\u2026"
+        bug = env.bz.new(summary=summary,
                          comment=comment,
                          product="Testing",
                          component="web-platform-tests",
