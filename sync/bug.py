@@ -70,6 +70,9 @@ class Bugzilla(object):
         self.bugzilla = bugsy.Bugsy(bugzilla_url=self.api_url,
                                     api_key=config["bugzilla"]["apikey"])
 
+    def bug_ctx(self, bug_id):
+        return BugContext(self, bug_id)
+
     def bugzilla_url(self, bug_id):
         return "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
 
@@ -175,6 +178,41 @@ class Bugzilla(object):
         self.bugzilla.put(bug)
 
 
+class BugContext(object):
+    def __init__(self, bugzilla, bug_id):
+        self.bugzilla = bugzilla
+        self.bug = bugzilla._get_bug(bug_id)
+        self.dirty = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if self.dirty:
+            self.bugzilla.put(self.bug)
+            self.dirty = False
+
+    def __setitem__(self, name, value):
+        self.bug._bug[name] = value
+        self.dirty = True
+
+    def needinfo(self, *requestees):
+        if not requestees:
+            raise ValueError("Must provide one or more requestees")
+        flags = []
+        for requestee in requestees:
+            flags.append({
+                'name': 'needinfo',
+                'requestee': requestee,
+                'status': '?',
+                'new': 'true',
+            })
+        if "flags" not in self.bug._bug:
+            self.bug._bug["flags"] = []
+        self.bug._bug["flags"].extend(flags)
+        self.dirty = True
+
+
 class MockBugzilla(Bugzilla):
     def __init__(self, config):
         self.api_url = config["bugzilla"]["url"]
@@ -185,6 +223,9 @@ class MockBugzilla(Bugzilla):
     def _log(self, data):
         self.output.write(data)
         self.output.write("\n")
+
+    def bug_ctx(self, bug_id):
+        return MockBugContext(self, bug_id)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
             url=None):
@@ -215,3 +256,25 @@ class MockBugzilla(Bugzilla):
 
     def set_status(self, bug, status):
         self._log("Setting bug %s status %s" % (bug, status))
+
+
+class MockBugContext(object):
+    def __init__(self, bugzilla, bug_id):
+        self.bugzilla = bugzilla
+        self.bug_id = bug_id
+
+    def __enter__(self):
+        self.changes = []
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        for item in self.changes:
+            self.bugzilla._log("%s\n" % item)
+
+    def __setitem__(self, name, value):
+        self.changes.append("Setting bug %s %s %s" % (self.bug_id,
+                                                      name, value))
+
+    def needinfo(self, *requestees):
+        for requestee in requestees:
+            self.changes.append("Setting bug %s needinfo %s" % (self.bug_id, requestee))
