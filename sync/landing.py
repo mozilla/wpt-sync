@@ -233,24 +233,15 @@ Automatic update from web-platform-tests\n%s
 
         logger.info("Upstream files changed:\n%s" % "\n".join(sorted(upstream_changed)))
 
-        if isinstance(sync, upstream.UpstreamSync):
-            remote_paths = list(upstream_changed)
-            local_paths = [os.path.join(env.config["gecko"]["path"]["wpt"], path)
-                           for path in upstream_changed]
-            has_changes = False
-            for local_path, remote_path in zip(local_paths, remote_paths):
-                try:
-                    if (self.git_wpt.git.show("origin/master:%s" % remote_path) !=
-                        git_work_gecko.git.show("HEAD:%s" % local_path)):
-                        logger.info("Changes in %s" % local_path)
-                        has_changes = True
-                        break
-                except git.GitCommandError:
-                    has_changes = True
-                    break
-            if not has_changes:
-                logger.info("Upstream sync doesn't introduce any gecko changes")
-                return
+        # If this is originally an UpstreamSync and no new changes were introduced to the GH PR
+        # then we can safely skip and not need to re-apply these changes. Compare the hash of
+        # the upstreamed gecko commits against the final hash in the PR.
+        last_gecko_rev = wpt_commits[-1].metadata.get('gecko-commit', None)
+        if isinstance(sync, upstream.UpstreamSync) and \
+                sync.upstreamed_gecko_commits[-1].canonical_rev == last_gecko_rev:
+
+            logger.info("Upstream sync doesn't introduce any gecko changes")
+            return
 
         if copy:
             commit = self.copy_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
