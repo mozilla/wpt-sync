@@ -291,7 +291,7 @@ class SyncProcess(object):
         import index
         idx = index.PrIdIndex(git_gecko)
         process_name = idx.get((str(pr_id),))
-        if process_name:
+        if process_name and process_name.subtype == cls.sync_type:
             return cls(git_gecko, git_wpt, process_name)
 
     @classmethod
