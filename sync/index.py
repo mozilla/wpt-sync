@@ -360,7 +360,8 @@ class PrIdIndex(Index):
             except ValueError:
                 errors.append("Corrupt process %s" % process_name)
                 continue
-            entries.append((self.make_key(sync), process_name))
+            if sync.pr:
+                entries.append((self.make_key(sync), process_name))
         return entries, errors
 
 
