@@ -397,6 +397,12 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
 
     assert str(git_wpt_upstream.active_branch) == "master"
     git_wpt_upstream.git.merge('gecko/1234')  # TODO avoid hardcoding?
+
+    # Create a ref on the upstream to simulate the pr than GH would setup
+    git_wpt_upstream.create_head(
+        'pr/%d' % pr['number'],
+        commit=git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+    )
     git_wpt.remotes.origin.fetch()
     pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
     env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
