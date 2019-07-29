@@ -442,6 +442,26 @@ class UpstreamSync(SyncProcess):
             else:
                 self.remote_branch = None
 
+    @property
+    def pr_head(self):
+        """
+        Retrieves the head of the PR ref: origin/pr/{pr_id}
+        :return: The SHA of the head commit.
+        """
+        if not self.pr:
+            logger.error("No PR ID found for %s" % self.process_name)
+            return
+
+        pr_ref = 'origin/pr/{}'.format(self.pr)
+
+        if pr_ref not in self.git_wpt.refs:
+            # PR ref doesn't seem to exist
+            logger.error("No ref found for %s" % pr_ref)
+            return
+
+        ref = self.git_wpt.refs[pr_ref]
+        return ref.commit.hexsha
+
 
 def commit_message_filter(msg):
     metadata = {}
