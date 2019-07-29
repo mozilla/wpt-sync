@@ -482,12 +482,9 @@ class UpstreamSync(SyncProcess):
         pr_ref = 'origin/pr/{}'.format(self.pr)
 
         if pr_ref not in self.git_wpt.refs:
-            # Maybe we need to fetch?
-            self.git_wpt.remotes.origin.fetch()
-            if pr_ref not in self.git_wpt.refs:
-                # PR ref doesn't seem to exist
-                logger.error("No ref found for %s" % pr_ref)
-                return
+            # PR ref doesn't seem to exist
+            logger.error("No ref found for %s" % pr_ref)
+            return
 
         ref = self.git_wpt.refs[pr_ref]
         return ref.commit.hexsha
