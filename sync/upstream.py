@@ -462,6 +462,35 @@ class UpstreamSync(SyncProcess):
         ref = self.git_wpt.refs[pr_ref]
         return ref.commit.hexsha
 
+    @property
+    def pr_commits(self):
+        pr_head = self.pr_head
+        if not pr_head:
+            logger.error(
+                "Can't get PR commits as the ref head could not be found for %s" %
+                self.process_name
+            )
+            return
+
+        # Check that the merge base we have is valid
+        # TODO this also passes if the PR was rebased to a commit after our recorded merge base
+        recorded_merge_base = self.wpt_commits.base.sha1
+        merge_base_check = self.git_wpt.merge_base(pr_head, recorded_merge_base)
+        if len(merge_base_check) == 0 or merge_base_check[0].hexsha != recorded_merge_base:
+            # TODO Merge bases are inconsistent, what to do?
+            return
+
+        # Add all the commits ref Head -> merge base to a list, these should be the PR commits
+        head_commit = self.git_wpt.commit(rev=pr_head)
+        commits = [head_commit]
+        for parent in head_commit.iter_parents():
+            if parent == merge_base_check[0]:
+                break
+            commits.append(parent)
+
+        # Reverse the list so the first commit is the oldest
+        return reversed(commits)
+
 
 def commit_message_filter(msg):
     metadata = {}
