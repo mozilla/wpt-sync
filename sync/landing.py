@@ -236,10 +236,8 @@ Automatic update from web-platform-tests\n%s
         # If this is originally an UpstreamSync and no new changes were introduced to the GH PR
         # then we can safely skip and not need to re-apply these changes. Compare the hash of
         # the upstreamed gecko commits against the final hash in the PR.
-        pr_ref = 'origin/pr/{}'.format(pr_id)
         if (isinstance(sync, upstream.UpstreamSync) and
-                sync.wpt_commits.head.sha1 == sync.git_wpt.refs[pr_ref].commit.hexsha):
-
+            sync.wpt_commits.head.sha1 == sync.pr_head):
             logger.info("Upstream sync doesn't introduce any gecko changes")
             return
 
