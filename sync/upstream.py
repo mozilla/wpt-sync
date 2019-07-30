@@ -472,24 +472,31 @@ class UpstreamSync(SyncProcess):
             )
             return
 
-        # Check that the merge base we have is valid
-        # TODO this also passes if the PR was rebased to a commit after our recorded merge base
-        recorded_merge_base = self.wpt_commits.base.sha1
-        merge_base_check = self.git_wpt.merge_base(pr_head, recorded_merge_base)
-        if len(merge_base_check) == 0 or merge_base_check[0].hexsha != recorded_merge_base:
-            # TODO Merge bases are inconsistent, what to do?
-            return
+        # pr = env.gh_wpt.get_pull(self.pr)
+        tag = 'merge_pr_%d' % self.pr
+        if tag not in self.git_wpt.tags:
+            logger.error("Merge Tag not found for %s" % tag)
+        merge_commit_sha = self.git_wpt.tags[tag].commit
+
+        # If the merge commit is not the pr head nor a descendent then it was squash merged
+        if merge_commit_sha != pr_head and not self.git_wpt.is_ancestor(pr_head, merge_commit_sha):
+            merge_base = self.git_wpt.merge_base(merge_commit_sha, pr_head)
+            if len(merge_base) == 0:
+                logger.error('Merge base could not be determined')
+                return
+            else:
+                merge_base = merge_base[0]
 
         # Add all the commits ref Head -> merge base to a list, these should be the PR commits
         head_commit = self.git_wpt.commit(rev=pr_head)
         commits = [head_commit]
         for parent in head_commit.iter_parents():
-            if parent == merge_base_check[0]:
+            if parent == merge_base:
                 break
             commits.append(parent)
 
         # Reverse the list so the first commit is the oldest
-        return reversed(commits)
+        return reversed(commits)  # TODO: Should this be a CommitRange?
 
 
 def commit_message_filter(msg):
