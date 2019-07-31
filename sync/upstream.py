@@ -472,20 +472,57 @@ class UpstreamSync(SyncProcess):
             )
             return
 
-        # pr = env.gh_wpt.get_pull(self.pr)
-        tag = 'merge_pr_%d' % self.pr
-        if tag not in self.git_wpt.tags:
-            logger.error("Merge Tag not found for %s" % tag)
-        merge_commit_sha = self.git_wpt.tags[tag].commit
+        pr = None
 
-        # If the merge commit is not the pr head nor a descendent then it was squash merged
-        if merge_commit_sha != pr_head and not self.git_wpt.is_ancestor(pr_head, merge_commit_sha):
+        # Retrieve the commit that pushed these changes to master
+        tag = 'merge_pr_%d' % self.pr
+        if tag in self.git_wpt.tags:
+            merge_commit_sha = self.git_wpt.tags[tag].commit
+        elif self.status in ('wpt-merged', 'complete'):
+            logger.warning("Merge Tag not found for %s" % tag)
+            pr = env.gh_wpt.get_pull(self.pr)
+            merge_commit_sha = pr["merge_commit_sha"]
+        elif self.pr_status == 'open':
+            # PR must still be open, just use master as our 'merge commit'
+            merge_commit_sha = self.git_wpt.head.commit.hexsha
+        else:
+            logger.error("Couldn't determine state of the PR")
+            return
+
+        merge_commit = self.git_wpt.commit(merge_commit_sha)
+
+        pr_head_reachable = self.git_wpt.is_ancestor(pr_head, merge_commit_sha)
+
+        # IF PR head reachable, scenario is either a normal merge or rebase + fast forward
+        if pr_head_reachable:
+            # If the commit has two parents, it is a merge commit
+            if len(merge_commit.parents) == 2:
+                pass  # TODO: Implement
+
+            # Singular parent, rebase + fast forward merge
+            elif len(merge_commit.parents) == 1:
+
+                # Fall back to the API for this
+                if not pr:
+                    pr = env.gh_wpt.get_pull(self.pr)
+                merge_base = self.git_wpt.commit(pr["base"]["sha"])
+
+        # Squash and Merge
+        # If the pr head is not reachable from master then it must be a typical squash merge
+        else:
             merge_base = self.git_wpt.merge_base(merge_commit_sha, pr_head)
             if len(merge_base) == 0:
                 logger.error('Merge base could not be determined')
                 return
             else:
                 merge_base = merge_base[0]
+
+        # Check for inconsistency in the merge base
+        if merge_base.hexsha != self.wpt_commits._base_sha:
+            # If we are inconsistent, fall back to the GH API
+            if not pr:
+                pr = env.gh_wpt.get_pull(self.pr)
+            merge_base = self.git_wpt.commit(pr["base"]["sha"])
 
         # Add all the commits ref Head -> merge base to a list, these should be the PR commits
         head_commit = self.git_wpt.commit(rev=pr_head)
