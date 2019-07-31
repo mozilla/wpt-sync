@@ -6,6 +6,7 @@ from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
+from conftest import git_commit
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
@@ -357,6 +358,33 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
         assert item in landing_sync.gecko_commits[-2].commit.stats.files
 
 
+def create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
+                                  upstream_gecko_commit):
+    # Create gecko bug and upstream it
+    bug = "1234"
+    test_changes = {"README": "Change README\n"}
+    upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                          message="Change README")
+
+    test_changes = {"CONFIG": "Change CONFIG\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change CONFIG")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    upstream.gecko_push(git_gecko, git_wpt, "inbound", rev, raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    sync = syncs["open"].pop()
+    env.gh_wpt.get_pull(sync.pr).mergeable = True
+
+    hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    upstream.gecko_push(git_gecko, git_wpt, "central", rev, raise_on_error=True)
+
+    return sync
+
+
 def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstream,
                                            pull_request, upstream_gecko_commit, mock_mach,
                                            set_pr_status, git_wpt_upstream):
@@ -370,23 +398,8 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     git_wpt_upstream.head.commit = unrelated_rev
     git_wpt.remotes.origin.fetch()
 
-    # Create gecko bug and upstream it
-    bug = "1234"
-    test_changes = {"README": "Change README\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
-                                message="Change README")
-
-    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "inbound", rev, raise_on_error=True)
-
-    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
-    sync = syncs["open"].pop()
-    env.gh_wpt.get_pull(sync.pr).mergeable = True
-
-    hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
-
-    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "central", rev, raise_on_error=True)
+    sync = create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
+                                         upstream_gecko_commit)
 
     # 'Merge' this upstream PR
     pr = env.gh_wpt.get_pull(sync.pr)
@@ -405,6 +418,7 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     )
     git_wpt.remotes.origin.fetch()
     pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
+    pr['base'] = {'sha': unrelated_rev}
     env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
 
     # Update landing, the Non Gecko PR should be applied but not the Gecko one we upstreamed
@@ -418,7 +432,48 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
         landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
 
     commits = landing_sync.gecko_commits._commits
+
     # Check that the upstreamed gecko PR didnt get pushed to try
     assert not any([c.bug == sync.bug for c in commits])
-    # CHeck that our unrelated PR got pushed to try
+    # Check that our unrelated PR got pushed to try
     assert any([c.bug == downstream_sync.bug for c in commits])
+
+
+def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstream,
+                                         upstream_gecko_commit, mock_mach, git_wpt_upstream):
+    trypush.Mach = mock_mach
+
+    sync = create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
+                                         upstream_gecko_commit)
+
+    # 'Merge' this upstream PR
+    pr = env.gh_wpt.get_pull(sync.pr)
+    pr["base"] = {"sha": git_wpt_upstream.head.commit.hexsha}
+    pr["user"]["login"] = "not_bot"
+    with SyncLock.for_process(sync.process_name) as upstream_sync_lock:
+        with sync.as_mut(upstream_sync_lock):
+            sync.push_commits()
+
+    git_wpt_upstream.branches['gecko/1234'].checkout()
+    extra_commit = git_commit(git_wpt_upstream, "Fixed pr before merge", {"EXTRA": "This fixes it"})
+    git_wpt_upstream.branches.master.checkout()
+    assert str(git_wpt_upstream.active_branch) == "master"
+    git_wpt_upstream.git.merge('gecko/1234')  # TODO avoid hardcoding?
+
+    # Create a ref on the upstream to simulate the pr than GH would setup
+    git_wpt_upstream.create_head(
+        'pr/%d' % pr['number'],
+        commit=git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+    )
+    git_wpt.remotes.origin.fetch()
+    pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
+    env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
+
+    landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
+    commits = landing_sync.gecko_commits._commits
+
+    assert len(commits) == 2
+    # Check that the first commit is our "fix commit" which didn't come from Gecko
+    assert commits[0].metadata['wpt-commits'] == extra_commit.hexsha
+    # Check that the other commit is the bot's push commit
+    assert commits[1].metadata['MANUAL PUSH'] == "wpt sync bot"
