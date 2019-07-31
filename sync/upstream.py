@@ -471,6 +471,8 @@ class UpstreamSync(SyncProcess):
                 self.process_name
             )
             return
+        else:
+            pr_head = self.git_wpt.commit(pr_head)
 
         pr = None
 
@@ -491,16 +493,18 @@ class UpstreamSync(SyncProcess):
 
         merge_commit = self.git_wpt.commit(merge_commit_sha)
 
-        pr_head_reachable = self.git_wpt.is_ancestor(pr_head, merge_commit_sha)
+        pr_head_reachable = self.git_wpt.is_ancestor(pr_head.hexsha, merge_commit_sha)
 
         # IF PR head reachable, scenario is either a normal merge or rebase + fast forward
         if pr_head_reachable:
-            # If the commit has two parents, it is a merge commit
-            if len(merge_commit.parents) == 2:
-                pass  # TODO: Implement
+            # If the commit has two parents, one of them being our pr head, it is a merge commit
+            if len(merge_commit.parents) == 2 and pr_head in merge_commit.parents:
+                parents = list(merge_commit.parents)
+                other_parent = parents[0] if parents[1] == pr_head else parents[1]
+                merge_base = self.git_wpt.merge_base(pr_head, other_parent)[0]
 
-            # Singular parent, rebase + fast forward merge
-            elif len(merge_commit.parents) == 1:
+            # Singular parent, fast forward merge
+            elif len(merge_commit.parents) == 1 and merge_commit == pr_head:
 
                 # Fall back to the API for this
                 if not pr:
@@ -533,7 +537,7 @@ class UpstreamSync(SyncProcess):
             commits.append(parent)
 
         # Reverse the list so the first commit is the oldest
-        return reversed(commits)  # TODO: Should this be a CommitRange?
+        return list(reversed(commits))  # TODO: Should this be a CommitRange?
 
 
 def commit_message_filter(msg):
