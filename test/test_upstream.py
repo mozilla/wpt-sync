@@ -1,6 +1,7 @@
 from sync import commit as sync_commit, upstream
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
+from conftest import git_commit
 
 
 def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
@@ -413,3 +414,132 @@ def test_upstream_reprocess_commits(git_gecko, git_wpt, upstream_gecko_commit,
     pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "inbound", backout_rev,
                                                  raise_on_error=True)
     assert len(pushed) == len(landed) == len(failed) == 0
+
+
+def setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit):
+    bug = "1234"
+    changes = {"README": "Changes to README\n"}
+    upstream_gecko_commit(test_changes=changes, bug=bug,
+                          message="Change README")
+
+    test_changes = {"CONFIG": "Change CONFIG\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message="Change CONFIG")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    upstream.gecko_push(git_gecko, git_wpt, "inbound", rev, raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    sync = syncs["open"].pop()
+    env.gh_wpt.get_pull(sync.pr).mergeable = True
+
+    hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    pushed, landed, failed = upstream.gecko_push(git_gecko,
+                                                 git_wpt,
+                                                 "central",
+                                                 rev,
+                                                 raise_on_error=True)
+    assert len(pushed) == 0
+    assert len(landed) == 1
+    assert len(failed) == 0
+
+    # Push the commits to upstream wpt
+    with SyncLock.for_process(sync.process_name) as upstream_sync_lock:
+        with sync.as_mut(upstream_sync_lock):
+            sync.push_commits()
+
+    return list(landed)[0]
+
+
+def test_pr_commits_merge(env, git_wpt, git_gecko, git_wpt_upstream,
+                          hg_gecko_upstream, upstream_gecko_commit):
+
+    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
+
+    # Make changes on master
+    git_wpt_upstream.branches.master.checkout()
+    base = git_wpt_upstream.head.commit.hexsha
+    git_commit(git_wpt_upstream, "Some other Commit", {"RANDOME_FILE": "Changes to this\n"})
+
+    pr = env.gh_wpt.get_pull(sync.pr)
+
+    # Create a ref on the upstream to simulate the pr than GH would setup
+    git_wpt_upstream.create_head(
+        'pr/%d' % pr['number'],
+        commit=git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+    )
+
+    # Merge our Sync PR
+    git_wpt_upstream.git.merge('gecko/1234')
+    pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
+    pr['base'] = {'sha': base}
+    git_wpt_upstream.create_tag('merge_pr_%d' % pr["number"])
+    git_wpt.remotes.origin.fetch()
+
+    pr_commits = sync.pr_commits
+
+    for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
+        assert wpt_commit.commit == pr_commit
+
+
+def test_pr_commits_squash_merge(env, git_wpt, git_gecko, git_wpt_upstream,
+                                 hg_gecko_upstream, upstream_gecko_commit):
+
+    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
+
+    # Make changes on master
+    git_wpt_upstream.branches.master.checkout()
+    base = git_wpt_upstream.head.commit.hexsha
+    git_commit(git_wpt_upstream, "Some other Commit", {"RANDOME_FILE": "Changes to this\n"})
+
+    pr = env.gh_wpt.get_pull(sync.pr)
+
+    # Create a ref on the upstream to simulate the pr than GH would setup
+    git_wpt_upstream.create_head(
+        'pr/%d' % pr['number'],
+        commit=git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+    )
+
+    # Squash and Merge our Sync PR
+    git_wpt_upstream.git.merge('gecko/1234', squash=True)
+    git_wpt_upstream.index.commit('Merged PR #2', parent_commits=(git_wpt_upstream.head.commit,))
+    pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
+    pr['base'] = {'sha': base}
+    git_wpt_upstream.create_tag('merge_pr_%d' % pr["number"])
+    git_wpt.remotes.origin.fetch()
+
+    pr_commits = sync.pr_commits
+
+    for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
+        assert wpt_commit.commit == pr_commit
+
+
+def test_pr_commits_fast_forward_no_tag(env, git_wpt, git_gecko, git_wpt_upstream,
+                                        hg_gecko_upstream, upstream_gecko_commit):
+
+    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
+
+    base = git_wpt_upstream.head.commit.hexsha
+
+    pr = env.gh_wpt.get_pull(sync.pr)
+
+    # Create a ref on the upstream to simulate the pr than GH would setup
+    pr_head_commit = git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+    git_wpt_upstream.create_head(
+        'pr/%d' % pr['number'],
+        commit=pr_head_commit
+    )
+
+    # Fast forward merge our Sync PR
+    git_wpt_upstream.git.merge('gecko/1234')
+    git_wpt_upstream.head.commit = pr_head_commit
+    pr['merge_commit_sha'] = pr_head_commit
+    pr['base'] = {'sha': base}
+    git_wpt.remotes.origin.fetch()
+
+    pr_commits = sync.pr_commits
+
+    for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
+        assert wpt_commit.commit == pr_commit
