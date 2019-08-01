@@ -140,9 +140,11 @@ class TryFuzzyCommit(TryCommit):
             args.append(str(self.rebuild))
 
         if self.tests_by_type is not None:
-            paths = set()
+            paths = []
             for values in self.tests_by_type.itervalues():
-                paths |= set(values)
+                paths.extend(item for item in values
+                             if os.path.exists(os.path.join(self.worktree.working_dir,
+                                                            item)))
             max_tests = env.config["gecko"]["try"].get("max-tests")
             if max_tests and len(paths) > max_tests:
                 logger.warning("Capping number of affected tests at %d" % max_tests)
