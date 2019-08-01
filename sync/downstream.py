@@ -981,7 +981,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
             else:
                 logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
                 disabled = []
-                if not tasks.success():
+                if tasks.has_failures():
                     if sync.affected_tests():
                         log_files = []
                         wpt_tasks = try_push.download_logs(tasks.wpt_tasks, raw=False)
