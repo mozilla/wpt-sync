@@ -535,7 +535,7 @@ class TryPushTasks(object):
         return False
 
     def has_failures(self):
-        """Check if all the wpt tasks in a try push ended with a successful status"""
+        """Check if any of the wpt tasks in a try push ended with a failure status"""
         wpt_tasks = self.wpt_tasks
         if wpt_tasks:
             return any(task.get("status", {}).get("state") == tc.FAIL for task in wpt_tasks)
