@@ -475,9 +475,11 @@ def test_pr_commits_merge(env, git_wpt, git_gecko, git_wpt_upstream,
     git_wpt_upstream.git.merge('gecko/1234')
     pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
     pr['base'] = {'sha': base}
-    git_wpt_upstream.create_tag('merge_pr_%d' % pr["number"])
     git_wpt.remotes.origin.fetch()
 
+    with SyncLock.for_process(sync.process_name) as upstream_sync_lock:
+        with sync.as_mut(upstream_sync_lock):
+            sync.merge_sha = pr['merge_commit_sha']
     pr_commits = sync.pr_commits
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
@@ -507,17 +509,19 @@ def test_pr_commits_squash_merge(env, git_wpt, git_gecko, git_wpt_upstream,
     git_wpt_upstream.index.commit('Merged PR #2', parent_commits=(git_wpt_upstream.head.commit,))
     pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
     pr['base'] = {'sha': base}
-    git_wpt_upstream.create_tag('merge_pr_%d' % pr["number"])
     git_wpt.remotes.origin.fetch()
 
+    with SyncLock.for_process(sync.process_name) as upstream_sync_lock:
+        with sync.as_mut(upstream_sync_lock):
+            sync.merge_sha = pr['merge_commit_sha']
     pr_commits = sync.pr_commits
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
         assert wpt_commit.commit == pr_commit
 
 
-def test_pr_commits_fast_forward_no_tag(env, git_wpt, git_gecko, git_wpt_upstream,
-                                        hg_gecko_upstream, upstream_gecko_commit):
+def test_pr_commits_fast_forward(env, git_wpt, git_gecko, git_wpt_upstream,
+                                 hg_gecko_upstream, upstream_gecko_commit):
 
     sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
 
@@ -539,6 +543,9 @@ def test_pr_commits_fast_forward_no_tag(env, git_wpt, git_gecko, git_wpt_upstrea
     pr['base'] = {'sha': base}
     git_wpt.remotes.origin.fetch()
 
+    with SyncLock.for_process(sync.process_name) as upstream_sync_lock:
+        with sync.as_mut(upstream_sync_lock):
+            sync.merge_sha = pr['merge_commit_sha']
     pr_commits = sync.pr_commits
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
