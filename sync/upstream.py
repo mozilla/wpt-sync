@@ -784,6 +784,16 @@ def update_modified_sync(git_gecko, git_wpt, sync):
                 except AbortError:
                     # Reset the base to origin/master
                     sync.set_wpt_base("origin/master")
+                    with env.bz.bug_ctx(sync.bug) as bug:
+                        bug["comment"] = ("Failed to create upstream wpt PR for this bug due to "
+                                          "merge conflicts. This requires fixup from a wpt sync "
+                                          "admin.")
+                        needinfo_users = [item.strip() for item in
+                                          (env.config["gecko"]["upstream"]
+                                           .get("needinfo-users", "")
+                                           .split(","))]
+                        needinfo_users = [item for item in needinfo_users if item]
+                        bug.needinfo(*needinfo_users)
                     raise
 
     sync.update_github()
