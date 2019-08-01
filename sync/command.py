@@ -225,7 +225,7 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
 
     def filter(sync):
         if kwargs["error"]:
-            return sync.error is not None
+            return sync.error is not None and sync.status == "open"
         return True
 
     for cls in [upstream.UpstreamSync, downstream.DownstreamSync, landing.LandingSync]:
