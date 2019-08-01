@@ -431,7 +431,6 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
             cls = landing.LandingSync
         objs = cls.load_by_obj(git_gecko,
                                git_wpt,
-                               sync_type,
                                obj_id)
 
     if kwargs["old_status"] is not None:
