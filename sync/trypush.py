@@ -530,8 +530,14 @@ class TryPushTasks(object):
         wpt_tasks = self.wpt_tasks
         if wpt_tasks:
             return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
-        else:
-            return False
+        return False
+
+    def has_failures(self):
+        """Check if all the wpt tasks in a try push ended with a successful status"""
+        wpt_tasks = self.wpt_tasks
+        if wpt_tasks:
+            return any(task.get("status", {}).get("state") == tc.FAIL for task in wpt_tasks)
+        return False
 
     def success_rate(self):
         wpt_tasks = self.wpt_tasks
