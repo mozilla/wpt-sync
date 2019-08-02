@@ -14,8 +14,9 @@ from downstream import DownstreamSync
 from errors import AbortError
 from env import Environment
 from gitutils import update_repositories, gecko_repo
+from gh import AttrDict
 from lock import SyncLock, constructor, mut
-from sync import CommitFilter, LandableStatus, SyncProcess
+from sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
 from repos import pygit2_get
 
 env = Environment()
@@ -461,6 +462,52 @@ class UpstreamSync(SyncProcess):
 
         ref = self.git_wpt.refs[pr_ref]
         return ref.commit.hexsha
+
+    @property
+    def pr_commits(self):
+        pr_head = self.pr_head
+        if not pr_head:
+            raise ValueError("Can't get PR commits as the ref head could not be found for %s" %
+                             self.process_name)
+        else:
+            pr_head = sync_commit.WptCommit(self.git_wpt, pr_head)
+
+        merge_base = []
+
+        # Check if the PR Head is reachable from origin/master
+        origin_master_sha = self.git_wpt.refs['origin/master'].commit.hexsha
+        pr_head_reachable = self.git_wpt.is_ancestor(pr_head.sha1, 'origin/master')
+
+        # If not reachable, then it either hasn't landed yet, it was a Squash + Merge,
+        # or a Rebase and merge.
+        if not pr_head_reachable:
+            merge_base = self.git_wpt.merge_base(origin_master_sha, pr_head.sha1)
+        else:
+            if not self.merge_sha:
+                raise ValueError('The merge SHA for %s could not be found in the UpstreamSync' %
+                                 self.process_name)
+            merge_commit = sync_commit.WptCommit(self.git_wpt, self.merge_sha)
+
+            # If the commit has two parents, one of them being our pr head, it is a merge commit
+            parents = list(merge_commit.commit.parents)
+            if len(parents) == 2 and pr_head in parents:
+                other_parent = parents[0] if parents[1] == pr_head.commit else parents[1]
+                merge_base = self.git_wpt.merge_base(pr_head.sha1, other_parent)
+
+            # Not a merge commit, so just use the base we have stored
+            else:
+                merge_base = [self.wpt_commits.base.commit]
+
+        # Check that we found the merge base
+        if len(merge_base) == 0:
+            raise ValueError("Problem determining merge base for %s" % self.process_name)
+        else:
+            merge_base = merge_base[0]
+
+        # Create a CommitRange object and return it
+        base = sync_commit.WptCommit(self.git_wpt, merge_base)
+        head_ref = AttrDict({'commit': pr_head})
+        return CommitRange(self.git_wpt, base, head_ref, sync_commit.WptCommit, CommitFilter())
 
 
 def commit_message_filter(msg):
