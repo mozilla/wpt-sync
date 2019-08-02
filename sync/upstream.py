@@ -511,7 +511,6 @@ class UpstreamSync(SyncProcess):
         return CommitRange(self.git_wpt, base, head_ref, sync_commit.WptCommit, CommitFilter())
 
 
-
 def commit_message_filter(msg):
     metadata = {}
     m = commitparser.BUG_RE.match(msg)
