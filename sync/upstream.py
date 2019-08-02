@@ -475,7 +475,7 @@ class UpstreamSync(SyncProcess):
 
         # Check if the PR Head is reachable from origin/master
         origin_master_sha = self.git_wpt.refs['origin/master'].commit.hexsha
-        pr_head_reachable = self.git_wpt.is_ancestor(pr_head.sha1, origin_master_sha)
+        pr_head_reachable = self.git_wpt.is_ancestor(pr_head.sha1, 'origin/master')
 
         # If not reachable, then it either hasn't landed yet, it was a Squash + Merge,
         # or a Rebase and merge.

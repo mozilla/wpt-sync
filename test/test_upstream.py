@@ -483,7 +483,7 @@ def test_pr_commits_merge(env, git_wpt, git_gecko, git_wpt_upstream,
     pr_commits = sync.pr_commits
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
-        assert wpt_commit.commit == pr_commit
+        assert wpt_commit.commit == pr_commit.commit
 
 
 def test_pr_commits_squash_merge(env, git_wpt, git_gecko, git_wpt_upstream,
@@ -517,7 +517,7 @@ def test_pr_commits_squash_merge(env, git_wpt, git_gecko, git_wpt_upstream,
     pr_commits = sync.pr_commits
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
-        assert wpt_commit.commit == pr_commit
+        assert wpt_commit.commit == pr_commit.commit
 
 
 def test_pr_commits_fast_forward(env, git_wpt, git_gecko, git_wpt_upstream,
@@ -549,4 +549,4 @@ def test_pr_commits_fast_forward(env, git_wpt, git_gecko, git_wpt_upstream,
     pr_commits = sync.pr_commits
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
-        assert wpt_commit.commit == pr_commit
+        assert wpt_commit.commit == pr_commit.commit
