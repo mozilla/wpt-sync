@@ -9,7 +9,7 @@ from mozautomation import commitparser
 
 import log
 import commit as sync_commit
-from base import entry_point, BranchRefObject
+from base import entry_point
 from downstream import DownstreamSync
 from errors import AbortError
 from env import Environment
