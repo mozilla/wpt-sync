@@ -495,14 +495,13 @@ class UpstreamSync(SyncProcess):
                 other_parent = parents[0] if parents[1] == pr_head.commit else parents[1]
                 merge_base = self.git_wpt.merge_base(pr_head.sha1, other_parent)
 
-            # Singular parent and pr head is the merge commit, it is a fast forward merge
-            elif len(merge_commit.commit.parents) == 1 and merge_commit.commit == pr_head.commit:
+            # Not a merge commit, so just use the base we have stored
+            else:
                 merge_base = [self.wpt_commits.base.commit]
 
         # Check that we found the merge base
         if len(merge_base) == 0:
-            raise ValueError("Problem determining merge base for %s, using GitHub API instead" %
-                             self.process_name)
+            raise ValueError("Problem determining merge base for %s" % self.process_name)
         else:
             merge_base = merge_base[0]
 
