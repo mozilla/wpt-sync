@@ -9,13 +9,13 @@ from mozautomation import commitparser
 
 import log
 import commit as sync_commit
-from base import entry_point
+from base import entry_point, BranchRefObject
 from downstream import DownstreamSync
 from errors import AbortError
 from env import Environment
 from gitutils import update_repositories, gecko_repo
 from lock import SyncLock, constructor, mut
-from sync import CommitFilter, LandableStatus, SyncProcess
+from sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
 from repos import pygit2_get
 
 env = Environment()
@@ -480,7 +480,6 @@ class UpstreamSync(SyncProcess):
         # If not reachable, then it either hasn't landed yet, it was a Squash + Merge,
         # or a Rebase and merge.
         if not pr_head_reachable:
-            # TODO: how to effectively detect Rebase and Merge?
             merge_base = self.git_wpt.merge_base(origin_master_sha, pr_head.sha1)
         else:
 
@@ -500,26 +499,18 @@ class UpstreamSync(SyncProcess):
             elif len(merge_commit.commit.parents) == 1 and merge_commit.commit == pr_head.commit:
                 merge_base = [self.wpt_commits.base.commit]
 
-        # Check for inconsistency in the merge base
-        if len(merge_base) == 0 or merge_base[0].hexsha != self.wpt_commits.base.sha1:
-            logger.warning("Problem determining merge base for %s, using GitHub API instead" %
-                           self.process_name)
-            pr = env.gh_wpt.get_pull(self.pr)
-            merge_base = self.git_wpt.commit(pr["base"]["sha"])
-            self.wpt_commits.base = merge_base.hexsha
+        # Check that we found the merge base
+        if len(merge_base) == 0:
+            raise ValueError("Problem determining merge base for %s, using GitHub API instead" %
+                             self.process_name)
         else:
             merge_base = merge_base[0]
 
-        # Add all the commits ref Head -> merge base to a list, these should be the PR commits
-        head_commit = self.git_wpt.commit(rev=pr_head.sha1)
-        commits = [head_commit]
-        for parent in head_commit.iter_parents():
-            if parent == merge_base:
-                break
-            commits.append(parent)
+        # Create a CommitRange object and return it
+        base = sync_commit.WptCommit(self.git_wpt, merge_base)
+        head_ref = BranchRefObject(self.git_wpt, self.process_name, sync_commit.WptCommit)
+        return CommitRange(self.git_wpt, base, head_ref, sync_commit.WptCommit, CommitFilter())
 
-        # Reverse the list so the first commit is the oldest
-        return list(reversed(commits))
 
 
 def commit_message_filter(msg):
