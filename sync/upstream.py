@@ -14,6 +14,7 @@ from downstream import DownstreamSync
 from errors import AbortError
 from env import Environment
 from gitutils import update_repositories, gecko_repo
+from gh import AttrDict
 from lock import SyncLock, constructor, mut
 from sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
 from repos import pygit2_get
@@ -482,11 +483,9 @@ class UpstreamSync(SyncProcess):
         if not pr_head_reachable:
             merge_base = self.git_wpt.merge_base(origin_master_sha, pr_head.sha1)
         else:
-
             if not self.merge_sha:
                 raise ValueError('The merge SHA for %s could not be found in the UpstreamSync' %
                                  self.process_name)
-
             merge_commit = sync_commit.WptCommit(self.git_wpt, self.merge_sha)
 
             # If the commit has two parents, one of them being our pr head, it is a merge commit
@@ -507,7 +506,7 @@ class UpstreamSync(SyncProcess):
 
         # Create a CommitRange object and return it
         base = sync_commit.WptCommit(self.git_wpt, merge_base)
-        head_ref = BranchRefObject(self.git_wpt, self.process_name, sync_commit.WptCommit)
+        head_ref = AttrDict({'commit': pr_head})
         return CommitRange(self.git_wpt, base, head_ref, sync_commit.WptCommit, CommitFilter())
 
 
