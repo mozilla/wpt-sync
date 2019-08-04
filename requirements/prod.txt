@@ -128,10 +128,10 @@ slugid==2.0.0 \
     --hash=sha256:aec8b0e01c4ad32e38e12d609eab3ec912fd129aaf6b2ded0199b56a5f8fd67c
 smmap2==2.0.5 \
     --hash=sha256:0555a7bf4df71d1ef4218e4807bbf9b201f910174e6e08af2e138d4e517b4dde
-taskcluster==15.0.0 \
-    --hash=sha256:3d5f080cf6c27772983dfa3945ad558d1f7d35f5bcdd483cfd2b704aa2180f85 \
-    --hash=sha256:4e4a0348cbe29bf54a7354e67968bc0d8a00e2376d9be37c82b6d0095d9d9341 \
-    --hash=sha256:78d30dc38526ce2cce051b0acecc40021130f8a4d4829cc1a11836ca40a48cd9
+taskcluster==16.0.0 \
+    --hash=sha256:2846eb270a9c563ff2e0fbfc69999bbcc4b9e33979206d5433fd1eeba11f6785 \
+    --hash=sha256:8ac7b25c28138b4c1b01614e272f5558ff2af79d4e01430c32ca407838923467 \
+    --hash=sha256:f2ae5cd1f89f6ca3ab869b71b35158e762decc904f5bf483a4ea4843f75a7ef5
 taskcluster-urls==11.0.0 \
     --hash=sha256:74bd2110b5daaebcec5e1d287bf137b61cb8cf6b2d8f5f2b74183e32bc4e7c87
 traitlets==4.3.2 \
