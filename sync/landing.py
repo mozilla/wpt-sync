@@ -895,7 +895,13 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                                        try_cls=trypush.TryFuzzyCommit,
                                        exclude=["pgo", "ccov", "msvc"])
             elif retry:
-                landing.gecko_rebase(landing.gecko_integration_branch())
+                try:
+                    landing.gecko_rebase(landing.gecko_integration_branch())
+                except git.GitCommandError as e:
+                    err = "Rebase failed:\n%s" % e
+                    logger.error(err)
+                    env.bz.comment(landing.bug, err)
+                    raise AbortError(err)
                 trypush.TryPush.create(lock,
                                        landing,
                                        hacks=False,
@@ -944,7 +950,13 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
 
         if not try_push.stability:
             update_metadata(sync, try_push)
-            sync.gecko_rebase(sync.gecko_landing_branch())
+            try:
+                sync.gecko_rebase(sync.gecko_landing_branch())
+            except git.GitCommandError as e:
+                err = "Rebase failed:\n%s" % e
+                logger.error(err)
+                env.bz.comment(sync.bug, err)
+                raise AbortError(err)
             trypush.TryPush.create(sync._lock,
                                    sync,
                                    hacks=False,
