@@ -348,6 +348,10 @@ class UpstreamSync(SyncProcess):
                     # If all the local commits are represented upstream, everything is
                     # fine and close out the sync. Otherwise we have a problem.
                     if len(self.upstreamed_gecko_commits) == len(self.gecko_commits):
+
+                        if self.status not in ("wpt-merged", "complete"):
+                            env.bz.comment(self.bug, "Upstream PR merged")
+
                         self.finish()
                     else:
                         # It's unclear what to do in this case, so mark the sync for manual
@@ -950,7 +954,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
             sync.merge_sha = merge_sha
             if not sync.wpt_commits and base_sha:
                 sync.set_wpt_base(base_sha)
-            if sync.status != "complete":
+            if sync.status not in ("complete", "wpt-merged"):
                 env.bz.comment(sync.bug, "Upstream PR merged")
                 sync.finish("wpt-merged")
     elif action == "reopened" or action == "open":
