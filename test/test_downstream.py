@@ -356,3 +356,16 @@ Cq-Include-Trybots: luci.chromium.try\u200B:android_optional_gpu_tests_rel;"""
                    u"master.tryserver.chromium.linux:linux_mojo;"
                    u"master.tryserver.chromium.mac:ios-simulator-cronet;"
                    u"master.tryserver.chromium.mac:ios-simulator-full-configs")
+
+
+def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
+    pr = pull_request([("Testing", {"README": "Example change\n"})],
+                      "Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            sync.error = "Infrastructure Failed"
+
+    assert env.gh_wpt.get_pull(pr["number"])['labels'] == ['mozilla:gecko-blocked']
