@@ -533,27 +533,26 @@ class DownstreamSync(SyncProcess):
             def rebase_apply():
                 logger.info("Applying with a rebase onto latest inbound")
                 new_base = self.gecko_integration_branch()
-                if len(self.gecko_commits) > 0:
-                    gecko_work = self.gecko_worktree.get()
-                    if self.gecko_commits[0].metadata["wpt-type"] == "dependent":
-                        # If we have any dependent commits first reset to the new
-                        # head. This prevents conflicts if the dependents already
-                        # landed
-                        # TODO: Actually check if they landed?
-                        reset_head = new_base
-                    else:
-                        reset_head = "HEAD"
-                    gecko_work.git.reset(reset_head, hard=True)
+                gecko_work = self.gecko_worktree.get()
+                reset_head = "HEAD"
+                if (len(self.gecko_commits) > 0 and
+                    self.gecko_commits[0].metadata["wpt-type"] == "dependent"):
+                    # If we have any dependent commits first reset to the new
+                    # head. This prevents conflicts if the dependents already
+                    # landed
+                    # TODO: Actually check if they landed?
+                    reset_head = new_base
+                gecko_work.git.reset(reset_head, hard=True)
+                try:
+                    self.gecko_rebase(new_base)
+                except git.GitCommandError:
                     try:
-                        self.gecko_rebase(new_base)
+                        gecko_work.git.rebase(abort=True)
                     except git.GitCommandError:
-                        try:
-                            gecko_work.git.rebase(abort=True)
-                        except git.GitCommandError:
-                            pass
-                        raise AbortError("Rebasing onto latest gecko failed")
-                    self.wpt_to_gecko_commits(base=new_base)
-                    return True
+                        pass
+                    raise AbortError("Rebasing onto latest gecko failed")
+                self.wpt_to_gecko_commits(base=new_base)
+                return True
 
             def dependents_apply():
                 logger.info("Applying with upstream dependents")
