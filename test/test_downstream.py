@@ -369,3 +369,9 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
             sync.error = "Infrastructure Failed"
 
     assert env.gh_wpt.get_pull(pr["number"])['labels'] == ['mozilla:gecko-blocked']
+
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            sync.update_commits()
+
+    assert env.gh_wpt.get_pull(pr["number"])['labels'] == []
