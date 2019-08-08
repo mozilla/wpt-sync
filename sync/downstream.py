@@ -121,6 +121,15 @@ class DownstreamSync(SyncProcess):
         merged unless it happens to be a fast-forward"""
         return sync_commit.WptCommit(self.git_wpt, "origin/pr/%s" % self.pr)
 
+    @SyncProcess.error.setter
+    def error(self, value):
+        if self.pr:
+            if value is not None:
+                env.gh_wpt.add_labels(self.pr, "mozilla:gecko-blocked")
+            else:
+                env.gh_wpt.remove_labels(self.pr, "mozilla:gecko-blocked")
+        return SyncProcess.error.fset(self, value)
+
     @property
     def pr_status(self):
         return self.data.get("pr-status", "open")
