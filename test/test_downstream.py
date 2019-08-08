@@ -375,3 +375,4 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
             sync.update_commits()
 
     assert env.gh_wpt.get_pull(pr["number"])['labels'] == []
+
