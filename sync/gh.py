@@ -83,14 +83,10 @@ class GitHub(object):
         issue.add_to_labels(*labels)
 
     def remove_labels(self, pr_id, *labels):
+        logger.debug("Removing labels %s from PR %s" % (labels, pr_id))
         issue = self.repo.get_issue(pr_id)
         for label in labels:
-            self.remove_label(pr_id, label, issue=issue)
-
-    def remove_label(self, pr_id, label, issue=None):
-        logger.debug("Removing label %s from PR %s" % (label, pr_id))
-        issue = self.repo.get_issue(pr_id) if issue is None else issue
-        issue.remove_from_labels(label)
+            issue.remove_from_labels(label)
 
     @staticmethod
     def _summary_state(statuses):
@@ -359,13 +355,8 @@ class MockGitHub(GitHub):
         self.get_pull(pr_id)["labels"].extend(labels)
 
     def remove_labels(self, pr_id, *labels):
-        for label in labels:
-            self.remove_label(pr_id, label)
-
-    def remove_label(self, pr_id, label):
         pr = self.get_pull(pr_id)
-        if label in pr["labels"]:
-            pr["labels"].remove(label)
+        pr["labels"] = filter(lambda l: l not in labels, pr["labels"])
 
     def get_combined_status(self, pr_id, exclude=None):
         if exclude is None:
