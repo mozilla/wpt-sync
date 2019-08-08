@@ -346,7 +346,7 @@ def lookup_index(index_name):
     task_id = idx.get("taskId")
     if task_id:
         return task_id
-    logger.warning("Task not found from index: %s" % (index_name, idx.get("message", "")))
+    logger.warning("Task not found from index: %s\n%s" % (index_name, idx.get("message", "")))
     return task_id
 
 
