@@ -34,15 +34,15 @@ RUN set -eux; \
 
 RUN set -eux; \
     count=0; \
-    until sudo apt-key adv --keyserver "hkps.pool.sks-keyservers.net" --recv-keys "0x6B73A36E6026DFCA" || [ $count -gt 2 ]; \
+    until sudo apt-key adv --keyserver "hkps.pool.sks-keyservers.net" --recv-keys "0x6B73A36E6026DFCA"; \
     do \
         count=$((count+1)); sleep 5; \
+        if [ $count -gt 2 ]; then \
+            echo "Failed to perform apt-key, FAILING"; \
+	    exit 1; \
+        fi; \
 	echo "apt-key adv Failed, trying again ($count/3)"; \
     done; \
-    if [ $count -gt 2 ]; then \
-        echo "Failed to perform apt-key, FAILING"; \
-	exit 1; \
-    fi; \
     wget -O - "https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc" | \
         sudo apt-key add - \
         ; \
