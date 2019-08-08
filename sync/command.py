@@ -510,23 +510,30 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
     import update
     from sync import LandableStatus
     from downstream import DownstreamAction, DownstreamSync
-    from landing import load_sync_point, landable_commits, unlanded_with_type
+    from landing import current, load_sync_point, landable_commits, unlanded_with_type
 
-    if kwargs["prev_wpt_head"] is None:
-        sync_point = load_sync_point(git_gecko, git_wpt)
-        prev_wpt_head = sync_point["upstream"]
-        print("Last sync was to commit %s" % sync_point["upstream"])
-    else:
+    current_landing = current(git_gecko, git_wpt)
+
+    if kwargs["prev_wpt_head"] is not None:
         prev_wpt_head = kwargs["prev_wpt_head"]
+    elif current_landing:
+        print("Current landing will update head to %s" % current_landing.wpt_commits.head.sha1)
+        prev_wpt_head = current_landing.wpt_commits.head.sha1
+    else:
+        sync_point = load_sync_point(git_gecko, git_wpt)
+        print("Last sync was to commit %s" % sync_point["upstream"])
+        prev_wpt_head = sync_point["upstream"]
+
     landable = landable_commits(git_gecko, git_wpt, prev_wpt_head,
                                 include_incomplete=kwargs["include_incomplete"])
 
     if landable is None:
-        print("Landing will not add any new commits")
+        print("Next landing will not add any new commits")
         wpt_head = None
     else:
         wpt_head, commits = landable
-        print("Landing will update wpt head to %s, adding %i new PRs" % (wpt_head, len(commits)))
+        print("Next landing will update wpt head to %s, adding %i new PRs" %
+              (wpt_head, len(commits)))
 
     if kwargs["all"] or kwargs["retrigger"]:
         unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
@@ -561,7 +568,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
     import errors
     import update
     import upstream
-    from landing import load_sync_point, unlanded_with_type
+    from landing import current, load_sync_point, unlanded_with_type
 
     update_repositories(git_gecko, git_wpt, True)
 
@@ -579,8 +586,12 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
 
     if kwargs["downstream"]:
         print("Retriggering downstream syncs on master")
-        sync_point = load_sync_point(git_gecko, git_wpt)
-        prev_wpt_head = sync_point["upstream"]
+        current_landing = current(git_gecko, git_wpt)
+        if current_landing is None:
+            sync_point = load_sync_point(git_gecko, git_wpt)
+            prev_wpt_head = sync_point["upstream"]
+        else:
+            prev_wpt_head = current_landing.wpt_commits.head.sha1
         unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
 
         errors = update.retrigger(git_gecko, git_wpt, unlandable)
