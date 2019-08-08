@@ -356,7 +356,7 @@ class MockGitHub(GitHub):
 
     def remove_labels(self, pr_id, *labels):
         pr = self.get_pull(pr_id)
-        pr["labels"] = filter(lambda l: l not in labels, pr["labels"])
+        pr["labels"] = [item for item in pr["labels"] if item not in labels]
 
     def get_combined_status(self, pr_id, exclude=None):
         if exclude is None:
