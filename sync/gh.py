@@ -6,6 +6,7 @@ import time
 import urlparse
 
 import github
+import newrelic
 import log
 from env import Environment
 
@@ -79,14 +80,29 @@ class GitHub(object):
 
     def add_labels(self, pr_id, *labels):
         logger.debug("Adding labels %s to PR %s" % (", ".join(labels), pr_id))
+        pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
         issue.add_to_labels(*labels)
 
     def remove_labels(self, pr_id, *labels):
         logger.debug("Removing labels %s from PR %s" % (labels, pr_id))
+        pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
         for label in labels:
-            issue.remove_from_labels(label)
+            try:
+                issue.remove_from_labels(label)
+            except github.GithubException as e:
+                if e.data["message"] != "Label does not exist":
+                    logger.warning("Error handling label removal: %s" % e)
+                    newrelic.agent.record_exception()
+
+    def _convert_pr_id(self, pr_id):
+        if not isinstance(pr_id, (int, long)):
+            try:
+                pr_id = int(pr_id)
+            except ValueError:
+                raise ValueError('PR ID is not a valid number')
+        return pr_id
 
     @staticmethod
     def _summary_state(statuses):
