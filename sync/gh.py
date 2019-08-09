@@ -6,6 +6,7 @@ import time
 import urlparse
 
 import github
+import newrelic
 import log
 from env import Environment
 
@@ -92,9 +93,8 @@ class GitHub(object):
                 issue.remove_from_labels(label)
             except github.GithubException as e:
                 if e.data["message"] != "Label does not exist":
-                    raise e
-                else:
-                    logger.warning("Tried to remove label %s that doesn't exist" % label)
+                    logger.warning("Error handling label removal: %s" % e)
+                    newrelic.agent.record_exception()
 
     def _convert_pr_id(self, pr_id):
         if not isinstance(pr_id, (int, long)):
