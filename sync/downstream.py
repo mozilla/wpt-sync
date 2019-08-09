@@ -24,7 +24,7 @@ import trypush
 import commit as sync_commit
 from base import entry_point
 from env import Environment
-from errors import AbortError
+from errors import AbortError, RetryableError
 from gitutils import update_repositories
 from lock import SyncLock, mut, constructor
 from projectutil import Mach, WPT
@@ -846,7 +846,11 @@ class DownstreamSync(SyncProcess):
 
         with try_push.as_mut(self._lock):
             try_tasks = complete_try_push.tasks()
-            complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False)
+            try:
+                complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False)
+            except RetryableError:
+                logger.warning("Downloading logs failed")
+                return
 
         msg = notify.get_msg(try_tasks.wpt_tasks, central_tasks)
         env.bz.comment(self.bug, msg)
