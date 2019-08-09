@@ -88,7 +88,13 @@ class GitHub(object):
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
         for label in labels:
-            issue.remove_from_labels(label)
+            try:
+                issue.remove_from_labels(label)
+            except github.GithubException as e:
+                if e.data["message"] != "Label does not exist":
+                    raise e
+                else:
+                    logger.warning("Tried to remove label %s that doesn't exist" % label)
 
     def _convert_pr_id(self, pr_id):
         if not isinstance(pr_id, (int, long)):
