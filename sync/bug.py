@@ -182,23 +182,31 @@ class BugContext(object):
     def __init__(self, bugzilla, bug_id):
         self.bugzilla = bugzilla
         self.bug = bugzilla._get_bug(bug_id)
-        self.dirty = False
+        self.dirty = set()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *args, **kwargs):
         if self.dirty:
-            self.bugzilla.put(self.bug)
-            self.dirty = False
+            # Apparently we can't add comments atomically with other changes
+            if "comment" in self.dirty:
+                self.dirty.remove("comment")
+                comment = self.bug._bug.pop("comment")
+                assert comment
+                self.bugzilla.bugzilla.request('bug/{}/comment'.format(self.bug._bug['id']),
+                                               method='POST', json={"comment": comment})
+            if self.dirty:
+                self.bugzilla.bugzilla.put(self.bug)
+            self.dirty = set()
 
     def __setitem__(self, name, value):
         self.bug._bug[name] = value
-        self.dirty = True
+        self.dirty.add(name)
 
     def needinfo(self, *requestees):
         if not requestees:
-            raise ValueError("Must provide one or more requestees")
+            return
         flags = []
         for requestee in requestees:
             flags.append({
@@ -210,7 +218,7 @@ class BugContext(object):
         if "flags" not in self.bug._bug:
             self.bug._bug["flags"] = []
         self.bug._bug["flags"].extend(flags)
-        self.dirty = True
+        self.dirty.add("flags")
 
 
 class MockBugzilla(Bugzilla):
