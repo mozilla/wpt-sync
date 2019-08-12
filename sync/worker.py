@@ -20,3 +20,6 @@ worker = celery.Celery('sync',
 
 worker.conf.worker_hijack_root_logger = False
 worker.conf.beat_schedule = beat_schedule
+worker.conf.broker_transport_options = {
+    "max_retries": 1,
+}

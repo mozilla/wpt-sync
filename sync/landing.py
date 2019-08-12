@@ -4,6 +4,7 @@ import shutil
 from collections import defaultdict
 
 import git
+from celery.exceptions import OperationalError
 
 import bug
 import bugcomponents
@@ -1056,6 +1057,10 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
                             sync.finish()
                             if not sync.results_notified:
                                 env.bz.comment(sync.bug, "Result changes from PR not available.")
+    try:
+        tasks.retrigger.apply_async()
+    except OperationalError:
+        logger.warning("Failed to retrigger failed task for %s " % sync.process_name)
 
 
 @entry_point("landing")
