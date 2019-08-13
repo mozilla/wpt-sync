@@ -69,6 +69,7 @@ class Bugzilla(object):
         self.bz_url = bz_url_from_api_url(self.api_url)
         self.bugzilla = bugsy.Bugsy(bugzilla_url=self.api_url,
                                     api_key=config["bugzilla"]["apikey"])
+        self.bugzilla.DEFAULT_SEARCH += ["flags"]
 
     def bug_ctx(self, bug_id):
         return BugContext(self, bug_id)
@@ -181,10 +182,20 @@ class Bugzilla(object):
 class BugContext(object):
     def __init__(self, bugzilla, bug_id):
         self.bugzilla = bugzilla
-        self.bug = bugzilla._get_bug(bug_id)
-        self.dirty = set()
+        self.bug_id = bug_id
+
+        # These are set to usable values when we enter the context manager
+        self.bug = None
+        self._comments = None
+        self.comment = None
+        self.dirty = None
 
     def __enter__(self):
+        self.bug = self.bugzilla._get_bug(self.bug_id)
+        self._comments = None
+        self.comment = None
+        self.dirty = set()
+
         return self
 
     def __exit__(self, *args, **kwargs):
@@ -198,26 +209,48 @@ class BugContext(object):
                                                method='POST', json={"comment": comment})
             if self.dirty:
                 self.bugzilla.bugzilla.put(self.bug)
-            self.dirty = set()
+
+        # Poison the object so it can't be used outside a context manager
+        self.bug = None
 
     def __setitem__(self, name, value):
+        if name == "comment":
+            return self.add_comment(value)
         self.bug._bug[name] = value
         self.dirty.add(name)
+
+    def add_comment(self, text, check_dupe=True):
+        if self.comment is not None:
+            raise ValueError("Can only set one comment per bug")
+        if check_dupe:
+            comments = self.get_comments()
+            for item in comments:
+                if item.text == text:
+                    return False
+        self.comment = text
+        self.dirty.add("comment")
+        return True
+
+    def get_comments(self):
+        if self._comments is None:
+            self._comments = self.bug.get_comments()
+        return self._comments
 
     def needinfo(self, *requestees):
         if not requestees:
             return
-        flags = []
+        flags = self.bug._bug.get("flags", [])
+        existing = {item["requestee"] for item in flags
+                    if item["name"] == "needinfo" and
+                    item["status"] == "?"}
         for requestee in requestees:
-            flags.append({
-                'name': 'needinfo',
-                'requestee': requestee,
-                'status': '?',
-                'new': 'true',
-            })
-        if "flags" not in self.bug._bug:
-            self.bug._bug["flags"] = []
-        self.bug._bug["flags"].extend(flags)
+            if requestee not in existing:
+                flags.append({
+                    'name': 'needinfo',
+                    'requestee': requestee,
+                    'status': '?',
+                })
+        self.bug._bug["flags"] = flags
         self.dirty.add("flags")
 
 
@@ -286,3 +319,11 @@ class MockBugContext(object):
     def needinfo(self, *requestees):
         for requestee in requestees:
             self.changes.append("Setting bug %s needinfo %s" % (self.bug_id, requestee))
+
+    def add_comment(self, text, check_dupe=True):
+        if self.comment is not None:
+            raise ValueError("Can only set one comment per bug")
+        self.comment = text
+
+    def get_comments(self):
+        return []
