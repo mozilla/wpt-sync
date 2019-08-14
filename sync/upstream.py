@@ -950,7 +950,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
 
 @entry_point("upstream")
 @mut('sync')
-def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
+def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None, merged_by=None):
     """Update the sync status for a PR event on github
 
     :param action string: Either a PR action or a PR status
@@ -967,5 +967,8 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None):
             if sync.status not in ("complete", "wpt-merged"):
                 env.bz.comment(sync.bug, "Upstream PR merged")
                 sync.finish("wpt-merged")
+            elif (sync.status == "wpt-merged" and
+                    merged_by == env.config["web-platform-tests"]["github"]["user"]):
+                env.bz.comment(sync.bug, "Upstream PR merged by me")
     elif action == "reopened" or action == "open":
         sync.pr_status = "open"

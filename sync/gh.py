@@ -420,6 +420,7 @@ class MockGitHub(GitHub):
         else:
             # TODO: raise the right kind of error here
             raise ValueError
+        pr["merged_by"] = {"login": env.config["web-platform-tests"]["github"]["user"]}
         self._log("Merged PR with id %s" % pr_id)
 
     def is_approved(self, pr_id):

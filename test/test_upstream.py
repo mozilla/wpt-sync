@@ -197,6 +197,18 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     pr = env.gh_wpt.get_pull(sync.pr)
     assert pr.merged
 
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            upstream.update_pr(git_gecko,
+                               git_wpt,
+                               sync,
+                               "closed",
+                               pr["merge_commit_sha"],
+                               '',
+                               pr["merged_by"]["login"])
+
+    assert env.bz.output.getvalue().strip().split('\n')[-1] == "Upstream PR merged by me"
+
 
 def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
                                      upstream_gecko_commit):

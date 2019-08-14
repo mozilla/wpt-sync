@@ -55,6 +55,7 @@ def handle_pr(git_gecko, git_wpt, event):
 
         merge_sha = (event["pull_request"]["merge_commit_sha"]
                      if event["pull_request"]["merged"] else None)
+        merged_by = (event["pull_request"]["merged_by"]["login"] if merge_sha else None)
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock):
                 update_func(git_gecko,
@@ -62,7 +63,8 @@ def handle_pr(git_gecko, git_wpt, event):
                             sync,
                             event["action"],
                             merge_sha,
-                            event["pull_request"]["base"]["sha"])
+                            event["pull_request"]["base"]["sha"],
+                            merged_by)
 
 
 def handle_status(git_gecko, git_wpt, event):

@@ -1047,7 +1047,7 @@ def pull_request_approved(git_gecko, git_wpt, sync):
 
 @entry_point("downstream")
 @mut('sync')
-def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha):
+def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=None):
     try:
         if action == "closed" and not merge_sha:
             sync.pr_status = "closed"
