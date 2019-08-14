@@ -207,7 +207,8 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
                                '',
                                pr["merged_by"]["login"])
 
-    assert env.bz.output.getvalue().strip().split('\n')[-1] == "Upstream PR merged by me"
+    user = env.config["web-platform-tests"]["github"]["user"]
+    assert env.bz.output.getvalue().strip().split('\n')[-1] == "Upstream PR merged by %s" % user
 
 
 def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
