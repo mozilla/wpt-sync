@@ -938,7 +938,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
                    details)
             with env.bz.bug_ctx(sync.bug) as bug:
                 bug["comment"] = msg
-                commit_author = sync.gecko_commits[0].author
+                commit_author = sync.gecko_commits[0].email
                 if commit_author:
                     bug.needinfo(commit_author)
             sync.error = "Checks failed"
