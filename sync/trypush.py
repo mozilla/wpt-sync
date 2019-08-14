@@ -104,7 +104,7 @@ class TryFuzzyCommit(TryCommit):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
                                              hacks=hacks, **kwargs)
-        self.exclude = self.extra_args.get("exclude", ["pgo", "ccov", "macosx"])
+        self.exclude = self.extra_args.get("exclude", ["macosx", "shippable"])
         self.include = self.extra_args.get("include", ["web-platform-tests"])
 
     def create(self):

@@ -894,7 +894,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                                        landing,
                                        hacks=False,
                                        try_cls=trypush.TryFuzzyCommit,
-                                       exclude=["pgo", "ccov", "msvc"])
+                                       exclude=[])
             elif retry:
                 try:
                     landing.gecko_rebase(landing.gecko_integration_branch())
@@ -907,7 +907,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                                        landing,
                                        hacks=False,
                                        try_cls=trypush.TryFuzzyCommit,
-                                       exclude=["pgo", "ccov", "msvc"])
+                                       exclude=[])
             else:
                 logger.info("Got existing try push %s" % landing.latest_try_push)
 
@@ -963,7 +963,8 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                                    hacks=False,
                                    stability=True,
                                    rebuild_count=0,
-                                   try_cls=trypush.TryFuzzyCommit, exclude=["pgo", "ccov", "msvc"])
+                                   try_cls=trypush.TryFuzzyCommit,
+                                   exclude=[])
 
             try_push.status = "complete"
             return
