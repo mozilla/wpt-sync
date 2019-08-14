@@ -420,6 +420,8 @@ class UpstreamSync(SyncProcess):
 
             try:
                 merge_sha = env.gh_wpt.merge_pull(self.pr)
+                env.bz.comment(self.bug, "Upstream PR merged by %s" %
+                               env.config["web-platform-tests"]["github"]["user"])
             except GithubException as e:
                 msg = ("Merging PR %s failed.\nMessage: %s" %
                        (env.gh_wpt.pr_url(self.pr),
@@ -965,10 +967,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha=None, base_sha=None, m
             if not sync.wpt_commits and base_sha:
                 sync.set_wpt_base(base_sha)
             if sync.status not in ("complete", "wpt-merged"):
-                env.bz.comment(sync.bug, "Upstream PR merged")
+                env.bz.comment(sync.bug, "Upstream PR merged by %s" % merged_by)
                 sync.finish("wpt-merged")
-            elif (sync.status == "wpt-merged" and
-                    merged_by == env.config["web-platform-tests"]["github"]["user"]):
-                env.bz.comment(sync.bug, "Upstream PR merged by me")
     elif action == "reopened" or action == "open":
         sync.pr_status = "open"
