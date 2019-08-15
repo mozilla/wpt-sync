@@ -3,8 +3,9 @@ amqp==2.5.1 \
     --hash=sha256:19d851b879a471fcfdcf01df9936cff924f422baa77653289f7095dedd5fb26a
 backports.shutil-get-terminal-size==1.0.0 \
     --hash=sha256:0975ba55054c15e346944b38956a4c9cbee9009391e41b86c68990effb8c1f64
-billiard==3.6.0.0 \
-    --hash=sha256:756bf323f250db8bf88462cd042c992ba60d8f5e07fc5636c24ba7d6f4261d84
+billiard==3.6.1.0 \
+    --hash=sha256:01afcb4e7c4fd6480940cfbd4d9edc19d7a7509d6ada533984d0d0f49901ec82 \
+    --hash=sha256:b8809c74f648dfe69b973c8e660bcec00603758c9db8ba89d7719f88d5f01f26
 bugsy==0.10.1 \
     --hash=sha256:e42ef4a1f6f7e633bdb0f699b5f41ae94754101ca91682b376bd058478ef9456
 celery==4.3.0 \
