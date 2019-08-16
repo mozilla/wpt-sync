@@ -458,7 +458,7 @@ def get_wpt_report(task, session=None):
     if not os.path.exists(base_path):
         os.makedirs(base_path)
 
-    archive = path+'.gz'
+    archive = path + '.gz'
     get_task_artifacts(base_path, task, [archive], session, 5)
 
     path = os.path.join(base_path, task_id + "_" + path)

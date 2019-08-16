@@ -30,6 +30,7 @@ from lock import SyncLock, mut, constructor
 from projectutil import Mach, WPT
 from sync import LandableStatus, SyncProcess
 from trypush import TryPush
+from tc import TaskGroup, get_wpt_report
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -1057,6 +1058,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
         elif action == "closed":
             # We are storing the wpt base as a reference
             sync.data["wpt-base"] = base_sha
+            get_temporary_metadata(sync)
             sync.next_try_push()
             sync.try_notify()
         elif action == "reopened" or action == "open":
@@ -1069,3 +1071,17 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
     except Exception as e:
         sync.error = e
         raise
+
+
+def get_temporary_metadata(sync, ):
+    statuses = env.gh_wpt.get_combined_status(sync.pr)
+    for status in statuses:
+        if status.context == "Taskcluster (pull_request)":
+            taskgroup_id = status.target_url.split('/')[-1]
+            taskgroup = TaskGroup(taskgroup_id)
+            t_filter = lambda x: x['task']['metadata']['name'] == 'wpt-firefox-nightly-results'
+            tasks = taskgroup.view(filter_fn=t_filter)
+            if len(tasks) != 1:
+                logger.error("Error getting wpt_report from GH Taskcluster run")
+                return False
+            get_wpt_report(tasks[0])
