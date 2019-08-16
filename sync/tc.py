@@ -4,6 +4,7 @@ import shutil
 import time
 import traceback
 import uuid
+import gzip
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -443,3 +444,28 @@ def cleanup():
                 now - timedelta(days=5)):
                 logger.info("Removing downloaded logs without recent activity %s" % rev_path)
                 shutil.rmtree(rev_path)
+
+
+def get_wpt_report(task, session=None):
+    path = 'wpt_report.json'
+    task_id = task.get("status", {}).get("taskId")
+    if task_id is None:
+        logger.error("Task ID not found")
+    if session is None:
+        session = requests.Session()
+
+    base_path = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
+    if not os.path.exists(base_path):
+        os.makedirs(base_path)
+
+    archive = path+'.gz'
+    get_task_artifacts(base_path, task, [archive], session, 5)
+
+    path = os.path.join(base_path, task_id + "_" + path)
+    archive_path = os.path.join(base_path, task_id + "_" + archive)
+
+    with gzip.open(archive_path, 'rb') as f:
+        with open(path, 'wb') as outfile:
+            shutil.copyfileobj(f, outfile)
+
+    os.remove(archive_path)
