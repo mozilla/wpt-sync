@@ -7,6 +7,7 @@ import urlparse
 import bugsy
 
 from env import Environment
+from errors import RetryableError
 
 env = Environment()
 
@@ -158,6 +159,7 @@ class Bugzilla(object):
             logger.warning(traceback.format_exc())
         except Exception as e:
             logger.warning("Problem setting Bug %s Whiteboard: %s" % (bug.id, e))
+            raise RetryableError("Could not set whiteboard for Bug %s" % bug.id)
 
     def get_whiteboard(self, bug):
         if not isinstance(bug, bugsy.Bug):
