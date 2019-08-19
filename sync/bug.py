@@ -156,6 +156,8 @@ class Bugzilla(object):
             self.bugzilla.put(bug)
         except bugsy.errors.BugsyException:
             logger.warning(traceback.format_exc())
+        except Exception as e:
+            logger.warning("Problem setting Bug %s Whiteboard: %s" % (bug.id, e))
 
     def get_whiteboard(self, bug):
         if not isinstance(bug, bugsy.Bug):
