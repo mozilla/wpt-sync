@@ -3,7 +3,7 @@ from datetime import datetime
 
 import taskcluster
 
-from sync import downstream, handlers, load, tc, trypush
+from sync import downstream, handlers, load, tc, trypush, gh
 from sync.lock import SyncLock
 
 
@@ -375,3 +375,21 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
             sync.update_commits()
 
     assert env.gh_wpt.get_pull(pr["number"])['labels'] == []
+
+
+def test_gh_tc(env, git_gecko, git_wpt, pull_request):
+    pr = pull_request([("Testing", {"README": "Example change\n"})],
+                      "Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+
+    status = gh.AttrDict()
+    status['context'] = "Taskcluster (pull_request)"
+    status["target_url"] = "https://tools.taskcluster.net/groups/OriEwnoHT3qoNJ-OAybfLw"
+    status['state'] = "success"
+
+    env.gh_wpt.get_pull(sync.pr)["_commits"][0]["_statuses"] = [status]
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            downstream.get_temporary_metadata(sync)
