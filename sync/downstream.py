@@ -1073,15 +1073,23 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
         raise
 
 
-def get_temporary_metadata(sync, ):
-    statuses = env.gh_wpt.get_combined_status(sync.pr)
+def get_temporary_metadata(sync):
+    pr_id = sync.pr
+    _, statuses = env.gh_wpt.get_combined_status(pr_id)
     for status in statuses:
         if status.context == "Taskcluster (pull_request)":
-            taskgroup_id = status.target_url.split('/')[-1]
+            taskgroup_id = status.target_url.rsplit('/', 1)[1]
             taskgroup = TaskGroup(taskgroup_id)
-            t_filter = lambda x: x['task']['metadata']['name'] == 'wpt-firefox-nightly-results'
+            task_name = 'wpt-firefox-nightly-results'
+
+            def t_filter(x):
+                return x['task']['metadata']['name'] == task_name
             tasks = taskgroup.view(filter_fn=t_filter)
+
             if len(tasks) != 1:
-                logger.error("Error getting wpt_report from GH Taskcluster run")
+                logger.error("Could not find the TaskCluster task for %s" % task_name)
                 return False
-            get_wpt_report(tasks[0])
+            get_wpt_report(tasks, pr_id)
+            return True
+    else:
+        logger.warning("Could not find the temporary logs for %s" % sync.process_name)
