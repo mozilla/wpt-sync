@@ -1090,8 +1090,13 @@ def get_temporary_metadata(sync):
                 logger.error("Could not find the TaskCluster task for %s" % task_name)
                 return False
             get_wpt_report(tasks, pr_id)
-            log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
+            try:
+                log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
+            except KeyError:
+                logger.warning("Log path not found for downloaded logs from PR Taskcluster run")
+                return False
             sync.update_metadata([log_path])
             return True
     else:
         logger.warning("Could not find the temporary logs for %s" % sync.process_name)
+    return False
