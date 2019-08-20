@@ -94,6 +94,10 @@ class Bugzilla(object):
             except bugsy.BugsyException:
                 logger.error("Failed to retrieve bug with id %s" % bug_id)
                 return
+            except Exception as e:
+                logger.error("Failed to retrieve bug with id %s: %s" % (bug_id, e))
+                raise RetryableError
+
             self.bug_cache[bug_id] = bug
         return self.bug_cache[bug_id]
 
