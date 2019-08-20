@@ -69,7 +69,8 @@ class Bugzilla(object):
         self.bz_url = bz_url_from_api_url(self.api_url)
         self.bugzilla = bugsy.Bugsy(bugzilla_url=self.api_url,
                                     api_key=config["bugzilla"]["apikey"])
-        self.bugzilla.DEFAULT_SEARCH += ["flags"]
+        if "flags" not in self.bugzilla.DEFAULT_SEARCH:
+            self.bugzilla.DEFAULT_SEARCH += ["flags"]
 
     def bug_ctx(self, bug_id):
         return BugContext(self, bug_id)
