@@ -136,6 +136,12 @@
     name: merge.metamerge.driver
     value: ./mach wpt-metadata-merge %O %A %B %A || git-merge-file -q --marker-size=%L %A %O %B
 
+- name: chown git config
+  file:
+    path: "{{ mount_repos }}/gecko/config"
+    owner: wptsync
+    group: wptsync
+
 - name: ensure git mergedriver is configured in git attributes
   copy:
     src: "{{ host_config }}/gitattributes"
