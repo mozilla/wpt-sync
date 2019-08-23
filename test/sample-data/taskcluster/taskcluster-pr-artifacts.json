@@ -1,0 +1,28 @@
+{
+  "artifacts": [
+    {
+      "storageType": "reference",
+      "name": "public/logs/live.log",
+      "expires": "2020-08-15T14:02:17.074Z",
+      "contentType": "text/plain; charset=utf-8"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/logs/live_backing.log",
+      "expires": "2020-08-15T14:02:17.074Z",
+      "contentType": "text/plain; charset=utf-8"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/results/wpt_report.json.gz",
+      "expires": "2020-08-15T14:02:17.074Z",
+      "contentType": "application/octet-stream"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/results/wpt_screenshot.txt.gz",
+      "expires": "2020-08-15T14:02:17.074Z",
+      "contentType": "application/octet-stream"
+    }
+  ]
+}

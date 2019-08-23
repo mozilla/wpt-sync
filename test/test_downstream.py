@@ -1,7 +1,9 @@
+import os
 from mock import Mock, patch
 from datetime import datetime
 
 import taskcluster
+import requests_mock
 
 from sync import downstream, handlers, load, tc, trypush, gh
 from sync.lock import SyncLock
@@ -377,19 +379,41 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
     assert env.gh_wpt.get_pull(pr["number"])['labels'] == []
 
 
-def test_gh_tc(env, git_gecko, git_wpt, pull_request):
+def test_temporary_tc_metadata(env, git_gecko, git_wpt, pull_request, tc_response, mock_mach):
     pr = pull_request([("Testing", {"README": "Example change\n"})],
                       "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
 
+    taskgroup_id = "OriEwnoHT3qoNJ-OAybfLw"
+    task_id = "JmL2JTxITkG_j_9EmYQTBg"
     status = gh.AttrDict()
     status['context'] = "Taskcluster (pull_request)"
-    status["target_url"] = "https://tools.taskcluster.net/groups/OriEwnoHT3qoNJ-OAybfLw"
+    status["target_url"] = "https://tools.taskcluster.net/groups/%s" % taskgroup_id
     status['state'] = "success"
 
     env.gh_wpt.get_pull(sync.pr)["_commits"][0]["_statuses"] = [status]
-    with SyncLock.for_process(sync.process_name) as lock:
-        with sync.as_mut(lock):
+
+    pr_task = tc_response("taskcluster-pr-complete.json")
+    artifacts = tc_response("taskcluster-pr-artifacts.json")
+    archive = tc_response("wpt_report.json.gz")
+    artifacts_base_url = "%stask/%s/artifacts" % (tc.QUEUE_BASE, task_id)
+    artifact_url = "%s/public/results/wpt_report.json.gz" % artifacts_base_url
+
+    with SyncLock.for_process(sync.process_name) as lock, sync.as_mut(lock):
+        with pr_task as pr_resp, artifacts as art_resp, archive as art_download, \
+                requests_mock.Mocker() as m:
+            m.register_uri("GET", artifacts_base_url, body=art_resp)
+            m.register_uri("GET", artifact_url, body=art_download)
+            m.register_uri("GET", "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id),
+                           body=pr_resp)
             downstream.get_temporary_metadata(sync)
+
+    log_path = os.path.join(
+        env.config["root"],
+        env.config["paths"]["try_logs"],
+        "gh_wpt",
+        '1',
+        task_id + '_wpt_report.json')
+    assert os.path.exists(log_path)
