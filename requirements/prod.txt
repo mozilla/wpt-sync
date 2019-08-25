@@ -38,9 +38,9 @@ ipython==5.8.0 \
     --hash=sha256:37101b8cbe072fe17bff100bc03d096404e4a9a0357097aeb5b61677c042cab1 # pyup: <6.0.0
 ipython-genutils==0.2.0 \
     --hash=sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8
-kombu==4.6.3 \
-    --hash=sha256:55b71d3785def3470a16217fe0780f9e6f95e61bf9ad39ef8dce0177224eab77 \
-    --hash=sha256:eb365ea795cd7e629ba2f1f398e0c3ba354b91ef4de225ffdf6ab45fdfc7d581
+kombu==4.6.4 \
+    --hash=sha256:55274dc75eb3c3994538b0973a0fadddb236b698a4bc135b8aa4981e0a710b8f \
+    --hash=sha256:e5f0312dfb9011bebbf528ccaf118a6c2b5c3b8244451f08381fb23e7715809b
 mercurial==5.1 \
     --hash=sha256:6222d92d860e411e422b7dc58062132bc512fa52ec48a71143b40cab4be7c829 \
     --hash=sha256:e7db17cc2aaa37e32f5978f6808f55f3676d92d4c518d0edbaa49fafef929ec8 \
