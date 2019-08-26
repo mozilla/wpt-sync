@@ -412,12 +412,6 @@ class UpstreamSync(SyncProcess):
         elif not env.gh_wpt.is_mergeable(self.pr) and env.gh_wpt.is_approved(self.pr):
             msg = "Can't merge web-platform-tests PR because it has merge conflicts"
         else:
-            # First try to rebase the PR
-            try:
-                self.wpt_rebase("origin/master")
-            except AbortError:
-                msg = "Rebasing web-platform-tests PR branch onto origin/master failed"
-
             try:
                 merge_sha = env.gh_wpt.merge_pull(self.pr)
                 env.bz.comment(self.bug, "Upstream PR merged by %s" %
