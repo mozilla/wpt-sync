@@ -539,10 +539,13 @@ class ProcessData(object):
         return str(process_name)
 
     @classmethod
-    def load_by_obj(cls, repo, subtype, obj_id):
+    def load_by_obj(cls, repo, subtype, obj_id, seq_id=None):
         process_names = ProcessNameIndex(repo).get(cls.obj_type,
                                                    subtype,
                                                    obj_id)
+        if seq_id is not None:
+            process_names = {item for item in process_names
+                             if item.seq_id == int(seq_id)}
         return {cls(repo, process_name) for process_name in process_names}
 
     @classmethod

@@ -58,9 +58,7 @@ def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None, seq_id=None):
         "upstream": upstream.UpstreamSync
     }
     cls = cls_types[sync_type]
-    syncs = cls.load_by_obj(git_gecko, git_wpt, obj_id)
+    syncs = cls.load_by_obj(git_gecko, git_wpt, obj_id, seq_id=seq_id)
     if status:
         syncs = {sync for sync in syncs if sync.status == status}
-    if seq_id is not None:
-        syncs = {sync for sync in syncs if sync.seq_id == seq_id}
     return syncs
