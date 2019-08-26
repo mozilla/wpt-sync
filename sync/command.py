@@ -371,11 +371,10 @@ def do_push(git_gecko, git_wpt, *args, **kwargs):
 def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     import trypush
     if kwargs["try"]:
-        objs = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id)
+        objs = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id,
+                                           seq_id=kwargs["seq_id"])
     else:
-        objs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
-    if kwargs["seq_id"]:
-        objs = [item for item in objs if str(item.process_name.seq_id) == kwargs["seq_id"]]
+        objs = get_syncs(git_gecko, git_wpt, sync_type, obj_id, seq_id=kwargs["seq_id"])
     if not kwargs["all"] and objs:
         objs = sorted(objs, key=lambda x: -int(x.process_name.seq_id))[:1]
     for obj in objs:
@@ -422,7 +421,8 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
     if obj_type == "try":
         objs = trypush.TryPush.load_by_obj(git_gecko,
                                            sync_type,
-                                           obj_id)
+                                           obj_id,
+                                           seq_id=kwargs["seq_id"])
     else:
         if sync_type == "upstream":
             cls = upstream.UpstreamSync
@@ -432,13 +432,11 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
             cls = landing.LandingSync
         objs = cls.load_by_obj(git_gecko,
                                git_wpt,
-                               obj_id)
+                               obj_id,
+                               seq_id=kwargs["seq_id"])
 
     if kwargs["old_status"] is not None:
         objs = {item for item in objs if item.status == kwargs["old_status"]}
-
-    if kwargs["seq_id"] is not None:
-        objs = {item for item in objs if item.process_name.seq_id == int(kwargs["seq_id"])}
 
     if not objs:
         logger.error("No matching syncs found")

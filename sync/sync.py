@@ -326,10 +326,13 @@ class SyncProcess(object):
         return rv
 
     @classmethod
-    def load_by_obj(cls, git_gecko, git_wpt, obj_id):
+    def load_by_obj(cls, git_gecko, git_wpt, obj_id, seq_id=None):
         process_names = ProcessNameIndex(git_gecko).get(cls.obj_type,
                                                         cls.sync_type,
                                                         str(obj_id))
+        if seq_id is not None:
+            process_names = {item for item in process_names
+                             if item.seq_id == int(seq_id)}
         return {cls(git_gecko, git_wpt, process_name) for process_name in process_names}
 
     @classmethod

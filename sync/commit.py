@@ -430,8 +430,7 @@ class GeckoCommit(Commit):
                 seq_id = None
             else:
                 seq_id = int(seq_id)
-            syncs = upstream.UpstreamSync.load_by_obj(git_gecko, git_wpt, bug)
-            syncs = {item for item in syncs if item.seq_id == seq_id}
+            syncs = upstream.UpstreamSync.load_by_obj(git_gecko, git_wpt, bug, seq_id=seq_id)
             assert len(syncs) <= 1
             if syncs:
                 return syncs.pop()
