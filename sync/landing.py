@@ -573,7 +573,7 @@ MANUAL PUSH: wpt sync bot
         gecko_work = self.gecko_worktree.get()
         mach = Mach(gecko_work.working_dir)
         logger.info("Updating metadata from %s logs" % len(log_files))
-        args = []
+        args = ["--full"]
         if update_intermittents:
             help_text = mach.wpt_update("--help")
             if "--update-intermittent " in help_text:
