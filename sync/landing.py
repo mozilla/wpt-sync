@@ -236,10 +236,19 @@ Automatic update from web-platform-tests\n%s
         # If this is originally an UpstreamSync and no new changes were introduced to the GH PR
         # then we can safely skip and not need to re-apply these changes. Compare the hash of
         # the upstreamed gecko commits against the final hash in the PR.
-        if (isinstance(sync, upstream.UpstreamSync) and
-            sync.wpt_commits.head.sha1 == sync.pr_head):
-            logger.info("Upstream sync doesn't introduce any gecko changes")
-            return
+        if isinstance(sync, upstream.UpstreamSync):
+            commit_is_local = False
+            pr_head = sync.pr_head
+            if sync.wpt_commits.head.sha1 == pr_head:
+                commit_is_local = True
+            else:
+                # Check if we rebased locally without pushing the rebase;
+                # this is a thing we used to do to check the PR would merge
+                ref_log = sync.git_wpt.refs[sync.branch_name].log()
+                commit_is_local = any(entry.newhexsha == pr_head for entry in ref_log)
+            if commit_is_local:
+                logger.info("Upstream sync doesn't introduce any gecko changes")
+                return
 
         if copy:
             commit = self.copy_pr(git_work_gecko, git_work_wpt, pr, wpt_commits,
