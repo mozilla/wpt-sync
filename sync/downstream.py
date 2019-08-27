@@ -946,6 +946,10 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
             sync.update_commits()
             sync.update_github_check()
             return
+
+        if context == "Taskcluster (pull_request)" and status == "success":
+            get_temporary_metadata(sync)
+
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
         if check_state == "success":
