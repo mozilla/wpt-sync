@@ -653,6 +653,7 @@ class SyncProcess(object):
         # TODO: cancel related try pushes &c.
         logger.info("Marking sync %s as %s" % (self.process_name, status))
         self.status = status
+        self.error = None
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
         for repo in [self.git_gecko, self.git_wpt]:
