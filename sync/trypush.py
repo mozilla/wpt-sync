@@ -106,6 +106,7 @@ class TryFuzzyCommit(TryCommit):
                                              hacks=hacks, **kwargs)
         self.exclude = self.extra_args.get("exclude", ["macosx", "shippable"])
         self.include = self.extra_args.get("include", ["web-platform-tests"])
+        self.full = self.extra_args.get("full", False)
 
     def create(self):
         if self.hacks:
@@ -138,6 +139,8 @@ class TryFuzzyCommit(TryCommit):
         if self.rebuild:
             args.append("--rebuild")
             args.append(str(self.rebuild))
+        if self.full:
+            args.append("--full")
 
         if self.tests_by_type is not None:
             paths = []
