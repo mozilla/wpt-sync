@@ -59,8 +59,12 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     assert try_push.stability is False
     mach_command = mock_mach.get_log()[-1]
     assert mach_command["command"] == "mach"
-    assert mach_command["args"] == ("try", "fuzzy", "-q", "web-platform-tests",
-                                    "--artifact")
+    assert mach_command["args"] == ("try",
+                                    "fuzzy",
+                                    "-q",
+                                    "web-platform-tests !-fis- !devedition !ccov",
+                                    "--artifact",
+                                    "--full")
 
 
 def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
