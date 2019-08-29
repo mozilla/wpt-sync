@@ -615,6 +615,33 @@ MANUAL PUSH: wpt sync bot
                                                "mozilla-sync")])
             self.update_landing_commit()
 
+    @mut()
+    def next_try_push(self, retry=False):
+        if self.status != "open":
+            return
+
+        latest_try_push = self.latest_try_push
+        stability = False
+
+        if latest_try_push:
+            if latest_try_push.status != "complete":
+                return
+            elif latest_try_push.stability and not retry:
+                return
+
+        if retry:
+            stability = latest_try_push.stability
+        else:
+            stability = latest_try_push is not None
+
+        trypush.TryPush.create(self._lock,
+                               self,
+                               hacks=False,
+                               stability=stability,
+                               rebuild_count=0,
+                               try_cls=trypush.TryFuzzyCommit,
+                               exclude=[])
+
 
 def push(landing):
     """Push from git_work_gecko to inbound."""
@@ -899,12 +926,10 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
             landing.update_sync_point(sync_point)
 
             if landing.latest_try_push is None:
-                trypush.TryPush.create(lock,
-                                       landing,
-                                       hacks=False,
-                                       try_cls=trypush.TryFuzzyCommit,
-                                       exclude=[])
+                landing.next_try_push()
             elif retry:
+                with landing.latest_try_push.as_mut(lock):
+                    landing.latest_try_push.status = "complete"
                 try:
                     landing.gecko_rebase(landing.gecko_integration_branch())
                 except git.GitCommandError as e:
@@ -912,11 +937,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                     logger.error(err)
                     env.bz.comment(landing.bug, err)
                     raise AbortError(err)
-                trypush.TryPush.create(lock,
-                                       landing,
-                                       hacks=False,
-                                       try_cls=trypush.TryFuzzyCommit,
-                                       exclude=[])
+                landing.next_try_push(retry=True)
             else:
                 logger.info("Got existing try push %s" % landing.latest_try_push)
 
@@ -967,15 +988,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                 logger.error(err)
                 env.bz.comment(sync.bug, err)
                 raise AbortError(err)
-            trypush.TryPush.create(sync._lock,
-                                   sync,
-                                   hacks=False,
-                                   stability=True,
-                                   rebuild_count=0,
-                                   try_cls=trypush.TryFuzzyCommit,
-                                   exclude=[])
 
             try_push.status = "complete"
+            sync.next_try_push()
             return
         else:
             retriggered = tasks.retriggered_wpt_states()
