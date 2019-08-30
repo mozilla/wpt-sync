@@ -379,7 +379,7 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
     assert env.gh_wpt.get_pull(pr["number"])['labels'] == []
 
 
-def test_temporary_tc_metadata(env, git_gecko, git_wpt, pull_request, tc_response, mock_mach):
+def test_gh_metadata(env, git_gecko, git_wpt, pull_request, tc_response, mock_mach):
     pr = pull_request([("Testing", {"README": "Example change\n"})],
                       "Test PR")
 
@@ -408,7 +408,7 @@ def test_temporary_tc_metadata(env, git_gecko, git_wpt, pull_request, tc_respons
             m.register_uri("GET", artifact_url, body=art_download)
             m.register_uri("GET", "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id),
                            body=pr_resp)
-            downstream.get_temporary_metadata(sync)
+            sync.get_gh_metadata()
 
     log_path = os.path.join(
         env.config["root"],

@@ -812,6 +812,35 @@ class DownstreamSync(SyncProcess):
 
         return disabled
 
+    def get_gh_metadata(self):
+        pr_id = self.pr
+        _, statuses = env.gh_wpt.get_combined_status(pr_id)
+        for status in statuses:
+            if status.context == env.config['web-platform-tests']['ci']['context']:
+                taskgroup_id = status.target_url.rsplit('/', 1)[1]
+                taskgroup = TaskGroup(taskgroup_id)
+                task_name = 'wpt-firefox-nightly-results'
+
+                def t_filter(x):
+                    return x['task']['metadata']['name'] == task_name
+
+                tasks = taskgroup.view(filter_fn=t_filter)
+
+                if len(tasks) != 1:
+                    logger.error("Could not find the TaskCluster task for %s" % task_name)
+                    return False
+                get_wpt_report(tasks, pr_id)
+                try:
+                    log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
+                except KeyError:
+                    logger.warning("Log path not found for downloaded logs from PR Taskcluster run")
+                    return False
+                self.update_metadata([log_path])
+                return True
+        else:
+            logger.warning("Could not find the temporary logs for %s" % self.process_name)
+        return False
+
     @mut()
     def try_notify(self):
         if self.results_notified:
@@ -947,8 +976,8 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
             sync.update_github_check()
             return
 
-        if context == "Taskcluster (pull_request)" and status == "success":
-            get_temporary_metadata(sync)
+        if context == env.config['web-platform-tests']['ci']['context'] and status == "success":
+            sync.get_gh_metadata()
 
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
@@ -1062,7 +1091,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
         elif action == "closed":
             # We are storing the wpt base as a reference
             sync.data["wpt-base"] = base_sha
-            get_temporary_metadata(sync)
+            sync.get_gh_metadata()
             sync.next_try_push()
             sync.try_notify()
         elif action == "reopened" or action == "open":
@@ -1075,32 +1104,3 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
     except Exception as e:
         sync.error = e
         raise
-
-
-def get_temporary_metadata(sync):
-    pr_id = sync.pr
-    _, statuses = env.gh_wpt.get_combined_status(pr_id)
-    for status in statuses:
-        if status.context == "Taskcluster (pull_request)":
-            taskgroup_id = status.target_url.rsplit('/', 1)[1]
-            taskgroup = TaskGroup(taskgroup_id)
-            task_name = 'wpt-firefox-nightly-results'
-
-            def t_filter(x):
-                return x['task']['metadata']['name'] == task_name
-            tasks = taskgroup.view(filter_fn=t_filter)
-
-            if len(tasks) != 1:
-                logger.error("Could not find the TaskCluster task for %s" % task_name)
-                return False
-            get_wpt_report(tasks, pr_id)
-            try:
-                log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
-            except KeyError:
-                logger.warning("Log path not found for downloaded logs from PR Taskcluster run")
-                return False
-            sync.update_metadata([log_path])
-            return True
-    else:
-        logger.warning("Could not find the temporary logs for %s" % sync.process_name)
-    return False
