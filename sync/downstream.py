@@ -831,11 +831,14 @@ class DownstreamSync(SyncProcess):
                     return False
                 get_wpt_report(tasks, pr_id)
                 try:
-                    log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
+                    # TODO replace lines when update_metadata enabled
+                    # log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
+                    tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
                 except KeyError:
                     logger.warning("Log path not found for downloaded logs from PR Taskcluster run")
                     return False
-                self.update_metadata([log_path])
+                # TODO Disabled till we are sure it is working correctly
+                # self.update_metadata([log_path])
                 return True
         else:
             logger.warning("Could not find the temporary logs for %s" % self.process_name)
