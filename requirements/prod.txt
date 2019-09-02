@@ -34,6 +34,9 @@ GitPython==2.1.11 \
     --hash=sha256:563221e5a44369c6b79172f455584c9ebbb122a13368cc82cb4b5addff788f82 # pyup: <2.1.12
 idna==2.8 \
     --hash=sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c
+importlib-metadata==0.19 \
+    --hash=sha256:23d3d873e008a513952355379d93cbcab874c58f4f034ff657c7a87422fa64e8 \
+    --hash=sha256:80d2de76188eabfbfcf27e6a37342c2827801e59c4cc14b0371c56fed43820e3
 ipython==5.8.0 \
     --hash=sha256:37101b8cbe072fe17bff100bc03d096404e4a9a0357097aeb5b61677c042cab1 # pyup: <6.0.0
 ipython-genutils==0.2.0 \
