@@ -30,7 +30,7 @@ from lock import SyncLock, mut, constructor
 from projectutil import Mach, WPT
 from sync import LandableStatus, SyncProcess
 from trypush import TryPush
-from tc import TaskGroup, get_wpt_report
+from tc import TaskGroup
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -829,10 +829,18 @@ class DownstreamSync(SyncProcess):
                 if len(tasks) != 1:
                     logger.error("Could not find the TaskCluster task for %s" % task_name)
                     return False
-                get_wpt_report(tasks, pr_id)
+
+                tc_push = trypush.TcPush.for_taskgroup(self.git_gecko, taskgroup_id)
+                if tc_push is None:
+                    tc_push = trypush.TcPush.create(self._lock, self)
+
+                with tc_push.as_mut(self._lock):
+                    tc_push.taskgroup_id = taskgroup_id
+                    tc_push.download_logs(tasks)
+
                 try:
                     # TODO replace lines when update_metadata enabled
-                    # log_path = tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
+                    # log_path =tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
                     tasks.tasks[0]['status']['runs'][0]['_log_paths']['wpt_report.json']
                 except KeyError:
                     logger.warning("Log path not found for downloaded logs from PR Taskcluster run")

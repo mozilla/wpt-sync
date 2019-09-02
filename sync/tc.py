@@ -4,7 +4,6 @@ import shutil
 import time
 import traceback
 import uuid
-import gzip
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -444,38 +443,3 @@ def cleanup():
                 now - timedelta(days=5)):
                 logger.info("Removing downloaded logs without recent activity %s" % rev_path)
                 shutil.rmtree(rev_path)
-
-
-def get_wpt_report(tasks, pr_id, session=None):
-    filename = 'wpt_report.json'
-
-    if isinstance(pr_id, (int, long)):
-        pr_id = str(pr_id)
-    base_path = os.path.join(env.config["root"], env.config["paths"]["try_logs"], "gh_wpt", pr_id)
-
-    archive = filename + '.gz'
-    tasks.download_logs(base_path, [archive])
-
-    # Find the archive, decompress, and delete archive
-    task = tasks.tasks[0]
-    task_id = task.get('status', {}).get('taskId')
-    if not task_id:
-        logger.error("TaskCluster task not found for PR %s" % pr_id)
-        return
-    log_path = os.path.join(base_path, task_id + "_" + filename)
-    archive_path = os.path.join(base_path, task_id + "_" + archive)
-
-    # TODO maybe need to convert wpt_report to wptreport to be consistent with Try push versions?
-    with gzip.open(archive_path, 'rb') as f:
-        with open(log_path, 'wb') as outfile:
-            shutil.copyfileobj(f, outfile)
-    os.remove(archive_path)
-
-    runs = task.get('status', {}).get('runs', [])
-    if not runs:
-        logger.debug("No runs found for task %s" % task_id)
-        return
-    run = runs[-1]
-    assert run['_log_paths'][archive] == archive_path
-    del run['_log_paths'][archive]
-    run['_log_paths'][filename] = log_path
