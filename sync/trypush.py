@@ -192,6 +192,9 @@ class TryPush(base.ProcessData):
 
         if rebuild_count is None:
             rebuild_count = 0 if not stability else env.config['gecko']['try']['stability_count']
+            if not isinstance(rebuild_count, (int, long)):
+                logger.error("Could not find config for Stability rebuild count, using default 5")
+                rebuild_count = 5
         with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks,
                      **kwargs) as c:
             try_rev = c.push()
