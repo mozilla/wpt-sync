@@ -370,6 +370,13 @@ class UpstreamSync(SyncProcess):
         if not self.pr:
             self.create_pr()
 
+        self.set_landed_status()
+
+    def set_landed_status(self):
+        """
+        Set the status of the check on the GitHub commit upstream. This check
+        is used to tell if the code has been landed into Gecko.
+        """
         landed_status = "success" if self.gecko_landed() else "failure"
         logger.info("Setting landed status to %s" % landed_status)
         # TODO - Maybe ignore errors setting the status
@@ -388,6 +395,8 @@ class UpstreamSync(SyncProcess):
         if not self.gecko_landed():
             logger.info("Commits are not yet landed in gecko")
             return False
+        else:
+            self.set_landed_status()
 
         if not self.pr:
             logger.info("No upstream PR created")
