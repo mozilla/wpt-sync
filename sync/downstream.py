@@ -812,7 +812,14 @@ class DownstreamSync(SyncProcess):
 
         return disabled
 
+    @mut()
     def get_gh_metadata(self):
+        """
+        Retrieve the metadata from the upstream PR status checks. This will try to find the
+        Taskcluster run associated with this PR and download its logs.
+
+        :return: True if successful, False otherwise
+        """
         pr_id = self.pr
         _, statuses = env.gh_wpt.get_combined_status(pr_id)
         for status in statuses:
@@ -830,13 +837,7 @@ class DownstreamSync(SyncProcess):
                     logger.error("Could not find the TaskCluster task for %s" % task_name)
                     return False
 
-                tc_push = trypush.TcPush.for_taskgroup(self.git_gecko, taskgroup_id)
-                if tc_push is None:
-                    tc_push = trypush.TcPush.create(self._lock, self)
-
-                with tc_push.as_mut(self._lock):
-                    tc_push.taskgroup_id = taskgroup_id
-                    tc_push.download_logs(tasks)
+                trypush.download_upstream_logs(self, tasks)
 
                 try:
                     # TODO replace lines when update_metadata enabled

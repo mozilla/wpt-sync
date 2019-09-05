@@ -451,69 +451,49 @@ class TryPush(base.ProcessData):
                 idx.delete(key, data)
 
 
-class TcPush(TryPush):
-    @classmethod
-    @constructor(lambda args: (args["sync"].process_name.subtype,
-                               args["sync"].process_name.obj_id))
-    def create(cls, lock, sync, affected_tests=None, stability=False, hacks=True,
-               try_cls=TryFuzzyCommit, rebuild_count=None, check_open=True, **kwargs):
-        logger.info("Creating Tc object for PR %s" % sync.pr)
+@mut('sync')
+def download_upstream_logs(sync, tasks):
+    """
+    Download the logs from an upsteam Taskcluster run on a Github PR.
 
-        data = {
-            "gecko-head": sync.gecko_commits.head.sha1,
-            "wpt-head": sync.wpt_commits.head.sha1,
-            "status": "open",
-        }
-        process_name = base.ProcessName.with_seq_id(sync.git_gecko,
-                                                    cls.obj_type,
-                                                    sync.sync_type,
-                                                    getattr(sync, sync.obj_id))
+    :param sync: The sync that we wish to get upstream logs for
+    :param tasks: The TaskGroupView object of the tasks containing the log files
+    :return: The tasks with updated `_log_paths` entries for new logs per run
+    """
+    filename = 'wpt_report.json'
 
-        # This creates a ref for try/downstream/<pr>/<seq_id>, we probably don't want that
-        rv = super(TryPush, cls).create(lock, sync.git_gecko, process_name, data)
+    pr_id = sync.pr
+    if isinstance(pr_id, (int, long)):
+        pr_id = str(pr_id)
+    base_path = os.path.join(env.config["root"], env.config["paths"]["try_logs"], "gh_wpt", pr_id)
 
-        with rv.as_mut(lock):
-            rv.created = taskcluster.fromNowJSON("0 days")
-            rv.pr_id = str(sync.pr)
+    archive = filename + '.gz'
+    tasks.download_logs(base_path, [archive])
 
-        return rv
+    # Find the archive, decompress, and delete archive
+    task = tasks.tasks[0]
+    task_id = task.get('status', {}).get('taskId')
+    if not task_id:
+        logger.error("TaskCluster task not found for PR %s" % pr_id)
+        return
+    log_path = os.path.join(base_path, task_id + "_" + filename)
+    archive_path = os.path.join(base_path, task_id + "_" + archive)
 
-    def log_path(self):
-        return os.path.join(env.config["root"], env.config["paths"]["try_logs"],
-                            "gh_wpt", self.pr_id)
+    # TODO maybe need to convert wpt_report to wptreport to be consistent with Try push versions?
+    with gzip.open(archive_path, 'rb') as f:
+        with open(log_path, 'wb') as outfile:
+            shutil.copyfileobj(f, outfile)
+    os.remove(archive_path)
 
-    @mut()
-    def download_logs(self, tasks, session=None):
-        filename = 'wpt_report.json'
-        base_path = self.log_path()
-
-        archive = filename + '.gz'
-        tasks.download_logs(base_path, [archive])
-
-        # Find the archive, decompress, and delete archive
-        task = tasks.tasks[0]
-        task_id = task.get('status', {}).get('taskId')
-        if not task_id:
-            logger.error("TaskCluster task not found for PR %s" % self.pr_id)
-            return
-        log_path = os.path.join(base_path, task_id + "_" + filename)
-        archive_path = os.path.join(base_path, task_id + "_" + archive)
-
-        # TODO maybe need to convert wpt_report to wptreport to be consistent with Trypush versions
-        with gzip.open(archive_path, 'rb') as f:
-            with open(log_path, 'wb') as outfile:
-                shutil.copyfileobj(f, outfile)
-        os.remove(archive_path)
-
-        runs = task.get('status', {}).get('runs', [])
-        if not runs:
-            logger.debug("No runs found for task %s" % task_id)
-            return
-        run = runs[-1]
-        assert run['_log_paths'][archive] == archive_path
-        del run['_log_paths'][archive]
-        run['_log_paths'][filename] = log_path
-        return tasks
+    runs = task.get('status', {}).get('runs', [])
+    if not runs:
+        logger.debug("No runs found for task %s" % task_id)
+        return
+    run = runs[-1]
+    assert run['_log_paths'][archive] == archive_path
+    del run['_log_paths'][archive]
+    run['_log_paths'][filename] = log_path
+    return tasks
 
 
 class TryPushTasks(object):
