@@ -584,11 +584,7 @@ MANUAL PUSH: wpt sync bot
         logger.info("Updating metadata from %s logs" % len(log_files))
         args = ["--full"]
         if update_intermittents:
-            help_text = mach.wpt_update("--help")
-            if "--update-intermittent " in help_text:
-                args.append("--update-intermittent")
-            # We didn't use --stability here since it's unclear which
-            # bug it will be associated with
+            args.append("--update-intermittent")
         args.extend(log_files)
         mach.wpt_update(*args)
 
