@@ -214,10 +214,9 @@ class BugContext(object):
             # Apparently we can't add comments atomically with other changes
             if "comment" in self.dirty:
                 self.dirty.remove("comment")
-                comment = self.bug._bug.pop("comment")
-                assert comment
-                self.bugzilla.bugzilla.request('bug/{}/comment'.format(self.bug._bug['id']),
-                                               method='POST', json={"comment": comment})
+                if self.comment is not None:
+                    self.bugzilla.bugzilla.request('bug/{}/comment'.format(self.bug._bug['id']),
+                                                   method='POST', json={"comment": self.comment})
             if self.dirty:
                 self.bugzilla.bugzilla.put(self.bug)
 
