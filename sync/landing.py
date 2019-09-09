@@ -628,7 +628,8 @@ MANUAL PUSH: wpt sync bot
         if retry:
             stability = latest_try_push.stability
         else:
-            stability = latest_try_push is not None
+            stability = (latest_try_push is not None and
+                         not latest_try_push.infra_fail)
 
         trypush.TryPush.create(self._lock,
                                self,
@@ -956,8 +957,15 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                       accept_failures=False, tasks=None):
     intermittents = []
 
-    if not accept_failures and try_push.status == "complete":
-        return
+    if try_push.status == "complete":
+        if not accept_failures and not try_push.infra_fail:
+            logger.info("Previous try push had failures, run with either --accept-failures "
+                        "or --retry")
+            return
+        elif try_push.infra_fail:
+            logger.info("Previous try push had an infra failure, retrying")
+            sync.next_try_push(retry=True)
+            return
 
     if tasks is None:
         tasks = try_push.tasks()
