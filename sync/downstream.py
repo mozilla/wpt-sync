@@ -8,6 +8,7 @@ from __future__ import print_function
 
 import os
 import re
+import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime
@@ -758,7 +759,11 @@ class DownstreamSync(SyncProcess):
             if revish:
                 args.append(revish)
             logger.info("Getting a list of tests affected by changes.")
-            output = self.wpt.tests_affected(*args)
+            try:
+                output = self.wpt.tests_affected(*args)
+            except subprocess.CalledProcessError:
+                logger.error("Calling wpt tests-affected failed")
+                return tests_by_type
             if output:
                 for item in output.strip().split("\n"):
                     path, test_type = item.strip().split("\t")
