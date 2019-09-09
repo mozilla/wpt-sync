@@ -13,8 +13,6 @@ import types
 
 import newrelic
 
-from .errors import AbortError
-
 logger = logging.getLogger(__name__)
 
 
@@ -43,8 +41,9 @@ class Command(object):
         except subprocess.CalledProcessError as e:
             newrelic.agent.record_exception(params={
                 "command": self.name,
+                "exit_code": e.returncode,
                 "command_output": e.output})
-            raise AbortError("Problem running '%s' command" % self.name)
+            raise e
 
     def __getattr__(self, name):
         if name.endswith("_"):
