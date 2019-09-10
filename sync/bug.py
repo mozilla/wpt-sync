@@ -14,6 +14,8 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
+max_comment_length = 65535
+
 # Hack because bugsy has an incomplete list of statuses
 if "REOPENED" not in bugsy.bug.VALID_STATUS:
     bugsy.bug.VALID_STATUS.append("REOPENED")
@@ -63,6 +65,14 @@ def set_sync_data(whiteboard, subtype, status):
     return new
 
 
+def check_valid_comment(text):
+    if len(text) > max_comment_length:
+        # The maximum comment length is in "characters", not bytes
+        text = text[:max_comment_length - 3] + u"[\u2026]"
+        logger.error("Truncating comment that exceeds maximum length")
+    return text
+
+
 class Bugzilla(object):
     bug_cache = {}
 
@@ -109,6 +119,7 @@ class Bugzilla(object):
         if bug is None:
             logger.error("Failed to find bug %s to add comment:\n%s" % (bug_id, text))
             return
+        text = check_valid_comment(text)
         bug.add_comment(text)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
@@ -232,6 +243,7 @@ class BugContext(object):
     def add_comment(self, text, check_dupe=True):
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
+        text = check_valid_comment(text)
         if check_dupe:
             comments = self.get_comments()
             for item in comments:
