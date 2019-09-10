@@ -813,7 +813,7 @@ class DownstreamSync(SyncProcess):
         return disabled
 
     @mut()
-    def get_gh_metadata(self):
+    def download_upstream_logs(self):
         """
         Retrieve the metadata from the upstream PR status checks. This will try to find the
         Taskcluster run associated with this PR and download its logs.
@@ -989,7 +989,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
             return
 
         if context == env.config['web-platform-tests']['ci']['context'] and status == "success":
-            sync.get_gh_metadata()
+            sync.download_upstream_logs()
 
         check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
         sync.last_pr_check = {"state": check_state, "sha": head_sha}
@@ -1103,7 +1103,7 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
         elif action == "closed":
             # We are storing the wpt base as a reference
             sync.data["wpt-base"] = base_sha
-            sync.get_gh_metadata()
+            sync.download_upstream_logs()
             sync.next_try_push()
             sync.try_notify()
         elif action == "reopened" or action == "open":

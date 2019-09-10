@@ -408,7 +408,7 @@ def test_gh_metadata(env, git_gecko, git_wpt, pull_request, tc_response, mock_ma
             m.register_uri("GET", artifact_url, body=art_download)
             m.register_uri("GET", "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id),
                            body=pr_resp)
-            sync.get_gh_metadata()
+            sync.download_upstream_logs()
 
     log_path = os.path.join(
         env.config["root"],
