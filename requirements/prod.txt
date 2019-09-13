@@ -17,9 +17,9 @@ chardet==3.0.4 \
     --hash=sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691
 cffi==1.12.3 \
     --hash=sha256:2444d0c61f03dcd26dbf7600cf64354376ee579acad77aef459e34efcb438c63
-configparser==4.0.1 \
-    --hash=sha256:296a9c0d0607f689f2a262d4ca3fa2b22146ac0acb07fd281125c86dee3bcf50 \
-    --hash=sha256:5e4c0d9de6ffc76f625eda1f5e28cec0700aed7cdacfe5070964df002ac02fec
+configparser==4.0.2 \
+    --hash=sha256:254c1d9c79f60c45dfde850850883d5aaa7f19a23f13561243a050d5a7c3fe4c \
+    --hash=sha256:c7d282687a5308319bf3d2e7706e575c635b0a470342641c93bea0ea3b5331df
 contextlib2==0.5.5 \
     --hash=sha256:f5260a6e679d2ff42ec91ec5252f4eeffdcf21053db9113bd0a8e4d953769c00
 decorator==4.4.0 \
