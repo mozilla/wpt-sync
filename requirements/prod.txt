@@ -10,16 +10,16 @@ bugsy==0.10.1 \
     --hash=sha256:e42ef4a1f6f7e633bdb0f699b5f41ae94754101ca91682b376bd058478ef9456
 celery==4.3.0 \
     --hash=sha256:528e56767ae7e43a16cfef24ee1062491f5754368d38fcfffa861cdb9ef219be
-certifi==2019.6.16 \
-    --hash=sha256:046832c04d4e752f37383b628bc601a7ea7211496b4638f6514d0e5b9acc4939 \
-    --hash=sha256:945e3ba63a0b9f577b1395204e13c3a231f9bc0223888be653286534e5873695
+certifi==2019.9.11 \
+    --hash=sha256:e4f3620cfea4f83eedc95b24abd9cd56f3c4b146dd0177e83a21b4eb49e21e50 \
+    --hash=sha256:fd7c7c74727ddcf00e9acd26bba8da604ffec95bf1c2144e67aff7a8b50e6cef
 chardet==3.0.4 \
     --hash=sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691
 cffi==1.12.3 \
     --hash=sha256:2444d0c61f03dcd26dbf7600cf64354376ee579acad77aef459e34efcb438c63
-configparser==4.0.1 \
-    --hash=sha256:296a9c0d0607f689f2a262d4ca3fa2b22146ac0acb07fd281125c86dee3bcf50 \
-    --hash=sha256:5e4c0d9de6ffc76f625eda1f5e28cec0700aed7cdacfe5070964df002ac02fec
+configparser==4.0.2 \
+    --hash=sha256:254c1d9c79f60c45dfde850850883d5aaa7f19a23f13561243a050d5a7c3fe4c \
+    --hash=sha256:c7d282687a5308319bf3d2e7706e575c635b0a470342641c93bea0ea3b5331df
 contextlib2==0.5.5 \
     --hash=sha256:f5260a6e679d2ff42ec91ec5252f4eeffdcf21053db9113bd0a8e4d953769c00
 decorator==4.4.0 \
@@ -40,9 +40,9 @@ GitPython==2.1.11 \
     --hash=sha256:563221e5a44369c6b79172f455584c9ebbb122a13368cc82cb4b5addff788f82 # pyup: <2.1.12
 idna==2.8 \
     --hash=sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c
-importlib-metadata==0.21 \
-    --hash=sha256:0c505102757e7fa28b9f0958d8bc81301159dea16e2649858c92edc158b78a83 \
-    --hash=sha256:9a9f75ce32e78170905888acbf2376a81d3f21ecb3bb4867050413411d3ca7a9
+importlib-metadata==0.22 \
+    --hash=sha256:652234b6ab8f2506ae58e528b6fbcc668831d3cc758e1bc01ef438d328b68cdb \
+    --hash=sha256:6f264986fb88042bc1f0535fa9a557e6a376cfe5679dc77caac7fe8b5d43d05f
 ipython==5.8.0 \
     --hash=sha256:37101b8cbe072fe17bff100bc03d096404e4a9a0357097aeb5b61677c042cab1 # pyup: <6.0.0
 ipython-genutils==0.2.0 \
