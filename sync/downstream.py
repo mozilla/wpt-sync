@@ -846,8 +846,6 @@ class DownstreamSync(SyncProcess):
                 except KeyError:
                     logger.warning("Log path not found for downloaded logs from PR Taskcluster run")
                     return False
-                # TODO Disabled till we are sure it is working correctly
-                # self.update_metadata([log_path])
                 return True
         else:
             logger.warning("Could not find the temporary logs for %s" % self.process_name)
