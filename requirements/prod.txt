@@ -20,8 +20,9 @@ cffi==1.12.3 \
 configparser==4.0.2 \
     --hash=sha256:254c1d9c79f60c45dfde850850883d5aaa7f19a23f13561243a050d5a7c3fe4c \
     --hash=sha256:c7d282687a5308319bf3d2e7706e575c635b0a470342641c93bea0ea3b5331df
-contextlib2==0.5.5 \
-    --hash=sha256:f5260a6e679d2ff42ec91ec5252f4eeffdcf21053db9113bd0a8e4d953769c00
+contextlib2==0.6.0 \
+    --hash=sha256:7197aa736777caac513dbd800944c209a49765bf1979b12b037dce0277077ed3 \
+    --hash=sha256:9d2c67f18c1f9b6db1b46317f7f784aa82789d2ee5dea5d9c0f0f2a764eb862e
 decorator==4.4.0 \
     --hash=sha256:f069f3a01830ca754ba5258fde2278454a0b5b79e0d7f5c13b3b97e57d4acff6
 Deprecated==1.2.6 \
@@ -40,9 +41,9 @@ GitPython==2.1.11 \
     --hash=sha256:563221e5a44369c6b79172f455584c9ebbb122a13368cc82cb4b5addff788f82 # pyup: <2.1.12
 idna==2.8 \
     --hash=sha256:ea8b7f6188e6fa117537c3df7da9fc686d485087abf6ac197f9c46432f7e4a3c
-importlib-metadata==0.22 \
-    --hash=sha256:652234b6ab8f2506ae58e528b6fbcc668831d3cc758e1bc01ef438d328b68cdb \
-    --hash=sha256:6f264986fb88042bc1f0535fa9a557e6a376cfe5679dc77caac7fe8b5d43d05f
+importlib-metadata==0.23 \
+    --hash=sha256:aa18d7378b00b40847790e7c27e11673d7fed219354109d0e7b9e5b25dc3ad26 \
+    --hash=sha256:d5f18a79777f3aa179c145737780282e27b508fc8fd688cb17c7a813e8bd39af
 ipython==5.8.0 \
     --hash=sha256:37101b8cbe072fe17bff100bc03d096404e4a9a0357097aeb5b61677c042cab1 # pyup: <6.0.0
 ipython-genutils==0.2.0 \
@@ -146,9 +147,9 @@ taskcluster-urls==11.0.0 \
     --hash=sha256:74bd2110b5daaebcec5e1d287bf137b61cb8cf6b2d8f5f2b74183e32bc4e7c87
 traitlets==4.3.2 \
     --hash=sha256:c6cb5e6f57c5a9bdaa40fa71ce7b4af30298fbab9ece9815b5d995ab6217c7d9
-urllib3==1.25.3 \
-    --hash=sha256:b246607a25ac80bedac05c6f282e3cdaf3afb65420fd024ac94435cabe6e18d1 \
-    --hash=sha256:dbe59173209418ae49d485b87d1681aefa36252ee85884c31346debd19463232
+urllib3==1.25.5 \
+    --hash=sha256:2f3eadfea5d92bc7899e75b5968410b749a054b492d5a6379c1344a1481bc2cb \
+    --hash=sha256:9c6c593cb28f52075016307fc26b0a0f8e82bc7d1ff19aaaa959b91710a56c47
 vine==1.3.0 \
     --hash=sha256:ea4947cc56d1fd6f2095c8d543ee25dad966f78692528e68b4fada11ba3f98af
 wcwidth==0.1.7 \
