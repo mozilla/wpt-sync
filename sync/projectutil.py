@@ -8,6 +8,7 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import os
+import shutil
 import subprocess
 import types
 
@@ -58,7 +59,19 @@ class Command(object):
 
 class Mach(Command):
     def __init__(self, path):
+        self.wpt_cache = os.path.join(os.path.expanduser("~"),
+                                      ".mozbuild",
+                                      "cache",
+                                      "wpt")
         Command.__init__(self, "mach", path)
+
+    def get(self, *subcommand, **opts):
+        try:
+            rv = super(Mach, self).get(*subcommand, **opts)
+        finally:
+            if os.path.exists(self.wpt_cache):
+                shutil.rmtree(self.wpt_cache)
+        return rv
 
 
 class WPT(Command):
