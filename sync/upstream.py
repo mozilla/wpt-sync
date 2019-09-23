@@ -395,12 +395,12 @@ class UpstreamSync(SyncProcess):
         if not self.gecko_landed():
             logger.info("Commits are not yet landed in gecko")
             return False
-        else:
-            self.set_landed_status()
 
         if not self.pr:
             logger.info("No upstream PR created")
             return False
+
+        self.set_landed_status()
 
         merge_sha = env.gh_wpt.merge_sha(self.pr)
         if merge_sha:
