@@ -159,30 +159,21 @@ class DownstreamSync(SyncProcess):
         latest_try_push = self.latest_valid_try_push
 
         if not latest_try_push:
-            logger.debug("Sync for PR %s has no valid try push" % self.pr)
-            return DownstreamAction.try_push
+            if self.requires_stability_try:
+                logger.debug("Sync for PR %s requires a stability try push" % self.pr)
+                pr = env.gh_wpt.get_pull(self.pr)
+                if pr.merged:  # Wait till PR is merged to push stability run
+                    return DownstreamAction.try_push_stability
+                return DownstreamAction.wait_approved
+            else:
+                return DownstreamAction.try_push
 
         if latest_try_push.status != "complete":
             return DownstreamAction.wait_try
-        if latest_try_push.infra_fail:
-            if len(self.latest_busted_try_pushes()) > 5:
-                return DownstreamAction.manual_fix
 
-            if not latest_try_push.stability:
-                logger.debug("Sync for PR %s has a try push, but it has an infra failure" % self.pr)
-                return DownstreamAction.try_push
-
-            # Don't worry about recreating stability try pushes for infra failures
-            return DownstreamAction.ready
-
-        if not latest_try_push.stability and self.requires_stability_try:
-            logger.debug("Sync for PR %s has a initial try push but requires a stability try push" %
-                         self.pr)
-            pr = env.gh_wpt.get_pull(self.pr)
-            pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
-            if pr_ready:
-                return DownstreamAction.try_push_stability
-            return DownstreamAction.wait_approved
+        # Don't worry about recreating stability try pushes for infra failures
+        if latest_try_push.infra_fail and len(self.latest_busted_try_pushes()) > 5:
+            return DownstreamAction.manual_fix
 
         return DownstreamAction.ready
 
@@ -277,14 +268,7 @@ class DownstreamSync(SyncProcess):
         self.affected_tests()
 
         action = self.next_action
-        if action == DownstreamAction.try_push:
-            return TryPush.create(self._lock,
-                                  self,
-                                  affected_tests=self.try_paths(),
-                                  stability=False,
-                                  hacks=False,
-                                  try_cls=try_cls)
-        elif action == DownstreamAction.try_push_stability:
+        if action == DownstreamAction.try_push_stability:
             return TryPush.create(self._lock,
                                   self,
                                   affected_tests=self.try_paths(),

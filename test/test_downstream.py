@@ -3,7 +3,7 @@ from datetime import datetime
 
 import taskcluster
 
-from sync import downstream, handlers, load, tc, trypush
+from sync import downstream, handlers, load, tc
 from sync.lock import SyncLock
 
 
@@ -156,19 +156,15 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
                 assert sync.requires_try
                 assert not sync.requires_stability_try
 
-                try_push = trypush.TryPush.create(lock, sync, try_cls=MockTryCls)
-                with try_push.as_mut(lock):
-                    try_push.status = "complete"
-
-                assert try_push.wpt_head == sync.wpt_commits.head.sha1
-
-                assert sync.metadata_ready
-                assert sync.next_try_push() is None
-
                 sync.data["affected-tests"] = {"testharness": ["example"]}
 
                 assert sync.requires_stability_try
                 assert not sync.metadata_ready
+
+                # The PR has not yet been merged, so no Try push should happen
+                assert sync.next_try_push() is None
+
+                pr.merged = True
 
                 new_try_push = sync.next_try_push(try_cls=MockTryCls)
                 assert new_try_push is not None
@@ -179,18 +175,6 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
                     new_try_push.status = "complete"
                 assert sync.metadata_ready
                 assert not sync.next_try_push()
-
-                pull_request_commit(pr.number, [("Second test commit",
-                                                 {"README": "Another change\n"})])
-                git_wpt.remotes.origin.fetch()
-
-                sync.update_commits()
-                assert sync.latest_try_push is not None
-                assert sync.latest_valid_try_push is None
-                assert not sync.metadata_ready
-
-                updated_try_push = sync.next_try_push(try_cls=MockTryCls)
-                assert not updated_try_push.stability
 
 
 def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
