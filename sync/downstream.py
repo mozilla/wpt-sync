@@ -1026,6 +1026,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 @entry_point("downstream")
 @mut('sync')
 def pull_request_approved(git_gecko, git_wpt, sync):
+    # We no longer run Try pushes when a GH PR has been approved, so this is sort of useless now.
     try:
         sync.next_try_push()
         sync.update_github_check()

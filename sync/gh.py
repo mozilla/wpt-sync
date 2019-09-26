@@ -374,6 +374,11 @@ class MockGitHub(GitHub):
         pr = self.get_pull(pr_id)
         pr["labels"] = [item for item in pr["labels"] if item not in labels]
 
+    def load_pull(self, data):
+        pr = self.get_pull(data["number"])
+        pr.merged = data["merged"]
+        pr.state = data["state"]
+
     def get_combined_status(self, pr_id, exclude=None):
         if exclude is None:
             exclude = set()

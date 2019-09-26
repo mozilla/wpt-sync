@@ -47,9 +47,7 @@ def test_wpt_pr_status_success(git_gecko, git_wpt, pull_request, set_pr_status,
             sync = set_pr_status(pr, "success")
         try_push = sync.latest_try_push
         assert sync.last_pr_check == {"state": "success", "sha": pr.head}
-        assert try_push is not None
-        assert try_push.status == "open"
-        assert try_push.stability is False
+        assert try_push is None  # No Try push for the status check passing.
 
 
 def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
@@ -66,7 +64,7 @@ def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
     assert sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
 
 
-def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
+def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
                          hg_gecko_try, mock_wpt, mock_tasks, mock_mach):
     mock_wpt.set_data("tests-affected", "")
 
@@ -81,27 +79,31 @@ def test_wpt_pr_approved(git_gecko, git_wpt, pull_request, set_pr_status,
             with sync.as_mut(lock):
                 sync.data["affected-tests"] = {"testharness": ["example"]}
 
-            try_push = sync.latest_try_push
-            with try_push.as_mut(lock):
-                try_push.taskgroup_id = "abcdef"
+            assert sync.latest_try_push is None
 
             assert sync.last_pr_check == {"state": "success", "sha": pr.head}
-            try_push.success = lambda: True
-
-            tasks = Mock(return_value=mock_tasks(completed=["foo", "bar"] * 5))
-            with patch.object(tc.TaskGroup, 'tasks', property(tasks)):
-                with sync.as_mut(lock), try_push.as_mut(lock):
-                    downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
-            assert try_push.status == "complete"
-            assert sync.latest_try_push == try_push
 
         pr._approved = True
         handlers.handle_pull_request_review(git_gecko, git_wpt,
                                             {"action": "submitted",
                                              "review": {"state": "approved"},
                                              "pull_request": {"number": pr.number}})
-        assert sync.latest_try_push != try_push
-        assert sync.latest_try_push.stability
+        # A Try push is not run after approval.
+        assert sync.latest_try_push is None
+
+        # If we 'merge' the PR, then we will see a stability try push
+        handlers.handle_pr(git_gecko, git_wpt,
+                           {"action": "closed",
+                            "number": pr.number,
+                            "pull_request": {
+                                "number": pr.number,
+                                "merge_commit_sha": "a" * 25,
+                                "base": {"sha": "b"*25},
+                                "merged": True,
+                                "state": "closed",
+                                "merged_by": {"login":"test_user"}}})
+        try_push = sync.latest_try_push
+        assert try_push.stability
 
 
 def test_revert_pr(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, pull_request_fn,
