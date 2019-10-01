@@ -98,10 +98,10 @@ def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
                             "pull_request": {
                                 "number": pr.number,
                                 "merge_commit_sha": "a" * 25,
-                                "base": {"sha": "b"*25},
+                                "base": {"sha": "b" * 25},
                                 "merged": True,
                                 "state": "closed",
-                                "merged_by": {"login":"test_user"}}})
+                                "merged_by": {"login": "test_user"}}})
         try_push = sync.latest_try_push
         assert try_push.stability
 
@@ -225,14 +225,19 @@ def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
                 assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
-def test_try_push_expiration(git_gecko, git_wpt, pull_request,
+def test_try_push_expiration(env, git_gecko, git_wpt, pull_request,
                              set_pr_status, MockTryCls, hg_gecko_try,
                              mock_mach):
     pr = pull_request([("Test commit", {"README": "Example change\n"})],
                       "Test PR")
     today = datetime.today().date()
-    with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
+    tree_patch = patch("sync.tree.is_open", Mock(return_value=True))
+    mach_patch = patch("sync.trypush.Mach", mock_mach)
+    metadata_patch = patch("sync.downstream.DownstreamSync.has_affected_tests_readonly",
+                           Mock(return_value=True))
+    with tree_patch, mach_patch, metadata_patch:
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+        env.gh_wpt.get_pull(pr.number).merged = True
         sync = set_pr_status(pr, "success")
     with SyncLock.for_process(sync.process_name) as lock:
         try_push = sync.latest_valid_try_push
