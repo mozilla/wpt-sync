@@ -179,7 +179,7 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
                 assert not sync.next_try_push()
 
 
-def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
+def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
                                   set_pr_status, MockTryCls, hg_gecko_try,
                                   mock_mach):
     pr = pull_request([("Test commit", {"README": "Example change\n"})],
@@ -187,42 +187,21 @@ def test_next_try_push_infra_fail(git_gecko, git_wpt, pull_request,
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         sync = set_pr_status(pr, "success")
+        env.gh_wpt.get_pull(sync.pr).merged = True
     with SyncLock.for_process(sync.process_name) as lock:
         with sync.as_mut(lock):
-            assert len(sync.try_pushes()) == 1
+            assert len(sync.try_pushes()) == 0
 
-            # no stability try push needed
-            sync.data["affected-tests"] = {}
+            sync.data["affected-tests"] = {"testharness": ["example"]}
 
-            try_push = sync.latest_valid_try_push
+            try_push = sync.next_try_push(try_cls=MockTryCls)
             with try_push.as_mut(lock):
                 try_push.status = "complete"
                 try_push.infra_fail = True
 
-            for i in range(4):
-                another_try_push = sync.next_try_push(try_cls=MockTryCls)
-                assert not sync.metadata_ready
-                assert another_try_push is not None
-                with another_try_push.as_mut(lock):
-                    another_try_push.infra_fail = True
-                    another_try_push.status = "complete"
-
-            assert len(sync.latest_busted_try_pushes()) == 5
-
-            with another_try_push.as_mut(lock):
-                another_try_push.infra_fail = False
-                # Now most recent try push isn't busted, so count goes back to 0
-                assert len(sync.latest_busted_try_pushes()) == 0
-                # Reset back to 5
-                another_try_push.infra_fail = True
-            # After sixth consecutive infra_failure, we should get sync error
-            another_try_push = sync.next_try_push(try_cls=MockTryCls)
-            with another_try_push.as_mut(lock):
-                another_try_push.infra_fail = True
-                another_try_push.status = "complete"
-                another_try_push = sync.next_try_push(try_cls=MockTryCls)
-                assert another_try_push is None
-                assert sync.next_action == downstream.DownstreamAction.manual_fix
+            # When the stability run has infra fail, we flag for human intervention
+            assert sync.next_action == downstream.DownstreamAction.manual_fix
+            assert sync.next_try_push(try_cls=MockTryCls) is None
 
 
 def test_try_push_expiration(env, git_gecko, git_wpt, pull_request,
