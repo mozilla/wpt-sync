@@ -377,6 +377,8 @@ class UpstreamSync(SyncProcess):
         Set the status of the check on the GitHub commit upstream. This check
         is used to tell if the code has been landed into Gecko.
         """
+        if not self.pr:
+            return
         landed_status = "success" if self.gecko_landed() else "failure"
         logger.info("Setting landed status to %s" % landed_status)
         # TODO - Maybe ignore errors setting the status
