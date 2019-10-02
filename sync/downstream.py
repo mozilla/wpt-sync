@@ -819,7 +819,7 @@ class DownstreamSync(SyncProcess):
 
         complete_try_push = None
         for try_push in sorted(self.try_pushes(), key=lambda x: -x.process_name.seq_id):
-            if try_push.status == "complete" and not try_push.stability:
+            if try_push.status == "complete":
                 complete_try_push = try_push
                 break
 
@@ -836,7 +836,8 @@ class DownstreamSync(SyncProcess):
         with try_push.as_mut(self._lock):
             try_tasks = complete_try_push.tasks()
             try:
-                complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False)
+                complete_try_push.download_logs(try_tasks.wpt_tasks, report=True,
+                                                raw=False, first_only=True)
             except RetryableError:
                 logger.warning("Downloading logs failed")
                 return
