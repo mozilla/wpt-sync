@@ -591,6 +591,9 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
             landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
             with sync.as_mut(sync_lock):
+                env.gh_wpt.get_pull(sync.pr).merged = True
+                sync.data["affected-tests"] = {"Example": "affected"}
+                sync.next_try_push()
                 sync.data["force-metadata-ready"] = True
 
             try_push = sync.latest_try_push
