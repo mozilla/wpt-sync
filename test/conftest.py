@@ -662,3 +662,14 @@ def tc_response():
             self._file = None
 
     return FileData
+
+
+@pytest.fixture
+def wptfyi_pr_results():
+    sha1 = "fcf424c168778e2eaf2a6ca31d19339e3e36beac"
+    path = os.path.join(here, "data", "wptfyi_pr_%s.json" % sha1)
+
+    with open(path) as f:
+        results = json.load(f)
+
+    return sha1, results
