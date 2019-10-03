@@ -188,20 +188,21 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         sync = set_pr_status(pr, "success")
         env.gh_wpt.get_pull(sync.pr).merged = True
-    with SyncLock.for_process(sync.process_name) as lock:
-        with sync.as_mut(lock):
-            assert len(sync.try_pushes()) == 0
 
-            sync.data["affected-tests"] = {"testharness": ["example"]}
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                assert len(sync.try_pushes()) == 0
 
-            try_push = sync.next_try_push(try_cls=MockTryCls)
-            with try_push.as_mut(lock):
-                try_push.status = "complete"
-                try_push.infra_fail = True
+                sync.data["affected-tests"] = {"testharness": ["example"]}
 
-            # When the stability run has infra fail, we flag for human intervention
-            assert sync.next_action == downstream.DownstreamAction.manual_fix
-            assert sync.next_try_push(try_cls=MockTryCls) is None
+                try_push = sync.next_try_push(try_cls=MockTryCls)
+                with try_push.as_mut(lock):
+                    try_push.status = "complete"
+                    try_push.infra_fail = True
+
+                # When the stability run has infra fail, we flag for human intervention
+                assert sync.next_action == downstream.DownstreamAction.manual_fix
+                assert sync.next_try_push(try_cls=MockTryCls) is None
 
 
 def test_try_push_expiration(env, git_gecko, git_wpt, pull_request,
