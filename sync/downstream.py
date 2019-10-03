@@ -43,7 +43,7 @@ class DownstreamAction(enum.Enum):
     try_push = 2
     try_push_stability = 3
     wait_try = 4
-    wait_approved = 5
+    wait_upstream = 5
 
     def reason_str(self):
         return {DownstreamAction.ready: "",
@@ -51,7 +51,7 @@ class DownstreamAction(enum.Enum):
                 DownstreamAction.try_push: "valid try push required",
                 DownstreamAction.try_push_stability: "stability try push required",
                 DownstreamAction.wait_try: "waiting for try to complete",
-                DownstreamAction.wait_approved: "waiting for PR to be approved"}.get(self, "")
+                DownstreamAction.wait_upstream: "waiting for PR to be merged"}.get(self, "")
 
 
 class DownstreamSync(SyncProcess):
@@ -158,25 +158,26 @@ class DownstreamSync(SyncProcess):
 
         latest_try_push = self.latest_valid_try_push
 
-        if not latest_try_push:
-            if self.requires_stability_try:
-                logger.debug("Sync for PR %s requires a stability try push" % self.pr)
-                pr = env.gh_wpt.get_pull(self.pr)
-                if pr.merged:  # Wait till PR is merged to push stability run
+        pr = env.gh_wpt.get_pull(self.pr)
+        if pr.merged:  # Wait till PR is merged to do anything
+            if not latest_try_push:
+                if self.requires_stability_try:
+                    logger.debug("Sync for PR %s requires a stability try push" % self.pr)
                     return DownstreamAction.try_push_stability
-                return DownstreamAction.wait_approved
-            else:
-                return DownstreamAction.try_push
+                else:
+                    return DownstreamAction.try_push
 
-        if latest_try_push.status != "complete":
-            return DownstreamAction.wait_try
+            if latest_try_push.status != "complete":
+                return DownstreamAction.wait_try
 
-        # If we have infra failure, flag for human intervention. Retrying stability runs would be
-        # very costly
-        if latest_try_push.infra_fail:
-            return DownstreamAction.manual_fix
+            # If we have infra failure, flag for human intervention. Retrying stability
+            # runs would be very costly
+            if latest_try_push.infra_fail:
+                return DownstreamAction.manual_fix
 
-        return DownstreamAction.ready
+            return DownstreamAction.ready
+        else:
+            return DownstreamAction.wait_upstream
 
     @property
     def metadata_ready(self):
@@ -269,7 +270,14 @@ class DownstreamSync(SyncProcess):
         self.affected_tests()
 
         action = self.next_action
-        if action == DownstreamAction.try_push_stability:
+        if action == DownstreamAction.try_push:
+            return TryPush.create(self._lock,
+                                  self,
+                                  affected_tests=self.try_paths(),
+                                  stability=False,
+                                  hacks=False,
+                                  try_cls=try_cls)
+        elif action == DownstreamAction.try_push_stability:
             return TryPush.create(self._lock,
                                   self,
                                   affected_tests=self.try_paths(),
