@@ -2,10 +2,11 @@ import json
 import os
 from collections import defaultdict
 
-import log
-import tc
-import commit as sync_commit
-from env import Environment
+from .. import log
+from .. import tc
+from .. import commit as sync_commit
+from ..env import Environment
+from ..errors import RetryableError
 
 logger = log.get_logger(__name__)
 
@@ -138,7 +139,10 @@ def get_msg(try_tasks, central_tasks):
     summary = get_summary(log_data)
     details = get_details(log_data)
 
-    return message(log_data.keys(), summary, details)
+    job_names = log_data.keys()
+    message_parts = [summary_message(job_names, summary)]
+    message_parts.extend(details_message(job_names, details))
+    return message_parts
 
 
 def get_summary(log_data):
@@ -228,24 +232,8 @@ def value_str(results, job_names, include_result=True):
     return value
 
 
-def message(job_names, summary, details):
-    # This is currently the number of codepoints, with the proviso that
-    # only BMP characters are supported
-    MAX_LENGTH = 65535
-
-    suffix = "\n(truncated for maximum comment length)"
-
-    message = summary_message(job_names, summary)
-    for part in details_message(job_names, details):
-        if len(message) + len(part) + 1 > MAX_LENGTH - len(suffix):
-            message += suffix
-            break
-        message += "\n" + part
-
-    return message
-
-
 def summary_message(job_names, summary):
+    heading = "## Gecko CI Results\n"
     parent_tests = summary["parent_tests"]
     parent_summary = "Ran %s tests" % value_str(parent_tests, job_names)
 
@@ -262,12 +250,13 @@ def summary_message(job_names, summary):
     for result in ["OK", "PASS", "CRASH", "FAIL", "TIMEOUT", "ERROR", "NOTRUN"]:
         if result in summary:
             result_data = summary[result]
-            results_summary.append("%s: %s" % (result.ljust(max_width),
-                                               value_str(result_data, job_names)))
+            results_summary.append("  %s: %s" % (result.ljust(max_width),
+                                                 value_str(result_data, job_names)))
 
-    return """%s%s
+    return """%s
+%s%s
 %s
-""" % (parent_summary, subtest_summary, "\n".join(results_summary))
+""" % (heading, parent_summary, subtest_summary, "\n".join(results_summary))
 
 
 def details_message(job_names, details):
@@ -276,12 +265,11 @@ def details_message(job_names, details):
     def new_results(results):
         return {k: v.new_result for k, v in results.iteritems()}
 
-    for key, intro, include_result in [("crash", "Tests that CRASH:", False),
-                                       ("worse_result", "Existing tests that now have a worse "
-                                        "result (e.g. they used to PASS and now FAIL):", True),
-                                       ("new_not_pass", "New tests that have failures "
-                                        "or other problems:", True),
-                                       ("disabled", "Tests that are disabled for instability:",
+    for key, intro, include_result in [("crash", "### Tests that CRASH", False),
+                                       ("worse_result", "### Existing tests that now have a worse "
+                                        "result", True),
+                                       ("new_not_pass", "### New tests that don't pass", True),
+                                       ("disabled", "### Tests that are disabled",
                                         False)]:
         part_parts = [intro]
         data = details[key]
@@ -301,7 +289,7 @@ def details_message(job_names, details):
             part_parts.append("".join(test_str))
             if subtests:
                 for title, subtest_results in sorted(subtests.iteritems()):
-                    subtest_str = ["    "]
+                    subtest_str = ["  "]
                     value = value_str(new_results(subtest_results), job_names, include_result)
                     if value:
                         subtest_str.append("%s: %s" % (title, value))
@@ -310,3 +298,33 @@ def details_message(job_names, details):
                     part_parts.append("".join(subtest_str))
         msg_parts.append("\n".join(part_parts) + "\n")
     return msg_parts
+
+
+def for_sync(sync):
+    complete_try_push = None
+
+    for try_push in sorted(sync.try_pushes(), key=lambda x: -x.process_name.seq_id):
+        if try_push.status == "complete":
+            complete_try_push = try_push
+            break
+
+    if not complete_try_push:
+        logger.info("No complete try push available for PR %s" % sync.pr)
+        return
+
+    # Get the list of central tasks and download the wptreport logs
+    central_tasks = get_central_tasks(sync.git_gecko, sync)
+    if not central_tasks:
+        logger.info("Not all mozilla-central results available for PR %s" % sync.pr)
+        return
+
+    with try_push.as_mut(sync._lock):
+        try_tasks = complete_try_push.tasks()
+        try:
+            complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False,
+                                            first_only=True)
+        except RetryableError:
+            logger.warning("Downloading logs failed")
+            return
+
+    return get_msg(try_tasks.wpt_tasks, central_tasks)

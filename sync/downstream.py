@@ -25,7 +25,7 @@ import trypush
 import commit as sync_commit
 from base import entry_point
 from env import Environment
-from errors import AbortError, RetryableError
+from errors import AbortError
 from gitutils import update_repositories
 from lock import SyncLock, mut, constructor
 from projectutil import Mach, WPT
@@ -825,37 +825,28 @@ class DownstreamSync(SyncProcess):
 
         logger.info("Trying to generate results notification for PR %s" % self.pr)
 
-        complete_try_push = None
-        for try_push in sorted(self.try_pushes(), key=lambda x: -x.process_name.seq_id):
-            if try_push.status == "complete":
-                complete_try_push = try_push
-                break
-
-        if not complete_try_push:
-            logger.info("No complete try push available for PR %s" % self.pr)
+        notification = notify.message_for_sync(self)
+        if notification is None:
+            logger.error("Failed to get results notification for PR %s" % self.pr)
             return
 
-        # Get the list of central tasks and download the wptreport logs
-        central_tasks = notify.get_central_tasks(self.git_gecko, self)
-        if not central_tasks:
-            logger.info("Not all mozilla-central results available for PR %s" % self.pr)
-            return
+        message, truncated = notification
 
-        with try_push.as_mut(self._lock):
-            try_tasks = complete_try_push.tasks()
-            try:
-                complete_try_push.download_logs(try_tasks.wpt_tasks, report=True,
-                                                raw=False, first_only=True)
-            except RetryableError:
-                logger.warning("Downloading logs failed")
-                return
-
-        msg = notify.get_msg(try_tasks.wpt_tasks, central_tasks)
-        env.bz.comment(self.bug, msg)
+        with env.bz.get_ctx(self.bug) as bug:
+            if truncated:
+                bug.add_attachment(data=message,
+                                   file_name="wpt-results.md",
+                                   summary="Notable wpt changes",
+                                   is_markdown=True,
+                                   comment=truncated)
+            else:
+                env.bz.comment(self.bug, message)
         self.results_notified = True
+
         with SyncLock.for_process(self.process_name) as lock:
-            with complete_try_push.as_mut(lock):
-                complete_try_push.cleanup_logs()
+            for try_push in self.try_pushes():
+                with try_push.as_mut(lock):
+                    try_push.cleanup_logs()
 
     def reverts_syncs(self):
         """Return a set containing the previous syncs reverted by this one, if any"""
