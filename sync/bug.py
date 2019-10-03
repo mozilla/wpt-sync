@@ -1,3 +1,4 @@
+import base64
 import log
 import re
 import sys
@@ -210,12 +211,14 @@ class BugContext(object):
         self.bug = None
         self._comments = None
         self.comment = None
+        self.attachments = None
         self.dirty = None
 
     def __enter__(self):
         self.bug = self.bugzilla._get_bug(self.bug_id)
         self._comments = None
         self.comment = None
+        self.attchements = []
         self.dirty = set()
 
         return self
@@ -228,6 +231,11 @@ class BugContext(object):
                 if self.comment is not None:
                     self.bugzilla.bugzilla.request('bug/{}/comment'.format(self.bug._bug['id']),
                                                    method='POST', json={"comment": self.comment})
+            if "attachment" in self.dirty:
+                for attachment in self.attachments:
+                    self.bugzilla.bugzilla.request('bug/{}/attachment'.format(self.bug._bug['id']),
+                                                   method='POST', json=attachment)
+
             if self.dirty:
                 self.bugzilla.bugzilla.put(self.bug)
 
@@ -274,6 +282,29 @@ class BugContext(object):
                 })
         self.bug._bug["flags"] = flags
         self.dirty.add("flags")
+
+    def add_attachment(self, data, file_name, summary, content_type="text/plain",
+                       comment=None, is_patch=False, is_private=False, is_markdown=None,
+                       flags=None):
+        body = {
+            "data": base64.encodestring(data),
+            "file_name": file_name,
+            "summary": summary,
+            "content_type": content_type
+        }
+        if comment:
+            body["comment"] = comment
+        if is_patch:
+            body["is_patch"] = is_patch
+        if is_private:
+            body["is_private"] = is_private
+        if is_markdown:
+            body["is_markdown"] = is_markdown
+        if flags:
+            body["flags"] = flags
+
+        self.attachements.append(body)
+        self.dirty.add("attachment")
 
 
 class MockBugzilla(Bugzilla):
@@ -349,3 +380,24 @@ class MockBugContext(object):
 
     def get_comments(self):
         return []
+
+    def add_attachment(self, data, file_name, summary, content_type="text/plain",
+                       comment=None, is_patch=False, is_private=False, is_markdown=False,
+                       flags=None):
+        body = {
+            "data": base64.encodestring(data),
+            "file_name": file_name,
+            "summary": summary,
+            "content_type": content_type
+        }
+        if comment:
+            body["comment"] = comment
+        if is_patch:
+            body["is_patch"] = is_patch
+        if is_private:
+            body["is_private"] = is_private
+        if is_markdown:
+            body["is_markdown"] = is_markdown
+        if flags:
+            body["flags"] = flags
+        self.changes.append("Add attachment: %r" % body)
