@@ -1035,18 +1035,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
 @entry_point("downstream")
 @mut('sync')
-def pull_request_approved(git_gecko, git_wpt, sync):
-    # We no longer run Try pushes when a GH PR has been approved, so this is sort of useless now.
-    try:
-        sync.next_try_push()
-        sync.update_github_check()
-    except Exception as e:
-        sync.error = e
-        raise
-
-
-@entry_point("downstream")
-@mut('sync')
 def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=None):
     try:
         if action == "closed" and not merge_sha:

@@ -127,34 +127,11 @@ def handle_push(git_gecko, git_wpt, event):
     landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
 
 
-def handle_pull_request_review(git_gecko, git_wpt, event):
-    newrelic.agent.set_transaction_name("handle_pull_request_review")
-    newrelic.agent.add_custom_parameter("action", event["action"])
-    newrelic.agent.add_custom_parameter("pr", event["pull_request"]["number"])
-    newrelic.agent.add_custom_parameter("state", event["review"]["state"])
-
-    if event["action"] != "submitted":
-        return
-    if event["review"]["state"] != "approved":
-        return
-    pr_id = event["pull_request"]["number"]
-
-    sync = get_pr_sync(git_gecko, git_wpt, pr_id)
-
-    if not sync or not isinstance(sync, downstream.DownstreamSync):
-        return
-
-    with SyncLock.for_process(sync.process_name) as lock:
-        with sync.as_mut(lock):
-            downstream.pull_request_approved(git_gecko, git_wpt, sync)
-
-
 class GitHubHandler(Handler):
     dispatch_event = {
         "pull_request": handle_pr,
         "status": handle_status,
         "push": handle_push,
-        "pull_request_review": handle_pull_request_review
     }
 
     def __call__(self, git_gecko, git_wpt, body):

@@ -84,10 +84,6 @@ def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
             assert sync.last_pr_check == {"state": "success", "sha": pr.head}
 
         pr._approved = True
-        handlers.handle_pull_request_review(git_gecko, git_wpt,
-                                            {"action": "submitted",
-                                             "review": {"state": "approved"},
-                                             "pull_request": {"number": pr.number}})
         # A Try push is not run after approval.
         assert sync.latest_try_push is None
 
