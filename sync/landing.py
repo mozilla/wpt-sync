@@ -638,7 +638,7 @@ MANUAL PUSH: wpt sync bot
                                rebuild_count=0,
                                try_cls=trypush.TryFuzzyCommit,
                                full=True,
-                               exclude=["-fis-", "devedition", "ccov"])
+                               exclude=["devedition", "ccov"])
 
 
 def push(landing):
