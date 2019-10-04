@@ -62,7 +62,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
     assert mach_command["args"] == ("try",
                                     "fuzzy",
                                     "-q",
-                                    "web-platform-tests !-fis- !devedition !ccov",
+                                    "web-platform-tests !devedition !ccov",
                                     "--artifact",
                                     "--full")
 
