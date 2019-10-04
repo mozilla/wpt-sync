@@ -54,9 +54,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                 assert f.read() == "Initial license\n"
 
     try_push = sync.latest_try_push
-    assert try_push is not None
-    assert try_push.status == "open"
-    assert try_push.stability is False
+    assert try_push is None
     mach_command = mock_mach.get_log()[-1]
     assert mach_command["command"] == "mach"
     assert mach_command["args"] == ("try",

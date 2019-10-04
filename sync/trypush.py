@@ -384,7 +384,7 @@ class TryPush(base.ProcessData):
                             "try", self.try_rev)
 
     @mut()
-    def download_logs(self, wpt_tasks, raw=True, report=True, exclude=None):
+    def download_logs(self, wpt_tasks, raw=True, report=True, exclude=None, first_only=False):
         """Download all the logs for the current try push
 
         :return: List of paths to raw logs
@@ -400,7 +400,14 @@ class TryPush(base.ProcessData):
             # if a name is on the excluded list, only download SUCCESS job logs
             name = t.get("task", {}).get("metadata", {}).get("name")
             state = t.get("status", {}).get("state")
-            return name not in exclude or state == tc.SUCCESS
+            output = name not in exclude or state == tc.SUCCESS
+
+            # Add this name to exclusion list, so that we don't download the repeated run
+            # logs in a stability try run
+            if first_only and name is not None and name not in exclude:
+                exclude.append(name)
+
+            return output
 
         if self.try_rev is None:
             if wpt_tasks:

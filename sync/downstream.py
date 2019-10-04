@@ -43,7 +43,7 @@ class DownstreamAction(enum.Enum):
     try_push = 2
     try_push_stability = 3
     wait_try = 4
-    wait_approved = 5
+    wait_upstream = 5
 
     def reason_str(self):
         return {DownstreamAction.ready: "",
@@ -51,7 +51,7 @@ class DownstreamAction(enum.Enum):
                 DownstreamAction.try_push: "valid try push required",
                 DownstreamAction.try_push_stability: "stability try push required",
                 DownstreamAction.wait_try: "waiting for try to complete",
-                DownstreamAction.wait_approved: "waiting for PR to be approved"}.get(self, "")
+                DownstreamAction.wait_upstream: "waiting for PR to be merged"}.get(self, "")
 
 
 class DownstreamSync(SyncProcess):
@@ -158,33 +158,26 @@ class DownstreamSync(SyncProcess):
 
         latest_try_push = self.latest_valid_try_push
 
-        if not latest_try_push:
-            logger.debug("Sync for PR %s has no valid try push" % self.pr)
-            return DownstreamAction.try_push
+        pr = env.gh_wpt.get_pull(self.pr)
+        if pr.merged:  # Wait till PR is merged to do anything
+            if not latest_try_push:
+                if self.requires_stability_try:
+                    logger.debug("Sync for PR %s requires a stability try push" % self.pr)
+                    return DownstreamAction.try_push_stability
+                else:
+                    return DownstreamAction.try_push
 
-        if latest_try_push.status != "complete":
-            return DownstreamAction.wait_try
-        if latest_try_push.infra_fail:
-            if len(self.latest_busted_try_pushes()) > 5:
+            if latest_try_push.status != "complete":
+                return DownstreamAction.wait_try
+
+            # If we have infra failure, flag for human intervention. Retrying stability
+            # runs would be very costly
+            if latest_try_push.infra_fail:
                 return DownstreamAction.manual_fix
 
-            if not latest_try_push.stability:
-                logger.debug("Sync for PR %s has a try push, but it has an infra failure" % self.pr)
-                return DownstreamAction.try_push
-
-            # Don't worry about recreating stability try pushes for infra failures
             return DownstreamAction.ready
-
-        if not latest_try_push.stability and self.requires_stability_try:
-            logger.debug("Sync for PR %s has a initial try push but requires a stability try push" %
-                         self.pr)
-            pr = env.gh_wpt.get_pull(self.pr)
-            pr_ready = pr.merged or env.gh_wpt.is_approved(self.pr)
-            if pr_ready:
-                return DownstreamAction.try_push_stability
-            return DownstreamAction.wait_approved
-
-        return DownstreamAction.ready
+        else:
+            return DownstreamAction.wait_upstream
 
     @property
     def metadata_ready(self):
@@ -834,7 +827,7 @@ class DownstreamSync(SyncProcess):
 
         complete_try_push = None
         for try_push in sorted(self.try_pushes(), key=lambda x: -x.process_name.seq_id):
-            if try_push.status == "complete" and not try_push.stability:
+            if try_push.status == "complete":
                 complete_try_push = try_push
                 break
 
@@ -851,7 +844,8 @@ class DownstreamSync(SyncProcess):
         with try_push.as_mut(self._lock):
             try_tasks = complete_try_push.tasks()
             try:
-                complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False)
+                complete_try_push.download_logs(try_tasks.wpt_tasks, report=True,
+                                                raw=False, first_only=True)
             except RetryableError:
                 logger.warning("Downloading logs failed")
                 return
@@ -1037,17 +1031,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         pr = env.gh_wpt.get_pull(sync.pr)
         if pr.merged:
             sync.try_notify()
-
-
-@entry_point("downstream")
-@mut('sync')
-def pull_request_approved(git_gecko, git_wpt, sync):
-    try:
-        sync.next_try_push()
-        sync.update_github_check()
-    except Exception as e:
-        sync.error = e
-        raise
 
 
 @entry_point("downstream")
