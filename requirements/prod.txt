@@ -73,8 +73,10 @@ pexpect==4.7.0 \
     --hash=sha256:2094eefdfcf37a1fdbfb9aa090862c1a4878e5c7e0e7e7088bdb511c558e5cd1
 pickleshare==0.7.5 \
     --hash=sha256:9649af414d74d4df115d5d718f82acb59c9d418196b7b4290ed47a12ce62df56
-prompt-toolkit==1.0.16 \
-    --hash=sha256:955d81315bb7a049f19cd17d1a73f1a40861483260f7dffd825e98303a8bd6b6 # pyup: <2.0.0
+prompt-toolkit==1.0.18 \
+    --hash=sha256:37925b37a4af1f6448c76b7606e0285f79f434ad246dda007a27411cca730c6d \
+    --hash=sha256:dd4fca02c8069497ad931a2d09914c6b0d1b50151ce876bc15bde4c747090126 \
+    --hash=sha256:f7eec66105baf40eda9ab026cd8b2e251337eea8d111196695d82e0c5f0af852 # pyup: <2.0.0
 ptyprocess==0.6.0 \
     --hash=sha256:d7cc528d76e76342423ca640335bd3633420dc1366f258cb31d05e865ef5ca1f
 pycparser==2.19 \
