@@ -832,7 +832,7 @@ class DownstreamSync(SyncProcess):
 
         message, truncated = notification
 
-        with env.bz.get_ctx(self.bug) as bug:
+        with env.bz.bug_ctx(self.bug) as bug:
             if truncated:
                 bug.add_attachment(data=message,
                                    file_name="wpt-results.md",
