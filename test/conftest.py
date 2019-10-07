@@ -11,8 +11,9 @@ from mock import Mock, patch
 
 import git
 import pytest
+import requests_mock
 
-from sync import repos, settings, bugcomponents, base, downstream, landing, trypush, tree
+from sync import repos, settings, bugcomponents, base, downstream, landing, trypush, tree, tc
 from sync.env import Environment, set_env, clear_env
 from sync.gh import AttrDict
 from sync.lock import SyncLock
@@ -662,6 +663,21 @@ def tc_response():
             self._file = None
 
     return FileData
+
+
+@pytest.fixture
+def mock_taskgroup(tc_response):
+    def inner(filename):
+        with tc_response(filename) as f:
+            with requests_mock.Mocker() as m:
+                taskgroup_id = "test"
+                m.register_uri("GET",
+                               "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id),
+                               body=f)
+                taskgroup = tc.TaskGroup(taskgroup_id)
+                taskgroup.refresh()
+                return taskgroup
+    return inner
 
 
 @pytest.fixture

@@ -200,6 +200,11 @@ class TaskGroupView(object):
             if task_is_incomplete(task, tasks_by_id, allow_unscheduled):
                 yield task
 
+    def failed_builds(self):
+        """Return the builds that failed"""
+        builds = self.filter(is_build)
+        return builds.filter(is_status_fn({FAIL, EXCEPTION}))
+
     def filter(self, filter_fn):
         def combined_filter(task):
             return self.filter_fn(task) and filter_fn(task)
@@ -321,10 +326,18 @@ def is_suite_fn(suite):
     return lambda x: is_suite(suite, x)
 
 
-def is_build(task):
+def check_tag(task, tag):
     tags = task.get("task", {}).get("tags")
     if tags:
-        return tags.get("kind") == "build"
+        return tags.get("kind") == tag
+
+
+def is_test(task):
+    return check_tag(task, "test")
+
+
+def is_build(task):
+    return check_tag(task, "build")
 
 
 def is_status(statuses, task):

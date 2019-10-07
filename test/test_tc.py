@@ -1,15 +1,8 @@
-import requests_mock
-
 from sync import tc
 
 
-def test_taskgroup(tc_response):
-    with tc_response("taskgroup-wpt-complete.json") as f:
-        with requests_mock.Mocker() as m:
-            taskgroup_id = "test"
-            m.register_uri("GET", "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id), body=f)
-            taskgroup = tc.TaskGroup(taskgroup_id)
-            taskgroup.refresh()
+def test_taskgroup(mock_taskgroup):
+    taskgroup = mock_taskgroup("taskgroup-wpt-complete.json")
 
     assert len(taskgroup.tasks) == 20
     tasks = taskgroup.view()
@@ -28,13 +21,8 @@ def test_taskgroup(tc_response):
     assert len(failures) == 1
 
 
-def test_taskgroup_unscheduled(tc_response):
-    with tc_response("taskgroup-build-failed.json") as f:
-        with requests_mock.Mocker() as m:
-            taskgroup_id = "test"
-            m.register_uri("GET", "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id), body=f)
-            taskgroup = tc.TaskGroup(taskgroup_id)
-            taskgroup.refresh()
+def test_taskgroup_unscheduled(mock_taskgroup):
+    taskgroup = mock_taskgroup("taskgroup-build-failed.json")
 
     tasks = taskgroup.view()
     assert not tasks.is_complete()
