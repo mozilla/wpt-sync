@@ -985,7 +985,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
             return
 
         if not try_push.stability:
-            update_metadata(sync, try_push)
+            if try_push.status != "complete":
+                update_metadata(sync, try_push)
+                try_push.status = "complete"
             try:
                 sync.gecko_rebase(sync.gecko_landing_branch())
             except git.GitCommandError as e:
@@ -994,7 +996,6 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                 env.bz.comment(sync.bug, err)
                 raise AbortError(err)
 
-            try_push.status = "complete"
             sync.next_try_push()
             return
         else:
@@ -1020,7 +1021,8 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                 if data["states"][tc.SUCCESS] / total >= tasks._min_success:
                     intermittents.append(name)
 
-            update_metadata(sync, try_push, tasks, intermittents)
+            if try_push.status != "complete":
+                update_metadata(sync, try_push, tasks, intermittents)
 
     try_push.status = "complete"
     push_to_gecko(git_gecko, git_wpt, sync, allow_push)
