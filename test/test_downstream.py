@@ -3,7 +3,7 @@ from datetime import datetime
 
 import taskcluster
 
-from sync import downstream, handlers, load, tc
+from sync import downstream, handlers, load, tc, trypush
 from sync.lock import SyncLock
 
 
@@ -177,11 +177,20 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
 
 def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
                                   set_pr_status, MockTryCls, hg_gecko_try,
-                                  mock_mach):
+                                  mock_mach, mock_taskgroup):
+    taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
+    try_tasks = trypush.TryPushTasks(taskgroup)
+
     pr = pull_request([("Test commit", {"README": "Example change\n"})],
                       "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
+
+    try_patch = patch("sync.trypush.TryPush.tasks", Mock(return_value=try_tasks))
+    tree_open_patch = patch("sync.tree.is_open", Mock(return_value=True))
+    taskgroup_patch = patch("sync.tc.TaskGroup", Mock(return_value=taskgroup))
+    mach_patch = patch("sync.trypush.Mach", mock_mach)
+
+    with tree_open_patch, try_patch, taskgroup_patch, mach_patch:
         sync = set_pr_status(pr, "success")
         env.gh_wpt.get_pull(sync.pr).merged = True
 
@@ -193,12 +202,24 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
 
                 try_push = sync.next_try_push(try_cls=MockTryCls)
                 with try_push.as_mut(lock):
+                    try_push["taskgroup-id"] = taskgroup.taskgroup_id
                     try_push.status = "complete"
                     try_push.infra_fail = True
 
-                # When the stability run has infra fail, we flag for human intervention
-                assert sync.next_action == downstream.DownstreamAction.manual_fix
+                # This try push still has completed builds and tests, so we say metadata is ready.
+                assert sync.next_action == downstream.DownstreamAction.ready
                 assert sync.next_try_push(try_cls=MockTryCls) is None
+
+                # There should be a comment to flag failed builds
+                msg = "There were infrastructure failures for the Try push (%s):\nbuild-win32/opt\nbuild-win32/debug\nbuild-win64/opt\nbuild-win64/debug\n" % try_push.treeherder_url  # noqa: E501
+                assert msg in env.bz.output.getvalue()
+
+                # Replace the taskgroup with one where there were no completed tests
+                taskgroup = mock_taskgroup("taskgroup-no-tests-build-failed.json")
+                try_tasks = trypush.TryPushTasks(taskgroup)
+
+                # The next action should flag for manual fix now
+                assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
 def test_try_push_expiration(env, git_gecko, git_wpt, pull_request,

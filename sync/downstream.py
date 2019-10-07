@@ -176,7 +176,13 @@ class DownstreamSync(SyncProcess):
             # If we have infra failure, flag for human intervention. Retrying stability
             # runs would be very costly
             if latest_try_push.infra_fail:
-                return DownstreamAction.manual_fix
+                tasks = latest_try_push.tasks()
+
+                # Check if we had any successful tests
+                if tasks.has_completed_tests():
+                    return DownstreamAction.ready
+                else:
+                    return DownstreamAction.manual_fix
 
             return DownstreamAction.ready
         else:

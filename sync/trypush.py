@@ -204,6 +204,7 @@ class TryPush(base.ProcessData):
             "gecko-head": sync.gecko_commits.head.sha1,
             "wpt-head": sync.wpt_commits.head.sha1,
             "status": "open",
+            "bug": sync.bug,
         }
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
                                                     cls.obj_type,
@@ -350,18 +351,45 @@ class TryPush(base.ProcessData):
         return self["stability"]
 
     @property
+    def bug(self):
+        return self.get("bug")
+
+    @property
     def infra_fail(self):
-        """Is the current try push a stability test"""
+        """Does this push have infrastructure failures"""
         if self.status == "infra-fail":
             self.status = "complete"
             self.infra_fail = True
         return self.get("infra-fail", False)
 
+    def notify_failed_builds(self):
+        tasks = tc.TaskGroup(self.taskgroup_id).view()
+        failed = tasks.failed_builds()
+
+        if not failed:
+            logger.error("No failed builds to report for Try push: %s" % self)
+            return
+
+        bug = self.bug
+
+        if not bug:
+            logger.error("No associated bug found for Try push: %s" % self)
+            return
+
+        msg = "There were infrastructure failures for the Try push (%s):\n" % self.treeherder_url
+        msg += "\n".join(task.get("task", {}).get("metadata", {}).get("name")
+                         for task in failed.tasks)
+        env.bz.comment(self.bug, msg)
+
     @infra_fail.setter
     @mut()
     def infra_fail(self, value):
-        """Is the current try push a stability test"""
+        """Set the status of this push's infrastructure failure state"""
+        if value == self.get("infra-fail"):
+            return
         self["infra-fail"] = value
+        if value:
+            self.notify_failed_builds()
 
     def tasks(self):
         """Get a list of all the taskcluster tasks for web-platform-tests
@@ -528,8 +556,13 @@ class TryPushTasks(object):
         return task_states
 
     def failed_builds(self):
+        """Return the builds that failed"""
+        return self.wpt_tasks.failed_builds()
+
+    def successful_builds(self):
+        """Return the builds that were successful"""
         builds = self.wpt_tasks.filter(tc.is_build)
-        return builds.filter(tc.is_status_fn({tc.FAIL, tc.EXCEPTION}))
+        return builds.filter(tc.is_status_fn({tc.SUCCESS}))
 
     def retriggered_wpt_states(self):
         # some retrigger requests may have failed, and we try to ignore
@@ -551,6 +584,14 @@ class TryPushTasks(object):
         wpt_tasks = self.wpt_tasks
         if wpt_tasks:
             return any(task.get("status", {}).get("state") == tc.FAIL for task in wpt_tasks)
+        return False
+
+    def has_completed_tests(self):
+        """Check if all the wpt tasks in a try push completed"""
+        wpt_tasks = self.wpt_tasks.filter(tc.is_test)
+        if wpt_tasks:
+            return any(task.get("status", {}).get("state") in (tc.SUCCESS, tc.FAIL)
+                       for task in wpt_tasks)
         return False
 
     def success_rate(self):
