@@ -1,5 +1,6 @@
 import geckomsg
 import wptfyimsg
+from .. import bug
 
 
 def message_for_sync(sync):
@@ -28,7 +29,6 @@ def message_for_sync(sync):
 def truncate_message(parts):
     # This is currently the number of codepoints, with the proviso that
     # only BMP characters are supported
-    MAX_LENGTH = 65535
 
     suffix = "(See attachment for full changes)"
     message = ""
@@ -36,7 +36,7 @@ def truncate_message(parts):
 
     padding = len(suffix) + 1
     for part in parts:
-        if len(message) + len(part) + 1 > MAX_LENGTH - padding:
+        if len(message) + len(part) + 1 > bug.max_comment_length - padding:
             truncated = True
             part = suffix
         if message:
