@@ -843,7 +843,7 @@ class DownstreamSync(SyncProcess):
                                    is_markdown=True,
                                    comment=truncated)
             else:
-                env.bz.comment(self.bug, message)
+                env.bz.comment(self.bug, message, is_markdown=True)
         self.results_notified = True
 
         with SyncLock.for_process(self.process_name) as lock:
