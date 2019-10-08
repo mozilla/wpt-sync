@@ -548,6 +548,10 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
                     latest_try_push = sync.latest_try_push
                     reason = "%s %s" % (reason,
                                         latest_try_push.treeherder_url)
+                elif next_action == DownstreamAction.manual_fix:
+                    latest_try_push = sync.latest_try_push
+                    reason = "Manual fixup required %s" % (
+                        latest_try_push.treeherder_url,)
                 msg = "%s (%s)" % (msg, reason)
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)

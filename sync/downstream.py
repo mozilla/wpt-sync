@@ -170,6 +170,9 @@ class DownstreamSync(SyncProcess):
             if latest_try_push.status != "complete":
                 return DownstreamAction.wait_try
 
+            if self.requires_stability_try and not latest_try_push.stability:
+                return DownstreamAction.try_push_stability
+
             # If we have infra failure, flag for human intervention. Retrying stability
             # runs would be very costly
             if latest_try_push.infra_fail:
