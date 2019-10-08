@@ -103,7 +103,7 @@ Ran 5 tests and 4 subtests
 """])
 
 
-def test_notify_wptfyi(wptfyi_pr_results):
+def test_notify_wptfyi(wptfyi_pr_results, wptfyi_metadata):
     head_sha1, results_by_browser = wptfyi_pr_results
     results = wptfyimsg.results_by_test(results_by_browser)
     assert (wptfyimsg.summary_message(head_sha1, results) ==
@@ -129,58 +129,58 @@ Ran 40 tests and 273 subtests
   FAIL: 101
 """)  # noqa: E501
 
-    details = wptfyimsg.details_message(results)
+    details = wptfyimsg.details_message(results, wptfyi_metadata)
     assert len(details) == 2
     assert (details[0] ==
             """### Firefox-only failures
 
 /cookies/samesite/form-get-blank.https.html?legacy-samesite
-   Cross-site redirecting to subdomain top-level form GETs are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to same-host top-level form GETs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain top-level form GETs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host top-level form GETs are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/form-post-blank-reload.https.html?legacy-samesite: Firefox: ERROR
-   Reloaded same-host top-level form POSTs are strictly same-site: Firefox: MISSING
-   Reloaded subdomain top-level form POSTs are strictly same-site: Firefox: MISSING
+  Reloaded same-host top-level form POSTs are strictly same-site: Firefox: MISSING
+  Reloaded subdomain top-level form POSTs are strictly same-site: Firefox: MISSING
 
 /cookies/samesite/iframe.https.html
-   Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/form-post-blank.https.html
-   Cross-site redirecting to same-host top-level form POSTs are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain top-level form POSTs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host top-level form POSTs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain top-level form POSTs are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/form-post-blank-reload.https.html: Firefox: ERROR
-   Reloaded same-host top-level form POSTs are strictly same-site: Firefox: MISSING
-   Reloaded subdomain top-level form POSTs are strictly same-site: Firefox: MISSING
+  Reloaded same-host top-level form POSTs are strictly same-site: Firefox: MISSING
+  Reloaded subdomain top-level form POSTs are strictly same-site: Firefox: MISSING
 
 /cookies/samesite/form-get-blank.https.html
-   Cross-site redirecting to subdomain top-level form GETs are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to same-host top-level form GETs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain top-level form GETs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host top-level form GETs are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/img.https.html?legacy-samesite
-   Cross-site redirecting to same-host images are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain images are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host images are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain images are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/fetch.https.html?legacy-samesite
-   Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/iframe.https.html?legacy-samesite
-   Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/form-post-blank.https.html?legacy-samesite
-   Cross-site redirecting to same-host top-level form POSTs are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain top-level form POSTs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host top-level form POSTs are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain top-level form POSTs are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/img.https.html
-   Cross-site redirecting to same-host images are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain images are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host images are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain images are strictly same-site: Firefox: FAIL
 
 /cookies/samesite/fetch.https.html
-   Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
-   Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to same-host fetches are strictly same-site: Firefox: FAIL
+  Cross-site redirecting to subdomain fetches are strictly same-site: Firefox: FAIL
 """)
     assert (details[1] == """### Other new tests that's don't pass
 
@@ -196,4 +196,12 @@ def test_notify_wptfyi_value_str():
         "base": {"firefox": "PASS"}
     }
 
-    assert wptfyimsg.value_str(result, ["firefox"], ["firefox"]) == "Firefox: PASS->FAIL"
+    assert wptfyimsg.status_str(result, ["firefox"], ["firefox"]) == "Firefox: PASS->FAIL"
+
+
+def test_notify_wptfyi_bug_str(wptfyi_metadata):
+    meta = wptfyimsg.get_meta(wptfyi_metadata,
+                              "/infrastructure/testdriver/actions/elementTiming.html",
+                              "TestDriver actions: element timing",
+                              "FAIL")
+    assert wptfyimsg.bug_str(meta) == "bugs: Bug 1499957"

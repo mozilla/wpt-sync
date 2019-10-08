@@ -4,6 +4,7 @@ import requests
 
 from .. import log
 from .. import wptfyi
+from ..bug import bug_number_from_url
 from ..env import Environment
 
 logger = log.get_logger(__name__)
@@ -124,7 +125,7 @@ def summary_message(sha, results):
     return "\n".join([heading, summary] + results_values)
 
 
-def get_details(results):
+def get_details(results, metadata):
     details = {
         "browser_only": defaultdict(list),
         "worse_result": defaultdict(list),
@@ -147,7 +148,9 @@ def get_details(results):
             return
 
         for key in keys:
-            details[key][test_name].append((subtest_name, result))
+            meta = get_meta(metadata, test_name, subtest_name,
+                            result.result_str("head", "firefox"))
+            details[key][test_name].append((subtest_name, result, meta))
 
     for test_name, test_result in results.iteritems():
         add_result(test_result, test_name, None)
@@ -157,7 +160,27 @@ def get_details(results):
     return details
 
 
-def value_str(result, head_browsers, base_browsers):
+def get_meta(metadata, test, subtest, status):
+    test_metadata = metadata.get(test)
+    if not test_metadata:
+        return []
+
+    specific_metadata = []
+    for item in test_metadata:
+        if "results" not in item:
+            specific_metadata.append(item)
+        else:
+            specific_results = [result for result in item["results"]
+                                if (item.get("subtest", subtest) == subtest and
+                                    item.get("status", status) == status)]
+            if specific_results:
+                item["results"] = specific_results
+                specific_metadata.append(item)
+
+    return specific_metadata
+
+
+def status_str(result, head_browsers, base_browsers):
     if base_browsers is None:
         base_browsers = set([])
     else:
@@ -175,20 +198,31 @@ def value_str(result, head_browsers, base_browsers):
     return ", ".join(value_parts)
 
 
-def details_message(results):
+def bug_str(meta):
+    bugs = []
+    for item in meta:
+        url = item.get("url", "")
+        if "bugzilla.mozilla.org" in url:
+            bugs.append(bug_number_from_url(url))
+    if bugs:
+        return "bugs: %s" % ", ".join("Bug %s" % bug for bug in bugs)
+
+
+def details_message(results, metadata):
     parts = []
-    details = get_details(results)
+    details = get_details(results, metadata)
 
     # TODO: Check if failures are associated with a bug
-    for key, title, head_browsers, base_browsers, other_prefix in [
-            ("browser_only", "Firefox-only failures", ["firefox"], None, False),
+    for key, title, head_browsers, base_browsers, other_prefix, add_bug in [
+            ("browser_only", "Firefox-only failures", ["firefox"], None, False, True),
             ("worse_result",
              "Existing tests that now have a worse result",
              browsers,
              browsers,
-             True),
-            ("new_not_pass", "New tests that's don't pass", browsers, None, True),
-            ("crash", "### Tests that CRASH", ["firefox"], ["firefox"], False)]:
+             True,
+             False),
+            ("new_not_pass", "New tests that's don't pass", browsers, None, True, False),
+            ("crash", "### Tests that CRASH", ["firefox"], ["firefox"], False, True)]:
 
         if len(details[key]) == 0:
             continue
@@ -196,20 +230,21 @@ def details_message(results):
         if parts and other_prefix:
             title = "Other %s%s" % (title[0].lower(), title[1:])
         part_parts = ["### %s" % title, ""]
-        for test_name, results in details[key].iteritems():
-            if results[0][0] is None:
-                part_parts.append("%s: %s" % (test_name, value_str(results[0][1],
-                                                                   head_browsers,
-                                                                   base_browsers)))
-                results = results[1:]
-            else:
+        for test_name, test_results in details[key].iteritems():
+            if test_results[0][0] is not None:
                 part_parts.append("%s" % test_name)
-            for subtest_name, subtest_result in results:
-                assert subtest_name is not None
-                part_parts.append("   %s: %s" % (subtest_name,
-                                                 value_str(subtest_result,
-                                                           head_browsers,
-                                                           base_browsers)))
+            for subtest_name, subtest_result, metadata in test_results:
+                indent = "" if subtest_name is None else "  "
+                name = subtest_name if subtest_name is not None else test_name
+                status = status_str(subtest_result,
+                                    head_browsers,
+                                    base_browsers)
+                if add_bug and metadata:
+                    bug = " %s" % bug_str(metadata)
+                else:
+                    bug = ""
+                part_parts.append("%s%s: %s%s" % (indent, name, status, bug))
+
             part_parts.append("")
         parts.append("\n".join(part_parts))
     return parts
@@ -224,4 +259,5 @@ def for_sync(sync):
         logger.error("Unable to fetch results from wpt.fyi: %s" % e)
         return
     results = results_by_test(results_by_browser)
-    return [summary_message(head_sha1, results)] + details_message(results)
+    metadata = wptfyi.get_metadata(staging=True)
+    return [summary_message(head_sha1, results)] + details_message(results, metadata)

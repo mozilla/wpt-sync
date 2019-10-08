@@ -689,3 +689,13 @@ def wptfyi_pr_results():
         results = json.load(f)
 
     return sha1, results
+
+
+@pytest.fixture
+def wptfyi_metadata():
+    path = os.path.join(here, "sample-data", "wptfyi", "metadata.json")
+
+    with open(path) as f:
+        metadata = json.load(f)
+
+    return metadata

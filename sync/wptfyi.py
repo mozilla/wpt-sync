@@ -102,3 +102,24 @@ def get_results(run_ids, test=None, query=None, staging=False):
 
     resp.raise_for_status()
     return resp.json()
+
+
+def get_metadata(products, link):
+    url = Url(WPT_FYI_BASE + "search")
+
+    if isinstance(products, basestring):
+        url.add_query("product", products)
+    else:
+        for product in products:
+            url.add_query("product", product)
+    if link:
+        body = {"exists": [{"link": link}]}
+    else:
+        body = None
+
+    if body is not None:
+        resp = requests.post(url.build(), json=body)
+    else:
+        resp = requests.get(url.build())
+    resp.raise_for_status()
+    return resp.json()
