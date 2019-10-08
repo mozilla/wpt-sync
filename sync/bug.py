@@ -124,8 +124,8 @@ class Bugzilla(object):
             "comment": check_valid_comment(comment)
         }
         body.update(kwargs)
-        self.bugzilla.bugzilla.request('bug/{}/comment'.format(bug.id),
-                                       method='POST', json=body)
+        self.bugzilla.request('bug/{}/comment'.format(bug.id),
+                              method='POST', json=body)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
             url=None):
