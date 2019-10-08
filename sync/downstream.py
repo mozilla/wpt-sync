@@ -1014,17 +1014,15 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
                                               "\n".join(disabled)))
 
             try_push.status = "complete"
-            next_try_push = sync.next_try_push()
+            sync.next_try_push()
         finally:
             sync.update_github_check()
     else:
-        next_try_push = sync.next_try_push()
+        sync.next_try_push()
         sync.update_github_check()
 
-    if not next_try_push or next_try_push.stability:
-        pr = env.gh_wpt.get_pull(sync.pr)
-        if pr.merged:
-            sync.try_notify()
+    if sync.landable_status == LandableStatus.ready:
+        sync.try_notify()
 
 
 @entry_point("downstream")
@@ -1040,7 +1038,6 @@ def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=N
             # We are storing the wpt base as a reference
             sync.data["wpt-base"] = base_sha
             sync.next_try_push()
-            sync.try_notify()
         elif action == "reopened" or action == "open":
             sync.status = "open"
             sync.pr_status = "open"
