@@ -638,7 +638,9 @@ MANUAL PUSH: wpt sync bot
                                rebuild_count=0,
                                try_cls=trypush.TryFuzzyCommit,
                                full=True,
-                               exclude=["devedition", "ccov"])
+                               queries=["web-platform-tests !devedition !ccov !fis",
+                                        "web-platform-tests fis !devedition !ccov !asan "
+                                        "windows10 | linux64"])
 
 
 def push(landing):
