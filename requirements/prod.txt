@@ -1,6 +1,6 @@
-amqp==2.5.2 \
-    --hash=sha256:6e649ca13a7df3faacdc8bbb280aa9a6602d22fd9d545336077e573a1f4ff3b8 \
-    --hash=sha256:77f1aef9410698d20eaeac5b73a87817365f457a507d82edf292e12cbb83b08d
+amqp==2.5.1 \
+    --hash=sha256:19a917e260178b8d410122712bac69cb3e6db010d68f6101e7307508aded5e68 \
+    --hash=sha256:19d851b879a471fcfdcf01df9936cff924f422baa77653289f7095dedd5fb26a # pyup: ==2.5.1
 backports.shutil-get-terminal-size==1.0.0 \
     --hash=sha256:0975ba55054c15e346944b38956a4c9cbee9009391e41b86c68990effb8c1f64
 billiard==3.6.1.0 \
