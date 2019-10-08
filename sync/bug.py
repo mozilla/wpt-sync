@@ -115,13 +115,17 @@ class Bugzilla(object):
             self.bug_cache[bug_id] = bug
         return self.bug_cache[bug_id]
 
-    def comment(self, bug_id, text):
+    def comment(self, bug_id, comment, **kwargs):
         bug = self._get_bug(bug_id)
         if bug is None:
-            logger.error("Failed to find bug %s to add comment:\n%s" % (bug_id, text))
+            logger.error("Failed to find bug %s to add comment:\n%s" % (bug_id, comment))
             return
-        text = check_valid_comment(text)
-        bug.add_comment(text)
+        body = {
+            "comment": check_valid_comment(comment)
+        }
+        body.update(kwargs)
+        self.bugzilla.bugzilla.request('bug/{}/comment'.format(bug.id),
+                                       method='POST', json=body)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
             url=None):
@@ -229,8 +233,7 @@ class BugContext(object):
             if "comment" in self.dirty:
                 self.dirty.remove("comment")
                 if self.comment is not None:
-                    self.bugzilla.bugzilla.request('bug/{}/comment'.format(self.bug._bug['id']),
-                                                   method='POST', json={"comment": self.comment})
+                    self.bugzilla.comment(self.bug_id, **self.comment)
             if "attachment" in self.dirty:
                 for attachment in self.attachments:
                     self.bugzilla.bugzilla.request('bug/{}/attachment'.format(self.bug._bug['id']),
@@ -248,16 +251,25 @@ class BugContext(object):
         self.bug._bug[name] = value
         self.dirty.add(name)
 
-    def add_comment(self, text, check_dupe=True):
+    def add_comment(self,
+                    comment,
+                    check_dupe=True,
+                    comment_tags=None,
+                    is_private=False,
+                    is_markdown=False):
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
-        text = check_valid_comment(text)
+        comment = check_valid_comment(comment)
         if check_dupe:
             comments = self.get_comments()
             for item in comments:
-                if item.text == text:
+                if item.text == comment:
                     return False
-        self.comment = text
+        self.comment = {"comment": comment,
+                        "is_markdown": is_markdown,
+                        "is_private": is_private}
+        if comment_tags is not None:
+            self.comment["comment_tags"] = comment_tags
         self.dirty.add("comment")
         return True
 
@@ -373,10 +385,19 @@ class MockBugContext(object):
         for requestee in requestees:
             self.changes.append("Setting bug %s needinfo %s" % (self.bug_id, requestee))
 
-    def add_comment(self, text, check_dupe=True):
+    def add_comment(self,
+                    comment,
+                    check_dupe=True,
+                    comment_tags=None,
+                    is_private=False,
+                    is_markdown=False):
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
-        self.comment = text
+        self.comment = {"comment": comment,
+                        "is_markdown": is_markdown,
+                        "is_private": is_private}
+        if comment_tags is not None:
+            self.comment["comment_tags"] = comment_tags
 
     def get_comments(self):
         return []
