@@ -51,8 +51,9 @@ class TestResult(object):
         return self.results["head"].get(browser) == "CRASH"
 
     def is_new_non_passing(self, browser):
+        new_non_passing_status = passing_status + (None,)
         return (self.results["base"].get(browser) is None and
-                self.results["head"].get(browser) not in passing_status)
+                self.results["head"].get(browser) not in new_non_passing_status)
 
 
 def results_by_test(results_by_browser):
