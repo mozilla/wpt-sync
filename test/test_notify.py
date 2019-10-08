@@ -185,13 +185,7 @@ Ran 40 tests and 273 subtests
     assert (details[1] == """### Other new tests that's don't pass
 
 /cookies/samesite/blob-toplevel.https.html
-   SameSite cookies with blob child window: Firefox: FAIL, Chrome: FAIL, Safari: FAIL
-
-/cookies/samesite/form-post-blank-reload.https.html
-   Reloaded cross-site top-level form POSTs are not same-site: Firefox: MISSING, Chrome: FAIL, Safari: FAIL
-
-/cookies/samesite/form-post-blank-reload.https.html?legacy-samesite
-   Reloaded cross-site top-level form POSTs are not same-site: Firefox: MISSING, Chrome: FAIL, Safari: FAIL
+  SameSite cookies with blob child window: Firefox: FAIL, Chrome: FAIL, Safari: FAIL
 """)  # noqa: E501
 
 
