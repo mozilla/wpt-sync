@@ -104,8 +104,9 @@ class TryFuzzyCommit(TryCommit):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
                                              hacks=hacks, **kwargs)
-        self.exclude = self.extra_args.get("exclude", ["macosx", "shippable"])
-        self.include = self.extra_args.get("include", ["web-platform-tests"])
+        self.queries = self.extra_args.get("queries", ["web-platform-tests !macosx !shippable"])
+        if isinstance(self.queries, basestring):
+            self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
 
     def create(self):
@@ -115,10 +116,6 @@ class TryFuzzyCommit(TryCommit):
             # TODO add something useful to the commit message here since that will
             # appear in email &c.
             self.worktree.index.commit(message="Apply task hacks before running try")
-
-    @property
-    def query(self):
-        return " ".join(self.include + ["!%s" % item for item in self.exclude])
 
     def _push(self):
         self.worktree.git.reset("--hard")
@@ -131,11 +128,13 @@ class TryFuzzyCommit(TryCommit):
                 mach.python("-c", "")
         except OSError:
             pass
-        query = self.query
 
-        logger.info("Pushing to try with fuzzy query: %s" % query)
+        query_args = []
+        for query in self.queries:
+            query_args.extend(["-q", query])
+        logger.info("Pushing to try with fuzzy query: %s" % " ".join(query_args))
 
-        args = ["fuzzy", "-q", query, "--artifact"]
+        args = ["fuzzy", "--artifact"] + query_args
         if self.rebuild:
             args.append("--rebuild")
             args.append(str(self.rebuild))

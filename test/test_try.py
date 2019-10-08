@@ -1,13 +1,7 @@
 from mock import Mock, patch
 
-from sync import tc, trypush
+from sync import tc
 from sync.lock import SyncLock
-
-
-def test_try_fuzzy():
-    push = trypush.TryFuzzyCommit(None, None, [], 0, include=["web-platform-tests"],
-                                  exclude=["pgo", "ccov"])
-    assert push.query == "web-platform-tests !pgo !ccov"
 
 
 def test_try_task_states(mock_tasks, try_push):
