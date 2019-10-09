@@ -280,6 +280,25 @@ class TaskGroupHandler(Handler):
 
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock), try_push.as_mut(lock):
+                # We sometimes see the taskgroup ID being None. If it isn't set but found via its
+                # taskgroup ID, it is safe to set it here.
+                if try_push.taskgroup_id is None:
+                    logger.info("Try push for taskgroup %s does not have its ID set, setting now" %
+                                taskgroup_id)
+                    try_push.taskgroup_id = taskgroup_id
+                    newrelic.agent.record_custom_event("taskgroup_id_missing", params={
+                        "taskgroup-id": taskgroup_id,
+                        "try_push": try_push,
+                        "sync": sync,
+                    })
+                elif try_push.taskgroup_id != taskgroup_id:
+                    msg = ("TryPush %s, expected taskgroup ID %s, found %s instead" %
+                           (try_push, taskgroup_id, try_push.taskgroup_id))
+                    logger.error(msg)
+                    exc = ValueError(msg)
+                    newrelic.agent.record_exception(exc=exc)
+                    raise exc
+
                 if sync:
                     logger.info("Updating try push for sync %r" % sync)
                 if isinstance(sync, downstream.DownstreamSync):
