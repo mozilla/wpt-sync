@@ -63,7 +63,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                     "-q",
                                     "web-platform-tests !devedition !ccov !fis",
                                     "-q",
-                                    "web-platform-tests fis !devedition !ccov !asan "
+                                    "web-platform-tests fis !devedition !ccov !asan !aarch64 "
                                     "windows10 | linux64",
                                     "--full")
 
