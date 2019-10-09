@@ -639,7 +639,7 @@ MANUAL PUSH: wpt sync bot
                                try_cls=trypush.TryFuzzyCommit,
                                full=True,
                                queries=["web-platform-tests !devedition !ccov !fis",
-                                        "web-platform-tests fis !devedition !ccov !asan "
+                                        "web-platform-tests fis !devedition !ccov !asan !aarch64 "
                                         "windows10 | linux64"])
 
 
