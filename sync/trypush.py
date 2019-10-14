@@ -390,10 +390,10 @@ class TryPush(base.ProcessData):
                             "try", self.try_rev)
 
     @mut()
-    def download_logs(self, wpt_tasks, raw=True, report=True, first_only=False):
-        """Download all the logs for the current try push
+    def download_logs(self, wpt_tasks, first_only=False):
+        """Download all the wptreport logs for the current try push
 
-        :return: List of paths to raw logs
+        :return: List of paths to logs
         """
         # Allow passing either TryPushTasks or the actual TaskGroupView
         if hasattr(wpt_tasks, "wpt_tasks"):
@@ -429,24 +429,9 @@ class TryPush(base.ProcessData):
 
         include_tasks = wpt_tasks.filter(included)
         logger.info("Downloading logs for try revision %s" % self.try_rev)
-        file_names = []
-        if raw:
-            file_names.append("wpt_raw.log")
-        if report:
-            file_names.append("wptreport.json")
+        file_names = ["wptreport.json"]
         include_tasks.download_logs(self.log_path(), file_names)
         return include_tasks
-
-    @mut()
-    def download_raw_logs(self, wpt_tasks, exclude=None):
-        wpt_tasks = self.download_logs(raw=True, report=True, exclude=exclude)
-        raw_logs = []
-        for task in wpt_tasks:
-            for run in task.get("status", {}).get("runs", []):
-                log = run.get("_log_paths", {}).get("wpt_raw.log")
-                if log:
-                    raw_logs.append(log)
-        return raw_logs
 
     @mut()
     def cleanup_logs(self):
