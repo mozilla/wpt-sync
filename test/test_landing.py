@@ -175,7 +175,7 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_wit
                 try_push.download_logs = Mock(return_value=[])
                 try_push["stability"] = True
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-        try_push.download_logs.assert_called_with(ANY, raw=False, report=True, exclude=["foo"])
+        try_push.download_logs.assert_called_with(ANY, raw=False, report=True)
         assert sync.status == "open"
         assert try_push.status == "complete"
 
