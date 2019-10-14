@@ -576,7 +576,7 @@ class SyncProcess(object):
         try_pushes = self.try_pushes(status="complete")
         busted = []
         for push in reversed(try_pushes):
-            if push.infra_fail and not push.expired():
+            if push.infra_fail:
                 busted.append(push)
             else:
                 break
