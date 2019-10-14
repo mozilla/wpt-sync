@@ -53,7 +53,7 @@ def test_retrigger_failures(mock_tasks, try_push):
     assert jobs == retrigger_count * len(set(failed + ex))
 
 
-def test_download_logs_excluded(mock_tasks, try_push):
+def test_download_logs(mock_tasks, try_push):
     failed = ["foo", "foo", "bar", "baz"]
     ex = ["bar", "boo"]
     tasks = Mock(return_value=mock_tasks(
@@ -65,12 +65,11 @@ def test_download_logs_excluded(mock_tasks, try_push):
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
                 with patch.object(tc.TaskGroupView, "download_logs", Mock()):
                     tasks = try_push.tasks()
-                    download_tasks = try_push.download_logs(tasks, exclude=["foo"])
+                    download_tasks = try_push.download_logs(tasks)
                     task_names = [t["task"]["metadata"]["name"] for t in download_tasks]
-                    assert task_names.count("foo") == 5
+                    assert task_names.count("foo") == 7
                     assert task_names.count("bar") == 7
                     assert task_names.count("woo") == 5
                     assert task_names.count("boo") == 1
                     assert task_names.count("baz") == 1
-                    assert len(task_names) == 19
-                    assert task_names.count("foo") == 5
+                    assert len(task_names) == 21

@@ -13,7 +13,6 @@ import downstream
 import gitutils
 import log
 import tasks
-import tc
 import tree
 import load
 import trypush
@@ -957,7 +956,6 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 @mut('try_push', 'sync')
 def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                       accept_failures=False, tasks=None):
-    intermittents = []
 
     if try_push.status == "complete":
         if not accept_failures and not try_push.infra_fail:
@@ -1015,16 +1013,8 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                                     "try before final metadata update."))
                     return
 
-            intermittents = []
-            for name, data in retriggered.iteritems():
-                total = float(sum(data["states"].itervalues()))
-
-                # assuming that only failures cause metadata updates
-                if data["states"][tc.SUCCESS] / total >= tasks._min_success:
-                    intermittents.append(name)
-
             if try_push.status != "complete":
-                update_metadata(sync, try_push, tasks, intermittents)
+                update_metadata(sync, try_push, tasks)
 
     try_push.status = "complete"
     push_to_gecko(git_gecko, git_wpt, sync, allow_push)
@@ -1040,13 +1030,12 @@ def record_too_many_failures(sync, try_push):
     env.bz.comment(sync.bug, message)
 
 
-def update_metadata(sync, try_push, tasks=None, intermittents=None):
+def update_metadata(sync, try_push, tasks=None):
     if tasks is None:
         tasks = try_push.tasks()
     wpt_tasks = try_push.download_logs(tasks.wpt_tasks,
                                        raw=False,
-                                       report=True,
-                                       exclude=intermittents)
+                                       report=True)
     log_files = []
     for task in wpt_tasks:
         for run in task.get("status", {}).get("runs", []):
