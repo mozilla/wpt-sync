@@ -4,7 +4,6 @@ import shutil
 import subprocess
 import traceback
 from collections import defaultdict
-from datetime import datetime, timedelta
 
 import newrelic
 import taskcluster
@@ -324,26 +323,6 @@ class TryPush(base.ProcessData):
             if item.status == "open":
                 return item
         raise ValueError("Got multiple syncs and none were open")
-
-    def expired(self):
-        now = taskcluster.fromNow("0 days")
-        created_date = None
-        is_expired = True
-        try:
-            if self.created:
-                created_date = datetime.strptime(self.created, tc._DATE_FMT)
-            else:
-                # for legacy pushes, save creation date from TaskCluster
-                task = tc.get_task(self.taskgroup_id)
-                if task and task.get("created"):
-                    self.created = task["created"]
-                    created_date = datetime.strptime(self.created, tc._DATE_FMT)
-        except ValueError:
-            logger.debug("Failed to determine creation date for %s" % self)
-        if created_date:
-            # try push created more than 14 days ago
-            is_expired = now > created_date + timedelta(days=14)
-        return is_expired
 
     @property
     def stability(self):

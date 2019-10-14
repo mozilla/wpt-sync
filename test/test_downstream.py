@@ -1,9 +1,6 @@
 from mock import Mock, patch
-from datetime import datetime
 
-import taskcluster
-
-from sync import downstream, handlers, load, tc, trypush
+from sync import downstream, handlers, load, trypush
 from sync.lock import SyncLock
 
 
@@ -220,34 +217,6 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
 
                 # The next action should flag for manual fix now
                 assert sync.next_action == downstream.DownstreamAction.manual_fix
-
-
-def test_try_push_expiration(env, git_gecko, git_wpt, pull_request,
-                             set_pr_status, MockTryCls, hg_gecko_try,
-                             mock_mach):
-    pr = pull_request([("Test commit", {"README": "Example change\n"})],
-                      "Test PR")
-    today = datetime.today().date()
-    tree_patch = patch("sync.tree.is_open", Mock(return_value=True))
-    mach_patch = patch("sync.trypush.Mach", mock_mach)
-    metadata_patch = patch("sync.downstream.DownstreamSync.has_affected_tests_readonly",
-                           Mock(return_value=True))
-    with tree_patch, mach_patch, metadata_patch:
-        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-        env.gh_wpt.get_pull(pr.number).merged = True
-        sync = set_pr_status(pr, "success")
-    with SyncLock.for_process(sync.process_name) as lock:
-        try_push = sync.latest_valid_try_push
-        created_date = datetime.strptime(try_push.created, tc._DATE_FMT)
-        assert today == created_date.date()
-        assert not try_push.expired()
-        with try_push.as_mut(lock):
-            try_push.created = taskcluster.fromNowJSON("-15 days")
-            assert try_push.expired()
-            try_push.created = None
-            with patch("sync.trypush.tc.get_task",
-                       return_value={"created": taskcluster.fromNowJSON("-5 days")}):
-                assert not try_push.expired()
 
 
 def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
