@@ -1033,9 +1033,7 @@ def record_too_many_failures(sync, try_push):
 def update_metadata(sync, try_push, tasks=None):
     if tasks is None:
         tasks = try_push.tasks()
-    wpt_tasks = try_push.download_logs(tasks.wpt_tasks,
-                                       raw=False,
-                                       report=True)
+    wpt_tasks = try_push.download_logs(tasks.wpt_tasks)
     log_files = []
     for task in wpt_tasks:
         for run in task.get("status", {}).get("runs", []):

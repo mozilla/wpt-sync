@@ -321,8 +321,7 @@ def for_sync(sync):
     with try_push.as_mut(sync._lock):
         try_tasks = complete_try_push.tasks()
         try:
-            complete_try_push.download_logs(try_tasks.wpt_tasks, report=True, raw=False,
-                                            first_only=True)
+            complete_try_push.download_logs(try_tasks.wpt_tasks, first_only=True)
         except RetryableError:
             logger.warning("Downloading logs failed")
             return
