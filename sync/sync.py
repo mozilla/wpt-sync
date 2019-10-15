@@ -403,6 +403,16 @@ class SyncProcess(object):
         for key, value in sorted(self.data.items()):
             if key != "error":
                 rv.append("%s: %s" % (key, value))
+
+        try_pushes = self.try_pushes()
+        if try_pushes:
+            try_pushes = sorted(try_pushes, key=lambda x: x.process_name.seq_id)
+            rv.append("Try pushes:")
+            for try_push in try_pushes:
+                rv.append("  %s %s" % (try_push.status,
+                                       try_push.treeherder_url))
+                if try_push.expired():
+                    rv[-1] += " (expired)"
         return rv
 
     def output(self):
