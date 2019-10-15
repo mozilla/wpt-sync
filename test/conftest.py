@@ -683,7 +683,7 @@ def mock_taskgroup(tc_response):
 @pytest.fixture
 def wptfyi_pr_results():
     sha1 = "fcf424c168778e2eaf2a6ca31d19339e3e36beac"
-    path = os.path.join(here, "data", "wptfyi_pr_%s.json" % sha1)
+    path = os.path.join(here, "sample-data", "wptfyi", "wptfyi_pr_%s.json" % sha1)
 
     with open(path) as f:
         results = json.load(f)
