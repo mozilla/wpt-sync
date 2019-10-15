@@ -5,6 +5,7 @@ import urlparse
 
 
 WPT_FYI_BASE = "https://wpt.fyi/api/"
+STAGING_HOST = "staging.wpt.fyi"
 
 
 class Url(object):
@@ -59,8 +60,10 @@ class Url(object):
                                     self.fragment))
 
 
-def get_runs(sha=None, pr=None, max_count=None, labels=None):
+def get_runs(sha=None, pr=None, max_count=None, labels=None, staging=False):
     url = Url(WPT_FYI_BASE + "runs")
+    if staging:
+        url.host = STAGING_HOST
 
     for name, value in [("sha", sha), ("pr", pr), ("max-count", max_count)]:
         if value is not None:
@@ -74,8 +77,10 @@ def get_runs(sha=None, pr=None, max_count=None, labels=None):
     return resp.json()
 
 
-def get_results(run_ids, test=None, query=None):
+def get_results(run_ids, test=None, query=None, staging=False):
     url = Url(WPT_FYI_BASE + "search")
+    if staging:
+        url.host = STAGING_HOST
 
     body = {
         "run_ids": run_ids
