@@ -818,7 +818,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
                 logger.info("PR %s has no corresponding sync" % pr)
                 last = True
             elif (isinstance(sync, downstream.DownstreamSync) and
-                  sync.landable_status != LandableStatus.ready):
+                  sync.landable_status not in (LandableStatus.ready, LandableStatus.skip)):
                 logger.info("PR %s: %s" % (pr, sync.landable_status.reason_str()))
                 last = True
             if last:

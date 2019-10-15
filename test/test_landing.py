@@ -114,6 +114,31 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     assert sync.status == "complete"
 
 
+def test_landable_skipped(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
+                          mock_mach):
+    prev_wpt_head = git_wpt_upstream.head.commit
+    pr = pull_request([("Test commit", {"README": "example_change"})])
+    head_rev = pr._commits[0]["sha"]
+
+    trypush.Mach = mock_mach
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    downstream_sync = set_pr_status(pr, "success")
+
+    with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+        with downstream_sync.as_mut(downstream_lock):
+            downstream_sync.skip = True
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    wpt_head, landable_commits = landing.landable_commits(git_gecko, git_wpt, prev_wpt_head.hexsha)
+    assert len(landable_commits) == 1
+    assert landable_commits[0][0] == str(pr.number)
+    assert landable_commits[0][1] == downstream_sync
+
+
 def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, landing_with_try_push, mock_tasks):
     # 2/3 failure rate, too high
     sync = landing_with_try_push
