@@ -1,0 +1,8 @@
+[core]
+    repositoryformatversion = 0
+    filemode = true
+    bare = true
+[remote "origin"]
+    url = /app/testdata/remotes/wpt-metadata
+    fetch = +refs/heads/*:refs/remotes/origin/*
+    fetch = +refs/pull/*/head:refs/remotes/origin/pr/*

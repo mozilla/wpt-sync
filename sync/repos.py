@@ -78,6 +78,11 @@ class WebPlatformTests(GitSettings):
     fetch_args = ["origin", "master", "--no-tags"]
 
 
+class WptMetadata(GitSettings):
+    name = "wpt-metadata"
+    fetch_args = ["origin", "master", "--no-tags"]
+
+
 class Cinnabar(object):
     hg2git_cache = {}
     git2hg_cache = {}
@@ -105,6 +110,7 @@ class Cinnabar(object):
 wrappers = {
     "gecko": Gecko,
     "web-platform-tests": WebPlatformTests,
+    "wpt-metadata": WptMetadata,
 }
 
 

@@ -131,6 +131,16 @@ test(() => assert_true(false), "Failing test");
 
 
 @pytest.fixture
+def initial_meta_content(env):
+    return {"example/META.yml": """
+links:
+  - url: https://bugzilla.mozilla.org/show_bug.cgi?id=1234
+    product: firefox
+    results:
+      - test: test.html"""}
+
+
+@pytest.fixture
 def sample_gecko_metadata(env):
     # Only added in tests that require it
     return {os.path.join(env.config["gecko"]["path"]["meta"], "example/test.html.ini"):
@@ -223,6 +233,21 @@ def git_wpt_upstream(env, initial_wpt_content):
     return git_upstream
 
 
+@pytest.fixture(scope="function")
+def git_wpt_metadata_upstream(env, initial_meta_content):
+    repo_dir = env.config["wpt-metadata"]["path"]
+    os.makedirs(repo_dir)
+
+    git_upstream = git.Repo.init(repo_dir)
+    paths, _ = create_file_data(initial_meta_content, repo_dir)
+    git_upstream.index.add(paths)
+
+    git_upstream.index.commit("Initial meta commit")
+    git_upstream.git.checkout("-b", "initial")
+
+    return git_upstream
+
+
 def set_remote_urls(repo):
     pyrepo = repo.repo()
     for name, url in repo.remotes:
@@ -258,6 +283,14 @@ def git_wpt(env, git_wpt_upstream):
     git_wpt.configure(os.path.join(here, "testdata", "wpt_config"))
     set_remote_urls(git_wpt)
     return git_wpt.repo()
+
+
+@pytest.fixture(scope="function")
+def git_wpt_metadata(env, git_wpt_metadata_upstream):
+    git_wpt_metadata = repos.WptMetadata(env.config)
+    git_wpt_metadata.configure(os.path.join(here, "testdata", "wpt_metadata_config"))
+    set_remote_urls(git_wpt_metadata)
+    return git_wpt_metadata.repo()
 
 
 @pytest.fixture
