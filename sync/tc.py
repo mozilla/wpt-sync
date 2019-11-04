@@ -17,8 +17,9 @@ from errors import RetryableError
 from threadexecutor import ThreadExecutor
 
 
-QUEUE_BASE = "https://queue.taskcluster.net/v1/"
-INDEX_BASE = "https://index.taskcluster.net/v1/"
+TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com/"
+QUEUE_BASE = TASKCLUSTER_ROOT_URL + "/api/queue/v1/"
+INDEX_BASE = TASKCLUSTER_ROOT_URL + "/api/index/v1/"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 SUCCESS = "completed"
@@ -45,7 +46,7 @@ class TaskclusterClient(object):
                     "clientId": env.config["taskcluster"]["client_id"],
                     "accessToken": env.config["taskcluster"]["token"]
                 },
-                "rootUrl": "https://taskcluster.net",
+                "rootUrl": TASKCLUSTER_ROOT_URL,
             })
         return self._queue
 
