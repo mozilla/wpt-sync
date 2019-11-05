@@ -850,6 +850,10 @@ class DownstreamSync(SyncProcess):
                                    comment=truncated)
             else:
                 env.bz.comment(self.bug, message, is_markdown=True)
+
+        bugs = notify.bugs.bugs_for_sync(self, results)
+        notify.bugs.update_metadata(self, bugs)
+
         self.results_notified = True
 
         with SyncLock.for_process(self.process_name) as lock:

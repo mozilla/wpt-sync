@@ -92,6 +92,9 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     tree.is_open = lambda x: True
     sync = landing.update_landing(git_gecko, git_wpt)
 
+    assert ("Setting bug %s add_blocks %s" % (sync.bug, downstream_sync.bug)
+            in env.bz.output.getvalue())
+
     try_push = sync.latest_try_push
     with SyncLock.for_process(sync.process_name) as lock:
         with sync.as_mut(lock), try_push.as_mut(lock):

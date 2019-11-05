@@ -119,29 +119,37 @@ def compute_moves(moves, unmatched_patterns):
     return updated_patterns
 
 
-def get(git_gecko, files_changed, default):
-    if not files_changed:
-        return default
-
+def components_for_wpt_paths(git_gecko, wpt_paths):
     path_prefix = env.config["gecko"]["path"]["wpt"]
-    paths = [os.path.join(path_prefix, item) for item in files_changed]
+    paths = [os.path.join(path_prefix, item) for item in wpt_paths]
 
     mach = Mach(git_gecko.working_dir)
     output = mach.file_info("bugzilla-component", *paths)
 
-    components = defaultdict(int)
+    components = defaultdict(list)
     current = None
     for line in output.split("\n"):
         if line.startswith(" "):
             assert current is not None
-            components[current] += 1
+            path = line.strip()
+            assert path.startswith(path_prefix)
+            wpt_path = os.path.relpath(path, path_prefix)
+            components[current].append(wpt_path)
         else:
             current = line.strip()
 
+    return components
+
+
+def get(git_gecko, files_changed, default):
+    if not files_changed:
+        return default
+
+    components = components_for_wpt_paths(git_gecko, files_changed)
     if not components:
         return default
 
-    components = sorted(components.items(), key=lambda x: -x[1])
+    components = sorted(components.items(), key=lambda x: -len(x[1]))
     component = components[0][0]
     if component == "UNKNOWN" and len(components) > 1:
         component = components[1][0]

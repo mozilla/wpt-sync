@@ -129,6 +129,11 @@ class Result(object):
             lambda browser, _, status: (browser == target_browser and
                                         status.is_disabled())))
 
+    def has_link(self, status=None):
+        if status is None:
+            return len(self.bug_links) > 0
+        return any(item for item in self.bug_links if item.status == status)
+
 
 class TestResult(Result):
     def __init__(self):
