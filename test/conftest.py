@@ -1,4 +1,5 @@
 import copy
+import glob
 import io
 import json
 import os
@@ -6,6 +7,7 @@ import random
 import shutil
 import subprocess
 import types
+from collections import defaultdict
 from cStringIO import StringIO
 from mock import Mock, patch
 
@@ -733,3 +735,51 @@ def wptfyi_metadata():
         metadata = json.load(f)
 
     return metadata
+
+
+@pytest.fixture
+def pr_19900_github():
+    from sync.notify.results import LogFile
+    glob_pat = os.path.join(here, "sample-data", "taskcluster", "pr_19900", "GitHub-*")
+
+    base_data = defaultdict(dict)
+    head_data = defaultdict(dict)
+    for path in glob.glob(glob_pat):
+        log_type, browser, target = os.path.splitext(os.path.basename(path))[0].split("-")
+        assert log_type == "GitHub"
+        dest = {"base": base_data,
+                "head": head_data}[target]
+        dest[browser][log_type] = [LogFile(path)]
+
+    return [base_data, head_data]
+
+
+@pytest.fixture
+def pr_19900_gecko_ci():
+    from sync.notify.results import get_logs
+    base_path = os.path.join(here, "sample-data", "taskcluster", "pr_19900")
+
+    data = [("central_tasks", []), ("try_tasks", [])]
+    for (dir_name, tasks) in data:
+        for path in glob.glob(os.path.join(base_path, dir_name, "*.json")):
+            task_name = os.path.splitext(os.path.basename(path))[0]
+            while True:
+                split = task_name.rsplit("-", 1)
+                try:
+                    int(split[1])
+                    break
+                except ValueError:
+                    task_name = split[0]
+            task = {
+                "task": {
+                    "metadata": {
+                        "name": task_name
+                    },
+                },
+                "status": {
+                    "runs": [{"_log_paths": {"wptreport.json": path}}]
+                }
+            }
+            tasks.append(task)
+
+    return [get_logs(item[1]) for item in data]
