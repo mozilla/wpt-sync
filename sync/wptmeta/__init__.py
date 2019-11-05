@@ -77,12 +77,22 @@ class Reader(object):
         :returns: Boolean indicating if `rel_path` is a valid path"""
         pass
 
+    @abstractmethod
+    def walk(self, rel_path):
+        """Iterator over all paths under rel_path containing an object
+
+        :param rel_path` Relative path
+        :returns: Iterator over path strings
+        """
+        pass
+
 
 class Writer(object):
     __metaclass__ = ABCMeta
 
     """Class implementing write operations on paths"""
 
+    @abstractmethod
     def write(self, rel_path, data):
         """Write `data` to the object at `rel_path`
 
@@ -105,6 +115,12 @@ class FilesystemReader(Reader):
 
     def exists(self, rel_path):
         return os.path.exists(os.path.join(self.root, rel_path))
+
+    def walk(self, rel_path):
+        base = os.path.join(self.root, rel_path)
+        for dir_path, dir_names, file_names in os.walk(base):
+            if "META.yml" in file_names:
+                yield os.path.relpath(dir_path, self.root)
 
 
 class FilesystemWriter(Writer):
@@ -136,16 +152,22 @@ class WptMetadata(object):
         self.loaded = {}
 
     def iterlinks(self, test_id, product=None, subtest=None, status=None):
-        """Get the metadata for a specific test"""
-        assert test_id.startswith("/")
-        dir_name, _ = parse_test(test_id)
-        if dir_name not in self.loaded:
-            self.loaded[dir_name] = MetaFile(self, dir_name)
+        """Get the metadata matching a specified set of conditions"""
+        if test_id is None:
+            dir_names = self.reader.walk("")
+        else:
+            assert test_id.startswith("/")
+            dir_name, _ = parse_test(test_id)
+            dir_names = [dir_name]
+        for dir_name in dir_names:
+            if dir_name not in self.loaded:
+                self.loaded[dir_name] = MetaFile(self, dir_name)
 
-        return self.loaded[dir_name].iterlinks(product=product,
-                                               test_id=test_id,
-                                               subtest=None,
-                                               status=None)
+            for item in self.loaded[dir_name].iterlinks(product=product,
+                                                        test_id=test_id,
+                                                        subtest=None,
+                                                        status=None):
+                yield item
 
     def write(self):
         """Write any updated metadata to the metadata tree"""
