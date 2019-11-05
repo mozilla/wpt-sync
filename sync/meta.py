@@ -6,7 +6,7 @@ import worktree
 import wptmeta
 
 from env import Environment
-from base import CommitBuilder
+from base import CommitBuilder, iter_tree
 from lock import mut, MutGuard
 
 
@@ -29,6 +29,11 @@ class GitReader(wptmeta.Reader):
     def read_path(self, rel_path):
         entry = self.rev.tree[rel_path]
         return self.pygit2_repo[entry.id].read_raw()
+
+    def walk(self, rel_path):
+        for path, obj in iter_tree(self.pygit2_repo, rel_path, rev=self.rev):
+            if obj.type == "blob" and obj.name == "META.yml":
+                yield "/".join(path[:-1])
 
 
 class GitWriter(wptmeta.Writer):
