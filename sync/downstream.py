@@ -832,12 +832,14 @@ class DownstreamSync(SyncProcess):
 
         logger.info("Trying to generate results notification for PR %s" % self.pr)
 
-        notification = notify.message_for_sync(self)
-        if notification is None:
+        results = notify.results.for_sync(self)
+
+        if not results:
+            # TODO handle errors here better, perhaps
             logger.error("Failed to get results notification for PR %s" % self.pr)
             return
 
-        message, truncated = notification
+        message, truncated = notify.msg.for_results(results)
 
         with env.bz.bug_ctx(self.bug) as bug:
             if truncated:
