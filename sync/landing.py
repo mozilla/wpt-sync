@@ -630,6 +630,14 @@ MANUAL PUSH: wpt sync bot
             stability = (latest_try_push is not None and
                          not latest_try_push.infra_fail)
 
+        queries = ["web-platform-tests !devedition !ccov !fis",
+                   "web-platform-tests fis !devedition !ccov !asan !aarch64 "
+                   "windows10 | linux64"]
+
+        # aarch64 is very resource constrained so only run on stability push
+        if not stability:
+            queries[0] += " !aarch64"
+
         trypush.TryPush.create(self._lock,
                                self,
                                hacks=False,
@@ -637,9 +645,7 @@ MANUAL PUSH: wpt sync bot
                                rebuild_count=0,
                                try_cls=trypush.TryFuzzyCommit,
                                full=True,
-                               queries=["web-platform-tests !devedition !ccov !fis",
-                                        "web-platform-tests fis !devedition !ccov !asan !aarch64 "
-                                        "windows10 | linux64"])
+                               queries=queries)
 
 
 def push(landing):

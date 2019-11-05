@@ -61,7 +61,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                     "fuzzy",
                                     "--artifact",
                                     "-q",
-                                    "web-platform-tests !devedition !ccov !fis",
+                                    "web-platform-tests !devedition !ccov !fis !aarch64",
                                     "-q",
                                     "web-platform-tests fis !devedition !ccov !asan !aarch64 "
                                     "windows10 | linux64",
