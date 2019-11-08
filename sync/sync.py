@@ -411,8 +411,6 @@ class SyncProcess(object):
             for try_push in try_pushes:
                 rv.append("  %s %s" % (try_push.status,
                                        try_push.treeherder_url))
-                if try_push.expired():
-                    rv[-1] += " (expired)"
         return rv
 
     def output(self):
