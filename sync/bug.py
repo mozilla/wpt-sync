@@ -139,6 +139,7 @@ class Bugzilla(object):
         if bz_username:
             bug._bug["assigned_to"] = bz_username
         bug.add_comment(comment)
+
         if priority is not None:
             if priority not in ("P1", "P2", "P3", "P4", "P5"):
                 raise ValueError("Invalid bug priority %s" % priority)
@@ -222,7 +223,7 @@ class BugContext(object):
         self.bug = self.bugzilla._get_bug(self.bug_id)
         self._comments = None
         self.comment = None
-        self.attchements = []
+        self.attachments = []
         self.dirty = set()
 
         return self
@@ -315,7 +316,7 @@ class BugContext(object):
         if flags:
             body["flags"] = flags
 
-        self.attachements.append(body)
+        self.attachments.append(body)
         self.dirty.add("attachment")
 
 
