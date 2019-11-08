@@ -99,7 +99,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
                     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     assert sync.status == "open"
-    new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/inbound"].commit
+    new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
     assert new_head.tree["testing/web-platform/tests/README"].data_stream.read() == "example_change"
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
@@ -243,7 +243,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                 message="Add change1 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
                                        raise_on_error=True)
     sync_1 = pushed.pop()
 
@@ -267,7 +267,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                 message="Add change2 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
                                        raise_on_error=True)
     sync_2 = pushed.pop()
 
@@ -308,7 +308,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                 message="Add change3 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
                                        raise_on_error=True)
 
     # Now start a landing
@@ -401,7 +401,7 @@ def create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
                                 message="Change CONFIG")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "inbound", rev, raise_on_error=True)
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     sync = syncs["open"].pop()

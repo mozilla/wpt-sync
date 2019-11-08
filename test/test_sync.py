@@ -13,7 +13,7 @@ def test_delete(env, git_gecko, git_wpt, upstream_gecko_commit):
                                 message="Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    _, _, _ = upstream.gecko_push(git_gecko, git_wpt, "inbound", rev,
+    _, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
                                   raise_on_error=True)
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug, flat=True).pop()
