@@ -3,6 +3,8 @@ import time
 import urllib
 import urlparse
 
+from six import iteritems
+
 
 WPT_FYI_BASE = "https://wpt.fyi/api/"
 STAGING_HOST = "staging.wpt.fyi"
@@ -104,22 +106,27 @@ def get_results(run_ids, test=None, query=None, staging=False):
     return resp.json()
 
 
-def get_metadata(products, link):
-    url = Url(WPT_FYI_BASE + "search")
+def get_metadata(products, link, staging=False):
+    url = Url(WPT_FYI_BASE + "metadata")
+    if staging:
+        url.host = STAGING_HOST
 
     if isinstance(products, basestring):
         url.add_query("product", products)
     else:
         for product in products:
             url.add_query("product", product)
-    if link:
-        body = {"exists": [{"link": link}]}
-    else:
-        body = None
+    resp = requests.get(url.build())
 
-    if body is not None:
-        resp = requests.post(url.build(), json=body)
-    else:
-        resp = requests.get(url.build())
     resp.raise_for_status()
-    return resp.json()
+
+    if link is not None:
+        data = {}
+        for test, values in iteritems(resp.json()):
+            link_values = [item for item in values if link in item["url"]]
+            if link_values:
+                data[test] = link_values
+    else:
+        data = resp.json()
+
+    return data

@@ -259,5 +259,8 @@ def for_sync(sync):
         logger.error("Unable to fetch results from wpt.fyi: %s" % e)
         return
     results = results_by_test(results_by_browser)
-    metadata = wptfyi.get_metadata(staging=True)
+    try:
+        metadata = wptfyi.get_metadata(["firefox"], "https://bugzilla.mozilla.org")
+    except requests.HTTPError:
+        metadata = {}
     return [summary_message(head_sha1, results)] + details_message(results, metadata)
