@@ -440,7 +440,7 @@ class SyncProcess(object):
 
     @staticmethod
     def gecko_integration_branch():
-        return env.config["gecko"]["refs"]["mozilla-inbound"]
+        return env.config["gecko"]["refs"][env.config["gecko"]["landing"]]
 
     @staticmethod
     def gecko_landing_branch():

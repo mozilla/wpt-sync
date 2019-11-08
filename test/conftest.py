@@ -162,7 +162,7 @@ username=test""")
 
 @pytest.fixture(scope="function")
 def hg_gecko_upstream(env, initial_gecko_content, initial_wpt_content, git_wpt_upstream):
-    repo_dir = os.path.join(env.config["root"], env.config["gecko"]["landing"])
+    repo_dir = os.path.join(env.config["root"], "remotes", "gecko")
     sync_dir = os.path.join(repo_dir, env.config["gecko"]["path"]["wpt"])
     meta_dir = os.path.join(repo_dir, env.config["gecko"]["path"]["meta"])
 
@@ -198,7 +198,7 @@ def hg_gecko_upstream(env, initial_gecko_content, initial_wpt_content, git_wpt_u
 
 @pytest.fixture(scope="function")
 def hg_gecko_try(env, hg_gecko_upstream):
-    hg_gecko_upstream_dir = os.path.join(env.config["root"], env.config["gecko"]["landing"])
+    hg_gecko_upstream_dir = os.path.join(env.config["root"], "remotes", "gecko")
     repo_dir = os.path.join(env.config["root"], env.config["sync"]["try"])
 
     os.makedirs(repo_dir)
@@ -246,6 +246,7 @@ def git_gecko(env, hg_gecko_upstream):
     git_gecko = git_gecko.repo()
     git_gecko.remotes.mozilla.fetch()
     git_gecko.create_head("sync/upstream/inbound", "FETCH_HEAD")
+    git_gecko.create_head("sync/upstream/autoland", "FETCH_HEAD")
     git_gecko.create_head("sync/upstream/central", "FETCH_HEAD")
     git_gecko.create_head("sync/landing/central", "FETCH_HEAD")
     return git_gecko
@@ -281,7 +282,7 @@ def hg_commit(hg, message, bookmarks):
 @pytest.fixture
 def upstream_gecko_commit(env, hg_gecko_upstream):
     def inner(test_changes=None, meta_changes=None, other_changes=None,
-              bug="1234", message="Example changes", bookmarks="mozilla/inbound"):
+              bug="1234", message="Example changes", bookmarks="mozilla/autoland"):
         changes = gecko_changes(env, test_changes, meta_changes, other_changes)
         message = "Bug %s - %s" % (bug, message)
 
@@ -295,7 +296,7 @@ def upstream_gecko_commit(env, hg_gecko_upstream):
 
 @pytest.fixture
 def upstream_gecko_backout(env, hg_gecko_upstream):
-    def inner(revs, bugs, message=None, bookmarks="mozilla/inbound"):
+    def inner(revs, bugs, message=None, bookmarks="mozilla/autoland"):
         if isinstance(revs, (str, unicode)):
             revs = [revs]
         if isinstance(bugs, (str, unicode)):
@@ -316,10 +317,10 @@ def gecko_worktree(env, git_gecko):
     path = os.path.join(env.config["root"],
                         env.config["paths"]["worktrees"],
                         "gecko"
-                        "inbound")
+                        "autoland")
     git_gecko.git.worktree("add",
                            path,
-                           env.config["gecko"]["refs"]["mozilla-inbound"])
+                           env.config["gecko"]["refs"]["autoland"])
     return git.Repo(path)
 
 
