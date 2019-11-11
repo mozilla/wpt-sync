@@ -216,6 +216,8 @@ class BugContext(object):
         self._comments = None
         self.comment = None
         self.attachments = None
+        self.depends = None
+        self.blocks = None
         self.dirty = None
 
     def __enter__(self):
@@ -223,6 +225,8 @@ class BugContext(object):
         self._comments = None
         self.comment = None
         self.attchements = []
+        self.depends = {}
+        self.blocks = {}
         self.dirty = set()
 
         return self
@@ -239,6 +243,10 @@ class BugContext(object):
                     self.bugzilla.bugzilla.request('bug/{}/attachment'.format(self.bug._bug['id']),
                                                    method='POST', json=attachment)
 
+            if "depends" in self.dirty:
+                self.bug._bug["depends_on"] = self.depends
+            if "blocks" in self.dirty:
+                self.bug._bug["blocks"] = self.blocks
             if self.dirty:
                 self.bugzilla.bugzilla.put(self.bug)
 
@@ -317,6 +325,30 @@ class BugContext(object):
 
         self.attachements.append(body)
         self.dirty.add("attachment")
+
+    def add_depends(self, bug_id):
+        if "add" not in self.depends:
+            self.depends["add"] = []
+        self.depends["add"].append(bug_id)
+        self.dirty.add("depends")
+
+    def remove_depends(self, bug_id):
+        if "remove" not in self.depends:
+            self.depends["remove"] = []
+        self.depends["remove"].append(bug_id)
+        self.dirty.add("depends")
+
+    def add_blocks(self, bug_id):
+        if "add" not in self.blocks:
+            self.blocks["add"] = []
+        self.blocks["add"].append(bug_id)
+        self.dirty.add("blocks")
+
+    def remove_blocks(self, bug_id):
+        if "remove" not in self.blocks:
+            self.blocks["remove"] = []
+        self.blocks["remove"].append(bug_id)
+        self.dirty.add("blocks")
 
 
 class MockBugzilla(Bugzilla):
@@ -421,4 +453,17 @@ class MockBugContext(object):
             body["is_markdown"] = is_markdown
         if flags:
             body["flags"] = flags
-        self.changes.append("Add attachment: %r" % body)
+        self.changes.append("Setting bug %s add_attachment: %r" %
+                            (self.bug_id, body))
+
+    def add_depends(self, bug_id):
+        self.changes.append("Setting bug %s add_depends %s" % (self.bug_id, bug_id))
+
+    def remove_depends(self, bug_id):
+        self.changes.append("Setting bug %s remove_depends %s" % (self.bug_id, bug_id))
+
+    def add_blocks(self, bug_id):
+        self.changes.append("Setting bug %s add_blocks %s" % (self.bug_id, bug_id))
+
+    def remove_blocks(self, bug_id):
+        self.changes.append("Setting bug %s remove_blocks %s" % (self.bug_id, bug_id))
