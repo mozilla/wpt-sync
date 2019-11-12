@@ -17,9 +17,12 @@ from errors import RetryableError
 from threadexecutor import ThreadExecutor
 
 
-TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com/"
+TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
 QUEUE_BASE = TASKCLUSTER_ROOT_URL + "/api/queue/v1/"
 INDEX_BASE = TASKCLUSTER_ROOT_URL + "/api/index/v1/"
+OLD_TASKCLUSTER_ROOT_URL = "https://taskcluster.net"
+OLD_QUEUE_BASE = "https://queue.taskcluster.net/v1/"
+OLD_INDEX_BASE = "https://queue.taskcluster.net/v1/"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 SUCCESS = "completed"
@@ -34,12 +37,41 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 
+tc_base_cache = {}
+
+
+def get_tc_queue_base(task_id):
+    if task_id not in tc_base_cache:
+        cache = True
+        try:
+            resp = requests.get(QUEUE_BASE + "task/%s" % task_id)
+            resp.raise_for_status()
+        except requests.HTTPError:
+            try:
+                resp = requests.get(OLD_QUEUE_BASE + "task/%s" % task_id)
+                resp.raise_for_status()
+            except requests.HTTPError:
+                # In this case we didn't find it on either system, so make a guess
+                cache = False
+                value = QUEUE_BASE
+            else:
+                value = OLD_QUEUE_BASE
+        else:
+            value = QUEUE_BASE
+        if cache:
+            tc_base_cache[task_id] = value
+    else:
+        value = tc_base_cache[task_id]
+    return value
+
+
 class TaskclusterClient(object):
     def __init__(self):
         self._queue = None
 
     @property
     def queue(self):
+        # Only used for retriggers which always use the new URL
         if not self._queue:
             self._queue = taskcluster.Queue({
                 "credentials": {
@@ -137,7 +169,8 @@ class TaskGroup(object):
         if self._tasks:
             return self._tasks
 
-        list_url = QUEUE_BASE + "task-group/" + self.taskgroup_id + "/list"
+        queue_base = get_tc_queue_base(self.taskgroup_id)
+        list_url = queue_base + "task-group/" + self.taskgroup_id + "/list"
 
         r = requests.get(list_url, params={
             "limit": 200
@@ -259,7 +292,8 @@ def get_task_artifacts(destination, task, file_names, session, retry):
     if not status.get("runs"):
         logger.debug("No runs for task %s" % status["taskId"])
         return
-    artifacts_base_url = QUEUE_BASE + "task/%s/artifacts" % status["taskId"]
+    queue_base = get_tc_queue_base(status["taskId"])
+    artifacts_base_url = queue_base + "task/%s/artifacts" % status["taskId"]
     try:
         artifacts = fetch_json(artifacts_base_url, session=session)
     except requests.HTTPError as e:
@@ -354,10 +388,23 @@ def is_status_fn(statuses):
 def lookup_index(index_name):
     if index_name is None:
         return None
-    idx_url = INDEX_BASE + "task/" + index_name
-    r = requests.get(idx_url)
-    idx = r.json()
-    task_id = idx.get("taskId")
+
+    error = None
+    for base in [INDEX_BASE, OLD_INDEX_BASE]:
+        idx_url = INDEX_BASE + "task/" + index_name
+        resp = requests.get(idx_url)
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as e:
+            error = e
+            continue
+        error = None
+        idx = resp.json()
+        task_id = idx.get("taskId")
+        break
+
+    if error:
+        raise error
     if task_id:
         return task_id
     logger.warning("Task not found from index: %s\n%s" % (index_name, idx.get("message", "")))
@@ -367,7 +414,8 @@ def lookup_index(index_name):
 def get_task(task_id):
     if task_id is None:
         return
-    task_url = QUEUE_BASE + "task/" + task_id
+    queue_base = get_tc_queue_base(task_id)
+    task_url = queue_base + "task/" + task_id
     r = requests.get(task_url)
     task = r.json()
     if task.get("taskGroupId"):
@@ -378,7 +426,8 @@ def get_task(task_id):
 def get_task_status(task_id):
     if task_id is None:
         return
-    status_url = "%stask/%s/status" % (QUEUE_BASE, task_id)
+    queue_base = get_tc_queue_base(task_id)
+    status_url = "%stask/%s/status" % (queue_base, task_id)
     r = requests.get(status_url)
     status = r.json()
     if status.get("status"):
