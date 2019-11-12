@@ -706,6 +706,9 @@ def mock_taskgroup(tc_response):
             with requests_mock.Mocker() as m:
                 taskgroup_id = "test"
                 m.register_uri("GET",
+                               "%stask/%s" % (tc.QUEUE_BASE, taskgroup_id),
+                               body=None)
+                m.register_uri("GET",
                                "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id),
                                body=f)
                 taskgroup = tc.TaskGroup(taskgroup_id)
