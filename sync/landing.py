@@ -891,6 +891,12 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                 return
             wpt_head, commits = landable
             landing = LandingSync.new(lock, git_gecko, git_wpt, prev_wpt_head, wpt_head)
+
+            # Set the landing to block all the bugs that will land with it
+            blocks = [sync.bug for (pr_, sync, commits_) in commits if sync.bug]
+            with env.bz.bug_ctx(landing.bug) as bug:
+                for bug_id in blocks:
+                    bug.add_blocks(bug_id)
         else:
             if prev_wpt_head and landing.wpt_commits.base.sha1 != prev_wpt_head:
                 raise AbortError("Existing landing base commit %s doesn't match"
