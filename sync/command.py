@@ -280,7 +280,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
             try_push = current_landing.latest_try_push
             logger.info("Found try push %s" % try_push.treeherder_url)
             if try_push.taskgroup_id is None:
-                update.update_taskgroup_ids(git_gecko, git_wpt)
+                update.update_taskgroup_ids(git_gecko, git_wpt, try_push)
                 assert try_push.taskgroup_id is not None
             with try_push.as_mut(lock), current_landing.as_mut(lock):
                 tasks = try_push.tasks()
@@ -303,13 +303,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                 elif try_push.status == "complete" and not try_push.infra_fail:
                     update_landing()
                     if current_landing.latest_try_push == try_push:
-                        landing.try_push_complete(git_gecko,
-                                                  git_wpt,
-                                                  try_push,
-                                                  current_landing,
-                                                  allow_push=kwargs["push"],
-                                                  accept_failures=accept_failures,
-                                                  tasks=tasks)
+                        landing.push_to_gecko(git_gecko, git_wpt, current_landing)
                 elif try_push.status == "complete":
                     if kwargs["retry"]:
                         update_landing()

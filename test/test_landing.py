@@ -2,8 +2,11 @@ import os
 
 from mock import Mock, patch, ANY, DEFAULT
 
+import pytest
+
 from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
+from sync.errors import AbortError
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
 from conftest import git_commit
@@ -148,9 +151,10 @@ def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, landing_with_try
                                                             completed=["bar"])))):
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock), try_push.as_mut(lock):
-                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-    assert try_push.status == "complete"
-    assert "too many failures" in sync.error["message"]
+                with pytest.raises(AbortError):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    assert try_push.status == "open"
+    assert "too many test failures" in sync.error["message"]
 
 
 def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push, mock_tasks, env,

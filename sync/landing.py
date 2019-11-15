@@ -933,18 +933,19 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
             if landing.latest_try_push is None:
                 landing.next_try_push()
             elif retry:
+                try:
+                    landing.gecko_rebase(landing.gecko_landing_branch())
+                except git.GitCommandError:
+                    message = record_rebase_failure(landing)
+                    raise AbortError(message)
+
                 with landing.latest_try_push.as_mut(lock):
                     landing.latest_try_push.status = "complete"
-                try:
-                    landing.gecko_rebase(landing.gecko_integration_branch())
-                except git.GitCommandError as e:
-                    err = "Rebase failed:\n%s" % e
-                    logger.error(err)
-                    env.bz.comment(landing.bug, err)
-                    raise AbortError(err)
                 landing.next_try_push(retry=True)
             else:
-                logger.info("Got existing try push %s" % landing.latest_try_push)
+                try_push = landing.latest_try_push
+                logger.info("Got existing try push %s" % try_push.treeherder_url)
+                return
 
             for _, sync, _ in commits:
                 if isinstance(sync, downstream.DownstreamSync):
@@ -962,33 +963,18 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 @mut('try_push', 'sync')
 def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                       accept_failures=False, tasks=None):
-
-    if try_push.status == "complete":
-        if not accept_failures and not try_push.infra_fail:
-            logger.info("Previous try push had failures, run with either --accept-failures "
-                        "or --retry")
-            return
-        elif try_push.infra_fail:
-            logger.info("Previous try push had an infra failure, retrying")
-            sync.next_try_push(retry=True)
-            return
-
     if tasks is None:
         tasks = try_push.tasks()
     if not tasks.success():
         target_success_rate = 0.5 if not try_push.stability else 0.8
         if not accept_failures and len(tasks.failed_builds()):
-            message = ("Try push had build failures")
-            sync.error = message
-            env.bz.comment(sync.bug, message)
-            try_push.status = "complete"
+            message = record_build_failures(sync, try_push)
             try_push.infra_fail = True
             raise AbortError(message)
         elif (not accept_failures and not try_push.stability and
               tasks.failure_limit_exceeded(target_success_rate)):
-            record_too_many_failures(sync, try_push)
-            try_push.status = "complete"
-            return
+            message = record_too_many_failures(sync, try_push)
+            raise AbortError(message)
 
         if not try_push.stability:
             if try_push.status != "complete":
@@ -996,11 +982,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                 try_push.status = "complete"
             try:
                 sync.gecko_rebase(sync.gecko_landing_branch())
-            except git.GitCommandError as e:
-                err = "Rebase failed:\n%s" % e
-                logger.error(err)
-                env.bz.comment(sync.bug, err)
-                raise AbortError(err)
+            except git.GitCommandError:
+                message = record_rebase_failure(sync)
+                raise AbortError(message)
 
             sync.next_try_push()
             return
@@ -1023,17 +1007,58 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
                 update_metadata(sync, try_push, tasks)
 
     try_push.status = "complete"
+
+    if try_push.infra_fail and not accept_failures:
+        record_infra_fail(sync, try_push)
+        return
+
     push_to_gecko(git_gecko, git_wpt, sync, allow_push)
 
 
+def needinfo_users():
+    needinfo_users = [item.strip() for item in
+                      (env.config["gecko"]["landing"]
+                       .get("needinfo-users", "")
+                       .split(","))]
+    return [item for item in needinfo_users if item]
+
+
+def record_failure(sync, log_msg, bug_msg, fixup_msg=None):
+    if fixup_msg is None:
+        fixup_msg = "Run `wptsync landing` with either --accept-failures or --retry"
+    logger.error("Bug %s:%s\n%s" % (sync.bug, log_msg, fixup_msg))
+    sync.error = log_msg
+    with env.bz.bug_ctx(sync.bug) as bug:
+        bug.add_comment("%s\nThis requires fixup from a wpt sync admin." % (bug_msg,))
+        bug.needinfo(*needinfo_users())
+    return log_msg
+
+
+def record_build_failures(sync, try_push):
+    log_msg = "build failures in try push %s" % (try_push.treeherder_url,)
+    bug_msg = "Landing failed due to build failures in try push %s" % (try_push.treeherder_url,)
+    return record_failure(sync, log_msg, bug_msg)
+
+
 def record_too_many_failures(sync, try_push):
-    message = (
-        "Latest try push for bug %s has too many failures.\n"
-        "See %s"
-    ) % (sync.bug, try_push.treeherder_url)
-    logger.error(message)
-    sync.error = message
-    env.bz.comment(sync.bug, message)
+    log_msg = "too many test failures in try push %s" % (try_push.treeherder_url,)
+    bug_msg = "Landing failed due to too many test failures in try push %s" % (
+        try_push.treeherder_url,)
+    return record_failure(sync, log_msg, bug_msg)
+
+
+def record_infra_fail(sync, try_push):
+    log_msg = "infra failures in try push %s. " % (try_push.treeherder_url)
+    bug_msg = "Landing failed due to infra failures in try push %s." % (
+        try_push.treeherder_url,)
+    return record_failure(sync, log_msg, bug_msg)
+
+
+def record_rebase_failure(sync):
+    log_msg = "rebase failed"
+    bug_msg = "Landing failed due to conficts during rebase"
+    fixup_msg = "Resolve the conflicts in the worktree and run `wptsync landing`"
+    return record_failure(sync, log_msg, bug_msg, fixup_msg)
 
 
 def update_metadata(sync, try_push, tasks=None):
