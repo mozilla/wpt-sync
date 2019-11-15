@@ -262,6 +262,7 @@ def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
 
 
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
+    import errors
     import landing
     import update
     current_landing = landing.current(git_gecko, git_wpt)
@@ -280,44 +281,31 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
             try_push = current_landing.latest_try_push
             logger.info("Found try push %s" % try_push.treeherder_url)
             if try_push.taskgroup_id is None:
-                update.update_taskgroup_ids(git_gecko, git_wpt)
+                update.update_taskgroup_ids(git_gecko, git_wpt, try_push)
                 assert try_push.taskgroup_id is not None
             with try_push.as_mut(lock), current_landing.as_mut(lock):
-                tasks = try_push.tasks()
-                if (try_push.status == "complete" and
-                    tasks.failure_limit_exceeded() and
-                    accept_failures):
-                    try_push.status = "open"
-                if (try_push.status == "open" and
-                    tasks.complete(allow_unscheduled=True)):
-                    if try_push.infra_fail:
-                        update_landing()
-                    else:
-                        landing.try_push_complete(git_gecko,
-                                                  git_wpt,
-                                                  try_push,
-                                                  current_landing,
-                                                  allow_push=kwargs["push"],
-                                                  accept_failures=accept_failures,
-                                                  tasks=tasks)
-                elif try_push.status == "complete" and not try_push.infra_fail:
+                if kwargs["retry"]:
                     update_landing()
-                    if current_landing.latest_try_push == try_push:
-                        landing.try_push_complete(git_gecko,
-                                                  git_wpt,
-                                                  try_push,
-                                                  current_landing,
-                                                  allow_push=kwargs["push"],
-                                                  accept_failures=accept_failures,
-                                                  tasks=tasks)
-                elif try_push.status == "complete":
-                    if kwargs["retry"]:
-                        update_landing()
+                elif try_push.status == "open":
+                    tasks = try_push.tasks()
+                    try_result = current_landing.try_result(tasks=tasks)
+                    if try_result == landing.TryResult.pending:
+                        logger.info("Landing in bug %s is waiting for try results" % landing.bug)
                     else:
-                        logger.info("Last try push was complete, but has failures or errors. "
-                                    "Rerun with --accept-failures or --retry")
+                        try:
+                            landing.try_push_complete(git_gecko,
+                                                      git_wpt,
+                                                      try_push,
+                                                      current_landing,
+                                                      allow_push=kwargs["push"],
+                                                      accept_failures=accept_failures,
+                                                      tasks=tasks)
+                        except errors.AbortError:
+                            # Don't need to raise an error here because
+                            # the logging is the important part
+                            return
                 else:
-                    logger.info("Landing in bug %s is waiting for try results" % landing.bug)
+                    update_landing()
     else:
         update_landing()
 
