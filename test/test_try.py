@@ -37,7 +37,7 @@ def test_try_task_states_all_success(mock_tasks, try_push):
 
 
 def test_retrigger_failures(mock_tasks, try_push):
-    failed = ["foo", "foo", "bar", "baz"]
+    failed = ["foo", "foo", "bar", "baz", "foo-aarch64"]
     ex = ["bar", "boo", "bork"]
     tasks = Mock(return_value=mock_tasks(
         completed=["foo", "bar"] * 5, failed=failed, exception=ex
@@ -50,7 +50,7 @@ def test_retrigger_failures(mock_tasks, try_push):
                            return_value=["job"] * retrigger_count):
                     tasks = try_push.tasks()
                     jobs = tasks.retrigger_failures(count=retrigger_count)
-    assert jobs == retrigger_count * len(set(failed + ex))
+    assert jobs == retrigger_count * (len(set(failed + ex)) - 1)
 
 
 def test_download_logs(mock_tasks, try_push):
