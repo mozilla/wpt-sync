@@ -400,9 +400,12 @@ class MockBugContext(object):
     def __init__(self, bugzilla, bug_id):
         self.bugzilla = bugzilla
         self.bug_id = bug_id
+        self.changes = None
+        self.comment = None
 
     def __enter__(self):
         self.changes = []
+        self.comment = None
         return self
 
     def __exit__(self, *args, **kwargs):
