@@ -1017,8 +1017,8 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
 
 def needinfo_users():
     needinfo_users = [item.strip() for item in
-                      (env.config["gecko"]["landing"]
-                       .get("needinfo-users", "")
+                      (env.config["gecko"]["needinfo"]
+                       .get("landing", "")
                        .split(","))]
     return [item for item in needinfo_users if item]
 
