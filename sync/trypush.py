@@ -491,7 +491,11 @@ class TryPushTasks(object):
             states = task_data["states"]
             return states[tc.FAIL] > 0 or states[tc.EXCEPTION] > 0
 
-        failures = [data["task_id"] for name, data in task_states.iteritems() if is_failure(data)]
+        def is_excluded(name):
+            return "-aarch64" in name
+
+        failures = [data["task_id"] for name, data in task_states.iteritems()
+                    if is_failure(data) and not is_excluded(name)]
         retriggered_count = 0
         for task_id in failures:
             jobs = auth_tc.retrigger(task_id, count=count)
