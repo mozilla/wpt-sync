@@ -796,8 +796,8 @@ def update_modified_sync(git_gecko, git_wpt, sync):
                                           "merge conflicts. This requires fixup from a wpt sync "
                                           "admin.")
                         needinfo_users = [item.strip() for item in
-                                          (env.config["gecko"]["upstream"]
-                                           .get("needinfo-users", "")
+                                          (env.config["gecko"]["needinfo"]
+                                           .get("upstream", "")
                                            .split(","))]
                         needinfo_users = [item for item in needinfo_users if item]
                         bug.needinfo(*needinfo_users)
