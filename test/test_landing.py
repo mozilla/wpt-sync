@@ -2,8 +2,11 @@ import os
 
 from mock import Mock, patch, ANY, DEFAULT
 
+import pytest
+
 from sync import landing, downstream, tc, tree, trypush, upstream
 from sync import commit as sync_commit
+from sync.errors import AbortError
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
 from conftest import git_commit
@@ -98,6 +101,8 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
                                   property(Mock(return_value=mock_tasks(completed=["foo"])))):
                     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
+    assert "Pushed to try (stability)" in env.bz.output.getvalue()
+    assert try_push.status == "complete"
     assert sync.status == "open"
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
@@ -148,9 +153,10 @@ def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, landing_with_try
                                                             completed=["bar"])))):
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock), try_push.as_mut(lock):
-                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-    assert try_push.status == "complete"
-    assert "too many failures" in sync.error["message"]
+                with pytest.raises(AbortError):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    assert try_push.status == "open"
+    assert "too many test failures" in sync.error["message"]
 
 
 def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push, mock_tasks, env,
@@ -166,19 +172,13 @@ def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push,
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
                 with patch('sync.trypush.auth_tc.retrigger',
                            return_value=["job"] * trypush.TryPushTasks._retrigger_count):
-                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-                    assert "Pushed to try (stability)" in env.bz.output.getvalue()
-                    assert try_push.status == "complete"
-                    assert sync.status == "open"
-                    new_try_push = sync.latest_try_push
-                    assert new_try_push != try_push
-                    assert new_try_push.stability
-                    new_try_push.Mach = mock_mach
-                    with new_try_push.as_mut(lock):
-                        new_try_push.taskgroup_id = "12345678"
-                        landing.try_push_complete(git_gecko, git_wpt, new_try_push, sync)
+                    try_push.Mach = mock_mach
+                    with try_push.as_mut(lock):
+                        try_push["stability"] = True
+                        try_push.taskgroup_id = "12345678"
+                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
                     assert "Retriggered failing web-platform-test tasks" in env.bz.output.getvalue()
-                    assert new_try_push.status != "complete"
+                    assert try_push.status != "complete"
 
 
 def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_with_try_push,
@@ -201,7 +201,6 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_wit
                 try_push["stability"] = True
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
         try_push.download_logs.assert_called_with(ANY)
-        assert sync.status == "open"
         assert try_push.status == "complete"
 
 
@@ -220,7 +219,6 @@ def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, landin
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
                 # no intermittents in the try push
                 try_push.download_logs.assert_not_called()
-                assert sync.status == "open"
                 assert try_push.status == "complete"
 
 
