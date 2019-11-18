@@ -129,6 +129,13 @@
     name: merge.metamerge.name
     value: Automatic meta merge
 
+- name: Ensure git config has the correct owner
+  file:
+    path: "{{ mount_repos }}/gecko/config"
+    owner: wptsync
+    group: wptsync
+    mode: 0644
+
 - name: ensure git mergedriver driver is added to git config
   git_config:
     repo: "{{ mount_repos }}/gecko"
