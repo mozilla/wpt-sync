@@ -99,15 +99,25 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
                 with patch.object(tc.TaskGroup, "tasks",
                                   property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                    with patch("sync.landing.MozPhab", create=True) as mock_phab:
+                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                        assert mock_phab.call_count == 1
 
     assert sync.status == "open"
+    # We only push to phabricator not actually land
+    new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
+    assert "Update web-platform-tests to %s" % head_rev not in new_head.message
+
+    # Simulate lando actually pushing to autoland
+    git_gecko.git.push("mozilla", "%s:%s" % (sync.branch_name,
+                                             sync.gecko_integration_branch().split("/", 1)[1]))
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
     assert new_head.tree["testing/web-platform/tests/README"].data_stream.read() == "example_change"
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["local"] == new_head.parents[0].hexsha
     assert sync_point["upstream"] == head_rev
+
     # Update central to contain the landing
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
     with patch("sync.landing.tasks.land.apply_async") as mock_apply:
@@ -328,7 +338,13 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
             try_push.download_logs = Mock(return_value=[])
             with patch.object(tc.TaskGroup, "tasks",
                               property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                with patch("sync.landing.MozPhab", create=True) as mock_phab:
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                    assert mock_phab.call_count == 1
+
+    # Simulate lando actually pushing to autoland
+    git_gecko.git.push("mozilla", "%s:%s" % (sync.branch_name,
+                                             sync.gecko_integration_branch().split("/", 1)[1]))
 
     hg_gecko_upstream.update()
     gecko_root = hg_gecko_upstream.root().strip()

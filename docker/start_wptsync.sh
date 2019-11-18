@@ -89,6 +89,15 @@ elif [ "$1" == "--worker" ]; then
     set -x
     export NEW_RELIC_CONFIG_FILE=/app/config/newrelic.ini
 
+    echo '{
+  "hosts": {
+    "https://phabricator.services.mozilla.com/api/": {
+      "token": "'$(/app/get_ini.py /app/config/prod/credentials.ini phabricator token)'"
+    }
+  }
+}' > ~/.arcrc
+
+
     # TODO: need to configure the API key correctly to record deploys
     # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
 

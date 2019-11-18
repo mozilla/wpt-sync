@@ -8,6 +8,7 @@ from __future__ import absolute_import, unicode_literals
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import types
@@ -77,6 +78,19 @@ class Mach(Command):
 class WPT(Command):
     def __init__(self, path):
         Command.__init__(self, "wpt", path)
+
+
+class MozPhab(Command):
+    def __init__(self, path):
+        Command.__init__(self, "moz-phab", path)
+
+    def find_url(self, data):
+        """Get the last phabricator URL from the output, on the basis that's likely the URL for the
+        review"""
+        phab_re = re.compile(r"https://phabricator.services.mozilla.com/D\d+")
+        matches = phab_re.findall(data)
+        if matches:
+            return matches[-1]
 
 
 def create_mock(name):

@@ -27,10 +27,13 @@ RUN set -eux; \
         python \
         python-virtualenv \
         python-pip \
+        python3 \
+        python3-pip \
         sudo \
         wget \
         ;\
-    pip install --upgrade pip
+    pip install --upgrade pip;\
+    pip3 install --upgrade pip
 
 RUN set -eux; \
     count=0; \
@@ -115,6 +118,10 @@ RUN git clone https://github.com/glandium/git-cinnabar.git . \
     && git checkout origin/release; \
     pip install --user requests \
     && git cinnabar download
+
+# Install mozphab
+RUN pip3 install --user MozPhab
+ENV PATH=/app/.local/bin:$PATH
 
 # Install fzf for mach try fuzzy
 WORKDIR /app/fzf

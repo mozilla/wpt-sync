@@ -1,6 +1,7 @@
 import re
 import os
 import shutil
+import traceback
 from collections import defaultdict
 
 import git
@@ -13,7 +14,6 @@ import downstream
 import gitutils
 import log
 import tasks
-import tree
 import load
 import trypush
 import update
@@ -23,8 +23,8 @@ from commit import first_non_merge
 from env import Environment
 from gitutils import update_repositories
 from lock import SyncLock, constructor, mut
-from errors import AbortError, RetryableError
-from projectutil import Mach
+from errors import AbortError
+from projectutil import Mach, MozPhab
 from repos import pygit2_get
 from sync import LandableStatus, SyncProcess
 
@@ -641,52 +641,35 @@ MANUAL PUSH: wpt sync bot
                                         "web-platform-tests fis !devedition !ccov !asan !aarch64 "
                                         "windows10 | linux64"])
 
+    @mut()
+    def land(self):
+        """Push landing to lando via Phabricator"""
+        update_repositories(self.git_gecko, self.git_wpt)
 
-def push(landing):
-    """Push from git_work_gecko to inbound."""
-    success = False
-
-    landing_tree = env.config["gecko"]["landing"]
-
-    old_head = None
-    err = None
-    while not success:
-        try:
-            logger.info("Rebasing onto %s" % landing.gecko_integration_branch())
-            landing.gecko_rebase(landing.gecko_integration_branch())
-        except git.GitCommandError as e:
-            err = "Rebase failed:\n%s" % e
-            logger.error(err)
-            env.bz.comment(landing.bug, err)
-            raise AbortError(err)
-
-        if old_head == landing.gecko_commits.head.sha1:
-            err = ("Landing push failed and rebase didn't change head:%s" %
-                   ("\n%s" % err if err else ""))
-            logger.error(err)
-            env.bz.comment(landing.bug, err)
-            raise AbortError(err)
-        old_head = landing.gecko_commits.head.sha1
-
-        if not tree.is_open(landing_tree):
-            logger.info("%s is closed" % landing_tree)
-            raise RetryableError(AbortError("Tree is closed"))
+        gecko_work = self.gecko_worktree.get()
 
         try:
-            logger.info("Pushing landing")
-            landing.git_gecko.remotes.mozilla.push(
-                "%s:%s" % (landing.branch_name,
-                           landing.gecko_integration_branch().split("/", 1)[1]))
+            logger.info("Rebasing onto %s" % self.gecko_integration_branch())
+            self.gecko_rebase(self.gecko_integration_branch())
         except git.GitCommandError as e:
-            changes = landing.git_gecko.remotes.mozilla.fetch()
-            err = "Pushing update to remote failed:\n%s" % e
-            if not changes:
-                logger.error(err)
-                env.bz.comment(landing.bug, err)
-                raise AbortError(err)
-        else:
-            success = True
-    # The landing is marked as finished when it reaches central
+            log_msg = bug_msg = "Rebase onto %s failed" % self.gecko_integration_branch()
+            record_failure(self, log_msg, bug_msg)
+        try:
+            output = MozPhab(gecko_work.working_dir).submit("--no-arc",
+                                                            "--yes",
+                                                            "--no-lint",
+                                                            self.gecko_integration_branch(),
+                                                            "HEAD")
+            phab_url = MozPhab.find_url(output)
+        except Exception as e:
+            log_msg = bug_msg = "Pushing to phabricator failed:\n%s" % traceback.format_exc(e)
+            msg = record_failure(self, log_msg, bug_msg)
+            raise AbortError(msg)
+
+        with env.bz.bug_ctx(self.bug) as bug:
+            bug.add_comment("Pushed landing to Phabricator %s; "
+                            "manual action is required to land it" % phab_url)
+            bug.needinfo(*needinfo_users())
 
 
 def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
@@ -1076,6 +1059,7 @@ def update_metadata(sync, try_push, tasks=None):
     sync.update_metadata(log_files, update_intermittents=True)
 
 
+@mut('sync')
 def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
     if not allow_push:
         logger.info("Landing in bug %s is ready for push.\n"
@@ -1083,9 +1067,7 @@ def push_to_gecko(git_gecko, git_wpt, sync, allow_push=True):
                                                sync.gecko_worktree.get().working_dir))
         return
 
-    update_repositories(git_gecko, git_wpt)
-
-    push(sync)
+    sync.land()
 
     wpt_head, commits = landable_commits(git_gecko,
                                          git_wpt,
