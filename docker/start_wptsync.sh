@@ -111,6 +111,9 @@ elif [ "$1" == "--worker" ]; then
 
     newrelic-admin run-program \
          /app/venv/bin/wptsync listen
+
+    nerrelic-admin run-program \
+         /app/venv/bin/wptsync phab-listen
 elif [ "$1" == "--test" ]; then
     shift 1;
     /app/venv/bin/wptsync test "$@"
