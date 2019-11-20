@@ -9,6 +9,7 @@ import traceback
 import git
 
 import listen
+from phabricator import listen as phablisten
 import log
 from tasks import setup
 from env import Environment
@@ -79,6 +80,9 @@ def get_parser():
 
     parser_listen = subparsers.add_parser("listen", help="Start pulse listener")
     parser_listen.set_defaults(func=do_start_listener)
+
+    parser_listen = subparsers.add_parser("phab-listen", help="Start phabricator listener")
+    parser_listen.set_defaults(func=do_start_phab_listener)
 
     parser_pr = subparsers.add_parser("pr", help="Update the downstreaming for a specific PR")
     parser_pr.add_argument("pr_id", default=None, nargs="?", help="PR number")
@@ -374,6 +378,10 @@ def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
     listen.run_pulse_listener(env.config)
+
+
+def do_start_phab_listener(git_gecko, git_wpt, *args, **kwargs):
+    phablisten.run_phabricator_listener(env.config)
 
 
 def do_fetch(git_gecko, git_wpt, *args, **kwargs):

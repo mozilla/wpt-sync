@@ -107,13 +107,23 @@ elif [ "$1" == "--worker" ]; then
                    --pidfile=${CELERY_PID_FILE} \
                    --logfile=${CELERY_LOG_FILE} --loglevel=DEBUG
 
+    # ./bin/run_docker_dev.sh run --worker --phab
+    if [ "$2" == "--phab" ]; then
+        echo "Starting phab listener"
+
+        newrelic-admin run-program \
+             /app/venv/bin/wptsync phab-listen &
+        pids+=($!)
+    fi
     echo "Starting pulse listener"
 
     newrelic-admin run-program \
-         /app/venv/bin/wptsync listen
+         /app/venv/bin/wptsync listen &
+    pids+=($!)
 
-    nerrelic-admin run-program \
-         /app/venv/bin/wptsync phab-listen
+    # Wait for the listeners to finish
+    wait "${pids[@]}"
+
 elif [ "$1" == "--test" ]; then
     shift 1;
     /app/venv/bin/wptsync test "$@"
