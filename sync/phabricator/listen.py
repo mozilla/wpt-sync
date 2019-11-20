@@ -122,5 +122,6 @@ class PhabEventListener(object):
 
 
 def run_phabricator_listener(config):
+    logger.info("Starting Phabricator listener")
     listener = PhabEventListener(config)
     listener.run()
