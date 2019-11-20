@@ -63,6 +63,7 @@ def get_handlers(config):
             "push": handlers.PushHandler(config),
             "task": handlers.TaskHandler(config),
             "taskgroup": handlers.TaskGroupHandler(config),
+            "phabricator": handlers.PhabricatorHandler(config),
         }
     return handler_map
 

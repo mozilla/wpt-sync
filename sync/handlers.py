@@ -330,3 +330,9 @@ class RetriggerHandler(Handler):
         prev_wpt_head = sync_point["upstream"]
         unlanded = landing.unlanded_with_type(git_gecko, git_gecko, None, prev_wpt_head)
         update.retrigger(git_gecko, git_wpt, unlanded)
+
+
+class PhabricatorHandler(Handler):
+    def __call__(self, git_gecko, git_wpt, body):
+        newrelic.agent.set_transaction_name("PhabricatorHandler")
+        logger.info('Got phab event, doing nothing: %s' % body)
