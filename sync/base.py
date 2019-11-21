@@ -69,13 +69,22 @@ class IdentityMap(type):
         return value
 
 
-def iter_tree(pygit2_repo, root_path=""):
+def iter_tree(pygit2_repo, root_path="", rev=None):
     """Iterator over all paths ins a tree"""
-    ref = pygit2_repo.references[env.config["sync"]["ref"]]
-    root_obj = pygit2_repo[ref.peel().tree.id]
+    if rev is None:
+        ref_name = env.config["sync"]["ref"]
+        ref = pygit2_repo.references[ref_name]
+        rev_obj = ref.peel()
+    else:
+        rev_obj = pygit2_repo[rev.id]
 
-    tree_entry = root_obj[root_path]
-    root_tree = pygit2_repo[tree_entry.id]
+    root_obj = pygit2_repo[rev_obj.tree.id]
+
+    if root_path:
+        tree_entry = root_obj[root_path]
+        root_tree = pygit2_repo[tree_entry.id]
+    else:
+        root_tree = root_obj
 
     stack = []
     stack.append((root_path, root_tree))
