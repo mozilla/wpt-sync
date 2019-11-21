@@ -108,7 +108,6 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
     assert new_head.tree["testing/web-platform/tests/README"].data_stream.read() == "example_change"
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
-    assert sync_point["local"] == new_head.parents[0].hexsha
     assert sync_point["upstream"] == head_rev
     # Update central to contain the landing
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
