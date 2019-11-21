@@ -91,8 +91,10 @@ class Bugzilla(object):
     def bugzilla_url(self, bug_id):
         return "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
 
-    def id_from_url(self, url):
-        if not url.startswith(self.bz_url):
+    def id_from_url(self, url, bz_url=None):
+        if bz_url is None:
+            bz_url = self.bz_url
+        if not url.startswith(bz_url):
             return None
         parts = urlparse.urlsplit(url)
         query = urlparse.parse_qs(parts.query)
