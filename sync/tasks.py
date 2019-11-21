@@ -133,3 +133,11 @@ def cleanup(config):
 def retrigger(config):
     git_gecko, git_wpt = setup()
     handlers.RetriggerHandler(config)(git_gecko, git_wpt)
+
+
+@worker.task
+@with_lock
+@settings.configure
+def update_bugs(config):
+    git_gecko, git_wpt = setup()
+    handlers.BugUpdateHandler(config)(git_gecko, git_wpt)

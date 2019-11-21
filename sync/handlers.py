@@ -13,6 +13,7 @@ from errors import RetryableError
 from gitutils import pr_for_commit, update_repositories, gecko_repo
 from load import get_pr_sync
 from lock import SyncLock
+from notify import bugupdate
 
 env = Environment()
 
@@ -336,3 +337,10 @@ class PhabricatorHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
         newrelic.agent.set_transaction_name("PhabricatorHandler")
         logger.info('Got phab event, doing nothing: %s' % body)
+
+
+class BugUpdateHandler(Handler):
+    def __call__(self, git_gecko, git_wpt):
+        newrelic.agent.set_transaction_name("BugUpdateHandler")
+        logger.info("Running bug update")
+        bugupdate.update_triage_bugs(git_gecko)

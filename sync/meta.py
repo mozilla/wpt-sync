@@ -114,18 +114,21 @@ class Metadata(object):
             with commit_builder as builder:
                 self.metadata.writer = GitWriter(builder)
                 self.metadata.write()
-            logger.info("Created metadata commit %s" % commit_builder.commit.sha1)
-            try:
-                self.repo.remotes.origin.push("%s:master" % ref_name)
-            except git.GitCommandError as e:
-                changes = self.repo.remotes.origin.fetch()
-                err = "Pushing update to remote failed:\n%s" % e
-                if not changes:
-                    logger.error(err)
-                    raise
+            if not commit_builder.commit.is_empty():
+                logger.info("Pushing metadata commit %s" % commit_builder.commit.sha1)
+                try:
+                    self.repo.remotes.origin.push("%s:master" % ref_name)
+                except git.GitCommandError as e:
+                    changes = self.repo.remotes.origin.fetch()
+                    err = "Pushing update to remote failed:\n%s" % e
+                    if not changes:
+                        logger.error(err)
+                        raise
+                else:
+                    break
+                retry += 1
             else:
                 break
-            retry += 1
 
         if retry == MAX_RETRY:
             logger.error("Updating metdata failed")
