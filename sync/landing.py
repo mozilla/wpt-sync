@@ -616,7 +616,6 @@ MANUAL PUSH: wpt sync bot
             return
         sync_point["upstream"] = new_sha1
         gecko_work = self.gecko_worktree.get()
-        sync_point["local"] = gecko_work.head.commit.hexsha
         with open(os.path.join(gecko_work.working_dir,
                                env.config["gecko"]["path"]["meta"],
                                "mozilla-sync"), "w") as f:
