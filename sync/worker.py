@@ -20,6 +20,11 @@ beat_schedule = {
     'cleanup': {
         "task": "sync.tasks.cleanup",
         "schedule": 3600,
+    },
+    # Try to update metadata once a day
+    'update_bugs': {
+        "task": "sync.tasks.update_bugs",
+        "schedule": crontab(hour=9, minute=0),
     }
 }
 
