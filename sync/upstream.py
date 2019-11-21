@@ -792,9 +792,9 @@ def update_modified_sync(git_gecko, git_wpt, sync):
                     # Reset the base to origin/master
                     sync.set_wpt_base("origin/master")
                     with env.bz.bug_ctx(sync.bug) as bug:
-                        bug["comment"] = ("Failed to create upstream wpt PR due to "
-                                          "merge conflicts. This requires fixup from a wpt sync "
-                                          "admin.")
+                        bug.add_comment("Failed to create upstream wpt PR due to "
+                                        "merge conflicts. This requires fixup from a wpt sync "
+                                        "admin.")
                         needinfo_users = [item.strip() for item in
                                           (env.config["gecko"]["needinfo"]
                                            .get("upstream", "")
