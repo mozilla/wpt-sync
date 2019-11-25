@@ -17,3 +17,8 @@
 [remote "autoland"]
     url = hg::https://hg.mozilla.org/integration/autoland
     fetch = +refs/heads/*:refs/remotes/autoland/*
+[merge]
+    tool = metamerge
+[mergetool "metamerge"]
+    cmd = ./mach wpt-metadata-merge \"$BASE\" \"$LOCAL\" \"$REMOTE\" \"$MERGED\"
+    trustExitCode = true
