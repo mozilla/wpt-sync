@@ -932,7 +932,8 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
             landing = LandingSync.new(lock, git_gecko, git_wpt, prev_wpt_head, wpt_head)
 
             # Set the landing to block all the bugs that will land with it
-            blocks = [sync.bug for (pr_, sync, commits_) in commits if sync.bug]
+            blocks = [sync.bug for (pr_, sync, commits_) in commits
+                      if isinstance(sync, downstream.DownstreamSync) and sync.bug]
             with env.bz.bug_ctx(landing.bug) as bug:
                 for bug_id in blocks:
                     bug.add_blocks(bug_id)
