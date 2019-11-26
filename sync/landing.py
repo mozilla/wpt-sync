@@ -454,15 +454,39 @@ Automatic update from web-platform-tests\n%s
                     else:
                         checkout.append(head_path)
             logger.debug("Resetting changes to %s" % " ".join(checkout))
-            worktree.git.checkout("HEAD", "--", *checkout)
-            # Now try to commit again
             try:
+                worktree.git.checkout("HEAD", "--", *checkout)
+                # Now try to commit again
                 worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
+                success = True
             except git.GitCommandError as e:
                 if gitutils.handle_empty_commit(worktree, e):
                     return
                 if sync.skip:
                     return
+                success = False
+
+        if not success:
+            try:
+                logger.info("Cherry-pick had merge conflicts trying to automatically resolve")
+                status = gitutils.status(worktree)
+                for head_path, data in status.iteritems():
+                    if data["code"] in {"DD", "UD", "DU"}:
+                        # Deleted by remote or local
+                        # Could do better here and have the mergetool handle this case
+                        logger.info("Removing %s which was deleted somewhere" % head_path)
+                        worktree.git.rm(head_path)
+                logger.info("Running mergetool")
+                worktree.git.mergetool(tool="metamerge")
+                worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
+                worktree.git.clean(f=True)
+                success = True
+            except git.GitCommandError as e:
+                if gitutils.handle_empty_commit(worktree, e):
+                    return
+                if sync.skip:
+                    return
+                logger.error("Failed trying to use mergetool to resolve conflicts")
                 raise
 
         metadata_commit = worktree.head.commit
