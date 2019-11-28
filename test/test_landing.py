@@ -104,6 +104,16 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     assert "Pushed to try (stability)" in env.bz.output.getvalue()
     assert try_push.status == "complete"
     assert sync.status == "open"
+
+    try_push = sync.latest_try_push
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcdef2"
+            with patch.object(try_push, "download_logs", Mock(return_value=[])):
+                with patch.object(tc.TaskGroup, "tasks",
+                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
     assert new_head.tree["testing/web-platform/tests/README"].data_stream.read() == "example_change"
@@ -314,14 +324,15 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     assert sync is not None
 
-    with SyncLock.for_process(sync.process_name) as lock:
-        try_push = sync.latest_try_push
-        with sync.as_mut(lock), try_push.as_mut(lock):
-            try_push.taskgroup_id = "abcde"
-            try_push.download_logs = Mock(return_value=[])
-            with patch.object(tc.TaskGroup, "tasks",
-                              property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+    for i in xrange(2):
+        with SyncLock.for_process(sync.process_name) as lock:
+            try_push = sync.latest_try_push
+            with sync.as_mut(lock), try_push.as_mut(lock):
+                try_push.taskgroup_id = "abcde" + str(i)
+                try_push.download_logs = Mock(return_value=[])
+                with patch.object(tc.TaskGroup, "tasks",
+                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
     gecko_root = hg_gecko_upstream.root().strip()
