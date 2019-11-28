@@ -669,7 +669,7 @@ MANUAL PUSH: wpt sync bot
             stability = (latest_try_push is not None and
                          not latest_try_push.infra_fail)
 
-        trypush.TryPush.create(
+        return trypush.TryPush.create(
             self._lock,
             self,
             hacks=False,
