@@ -274,7 +274,8 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                                kwargs["prev_wpt_head"],
                                kwargs["wpt_head"],
                                kwargs["include_incomplete"],
-                               kwargs["retry"])
+                               retry=kwargs["retry"],
+                               accept_failures=accept_failures)
 
     if current_landing and current_landing.latest_try_push:
         with SyncLock("landing", None) as lock:

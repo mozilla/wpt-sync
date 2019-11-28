@@ -926,7 +926,8 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
 
 @entry_point("landing")
 def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
-                   include_incomplete=False, retry=False, allow_push=True):
+                   include_incomplete=False, retry=False, allow_push=True,
+                   accept_failures=False):
     """Create or continue a landing of wpt commits to gecko.
 
     :param prev_wpt_head: The sha1 of the previous wpt commit landed to gecko.
@@ -936,7 +937,8 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                                hasn't completed a metadata update. This flag disables
                                that and just lands everything up to the specified commit.
     :param retry: Create a new try push for the landing even if there's an existing one
-    :param allow_push: Allow pushing to gecko if try is complete"""
+    :param allow_push: Allow pushing to gecko if try is complete
+    :param accept_failures: Don't fail if an existing try push has too many failures """
     landing = current(git_gecko, git_wpt)
     sync_point = load_sync_point(git_gecko, git_wpt)
 
@@ -1011,7 +1013,8 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
             else:
                 try_push = landing.latest_try_push
                 try_result = landing.try_result()
-                if try_push.status == "complete" and try_result.is_ok():
+                if try_push.status == "complete" and (try_result.is_ok() or
+                                                      accept_failures):
                     try:
                         landing.gecko_rebase(landing.gecko_landing_branch())
                     except git.GitCommandError:
