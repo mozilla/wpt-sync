@@ -689,7 +689,7 @@ MANUAL PUSH: wpt sync bot
 
         target_success_rate = 0.5 if not try_push.stability else 0.8
 
-        if try_push.infra_fail:
+        if try_push.infra_fail and not try_push.accept_failures:
             return TryPushResult.infra_fail
         if tasks is None:
             tasks = try_push.tasks()
@@ -697,9 +697,10 @@ MANUAL PUSH: wpt sync bot
             return TryPushResult.pending
         if tasks.success():
             return TryPushResult.success
-        if tasks.failed_builds():
+        if tasks.failed_builds() and not try_push.accept_failures:
             return TryPushResult.infra_fail
-        if tasks.failure_limit_exceeded(target_success_rate):
+        if (tasks.failure_limit_exceeded(target_success_rate) and
+            not try_push.accept_failures):
             return TryPushResult.too_many_failures
         return TryPushResult.acceptable_failures
 
@@ -1057,6 +1058,9 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
         logger.warning("Called try_push_complete on a completed try push")
         return
 
+    if accept_failures:
+        try_push.accept_failures = True
+
     if tasks is None:
         tasks = try_push.tasks()
 
@@ -1067,7 +1071,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
         return
 
     if not try_result == TryPushResult.success:
-        if not accept_failures and try_result.is_failure():
+        if try_result.is_failure():
             if try_result == TryPushResult.infra_fail:
                 message = record_build_failures(sync, try_push)
                 try_push.infra_fail = True
@@ -1081,7 +1085,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
         else:
             retriggered = tasks.retriggered_wpt_states()
             if not retriggered:
-                if not accept_failures and try_result == TryPushResult.too_many_failures:
+                if try_result == TryPushResult.too_many_failures:
                     record_too_many_failures(sync, try_push)
                     try_push.status = "complete"
                     return
@@ -1097,7 +1101,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync, allow_push=True,
 
     try_push.status = "complete"
 
-    if try_push.infra_fail and not accept_failures:
+    if try_result == TryPushResult.infra_fail:
         record_infra_fail(sync, try_push)
         return
 

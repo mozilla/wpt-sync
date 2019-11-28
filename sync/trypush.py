@@ -370,6 +370,15 @@ class TryPush(base.ProcessData):
         if value:
             self.notify_failed_builds()
 
+    @property
+    def accept_failures(self):
+        return self.get("accept-failures", False)
+
+    @accept_failures.setter
+    @mut()
+    def accept_failures(self, value):
+        self["accept-failures"] = value
+
     def tasks(self):
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.

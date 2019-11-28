@@ -504,3 +504,15 @@ def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstr
     assert commits[0].metadata['wpt-commits'] == extra_commit.hexsha
     # Check that the other commit is the bot's push commit
     assert commits[1].metadata['MANUAL PUSH'] == "wpt sync bot"
+
+
+def test_accept_failures(landing_with_try_push, mock_tasks):
+    sync = landing_with_try_push
+    with patch.object(tc.TaskGroup, "tasks",
+                      property(Mock(return_value=mock_tasks(failed=["foo", "foobar"],
+                                                            completed=["bar"])))):
+        assert sync.try_result() == landing.TryPushResult.too_many_failures
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.latest_try_push.as_mut(lock):
+                sync.latest_try_push.accept_failures = True
+        assert sync.try_result() == landing.TryPushResult.acceptable_failures
