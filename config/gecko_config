@@ -13,10 +13,11 @@
 [remote "mozilla"]
     url = hg::https://hg.mozilla.org/mozilla-unified
     fetch = +refs/heads/bookmarks/*:refs/remotes/mozilla/*
-    pushurl = hg::ssh://hg.mozilla.org/integration/mozilla-inbound
+    pushurl = hg::ssh://hg.mozilla.org/integration/autoland
 [remote "autoland"]
     url = hg::https://hg.mozilla.org/integration/autoland
     fetch = +refs/heads/*:refs/remotes/autoland/*
+    pushurl = hg::ssh://hg.mozilla.org/integration/autoland
 [merge]
     tool = metamerge
 [mergetool "metamerge"]
