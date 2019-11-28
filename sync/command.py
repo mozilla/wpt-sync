@@ -290,7 +290,7 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
                 elif try_push.status == "open":
                     tasks = try_push.tasks()
                     try_result = current_landing.try_result(tasks=tasks)
-                    if try_result == landing.TryResult.pending:
+                    if try_result == landing.TryPushResult.pending:
                         logger.info("Landing in bug %s is waiting for try results" % landing.bug)
                     else:
                         try:
