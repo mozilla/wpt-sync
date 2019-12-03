@@ -2,7 +2,7 @@ from sync.notify import results, msg
 from sync.wptmeta import MetaLink
 
 
-def test_results_wptfyi(pr_19900_github):
+def test_results_wptfyi(env, pr_19900_github):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_github)
     assert results_data.summary() == {
@@ -36,7 +36,7 @@ def test_results_wptfyi(pr_19900_github):
     assert list(results_data.iter_disabled()) == []
 
 
-def test_msg_wptfyi(pr_19900_github):
+def test_msg_wptfyi(env, pr_19900_github):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_github)
     results_data.wpt_sha = "6146f4a506c1b7efaac68c9e8d552597212eabca"
@@ -77,7 +77,7 @@ FAIL  : 1
     assert message[1] is None
 
 
-def test_results_gecko(pr_19900_gecko_ci):
+def test_results_gecko(env, pr_19900_gecko_ci):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_gecko_ci)
     results_data.summary() == {
@@ -136,7 +136,7 @@ def test_results_gecko(pr_19900_gecko_ci):
     assert list(results_data.iter_disabled()) == []
 
 
-def test_msg_gecko(pr_19900_gecko_ci):
+def test_msg_gecko(env, pr_19900_gecko_ci):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_gecko_ci)
     results_data.treeherder_url = ("https://treeherder.mozilla.org/#/jobs?"
@@ -166,7 +166,7 @@ NOTRUN: 1
 """  # noqa: E501
 
 
-def test_msg_both(pr_19900_gecko_ci, pr_19900_github):
+def test_msg_both(env, pr_19900_gecko_ci, pr_19900_github):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_gecko_ci)
     results_data.treeherder_url = ("https://treeherder.mozilla.org/#/jobs?"
@@ -211,7 +211,7 @@ FAIL  : 1
 """  # noqa: E501
 
 
-def test_status_str():
+def test_status_str(env):
     result = results.Result()
     result.set_status("firefox", "GitHub", False, "PASS", ["PASS"])
     result.set_status("firefox", "GitHub", True, "FAIL", ["PASS"])
@@ -245,12 +245,12 @@ def test_status_str():
     assert with_platform_difference_head == "FAIL[platform1], PASS[platform2]"
 
 
-def test_link():
+def test_link(env):
     result0 = results.Result()
     result0.set_status("firefox", "GitHub", False, "PASS", ["PASS"])
     result0.set_status("firefox", "GitHub", True, "FAIL", ["PASS"])
     result0.bug_links.append(MetaLink(None,
-                                      "https://bugzilla.mozilla.org/show_bug.cgi?id=1234",
+                                      "%s/show_bug.cgi?id=1234" % env.bz.bz_url,
                                       "firefox",
                                       "/test/test0.html"))
     result1 = results.Result()

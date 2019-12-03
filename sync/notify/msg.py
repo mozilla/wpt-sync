@@ -3,8 +3,11 @@ from six import iteritems, iterkeys, itervalues
 import urlparse
 
 from ..bug import bug_number_from_url, max_comment_length
+from ..env import Environment
 
 from results import statuses, browsers
+
+env = Environment()
 
 
 def status_str(result, browser="firefox", include_status="head", include_other_browser=False):
@@ -65,7 +68,7 @@ def summary_value(result_data):
 
 def bug_str(url):
     """Create a bug string for a given bug url"""
-    if url.startswith("https://bugzilla.mozilla.org/"):
+    if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
     elif url.startswith("https://github.com"):
         return "[Issue %s](%s)" % (urlparse.urlsplit(url).path.split("/")[-1],
@@ -191,7 +194,7 @@ def detail_part(details_type, iterator, include_bugs, include_status, include_ot
 
     :returns: A text string containing the message
     """
-    bug_prefixes = {"bugzilla": "https://bugzilla.mozilla.org/",
+    bug_prefixes = {"bugzilla": env.bz.bz_url,
                     "github": "https://github.com/"}
 
     item_data = []
