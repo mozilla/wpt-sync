@@ -146,9 +146,12 @@ class Metadata(object):
     def iterbugs(self,
                  test_id,
                  product="firefox",
-                 prefixes=("https://bugzilla.mozilla.org",
-                           "https://github.com/wpt/web-platform-tests"),
-                 subtest=None, status=None):
+                 prefixes=None,
+                 subtest=None,
+                 status=None):
+        if prefixes is None:
+            prefixes = (env.bz.bz_url,
+                        "https://github.com/wpt/web-platform-tests")
         for item in self.metadata.iterlinks(test_id=test_id,
                                             product=product,
                                             subtest=subtest,

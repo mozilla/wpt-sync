@@ -136,7 +136,7 @@ test(() => assert_true(false), "Failing test");
 def initial_meta_content(env):
     return {"example/META.yml": """
 links:
-  - url: https://bugzilla.mozilla.org/show_bug.cgi?id=1234
+  - url: https://bugzilla-dev.allizom.org/show_bug.cgi?id=1234
     product: firefox
     results:
       - test: test.html"""}
