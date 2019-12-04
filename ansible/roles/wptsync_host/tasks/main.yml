@@ -46,6 +46,7 @@
     - "{{ mount_repos | mandatory }}"
     - "{{ mount_repos | mandatory }}/gecko"
     - "{{ mount_repos | mandatory }}/web-platform-tests"
+    - "{{ mount_repos | mandatory }}/wpt-metadata"
     - "{{ mount_workspace| mandatory }}"
     - "{{ mount_workspace| mandatory }}/logs"
     - "{{ mount_workspace| mandatory }}/locks"
@@ -72,6 +73,7 @@
   with_items:
     - { src: "{{ host_config }}/gecko_config", dest: "{{ mount_config }}/gecko_config" }
     - { src: "{{ host_config }}/wpt_config", dest: "{{ mount_config }}/wpt_config" }
+    - { src: "{{ host_config }}/wpt-metadata_config", dest: "{{ mount_config }}/wpt-metadata_config" }
     - { src: "{{ host_config }}/newrelic.ini", dest: "{{ mount_config }}/newrelic.ini" }
     - { src: "{{ host_config }}/rabbitmq.conf", dest: "{{ mount_config }}/rabbitmq.conf" }
 
