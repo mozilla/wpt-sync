@@ -786,3 +786,13 @@ def pr_19900_gecko_ci():
             tasks.append(task)
 
     return [get_logs(item[1]) for item in data]
+
+
+@pytest.fixture
+def phabricator_feed():
+    path = os.path.join(here, "sample-data", "phabricator", "feed.json")
+
+    with open(path) as f:
+        feed = json.load(f)
+
+    return feed

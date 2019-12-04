@@ -38,7 +38,8 @@ class PhabEventListener(object):
         "updated the diff for D": "commit",
         "created D": "commit",
         "closed D": "closed",
-        "abandoned D": "abandoned",  # Bit unsure about this one
+        "abandoned D": "abandoned",
+        "added a reverting change for D": None,  # Not sure what this is yet
     }
 
     def __init__(self, config):
@@ -125,3 +126,13 @@ def run_phabricator_listener(config):
     logger.info("Starting Phabricator listener")
     listener = PhabEventListener(config)
     listener.run()
+
+
+class MockPhabricator(Phabricator):
+
+    def __init__(self, *args, **kwargs):
+        self.feed = None
+        pass
+
+    def update_interfaces(self):
+        pass
