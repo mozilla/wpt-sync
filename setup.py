@@ -29,6 +29,7 @@ setup(
         'requests>=2.18',
         'filelock>=2.0.13',
         'slugid>=1.0.7',
-        'taskcluster>=3.0.0'
+        'taskcluster>=3.0.0',
+        'phabricator>=0.7.0'
     ],
 )

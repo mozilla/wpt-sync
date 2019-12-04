@@ -9,7 +9,7 @@ import traceback
 import git
 
 import listen
-from phabricator import listen as phablisten
+from phab import listen as phablisten
 import log
 from tasks import setup
 from env import Environment
