@@ -4,8 +4,8 @@ Deploying the wptsync service consists of two major steps:
 
 *   provision the server with our Docker image and dependencies: this
     uses an ansible playbook; the docker-build step may be skipped,
-*   ssh into the server to start the service, optionally seeding gecko and
-    web-platform-test repositories first.
+*   ssh into the server to start the service, optionally seeding gecko,
+    web-platform-test, and wpt-metadata repositories first.
 
 Terms:
 
@@ -83,6 +83,8 @@ The ansible playbooks stop any running containers, so we need to restart them.
     wptsync fetch web-platform-tests
     wptsync repo-config gecko /app/wpt-sync/docker/gecko_config
     wptsync fetch gecko
+    wptsync repo-config wpt-metadata /app/wpt-sync/docker/wpt-metadata_config
+    wptsync fetch wpt-metadata
     cd /app/repos/gecko
     git fetch autoland
     ```
