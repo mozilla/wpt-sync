@@ -128,7 +128,7 @@ class Bugzilla(object):
                               method='POST', json=body)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None, is_markdown=False):
+            url=None):
         bug = bugsy.Bug(self.bugzilla,
                         type="task",
                         summary=summary,
@@ -139,7 +139,6 @@ class Bugzilla(object):
         if bz_username:
             bug._bug["assigned_to"] = bz_username
         bug.add_comment(comment)
-
         if priority is not None:
             if priority not in ("P1", "P2", "P3", "P4", "P5"):
                 raise ValueError("Invalid bug priority %s" % priority)
@@ -148,8 +147,6 @@ class Bugzilla(object):
             bug._bug["whiteboard"] = whiteboard
         if url:
             bug._bug["url"] = url
-
-        bug._bug["is_markdown"] = is_markdown
 
         self.bugzilla.put(bug)
         self.bug_cache[bug.id] = bug
@@ -369,7 +366,7 @@ class MockBugzilla(Bugzilla):
         return MockBugContext(self, bug_id)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None, is_markdown=False):
+            url=None):
         self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\n"
                   "Whiteboard: %s\nPriority: %s URL: %s" %
                   (product, component, summary, comment, whiteboard, priority, url))
