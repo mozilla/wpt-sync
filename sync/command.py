@@ -70,7 +70,7 @@ def get_parser():
 
     parser_fetch = subparsers.add_parser("repo-config", help="Configure repo.")
     parser_fetch.set_defaults(func=do_configure_repos)
-    parser_fetch.add_argument('repo', choices=['gecko', 'web-platform-tests'])
+    parser_fetch.add_argument('repo', choices=['gecko', 'web-platform-tests', 'wpt-metadata'])
     parser_fetch.add_argument('config_file', help="Path to git config file to copy.")
 
     parser_fetch = subparsers.add_parser("fetch", help="Fetch from repo.")
