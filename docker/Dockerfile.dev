@@ -163,4 +163,4 @@ WORKDIR /app/wpt-sync
 VOLUME ["/app/wpt-sync", "/app/workspace", "/app/repos", "/app/config"]
 
 ENTRYPOINT ["/tini", "-v", "-g", "--", "/app/start_wptsync.sh"]
-CMD ["--worker"]
+CMD ["--worker", "--phab"]
