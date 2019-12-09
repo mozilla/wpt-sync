@@ -379,10 +379,10 @@ def add_wpt_fyi_data(sync, results):
 
 def for_sync(sync):
     results = Results()
-    if not add_gecko_data(results):
+    if not add_gecko_data(sync, results):
         results.errors.append(("Failed to get Gecko data", True))
 
-    if not add_wpt_fyi_data(results):
+    if not add_wpt_fyi_data(sync, results):
         results.errors.append(("Failed to get wptfyi data", True))
 
     results.add_metadata(Metadata(sync.process_name))
