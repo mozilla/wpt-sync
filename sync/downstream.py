@@ -817,8 +817,8 @@ class DownstreamSync(SyncProcess):
         return disabled
 
     @mut()
-    def try_notify(self):
-        if self.results_notified:
+    def try_notify(self, force=False):
+        if self.results_notified and not force:
             return
 
         if not self.bug:

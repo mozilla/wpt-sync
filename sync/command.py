@@ -123,12 +123,6 @@ def get_parser():
     parser_status.add_argument("--seq-id", nargs="?", help="Sequence number")
     parser_status.set_defaults(func=do_status)
 
-    parser_notify = subparsers.add_parser("notify", help="Generate notifications")
-    parser_notify.add_argument("pr_id", help="PR for which to run notification code")
-    parser_notify.add_argument("--force", action="store_true",
-                               help="Run even if the sync is already marked as notified")
-    parser_notify.set_defaults(func=do_notify)
-
     parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
     parser_test.add_argument("--no-flake8", dest="flake8", action="store_false",
                              default=True, help="Don't run flake8")
@@ -145,6 +139,16 @@ def get_parser():
                                         "it doesn't have to complete before a landing")
     parser_skip.add_argument("pr_ids", nargs="*", help="PR ids for which to skip")
     parser_skip.set_defaults(func=do_skip)
+
+    parser_notify = subparsers.add_parser("notify",
+                                          help="Try to perform results notification "
+                                          "for specified PRs")
+    parser_notify.add_argument("pr_ids", nargs="*", help="PR ids for which to notify "
+                               "(tries to use the PR for the current working directory "
+                               "if not specified)")
+    parser_notify.add_argument("--force", action="store_true",
+                               help="Run even if the sync is already marked as notified")
+    parser_notify.set_defaults(func=do_notify)
 
     parser_landable = subparsers.add_parser("landable",
                                             help="Display commits from upstream "
@@ -445,26 +449,6 @@ def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
                 obj.status = kwargs["new_status"]
 
 
-def do_notify(git_gecko, git_wpt, pr_id, **kwargs):
-    import downstream
-    sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
-    if sync is None:
-        logger.error("No active sync for PR %s" % pr_id)
-        return
-    with SyncLock.for_process(sync.process_name) as lock:
-        with sync.as_mut(lock):
-            old_notified = None
-            if kwargs["force"]:
-                old_notified = sync.results_notified
-                sync.results_notified = False
-            try:
-                sync.try_notify()
-            finally:
-                # Reset the notification status if it was set before and isn't now
-                if not sync.results_notified and old_notified:
-                    sync.results_notified = True
-
-
 def do_test(*args, **kwargs):
     if kwargs.pop("flake8", True):
         logger.info("Running flake8")
@@ -500,6 +484,21 @@ def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
             with SyncLock.for_process(sync.process_name) as lock:
                 with sync.as_mut(lock):
                     sync.skip = True
+
+
+def do_notify(git_gecko, git_wpt, pr_ids, *args, **kwargs):
+    import downstream
+    if not pr_ids:
+        syncs = [sync_from_path(git_gecko, git_wpt)]
+    else:
+        syncs = [downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id) for pr_id in pr_ids]
+    for sync in syncs:
+        if sync is None:
+            logger.error("No active sync for PR %s" % pr_id)
+        else:
+            with SyncLock.for_process(sync.process_name) as lock:
+                with sync.as_mut(lock):
+                    sync.try_notify(force=kwargs["force"])
 
 
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
