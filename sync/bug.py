@@ -207,6 +207,13 @@ class Bugzilla(object):
             bug.resolution = resolution
         self.bugzilla.put(bug)
 
+    def get_dupe(self, bug_id):
+        if not isinstance(bug_id, bugsy.Bug):
+            bug = self._get_bug(bug_id)
+        else:
+            bug = bug_id
+        return bug._bug.get("dupe_of")
+
 
 class BugContext(object):
     def __init__(self, bugzilla, bug_id):
@@ -359,6 +366,7 @@ class MockBugzilla(Bugzilla):
         self.bz_url = bz_url_from_api_url(self.api_url)
         self.output = sys.stdout
         self.known_bugs = []
+        self.dupes = {}
 
     def _log(self, data):
         self.output.write(data)
@@ -396,6 +404,9 @@ class MockBugzilla(Bugzilla):
 
     def set_status(self, bug, status):
         self._log("Setting bug %s status %s" % (bug, status))
+
+    def get_dupe(self, bug):
+        return self.dupes.get(bug)
 
 
 class MockBugContext(object):
