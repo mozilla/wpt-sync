@@ -314,7 +314,7 @@ def get_logs(tasks, job_prefix="Gecko-"):
         if not runs:
             continue
         run = runs[-1]
-        log = run.get("_log_paths", []).get("wptreport.json")
+        log = run.get("_log_paths", {}).get("wptreport.json")
         if log:
             logs[job_name].append(LogFile(log))
     return {"firefox": logs}
@@ -371,7 +371,7 @@ def add_wpt_fyi_data(sync, results):
             logger.error("Unable to fetch results from wpt.fyi: %s" % e)
             return False
 
-        logs.append(results)
+        logs.append(target_results)
     results.add_jobs_from_log_files(*logs)
     results.wpt_sha = head_sha1
     return True
