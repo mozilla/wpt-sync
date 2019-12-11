@@ -120,7 +120,7 @@ class LandingSync(SyncProcess):
                          "wpt-type"]
         metadata = sync_commit.get_metadata(message)
         return (all(item in metadata for item in required_keys) and
-                metadata["wpt-type"] == "landing")
+                metadata.get("wpt-type") == "landing")
 
     def unlanded_gecko_commits(self):
         """Get a list of gecko commits that correspond to commits which have
