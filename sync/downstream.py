@@ -537,7 +537,7 @@ class DownstreamSync(SyncProcess):
                 gecko_work = self.gecko_worktree.get()
                 reset_head = "HEAD"
                 if (len(self.gecko_commits) > 0 and
-                    self.gecko_commits[0].metadata["wpt-type"] == "dependent"):
+                    self.gecko_commits[0].metadata.get("wpt-type") == "dependent"):
                     # If we have any dependent commits first reset to the new
                     # head. This prevents conflicts if the dependents already
                     # landed
