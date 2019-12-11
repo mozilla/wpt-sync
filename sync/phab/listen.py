@@ -23,8 +23,11 @@ class PhabEventListener(object):
                    "added a subscriber to D",
                    "added a project to D",
                    "committed rMOZILLA",
+                   "accepted rMOZILLA",
                    "committed rVCT",
+                   "accepted rVCT",
                    "committed rCIADMIN",
+                   "accepted rCIADMIN",
                    "edited reviewers for D",
                    "updated the summary of D",  # Maybe useful to upstream info?
                    "accepted D",  # Maybe useful to upstream info?
@@ -32,7 +35,10 @@ class PhabEventListener(object):
                    "blocking reviewer(s) for D",
                    "planned changes to D",
                    "updated subscribers of D",
-                   "resigned from D"]
+                   "resigned from D",
+                   "changed the edit policy for D",
+                   "removed a project from D",
+                   "updated D"]
 
     event_mapping = {
         "updated the diff for D": "commit",
