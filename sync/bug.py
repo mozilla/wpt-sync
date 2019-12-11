@@ -224,7 +224,7 @@ class BugContext(object):
         self.bug = self.bugzilla._get_bug(self.bug_id)
         self._comments = None
         self.comment = None
-        self.attchements = []
+        self.attachments = []
         self.depends = {}
         self.blocks = {}
         self.dirty = set()
@@ -323,7 +323,7 @@ class BugContext(object):
         if flags:
             body["flags"] = flags
 
-        self.attachements.append(body)
+        self.attachments.append(body)
         self.dirty.add("attachment")
 
     def add_depends(self, bug_id):

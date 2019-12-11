@@ -843,7 +843,7 @@ class DownstreamSync(SyncProcess):
 
         with env.bz.bug_ctx(self.bug) as bug:
             if truncated:
-                bug.add_attachment(data=message,
+                bug.add_attachment(data=message.encode("utf8"),
                                    file_name="wpt-results.md",
                                    summary="Notable wpt changes",
                                    is_markdown=True,
