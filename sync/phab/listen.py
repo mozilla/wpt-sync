@@ -113,7 +113,7 @@ class PhabEventListener(object):
         newrelic.agent.record_custom_event("unknown_phabricator_event", params={
             "event_text": event_text,
             "event": event,
-        })
+        }, application=newrelic.agent.application())
 
     @staticmethod
     def map_feed_tuple(feed_tuple):
