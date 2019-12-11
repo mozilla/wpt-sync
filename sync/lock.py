@@ -146,9 +146,11 @@ class RepoLock(Lock):
             "%s.lock" % (repo.working_dir.replace(os.path.sep, "_"),))
 
 
-class SyncLock(Lock):
-    lock_per_type = {"landing", "upstream"}
-    lock_per_obj = {"downstream"}
+class ProcessLock(Lock):
+    obj_types = None
+    lock_type = None
+    lock_per_type = set()
+    lock_per_obj = set()
 
     locks = {}
 
@@ -162,11 +164,15 @@ class SyncLock(Lock):
             raise ValueError("%s must be locked over each object" % sync_type)
         self.sync_type = sync_type
         self.obj_id = obj_id
-        super(SyncLock, self).__init__(sync_type, obj_id)
+        super(ProcessLock, self).__init__(self.lock_type, sync_type, obj_id)
 
     @classmethod
     def for_process(cls, process_name):
         """Get the SyncLock for the provided ProcessName."""
+        # This is sort of an antipattern because it requires the class to know about consumers.
+        # But it also enforces some invariants to ensure that things have the right kind of
+        # lock
+        assert process_name.obj_type in cls.obj_types
         sync_type = process_name.subtype
         obj_id = process_name.obj_id if sync_type in cls.lock_per_obj else None
         return cls(sync_type, obj_id)
@@ -187,15 +193,33 @@ class SyncLock(Lock):
                               self.lock.is_locked))
 
     @staticmethod
-    def lock_path(sync_type, obj_id):
+    def lock_path(obj_type, sync_type, obj_id):
         if obj_id is None:
-            filename = "%s.lock" % sync_type
+            filename = "%s_%s.lock" % (obj_type, sync_type)
         else:
-            filename = "%s_%s.lock" % (sync_type, obj_id)
+            filename = "%s_%s_%s.lock" % (obj_type, sync_type, obj_id)
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
             filename)
+
+
+class SyncLock(ProcessLock):
+    obj_types = ("sync", "try")
+    lock_type = "sync"
+    lock_per_type = {"landing", "upstream"}
+    lock_per_obj = {"downstream"}
+
+    locks = {}
+
+
+class ProcLock(ProcessLock):
+    obj_types = ("proc",)
+    lock_type = "proc"
+    lock_per_type = {"bugzilla"}
+    lock_per_obj = set()
+
+    locks = {}
 
 
 class MutGuard(object):
