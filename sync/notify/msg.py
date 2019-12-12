@@ -33,8 +33,8 @@ def status_str(result, browser="firefox", include_status="head", include_other_b
             key = tuple(getattr(status, target) for target in targets)
             by_value[key].append(job_name)
 
-        value = ", ".join("%s[%s]" % ("->".join(statuses),
-                                      ",".join(sorted(job_names)))
+        value = ", ".join("%s [%s]" % ("->".join(statuses),
+                                       ", ".join("`%s`" % item for item in sorted(job_names)))
                           for statuses, job_names in sorted(iteritems(by_value)))
 
     if include_other_browser:

@@ -233,16 +233,19 @@ def test_status_str(env):
     result.set_status("firefox", "platform1", True, "FAIL", ["PASS"])
     result.set_status("firefox", "platform2", False, "PASS", ["PASS"])
     result.set_status("firefox", "platform2", True, "PASS", ["PASS"])
+    result.set_status("firefox", "platform3", False, "PASS", ["PASS"])
+    result.set_status("firefox", "platform3", True, "PASS", ["PASS"])
 
     with_platform_difference = msg.status_str(result,
                                               include_status="both",
                                               include_other_browser=False)
-    assert with_platform_difference == "PASS->FAIL[platform1], PASS->PASS[platform2]"
+    assert with_platform_difference == ("PASS->FAIL [`platform1`], "
+                                        "PASS->PASS [`platform2`, `platform3`]")
 
     with_platform_difference_head = msg.status_str(result,
                                                    include_status="head",
                                                    include_other_browser=False)
-    assert with_platform_difference_head == "FAIL[platform1], PASS[platform2]"
+    assert with_platform_difference_head == "FAIL [`platform1`], PASS [`platform2`, `platform3`]"
 
 
 def test_link(env):
