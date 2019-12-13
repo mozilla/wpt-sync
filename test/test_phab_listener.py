@@ -15,7 +15,7 @@ def test_parse_feed(env, phabricator_feed):
             'query': mock.Mock(return_value=AttrDict({'response': phabricator_feed}))
         })
         feed = listener.get_feed()
-        assert len(feed) == 30
+        assert len(feed) == 32
         with mock.patch("sync.tasks.handle.apply_async", mock_apply_async):
             listener.parse(feed)
             assert len(events) == 8

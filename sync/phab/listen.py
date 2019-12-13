@@ -9,6 +9,9 @@ from ..tasks import handle
 
 logger = log.get_logger(__name__)
 
+RE_EVENT = re.compile("[0-9]{5,}:")
+RE_COMMIT = re.compile("(committed|accepted) r[A-Z]+[a-f0-9]+:")
+
 
 class PhabEventListener(object):
 
@@ -22,12 +25,6 @@ class PhabEventListener(object):
                    "requested changes to D",
                    "added a subscriber to D",
                    "added a project to D",
-                   "committed rMOZILLA",
-                   "accepted rMOZILLA",
-                   "committed rVCT",
-                   "accepted rVCT",
-                   "committed rCIADMIN",
-                   "accepted rCIADMIN",
                    "edited reviewers for D",
                    "updated the summary of D",  # Maybe useful to upstream info?
                    "accepted D",  # Maybe useful to upstream info?
@@ -92,8 +89,12 @@ class PhabEventListener(object):
         # Go through rows in reverse order, and ignore first row as it has the table headers
         for event in feed:
 
+            if RE_COMMIT.search(event['text']):
+                # This is a commit event, ignore it
+                continue
+
             # Split the text to get the part that describes the event type
-            event_text = re.compile("[0-9]{5}:").split(event['text'])[0]
+            event_text = RE_EVENT.split(event['text'])[0]
 
             # Check if this is an event we wish to ignore
             if any(event_type in event_text for event_type in PhabEventListener.ignore_list):
