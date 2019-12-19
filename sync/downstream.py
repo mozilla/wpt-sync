@@ -851,7 +851,7 @@ class DownstreamSync(SyncProcess):
             else:
                 env.bz.comment(self.bug, message, is_markdown=True)
 
-        bugs = notify.bugs.bugs_for_sync(self, results)
+        bugs = notify.bugs.for_sync(self, results)
         notify.bugs.update_metadata(self, bugs)
 
         self.results_notified = True
