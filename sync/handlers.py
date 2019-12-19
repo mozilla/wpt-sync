@@ -163,7 +163,7 @@ class PushHandler(Handler):
         logger.info("Handling commit %s to repo %s" % (rev, repo))
 
         newrelic.agent.add_custom_parameter("repo", repo)
-        newrelic.agent.add_custom_parameter("repo", rev)
+        newrelic.agent.add_custom_parameter("rev", rev)
 
         update_repositories(git_gecko, git_wpt, include_autoland=True, wait_gecko_commit=rev)
         try:
