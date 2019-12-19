@@ -61,6 +61,7 @@ class PhabEventListener(object):
             self.parse(feed)
             time.sleep(self.timer_in_seconds)
 
+    @newrelic.agent.background_task(name='feed-fetching', group='Phabricator')
     def get_feed(self, before=None):
         """ """
         if self.latest and before is None:
@@ -85,6 +86,7 @@ class PhabEventListener(object):
             break
         return feed
 
+    @newrelic.agent.background_task(name='feed-parsing', group='Phabricator')
     def parse(self, feed):
         # Go through rows in reverse order, and ignore first row as it has the table headers
         for event in feed:
