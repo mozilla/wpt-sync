@@ -105,6 +105,9 @@ def for_sync(sync, results):
         test_results = [item for item in test_results
                         if (item[0], item[1]) not in seen]
 
+        if not test_results:
+            continue
+
         seen |= set((item[0], item[1]) for item in test_results)
 
         test_ids = [test_id for test_id, _subtest, _result in test_results]
@@ -112,11 +115,11 @@ def for_sync(sync, results):
         test_path_by_id = {}
         for path, ids in iteritems(test_id_by_path):
             for test_id in ids:
-                assert test_id not in test_path_by_id
                 test_path_by_id[test_id] = os.path.relpath(path, path_prefix)
 
-        components = components_for_wpt_paths(git_work,
-                                              set(itervalues(test_path_by_id)))
+        paths = set(itervalues(test_path_by_id))
+        logger.info("Got paths %s" % (paths,))
+        components = components_for_wpt_paths(git_work, paths)
 
         components_by_path = {}
         for component, paths in iteritems(components):
