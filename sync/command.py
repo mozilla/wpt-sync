@@ -85,7 +85,7 @@ def get_parser():
     parser_listen.set_defaults(func=do_start_phab_listener)
 
     parser_pr = subparsers.add_parser("pr", help="Update the downstreaming for a specific PR")
-    parser_pr.add_argument("pr_id", default=None, nargs="?", help="PR number")
+    parser_pr.add_argument("pr_ids", default=None, nargs="*", help="PR numbers")
     parser_pr.add_argument("--rebase", default=False, action="store_true",
                            help="Force the PR to be rebase onto the integration branch")
     parser_pr.set_defaults(func=do_pr)
@@ -104,8 +104,9 @@ def get_parser():
     parser_push.set_defaults(func=do_push)
 
     parser_delete = subparsers.add_parser("delete", help="Delete a sync by bug number or pr")
-    parser_delete.add_argument("sync_type", help="Type of sync to delete")
-    parser_delete.add_argument("obj_id", help="Bug or PR id for the sync")
+    parser_delete.add_argument("sync_type", choices=["downstream", "upstream", "landing"],
+                               help="Type of sync to delete")
+    parser_delete.add_argument("obj_ids", nargs="+", help="Bug or PR id for the sync(s)")
     parser_delete.add_argument("--seq-id", help="Sync sequence id")
     parser_delete.add_argument("--all", action="store_true",
                                help="Delete all matches, not just most recent")
@@ -338,13 +339,14 @@ def do_update_tasks(git_gecko, git_wpt, *args, **kwargs):
     update.update_tasks(git_gecko, git_wpt, kwargs["pr_id"])
 
 
-def do_pr(git_gecko, git_wpt, pr_id, *args, **kwargs):
+def do_pr(git_gecko, git_wpt, pr_ids, *args, **kwargs):
     import update
-    if pr_id is None:
-        pr_id = sync_from_path(git_gecko, git_wpt).pr
-    pr = env.gh_wpt.get_pull(int(pr_id))
-    update_repositories(git_gecko, git_wpt, True)
-    update.update_pr(git_gecko, git_wpt, pr, kwargs["rebase"])
+    if not pr_ids:
+        pr_ids = [sync_from_path(git_gecko, git_wpt).pr]
+    for pr_id in pr_ids:
+        pr = env.gh_wpt.get_pull(int(pr_id))
+        update_repositories(git_gecko, git_wpt, True)
+        update.update_pr(git_gecko, git_wpt, pr, kwargs["rebase"])
 
 
 def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
@@ -365,19 +367,21 @@ def do_push(git_gecko, git_wpt, *args, **kwargs):
     update.update_push(git_gecko, git_wpt, rev, base_rev=base_rev, processes=processes)
 
 
-def do_delete(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
+def do_delete(git_gecko, git_wpt, sync_type, obj_ids, *args, **kwargs):
     import trypush
-    if kwargs["try"]:
-        objs = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id,
-                                           seq_id=kwargs["seq_id"])
-    else:
-        objs = get_syncs(git_gecko, git_wpt, sync_type, obj_id, seq_id=kwargs["seq_id"])
-    if not kwargs["all"] and objs:
-        objs = sorted(objs, key=lambda x: -int(x.process_name.seq_id))[:1]
-    for obj in objs:
-        with SyncLock.for_process(obj.process_name) as lock:
-            with obj.as_mut(lock):
-                obj.delete()
+    for obj_id in obj_ids:
+        logger.info("%s %s" % (sync_type, obj_id))
+        if kwargs["try"]:
+            objs = trypush.TryPush.load_by_obj(git_gecko, sync_type, obj_id,
+                                               seq_id=kwargs["seq_id"])
+        else:
+            objs = get_syncs(git_gecko, git_wpt, sync_type, obj_id, seq_id=kwargs["seq_id"])
+        if not kwargs["all"] and objs:
+            objs = sorted(objs, key=lambda x: -int(x.process_name.seq_id))[:1]
+        for obj in objs:
+            with SyncLock.for_process(obj.process_name) as lock:
+                with obj.as_mut(lock):
+                    obj.delete()
 
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
