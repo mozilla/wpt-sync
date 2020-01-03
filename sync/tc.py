@@ -25,6 +25,8 @@ OLD_QUEUE_BASE = "https://queue.taskcluster.net/v1/"
 OLD_INDEX_BASE = "https://queue.taskcluster.net/v1/"
 _DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
+TREEHERDER_BASE = "https://treeherder.mozilla.org/"
+
 SUCCESS = "completed"
 FAIL = "failed"
 EXCEPTION = "exception"
@@ -411,6 +413,24 @@ def lookup_index(index_name):
     return task_id
 
 
+def lookup_treeherder(project, revision):
+    push_data = fetch_json(TREEHERDER_BASE + "api/project/%s/push/" % (project,),
+                           params={"revision": revision})
+
+    push_id = push_data.get("results", {})[0].get("id")
+    if push_id is None:
+        return
+
+    jobs_data = fetch_json(TREEHERDER_BASE + "api/jobs/",
+                           {"push_id": push_id})
+    property_names = jobs_data["job_property_names"]
+    idx_name = property_names.index("job_type_name")
+    idx_task = property_names.index("task_id")
+    decision_tasks = [item for item in jobs_data.get("results", [])
+                      if item[idx_name] == "Gecko Decision Task"]
+    return decision_tasks[-1][idx_task]
+
+
 def get_task(task_id):
     if task_id is None:
         return
@@ -477,7 +497,10 @@ def fetch_json(url, params=None, session=None):
 
 def get_taskgroup_id(project, revision):
     idx = "gecko.v2.%s.revision.%s.firefox.decision" % (project, revision)
-    task_id = lookup_index(idx)
+    try:
+        task_id = lookup_index(idx)
+    except requests.HTTPError:
+        task_id = lookup_treeherder(project, revision)
     if task_id is None:
         raise ValueError("Failed to look up task id from index %s" % idx)
     status = get_task_status(task_id)
