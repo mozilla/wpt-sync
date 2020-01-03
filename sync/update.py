@@ -176,6 +176,7 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
                         schedule_pr_task("push", pr, repo_update=repo_update)
 
                     elif sync.latest_valid_try_push:
+                        logger.info("Treeherder url %s" % sync.latest_valid_try_push.treeherder_url)
                         if not sync.latest_valid_try_push.taskgroup_id:
                             update_taskgroup_ids(git_gecko, git_wpt,
                                                  sync.latest_valid_try_push)
@@ -184,6 +185,9 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
                             not sync.latest_valid_try_push.status == "complete"):
                             update_tasks(git_gecko, git_wpt, sync=sync)
 
+                        if not sync.latest_valid_try_push.taskgroup_id:
+                            logger.info("Try push doesn't have a complete decision task")
+                            return
                 if not pr.merged:
                     update_for_status(pr, repo_update=repo_update)
                 else:
