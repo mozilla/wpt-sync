@@ -250,7 +250,7 @@ class TaskHandler(Handler):
                     task = tc.get_task(task_id)
                     taskgroup = tc.TaskGroup(task["taskGroupId"])
                     if len(taskgroup.view(
-                            lambda x: x["metadata"]["name"] == "Gecko Decision Task")) > 5:
+                            lambda x: x["task"]["metadata"]["name"] == "Gecko Decision Task")) > 5:
                         try_push.status = "complete"
                         try_push.infra_fail = True
                         if sync and sync.bug:
