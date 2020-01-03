@@ -306,6 +306,8 @@ Cq-Include-Trybots: luci.chromium.try:android_optional_gpu_tests_rel;"""
 
     assert msg == (u"""Bug 1234 [wpt PR 7] - Upstream summary, a=testonly
 
+SKIP_BMO_CHECK
+
 Upstream message
 
 Cq-Include-Trybots: luci.chromium.try\u200B:android_optional_gpu_tests_rel;"""
