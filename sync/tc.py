@@ -417,7 +417,8 @@ def lookup_treeherder(project, revision):
     push_data = fetch_json(TREEHERDER_BASE + "api/project/%s/push/" % (project,),
                            params={"revision": revision})
 
-    push_id = push_data.get("results", {})[0].get("id")
+    pushes = push_data.get("results", [])
+    push_id = pushes[0].get("id") if pushes else None
     if push_id is None:
         return
 
