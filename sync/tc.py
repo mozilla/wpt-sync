@@ -427,7 +427,7 @@ def lookup_treeherder(project, revision):
     property_names = jobs_data["job_property_names"]
     idx_name = property_names.index("job_type_name")
     idx_task = property_names.index("task_id")
-    decision_tasks = [item for item in jobs_data.get("results", [])
+    decision_tasks = [item for item in jobs_data["results"]
                       if item[idx_name] == "Gecko Decision Task"]
     return decision_tasks[-1][idx_task]
 
