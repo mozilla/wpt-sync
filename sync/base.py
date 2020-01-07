@@ -163,7 +163,7 @@ class ProcessNameIndex(object):
         for key in [obj_type, subtype, obj_id]:
             if key is None:
                 break
-            target = target[key]
+            target = target[str(key)]
 
         rv = set()
         stack = [target]
