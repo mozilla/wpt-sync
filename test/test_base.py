@@ -40,3 +40,13 @@ def test_processname_seq_id(git_gecko, local_gecko_commit):
                                                        "upstream",
                                                        "1234")
     assert process_name_seq_id.seq_id == 1
+
+
+def test_processname_idx_type(git_gecko, local_gecko_commit):
+    process_name = base.ProcessName("sync", "upstream", "1234", "0")
+    idx = base.ProcessNameIndex(git_gecko)
+    idx.build()
+    idx.insert(process_name)
+
+    assert idx.get("sync", "upstream", "1234") == {process_name}
+    assert idx.get("sync", "upstream", 1234) == {process_name}
