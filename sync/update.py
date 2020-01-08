@@ -102,13 +102,11 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
     else:
         hg_rev_base = None
 
-    if not git_gecko.is_ancestor(git_rev,
-                                 env.config["gecko"]["refs"]["central"]):
+    if git_gecko.is_ancestor(git_rev,
+                             env.config["gecko"]["refs"]["central"]):
         routing_key = "mozilla-central"
-    if not git_gecko.is_ancestor(git_rev,
-                                 env.config["gecko"]["refs"]["autoland"]):
-        routing_key = "integration/mozilla-inbound"
-    else:
+    elif git_gecko.is_ancestor(git_rev,
+                               env.config["gecko"]["refs"]["autoland"]):
         routing_key = "integration/autoland"
 
     kwargs = {"_wptsync": {}}
