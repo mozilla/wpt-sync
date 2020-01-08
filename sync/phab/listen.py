@@ -10,7 +10,7 @@ from ..tasks import handle
 logger = log.get_logger(__name__)
 
 RE_EVENT = re.compile("[0-9]{5,}:")
-RE_COMMIT = re.compile("(committed|accepted) r[A-Z]+[a-f0-9]+:")
+RE_COMMIT = re.compile("(committed|accepted|added a reverting change for) r[A-Z]+[a-f0-9]+:")
 
 
 class PhabEventListener(object):
@@ -35,7 +35,9 @@ class PhabEventListener(object):
                    "resigned from D",
                    "changed the edit policy for D",
                    "removed a project from D",
-                   "updated D"]
+                   "updated D",
+                   "changed the visibility for D",
+                   "updated the test plan for D"]
 
     event_mapping = {
         "updated the diff for D": "commit",
@@ -43,6 +45,7 @@ class PhabEventListener(object):
         "closed D": "closed",
         "abandoned D": "abandoned",
         "added a reverting change for D": None,  # Not sure what this is yet
+        "reopened D": "commit",  # This may need its own event type
     }
 
     def __init__(self, config):
