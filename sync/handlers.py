@@ -123,7 +123,7 @@ def handle_status(git_gecko, git_wpt, event):
 
 def handle_push(git_gecko, git_wpt, event):
     newrelic.agent.set_transaction_name("handle_push")
-    update_repositories(None, git_wpt, False)
+    update_repositories(None, git_wpt)
     landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
 
 
@@ -165,7 +165,7 @@ class PushHandler(Handler):
         newrelic.agent.add_custom_parameter("repo", repo)
         newrelic.agent.add_custom_parameter("rev", rev)
 
-        update_repositories(git_gecko, git_wpt, include_autoland=True, wait_gecko_commit=rev)
+        update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
         try:
             git_rev = git_gecko.cinnabar.hg2git(rev)
         except ValueError:

@@ -345,7 +345,7 @@ def do_pr(git_gecko, git_wpt, pr_ids, *args, **kwargs):
         pr_ids = [sync_from_path(git_gecko, git_wpt).pr]
     for pr_id in pr_ids:
         pr = env.gh_wpt.get_pull(int(pr_id))
-        update_repositories(git_gecko, git_wpt, True)
+        update_repositories(git_gecko, git_wpt)
         update.update_pr(git_gecko, git_wpt, pr, kwargs["rebase"])
 
 
@@ -573,7 +573,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
     import upstream
     from landing import current, load_sync_point, unlanded_with_type
 
-    update_repositories(git_gecko, git_wpt, True)
+    update_repositories(git_gecko, git_wpt)
 
     if kwargs["upstream"]:
         print("Retriggering upstream syncs with errors")

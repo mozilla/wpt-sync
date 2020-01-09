@@ -849,7 +849,7 @@ def update_sync(git_gecko, git_wpt, sync, raise_on_error=True, repo_update=True)
         return set(), set(), set()
 
     if repo_update:
-        update_repositories(git_gecko, git_wpt, sync.repository == "autoland")
+        update_repositories(git_gecko, git_wpt)
     assert isinstance(sync, UpstreamSync)
     update_syncs = {sync.bug: (sync, sync.gecko_commits.head.sha1)}
     pushed_syncs, failed_syncs = update_sync_prs(sync._lock,
