@@ -282,6 +282,7 @@ class UpstreamSync(SyncProcess):
                                        metadata=metadata,
                                        msg_filter=commit_message_filter,
                                        src_prefix=env.config["gecko"]["path"]["wpt"])
+        assert not git_work.is_dirty()
         if wpt_commit:
             self.wpt_commits.head = wpt_commit
 
