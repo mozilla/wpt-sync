@@ -21,16 +21,16 @@ def have_gecko_hg_commit(git_gecko, hg_rev):
     return True
 
 
-def update_repositories(git_gecko, git_wpt, include_autoland=False, wait_gecko_commit=None):
+def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
     if git_gecko is not None:
         if wait_gecko_commit is not None:
-            success = until(lambda: _update_gecko(git_gecko, include_autoland),
+            success = until(lambda: _update_gecko(git_gecko),
                             lambda: have_gecko_hg_commit(git_gecko, wait_gecko_commit))
             if not success:
                 raise RetryableError(
                     ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit))
         else:
-            _update_gecko(git_gecko, include_autoland)
+            _update_gecko(git_gecko)
 
     if git_wpt is not None:
         _update_wpt(git_wpt)
@@ -47,14 +47,13 @@ def until(func, cond, max_tries=5):
     return True
 
 
-def _update_gecko(git_gecko, include_autoland):
+def _update_gecko(git_gecko):
     with RepoLock(git_gecko):
         logger.info("Fetching mozilla-unified")
         # Not using the built in fetch() function since that tries to parse the output
         # and sometimes fails
         git_gecko.git.fetch("mozilla")
-
-        if include_autoland and "autoland" in [item.name for item in git_gecko.remotes]:
+        if "autoland" in [item.name for item in git_gecko.remotes]:
             logger.info("Fetching autoland")
             git_gecko.git.fetch("autoland")
 

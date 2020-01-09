@@ -232,7 +232,7 @@ def update_bug(git_gecko, git_wpt, bug):
 def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
     if statuses is None:
         statuses = ["*"]
-    update_repositories(git_gecko, git_wpt, True)
+    update_repositories(git_gecko, git_wpt)
     for cls in sync_classes:
         for status in statuses:
             if status != "*" and status not in cls.statuses:
