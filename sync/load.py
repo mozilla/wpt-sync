@@ -11,7 +11,6 @@ def get_pr_sync(git_gecko, git_wpt, pr_id, log=True):
     import downstream
     import upstream
 
-    sync = None
     sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if not sync:
         sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
@@ -28,7 +27,6 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
     import landing
     import upstream
 
-    syncs = None
     syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, bug_number,
                                         statuses=statuses)
     if not syncs:
