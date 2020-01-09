@@ -110,7 +110,7 @@ def for_sync(sync, results):
 
         seen |= set((item[0], item[1]) for item in test_results)
 
-        test_ids = [test_id for test_id, _subtest, _result in test_results]
+        test_ids = list(set(test_id for test_id, _subtest, _result in test_results))
         test_id_by_path = test_ids_to_paths(git_work, test_ids)
         test_path_by_id = {}
         for path, ids in iteritems(test_id_by_path):
