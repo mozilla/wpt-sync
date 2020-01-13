@@ -62,7 +62,7 @@ def summary_value(result_data):
     if len(by_result) == 1:
         return str(iterkeys(by_result).next())
 
-    return " ".join("%s[%s]" % (count, sorted(jobs))
+    return " ".join("%s[%s]" % (count, ", ".join(sorted(jobs)))
                     for count, jobs in sorted(iteritems(by_result)))
 
 
