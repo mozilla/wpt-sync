@@ -19,6 +19,13 @@ def setup(config):
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
+    lock_logger = logging.getLogger("filelock")
+    lock_logger.setLevel(logging.INFO)
+
+    if root_logger.handlers:
+        # If we already have handlers set up for the root logger, don't add more
+        return
+
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setLevel(logging.INFO)
 
@@ -32,9 +39,6 @@ def setup(config):
 
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(file_handler)
-
-    lock_logger = logging.getLogger("filelock")
-    lock_logger.setLevel(logging.INFO)
 
 
 def get_logger(name):
