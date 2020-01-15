@@ -1223,24 +1223,34 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
     for commit in git_gecko.iter_commits(revish,
                                          reverse=True):
         commit = sync_commit.GeckoCommit(git_gecko, commit.hexsha)
+        logger.debug("Processing commit %s" % commit.sha1)
         if landed_central and commit.is_landing:
+            logger.info("Found wptsync landing in commit %s" % commit.sha1)
             syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug, flat=True)
             if syncs:
                 sync = syncs[0]
+                logger.info("Found sync %s" % sync.process_name)
                 with SyncLock("landing", None) as lock:
                     with syncs[0].as_mut(lock):
                         sync.finish()
+            else:
+                logger.error("Failed to find sync for commit")
         elif commit.is_backout:
             backed_out, _ = commit.landing_commits_backed_out()
+            if backed_out:
+                logger.info("Commit %s backs out wpt sync landings" % commit.sha1)
             for backed_out_commit in backed_out:
                 syncs = LandingSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug, flat=True)
                 if syncs:
                     # TODO: should really check if commit is actually part of the sync if there's >1
                     # TODO: reopen landing? But that affects the invariant that there is only one
                     sync = syncs[0]
+                    logger.info("Found sync %s" % sync.process_name)
                     with SyncLock("landing", None) as lock:
                         with sync.as_mut(lock):
                             sync.error = "Landing was backed out"
+                else:
+                    logger.error("Failed to find sync for commit")
         elif commit.is_downstream:
             syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug, flat=True)
             for sync in syncs:
