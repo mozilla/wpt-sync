@@ -394,8 +394,8 @@ class SyncProcess(object):
                                      self.wpt_commits.head.sha1)]
         if self.error:
             rv.extend(["ERROR:",
-                       self.error["message"],
-                       self.error["stack"]])
+                       self.error["message"] or "",
+                       self.error["stack"] or ""])
         landable_status = self.landable_status
         if landable_status:
             rv.append("Landable status: %s" % landable_status.reason_str())
