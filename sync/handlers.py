@@ -258,7 +258,7 @@ class TaskHandler(Handler):
                             # TODO this is commenting too frequently on bugs
                             env.bz.comment(
                                 sync.bug,
-                                "Try push failed: decision task %i returned error" % task_id)
+                                "Try push failed: decision task %s returned error" % task_id)
                     else:
                         client = tc.TaskclusterClient()
                         client.retrigger(task_id)
