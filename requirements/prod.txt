@@ -60,8 +60,10 @@ decorator==4.4.1 \
 Deprecated==1.2.6 \
     --hash=sha256:a515c4cf75061552e0284d123c3066fbbe398952c87333a92b8fc3dd8e4f9cc1 \
     --hash=sha256:b07b414c8aac88f60c1d837d21def7e83ba711052e03b3cbaff27972567a8f8d
-enum34==1.1.6 \
-    --hash=sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79
+enum34==1.1.8 \
+    --hash=sha256:075e6c23fbf537eaf379ebe17dbcb65a4f2d2ecd03ac5a3ac534c313afbdfa33 \
+    --hash=sha256:36db3d880f7a9a4989b1dfba625381a82294d1d3cfaa62bbbf18b594e195fa31 \
+    --hash=sha256:cffbadfe6cd17ea2408adb8bb21b12bd30dd0d15de90af44e1dd4b60435993e2
 filelock==3.0.12 \
     --hash=sha256:18d82244ee114f543149c66a6e0c14e9c4f8a1044b5cdaadd0f82159d6a6ff59 \
     --hash=sha256:929b7d63ec5b7d6b71b0fa5ac14e030b3f70b75747cef1b10da9b879fef15836
