@@ -43,8 +43,10 @@ coverage==5.0.3 \
     --hash=sha256:fca1669d464f0c9831fd10be2eef6b86f5ebd76c724d1e0706ebdff86bb4adf0
 entrypoints==0.3\
     --hash=sha256:589f874b313739ad35be6e0cd7efde2a4e9b6fea91edcc34e58ecbb8dbe56d19
-enum34==1.1.6\
-    --hash=sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79
+enum34==1.1.8 \
+    --hash=sha256:075e6c23fbf537eaf379ebe17dbcb65a4f2d2ecd03ac5a3ac534c313afbdfa33 \
+    --hash=sha256:36db3d880f7a9a4989b1dfba625381a82294d1d3cfaa62bbbf18b594e195fa31 \
+    --hash=sha256:cffbadfe6cd17ea2408adb8bb21b12bd30dd0d15de90af44e1dd4b60435993e2
 flake8==3.7.9 \
     --hash=sha256:45681a117ecc81e870cbf1262835ae4af5e7a8b08e40b944a8a6e6b895914cfb \
     --hash=sha256:49356e766643ad15072a789a20915d3c91dc89fd313ccd71802303fd67e4deca
