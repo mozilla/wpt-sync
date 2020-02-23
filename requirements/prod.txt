@@ -66,9 +66,9 @@ filelock==3.0.12 \
     --hash=sha256:929b7d63ec5b7d6b71b0fa5ac14e030b3f70b75747cef1b10da9b879fef15836
 funcsigs==1.0.2 \
     --hash=sha256:330cc27ccbf7f1e992e69fef78261dc7c6569012cf397db8d3de0234e6c937ca
-gitdb2==2.0.6 \
-    --hash=sha256:1b6df1433567a51a4a9c1a5a0de977aa351a405cc56d7d35f3388bad1f630350 \
-    --hash=sha256:96bbb507d765a7f51eb802554a9cfe194a174582f772e0d89f4e87288c288b7b
+gitdb2==4.0.1 \
+    --hash=sha256:06045ac819e8a30ee12eb17f84e7dc0a2a1d91c6240add65a4b065c8358ad2ec \
+    --hash=sha256:db61e0786993eb2bf11fe79d76f90eaba2ec1fc3104e450f5117c1dd23a4ba65
 GitPython==2.1.11 \
     --hash=sha256:563221e5a44369c6b79172f455584c9ebbb122a13368cc82cb4b5addff788f82 # pyup: <2.1.12
 idna==2.8 \
