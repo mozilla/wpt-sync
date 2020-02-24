@@ -717,11 +717,10 @@ def push(landing):
         try:
             logger.info("Rebasing onto %s" % landing.gecko_integration_branch())
             landing.gecko_rebase(landing.gecko_integration_branch())
-        except git.GitCommandError as e:
-            err = "Rebase failed:\n%s" % e
-            logger.error(err)
-            env.bz.comment(landing.bug, err)
-            raise AbortError(err)
+        except AbortError as e:
+            logger.error(e)
+            env.bz.comment(landing.bug, e)
+            raise e
 
         if old_head == landing.gecko_commits.head.sha1:
             err = ("Landing push failed and rebase didn't change head:%s" %
@@ -1004,7 +1003,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
             elif retry:
                 try:
                     landing.gecko_rebase(landing.gecko_landing_branch())
-                except git.GitCommandError:
+                except AbortError:
                     message = record_rebase_failure(landing)
                     raise AbortError(message)
 
@@ -1018,7 +1017,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
                                                       accept_failures):
                     try:
                         landing.gecko_rebase(landing.gecko_landing_branch())
-                    except git.GitCommandError:
+                    except AbortError:
                         message = record_rebase_failure(landing)
                         raise AbortError(message)
 

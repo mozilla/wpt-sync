@@ -3,11 +3,14 @@ import itertools
 import traceback
 from collections import defaultdict
 
+import git
+
 import bug
 import commit as sync_commit
 import log
 from base import BranchRefObject, IdentityMap, ProcessData, ProcessName, ProcessNameIndex
 from env import Environment
+from errors import AbortError
 from lock import MutGuard, mut, constructor
 from worktree import Worktree
 
@@ -671,11 +674,24 @@ class SyncProcess(object):
             repo.git.worktree("prune")
 
     @mut()
-    def gecko_rebase(self, new_base):
-        new_base = sync_commit.GeckoCommit(self.git_gecko, new_base)
+    def gecko_rebase(self, new_base_ref, abort_on_fail=False):
+        new_base = sync_commit.GeckoCommit(self.git_gecko, new_base_ref)
         git_worktree = self.gecko_worktree.get()
-        git_worktree.git.rebase(new_base.sha1)
-        self.gecko_commits.base = new_base
+        set_new_base = True
+        try:
+            git_worktree.git.rebase(new_base.sha1)
+        except git.GitCommandError as e:
+            if abort_on_fail:
+                set_new_base = False
+                try:
+                    git_worktree.git.rebase(abort=True)
+                except git.GitCommandError:
+                    pass
+            raise AbortError("Rebasing onto latest gecko failed:\n%s" % e)
+        finally:
+            if set_new_base:
+                self.data["gecko-base"] = new_base_ref
+                self.gecko_commits.base = new_base
 
     @mut()
     def wpt_rebase(self, ref):
@@ -705,9 +721,9 @@ class SyncProcess(object):
             with try_push.as_mut(self._lock):
                 try_push.delete()
 
-        for git, commit_cls in [(self.git_wpt, sync_commit.WptCommit),
-                                (self.git_gecko, sync_commit.GeckoCommit)]:
-            BranchRefObject(git, self.process_name, commit_cls=commit_cls).delete()
+        for git_repo, commit_cls in [(self.git_wpt, sync_commit.WptCommit),
+                                     (self.git_gecko, sync_commit.GeckoCommit)]:
+            BranchRefObject(git_repo, self.process_name, commit_cls=commit_cls).delete()
 
         for idx_cls in [index.SyncIndex, index.PrIdIndex, index.BugIdIndex]:
             key = idx_cls.make_key(self)

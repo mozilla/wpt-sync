@@ -62,7 +62,7 @@ class DownstreamSync(SyncProcess):
                           ("complete", "open")]  # Unfortunately, if a backout occurs
 
     @classmethod
-    @constructor(lambda args: ("downstream", str(args['pr_id'])))
+    @constructor(lambda args: ("downstream", str(args["pr_id"])))
     def new(cls, lock, git_gecko, git_wpt, wpt_base, pr_id, pr_title, pr_body):
         # TODO: add PR link to the comment
         sync = super(DownstreamSync, cls).new(lock,
@@ -548,14 +548,7 @@ class DownstreamSync(SyncProcess):
                     # TODO: Actually check if they landed?
                     reset_head = new_base
                 gecko_work.git.reset(reset_head, hard=True)
-                try:
-                    self.gecko_rebase(new_base)
-                except git.GitCommandError:
-                    try:
-                        gecko_work.git.rebase(abort=True)
-                    except git.GitCommandError:
-                        pass
-                    raise AbortError("Rebasing onto latest gecko failed")
+                self.gecko_rebase(new_base, abort_on_fail=True)
                 self.wpt_to_gecko_commits(base=new_base)
                 return True
 
@@ -613,7 +606,7 @@ class DownstreamSync(SyncProcess):
         return True
 
     @mut()
-    def wpt_to_gecko_commits(self, dependencies=None, base=None):
+    def wpt_to_gecko_commits(self, dependencies=None):
         """Create a patch based on wpt branch, apply it to corresponding gecko branch.
 
         If there is a commit with wpt-type metadata, this function will remove it. The
@@ -677,7 +670,7 @@ class DownstreamSync(SyncProcess):
 
         reset_head = None
         if not keep_commits:
-            reset_head = base if base is not None else self.gecko_landing_branch()
+            reset_head = self.data["gecko-base"]
         elif len(keep_commits) < len(existing_commits):
             reset_head = keep_commits[-1]
         elif ("metadata-commit" in self.data and
@@ -938,7 +931,7 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=Tru
 
 
 @entry_point("downstream")
-@mut('sync')
+@mut("sync")
 def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
                           raise_on_error=False, repo_update=True):
     if repo_update:
@@ -966,7 +959,7 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
 
 
 @entry_point("downstream")
-@mut('try_push', 'sync')
+@mut("try_push", "sync")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     if not try_push.taskgroup_id:
         logger.error("No taskgroup id set for try push")
@@ -1040,7 +1033,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
 
 @entry_point("downstream")
-@mut('sync')
+@mut("sync")
 def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=None):
     try:
         if action == "closed" and not merge_sha:
