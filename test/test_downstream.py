@@ -289,6 +289,22 @@ def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_com
             assert sync.gecko_commits[-2].metadata.get("wpt-commit") == head_sha
 
 
+def test_gecko_rebase(env, git_gecko, git_wpt, pull_request):
+    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+                      "Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+
+    assert len(sync.gecko_commits) == 1
+
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            assert sync.data["gecko-base"] == downstream.DownstreamSync.gecko_landing_branch()
+            sync.gecko_rebase(downstream.DownstreamSync.gecko_integration_branch())
+            assert sync.data["gecko-base"] == downstream.DownstreamSync.gecko_integration_branch()
+
+
 def test_message_filter():
     sync = Mock()
     sync.configure_mock(bug=1234, pr=7)
@@ -327,10 +343,10 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
         with sync.as_mut(lock):
             sync.error = "Infrastructure Failed"
 
-    assert env.gh_wpt.get_pull(pr["number"])['labels'] == ['mozilla:gecko-blocked']
+    assert env.gh_wpt.get_pull(pr["number"])["labels"] == ["mozilla:gecko-blocked"]
 
     with SyncLock.for_process(sync.process_name) as lock:
         with sync.as_mut(lock):
             sync.update_commits()
 
-    assert env.gh_wpt.get_pull(pr["number"])['labels'] == []
+    assert env.gh_wpt.get_pull(pr["number"])["labels"] == []
