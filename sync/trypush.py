@@ -107,6 +107,7 @@ class TryFuzzyCommit(TryCommit):
         if isinstance(self.queries, basestring):
             self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
+        self.disable_target_task_filter = self.extra_args.get("disable_target_task_filter", False)
 
     def create(self):
         if self.hacks:
@@ -139,6 +140,8 @@ class TryFuzzyCommit(TryCommit):
             args.append(str(self.rebuild))
         if self.full:
             args.append("--full")
+        if self.disable_target_task_filter:
+            args.append("--disable-target-task-filter")
 
         if self.tests_by_type is not None:
             paths = []
