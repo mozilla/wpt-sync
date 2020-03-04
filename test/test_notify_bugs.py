@@ -78,13 +78,17 @@ def test_msg_failure():
 These updates will be on mozilla-central once bug 100000 lands.
 
 Note: this bug is for tracking fixing the issues and is not
-owned by the wpt sync bot. It is associated with the test failures via metadata
-stored in https://github.com/web-platform-tests/wpt-metadata.
+owned by the wpt sync bot.
+
+This bug is linked to the relevant tests by an annotation in
+https://github.com/web-platform-tests/wpt-metadata. These annotations
+can be edited using the wpt interop dashboard
+https://jgraham.github.io/wptdash/
 
 If this bug is split into multiple bugs, please also update the
-relevant metadata, otherwise we are unable to track which wpt issues
-are triaged. The metadata link will be automatically removed when this
-bug is resolved.
+annotations, otherwise we are unable to track which wpt issues are
+already triaged. Resolving as duplicate or closing this issue should
+be cause the bot to automatically update or remove the annotation.
 """)
 
 
