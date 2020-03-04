@@ -80,7 +80,16 @@ def fallback_test_ids_to_paths(test_ids):
 
 @mut('sync')
 def for_sync(sync, results):
-    # TODO: file bugs for things in the results that require a bug and don't have one
+    """Create the bugs for followup work for test problems found in a sync.
+
+    This creates bugs that will be owned by the triage owner of the component
+    for any followup work that's revealed by the changes in a sync. Currently
+    this is for crashes and certain kinds of failures e.g. Firefox-only failures
+    that are not already known in the wpt metadata.
+
+    :returns: A dict {bug_id: bug_info} where bug_info is a list of test results
+              that are included in the bug, each represented as a tuple
+              (test_id, subtest, results, status)"""
     rv = {}
 
     new_crashes = list(results.iter_filter(lambda _test, _subtest, result:
@@ -225,7 +234,7 @@ def update_metadata(sync, bugs):
     if not bugs:
         return
 
-    metadata = Metadata.for_sync(sync)
+    metadata = Metadata.for_sync(sync, create_pr=True)
     with metadata.as_mut(sync._lock):
         for bug_id, test_results in iteritems(bugs):
             for (test_id, subtest, results, status) in test_results:

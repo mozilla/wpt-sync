@@ -577,7 +577,7 @@ class DownstreamSync(SyncProcess):
                     import traceback
                     error = e
                     logger.error("Applying with %s errored" % fn.__name__)
-                    logger.error(traceback.format_exc(e))
+                    logger.error(traceback.format_exc())
 
             if error is not None:
                 raise error
@@ -955,7 +955,6 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_s
         sync.error = e
         if raise_on_error:
             raise
-        traceback.print_exc()
         logger.error(e)
 
 

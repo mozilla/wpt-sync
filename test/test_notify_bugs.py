@@ -148,14 +148,20 @@ def test_update_metadata(env, git_gecko, git_wpt, pull_request, git_wpt_metadata
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
         with patch("sync.notify.bugs.Mach", return_value=mock_mach(None)):
-            with SyncLock.for_process(sync.process_name) as lock:
-                with sync.as_mut(lock):
-                    bug_data = bugs.for_sync(sync, results_obj)
-                    bugs.update_metadata(sync, bug_data)
+            with patch("sync.meta.Metadata.github") as mock_github:
+                with SyncLock.for_process(sync.process_name) as lock:
+                    with sync.as_mut(lock):
+                        bug_data = bugs.for_sync(sync, results_obj)
+                        bugs.update_metadata(sync, bug_data)
+
+                assert mock_github.create_pull.called
+                head = mock_github.method_calls[0].args[-1]
+
     bugs_filed = bug_data.keys()
     assert len(bugs_filed) == 1
     bug = bugs_filed[0]
-    metadata = meta.Metadata(sync.process_name)
+
+    metadata = meta.Metadata(sync.process_name, branch=head)
     links = list(metadata.iterbugs("/test/test.html"))
     assert len(links) == 1
     link = links[0]
