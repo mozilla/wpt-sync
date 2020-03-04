@@ -4,6 +4,8 @@ import time
 import traceback
 
 import git
+import newrelic
+from bugsy.errors import BugsyException
 from github import GithubException
 from mozautomation import commitparser
 
@@ -944,11 +946,19 @@ def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
             details = "\n".join(details)
             msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
                    details)
-            with env.bz.bug_ctx(sync.bug) as bug:
-                bug["comment"] = msg
-                commit_author = sync.gecko_commits[0].email
-                if commit_author:
-                    bug.needinfo(commit_author)
+            try:
+                with env.bz.bug_ctx(sync.bug) as bug:
+                    bug["comment"] = msg
+                    commit_author = sync.gecko_commits[0].email
+                    if commit_author:
+                        bug.needinfo(commit_author)
+            except BugsyException:
+                msg = traceback.format_exc()
+                logger.warning("Failed to update bug:\n%s" % msg)
+                # Sometimes needinfos fail because emails addresses in bugzilla don't
+                # match the commits. That's non-fatal, but record the exception here in
+                # case something more unexpected happens
+                newrelic.agent.record_exception()
             sync.error = "Checks failed"
             sync.last_pr_check = check
         else:
