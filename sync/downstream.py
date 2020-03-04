@@ -157,10 +157,11 @@ class DownstreamSync(SyncProcess):
             return DownstreamAction.manual_fix
 
         latest_try_push = self.latest_valid_try_push
-        if (latest_try_push and
-            latest_try_push.status == "open" and
-            not latest_try_push.taskgroup_id):
-            return DownstreamAction.wait_try
+        if (latest_try_push and not latest_try_push.taskgroup_id):
+            if latest_try_push.status == "open":
+                return DownstreamAction.wait_try
+            elif latest_try_push.infra_fail:
+                return DownstreamAction.manual_fix
 
         pr = env.gh_wpt.get_pull(self.pr)
         if pr.merged:  # Wait till PR is merged to do anything
