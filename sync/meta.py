@@ -1,5 +1,6 @@
 import git
 
+import gh
 import log
 import repos
 import worktree
@@ -17,11 +18,11 @@ logger = log.get_logger(__name__)
 class GitReader(wptmeta.Reader):
     """Reader that works with a Git repository (without a worktree)"""
 
-    def __init__(self, repo):
+    def __init__(self, repo, ref="origin/master"):
         self.repo = repo
         self.repo.remotes.origin.fetch()
         self.pygit2_repo = repos.pygit2_get(repo)
-        self.rev = self.pygit2_repo.revparse_single("origin/master")
+        self.rev = self.pygit2_repo.revparse_single(ref)
 
     def exists(self, rel_path):
         return rel_path in self.rev.tree
@@ -52,7 +53,7 @@ class NullWriter(object):
 
 
 class Metadata(object):
-    def __init__(self, process_name):
+    def __init__(self, process_name, create_pr=False, branch="master"):
         """Object for working with a wpt-metadata repository without requiring
         a worktree.
 
@@ -67,15 +68,21 @@ class Metadata(object):
         :param process_name: ProcessName object for the metadata. This
                              will typically be the process name of an
                              in-progress sync, used to lock the
-                             metadata for update."""
+                             metadata for update.
+        :param create_pr: Create a PR on the remote for the changes,
+                          rather than pushing directly to the branch
+        :param branch: Branch to read and/or write to"""
 
         self.process_name = process_name
+        self.create_pr = create_pr
+        self.branch = branch
+
         self._lock = None
         meta_repo = repos.WptMetadata(env.config)
         self.repo = meta_repo.repo()
         self.pygit2_repo = repos.pygit2_get(self.repo)
 
-        self.git_reader = GitReader(self.repo)
+        self.git_reader = GitReader(self.repo, "origin/%s" % self.branch)
         self.null_writer = NullWriter()
         self.metadata = wptmeta.WptMetadata(self.git_reader,
                                             self.null_writer)
@@ -89,9 +96,14 @@ class Metadata(object):
     def as_mut(self, lock):
         return MutGuard(lock, self)
 
+    @property
+    def github(self):
+        return gh.GitHub(env.config["web-platform-tests"]["github"]["token"],
+                         env.config["metadata"]["repo"]["url"])
+
     @classmethod
-    def for_sync(cls, sync):
-        return cls(sync.process_name)
+    def for_sync(cls, sync, create_pr=False):
+        return cls(sync.process_name, create_pr=create_pr)
 
     @property
     def lock_key(self):
@@ -106,7 +118,7 @@ class Metadata(object):
             self.repo.remotes.origin.fetch()
             self.pygit2_repo.create_reference(ref_name,
                                               self.pygit2_repo.revparse_single(
-                                                  "origin/master").id,
+                                                  "origin/%s" % self.branch).id,
                                               True)
             commit_builder = CommitBuilder(self.repo,
                                            message,
@@ -116,8 +128,9 @@ class Metadata(object):
                 self.metadata.write()
             if not commit_builder.commit.is_empty():
                 logger.info("Pushing metadata commit %s" % commit_builder.commit.sha1)
+                remote_ref = self.get_remote_ref()
                 try:
-                    self.repo.remotes.origin.push("%s:master" % ref_name)
+                    self.repo.remotes.origin.push("%s:refs/heads/%s" % (ref_name, remote_ref))
                 except git.GitCommandError as e:
                     changes = self.repo.remotes.origin.fetch()
                     err = "Pushing update to remote failed:\n%s" % e
@@ -125,6 +138,11 @@ class Metadata(object):
                         logger.error(err)
                         raise
                 else:
+                    if self.create_pr:
+                        self.github.create_pull(message,
+                                                "Update from bug %s" % self.process_name.obj_id,
+                                                self.branch,
+                                                remote_ref)
                     break
                 retry += 1
             else:
@@ -135,6 +153,21 @@ class Metadata(object):
             raise
         self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter
+
+    def get_remote_ref(self):
+        if not self.create_pr:
+            return self.branch
+
+        base_ref_name = "gecko/%s" % str(self.process_name).replace("/", "-")
+        ref_name = base_ref_name
+        prefix = "refs/remotes/origin/"
+        count = 0
+        path = prefix + ref_name
+        while path in self.pygit2_repo.references:
+            count += 1
+            ref_name = "%s-%s" % (base_ref_name, count)
+            path = prefix + ref_name
+        return ref_name
 
     @mut()
     def link_bug(self, test_id, bug_url, product="firefox", subtest=None, status=None):

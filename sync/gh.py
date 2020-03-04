@@ -1,9 +1,9 @@
 import itertools
 import random
 import re
-import sys
 import time
 import urlparse
+from cStringIO import StringIO
 
 import github
 import newrelic
@@ -307,7 +307,7 @@ class MockGitHub(GitHub):
         self.prs = {}
         self.commit_prs = {}
         self._id = itertools.count(1)
-        self.output = sys.stdout
+        self.output = StringIO()
         self.checks = {}
 
     def _log(self, data):

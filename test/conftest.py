@@ -91,7 +91,6 @@ def env(request, mock_mach, mock_wpt):
     from sync import bug, gh
 
     gh_wpt = gh.MockGitHub()
-    gh_wpt.output = StringIO()
 
     bz = bug.MockBugzilla(config)
     bz.output = StringIO()
