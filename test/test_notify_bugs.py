@@ -106,6 +106,7 @@ def test_fx_only(env):
                                          None)]]
 
     assert "Creating a bug in component Testing :: web-platform-tests" in env.bz.output.getvalue()
+    assert "Type: defect" in env.bz.output.getvalue()
 
 
 def test_crash(env):

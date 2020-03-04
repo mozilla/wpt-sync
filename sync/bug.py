@@ -130,9 +130,9 @@ class Bugzilla(object):
                               method='POST', json=body)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None):
+            url=None, bug_type="task"):
         bug = bugsy.Bug(self.bugzilla,
-                        type="task",
+                        type=bug_type,
                         summary=summary,
                         product=product,
                         component=component)
@@ -376,10 +376,18 @@ class MockBugzilla(Bugzilla):
         return MockBugContext(self, bug_id)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None):
-        self._log("Creating a bug in component %s :: %s\nSummary: %s\nComment: %s\n"
-                  "Whiteboard: %s\nPriority: %s URL: %s" %
-                  (product, component, summary, comment, whiteboard, priority, url))
+            url=None, bug_type="task"):
+        self._log("Creating a bug in component {product} :: {component}\nSummary: {summary}\n"
+                  "Comment: {comment}\nWhiteboard: {whiteboard}\nPriority: {priority}\n"
+                  "URL: {url}\nType: {bug_type}".format(
+                      product=product,
+                      component=component,
+                      summary=summary,
+                      comment=comment,
+                      whiteboard=whiteboard,
+                      priority=priority,
+                      url=url,
+                      bug_type=bug_type))
         if self.known_bugs:
             bug_id = self.known_bugs[-1] + 1
         else:
