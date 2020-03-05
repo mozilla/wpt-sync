@@ -115,7 +115,7 @@ def summary_message(results):
 
     data.append("## Status Summary\n")
 
-    max_width = max(len(status) for status in result_statuses)
+    max_width = len(max(result_statuses, key=len))
     for browser in browsers:
         if not job_names[browser]:
             continue
