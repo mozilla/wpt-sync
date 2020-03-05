@@ -109,11 +109,14 @@ def summary_message(results):
         data[-1] += " and %s subtests" % subtests
     data[-1] += "\n"
 
+    result_statuses = [status for status in statuses if status in summary]
+    if not result_statuses:
+        return data
+
     data.append("## Status Summary\n")
 
-    max_width = max(len(status) for status in statuses if status in summary)
+    max_width = len(max(result_statuses, key=len))
     for browser in browsers:
-
         if not job_names[browser]:
             continue
 
