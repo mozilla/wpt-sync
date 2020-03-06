@@ -75,9 +75,9 @@ pyflakes==2.1.1 \
 pyparsing==2.4.6 \
     --hash=sha256:4c830582a84fb022400b85429791bc551f1f4871c33f23e44f353119e92f969f \
     --hash=sha256:c342dccb5250c08d45fd6f8b4a559613ca603b57498511740e65cd11a2e7dcec
-pytest==4.6.6 \
-    --hash=sha256:5d0d20a9a66e39b5845ab14f8989f3463a7aa973700e6cdf02db69da9821e738 \
-    --hash=sha256:692d9351353ef709c1126266579edd4fd469dcf6b5f4f583050f72161d6f3592 # pyup: <5.0
+pytest==4.6.9 \
+    --hash=sha256:19e8f75eac01dd3f211edd465b39efbcbdc8fc5f7866d7dd49fedb30d8adf339 \
+    --hash=sha256:c77a5f30a90e0ce24db9eaa14ddfd38d4afb5ea159309bdd2dae55b931bc9324 # pyup: <5.0
 pytest-cov==2.8.1 \
     --hash=sha256:cc6742d8bac45070217169f5f72ceee1e0e55b0221f54bcf24845972d3a47f2b \
     --hash=sha256:cdbdef4f870408ebdbfeb44e63e07eb18bb4619fae852f6e760645fa36172626
