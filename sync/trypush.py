@@ -134,6 +134,8 @@ class TryFuzzyCommit(TryCommit):
             query_args.extend(["-q", query])
         logger.info("Pushing to try with fuzzy query: %s" % " ".join(query_args))
 
+        can_push_routes = "--route " in mach.try_("fuzzy", "--help")
+
         args = ["fuzzy", "--artifact"] + query_args
         if self.rebuild:
             args.append("--rebuild")
@@ -142,13 +144,19 @@ class TryFuzzyCommit(TryCommit):
             args.append("--full")
         if self.disable_target_task_filter:
             args.append("--disable-target-task-filter")
+        if can_push_routes:
+            args.append("--route=notify.pulse.wptsync.try-task.on-any")
 
         if self.tests_by_type is not None:
             paths = []
+            all_paths = set()
             for values in self.tests_by_type.itervalues():
-                paths.extend(item for item in values
-                             if os.path.exists(os.path.join(self.worktree.working_dir,
-                                                            item)))
+                for item in values:
+                    if (item not in all_paths and
+                        os.path.exists(os.path.join(self.worktree.working_dir,
+                                                    item))):
+                        paths.append(item)
+                    all_paths.add(item)
             max_tests = env.config["gecko"]["try"].get("max-tests")
             if max_tests and len(paths) > max_tests:
                 logger.warning("Capping number of affected tests at %d" % max_tests)
