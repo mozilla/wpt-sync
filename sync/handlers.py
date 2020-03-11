@@ -182,26 +182,37 @@ class PushHandler(Handler):
 
 
 class TaskHandler(Handler):
-    """Handler for the task associated with a decision task completing.
+    """Handler for the task associated with a task completing.
 
     Note that this is using the Treeherder event type at
     https://docs.taskcluster.net/reference/integrations/taskcluster-treeherder/references/events
     rather than the TaskCluster event type, as this allows us to filter only
     Gecko Decision Tasks."""
 
+    complete_states = frozenset(["completed", "failed", "exception"])
+
     def __call__(self, git_gecko, git_wpt, body):
         newrelic.agent.set_transaction_name("TaskHandler")
         task_id = body["status"]["taskId"]
-        state = body["status"]["state"]
+        taskgroup_id = body["status"]["taskGroupId"]
 
         newrelic.agent.add_custom_parameter("tc_task", task_id)
+        newrelic.agent.add_custom_parameter("tc_taskgroup", taskgroup_id)
+
+        if body["task"].get("tags", {}).get("kind") == "decision-task":
+            self.handle_decision_task(git_gecko, git_wpt, body, task_id)
+        else:
+            self.handle_general_task(git_gecko, git_wpt, body, taskgroup_id)
+
+    def handle_decision_task(self, git_gecko, git_wpt, body, task_id):
+        state = body["status"]["state"]
         newrelic.agent.add_custom_parameter("state", state)
 
         # Enforce the invariant that the taskgroup id is not set until
         # the decision task is complete. This allows us to determine if a
         # try push should have the expected wpt tasks just by checking if
         # this is set
-        if state not in ("completed", "failed", "exception"):
+        if state not in self.complete_states:
             logger.info("Decision task is not yet complete, status %s" % state)
             return
 
@@ -228,12 +239,9 @@ class TaskHandler(Handler):
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
         if not try_push:
             logger.debug("No try push for SHA1 %s taskId %s" % (sha1, task_id))
-            owner = task.get("metadata", {}).get("owner")
-            if owner == "wptsync@mozilla.com":
-                # This could be a race condition if the decision task completes before this
-                # task is in the index
-                raise RetryableError("Got a wptsync task with no corresponding try push")
-            return
+            # This could be a race condition if the decision task completes before this
+            # task is in the index
+            raise RetryableError("Got a wptsync task with no corresponding try push")
 
         with SyncLock.for_process(try_push.process_name) as lock:
             with try_push.as_mut(lock):
@@ -248,20 +256,35 @@ class TaskHandler(Handler):
                     message = ("Decision task got status %s for task %s%s" %
                                (state, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
                     logger.error(message)
-                    task = tc.get_task(task_id)
                     taskgroup = tc.TaskGroup(task["taskGroupId"])
                     if len(taskgroup.view(
                             lambda x: x["task"]["metadata"]["name"] == "Gecko Decision Task")) > 5:
                         try_push.status = "complete"
                         try_push.infra_fail = True
                         if sync and sync.bug:
-                            # TODO this is commenting too frequently on bugs
                             env.bz.comment(
                                 sync.bug,
                                 "Try push failed: decision task %s returned error" % task_id)
                     else:
                         client = tc.TaskclusterClient()
                         client.retrigger(task_id)
+
+    def handle_general_task(self, git_gecko, git_wpt, body, taskgroup_id):
+        try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
+        if not try_push:
+            logger.debug("No try push for taskgroup %s" % taskgroup_id)
+            # this is not one of our try_pushes
+            return
+        logger.info("Found try push for taskgroup %s" % taskgroup_id)
+
+        # Check if the taskgroup has all tasks complete, excluding unscheduled tasks.
+        # This allows us to tell if the taskgroup is complete (per the treeherder definition)
+        # even when there are tasks that won't be scheduled because the task they depend on
+        # failed. Otherwise we'd have to wait until those unscheduled tasks time out, which
+        # usually takes 24hr
+        tasks = try_push.tasks()
+        if tasks.complete(allow_unscheduled=True):
+            taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
 
 
 class TaskGroupHandler(Handler):
@@ -277,35 +300,39 @@ class TaskGroupHandler(Handler):
             # this is not one of our try_pushes
             return
         logger.info("Found try push for taskgroup %s" % taskgroup_id)
-        sync = try_push.sync(git_gecko, git_wpt)
+        taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
 
-        with SyncLock.for_process(sync.process_name) as lock:
-            with sync.as_mut(lock), try_push.as_mut(lock):
-                # We sometimes see the taskgroup ID being None. If it isn't set but found via its
-                # taskgroup ID, it is safe to set it here.
-                if try_push.taskgroup_id is None:
-                    logger.info("Try push for taskgroup %s does not have its ID set, setting now" %
-                                taskgroup_id)
-                    try_push.taskgroup_id = taskgroup_id
-                    newrelic.agent.record_custom_event("taskgroup_id_missing", params={
-                        "taskgroup-id": taskgroup_id,
-                        "try_push": try_push,
-                        "sync": sync,
-                    })
-                elif try_push.taskgroup_id != taskgroup_id:
-                    msg = ("TryPush %s, expected taskgroup ID %s, found %s instead" %
-                           (try_push, taskgroup_id, try_push.taskgroup_id))
-                    logger.error(msg)
-                    exc = ValueError(msg)
-                    newrelic.agent.record_exception(exc=exc)
-                    raise exc
 
-                if sync:
-                    logger.info("Updating try push for sync %r" % sync)
-                if isinstance(sync, downstream.DownstreamSync):
-                    downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
-                elif isinstance(sync, landing.LandingSync):
-                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+def taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push):
+    sync = try_push.sync(git_gecko, git_wpt)
+
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            # We sometimes see the taskgroup ID being None. If it isn't set but found via its
+            # taskgroup ID, it is safe to set it here.
+            if try_push.taskgroup_id is None:
+                logger.info("Try push for taskgroup %s does not have its ID set, setting now" %
+                            taskgroup_id)
+                try_push.taskgroup_id = taskgroup_id
+                newrelic.agent.record_custom_event("taskgroup_id_missing", params={
+                    "taskgroup-id": taskgroup_id,
+                    "try_push": try_push,
+                    "sync": sync,
+                })
+            elif try_push.taskgroup_id != taskgroup_id:
+                msg = ("TryPush %s, expected taskgroup ID %s, found %s instead" %
+                       (try_push, taskgroup_id, try_push.taskgroup_id))
+                logger.error(msg)
+                exc = ValueError(msg)
+                newrelic.agent.record_exception(exc=exc)
+                raise exc
+
+            if sync:
+                logger.info("Updating try push for sync %r" % sync)
+            if isinstance(sync, downstream.DownstreamSync):
+                downstream.try_push_complete(git_gecko, git_wpt, try_push, sync)
+            elif isinstance(sync, landing.LandingSync):
+                landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
 
 class LandingHandler(Handler):

@@ -267,6 +267,7 @@ def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
                                   "taskGroupId": taskgroup_id,
                                   "state": state,
                                   "runs": runs},
+                       "task": {"tags": {"kind": "decision-task"}},
                        "runId": len(runs) - 1,
                        "version": 1}
                 handle_sync("task", msg)
