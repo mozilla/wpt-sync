@@ -61,7 +61,8 @@ def get_handlers(config):
         handler_map = {
             "github": handlers.GitHubHandler(config),
             "push": handlers.PushHandler(config),
-            "task": handlers.TaskHandler(config),
+            "decision-task": handlers.DecisionTaskHandler(config),
+            "try-task": handlers.TryTaskHandler(config),
             "taskgroup": handlers.TaskGroupHandler(config),
             "phabricator": handlers.PhabricatorHandler(config),
         }

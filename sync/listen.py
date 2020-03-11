@@ -145,9 +145,12 @@ def run_pulse_listener(config):
         'github': GitHubFilter,
         'hgmo': PushFilter,
         'taskcluster-taskgroup': TaskGroupFilter,
-        'taskcluster-try-completed': TaskFilter,
-        'taskcluster-try-failed': TaskFilter,
-        'taskcluster-try-exception': TaskFilter,
+        'taskcluster-try-completed': DecisionTaskFilter,
+        'taskcluster-try-failed': DecisionTaskFilter,
+        'taskcluster-try-exception': DecisionTaskFilter,
+        'taskcluster-wptsync-completed': TryTaskFilter,
+        'taskcluster-wptsync-failed': TryTaskFilter,
+        'taskcluster-wptsync-exception': TryTaskFilter,
     }
 
     with conn:
@@ -225,8 +228,15 @@ class TaskGroupFilter(Filter):
         return body.get("taskGroupId")
 
 
-class TaskFilter(Filter):
-    name = "task"
+class DecisionTaskFilter(Filter):
+    name = "decision-task"
+
+    def accept(self, body):
+        return body.get("task", {}).get("tags", {}).get("createdForUser") == "wptsync@mozilla.com"
+
+
+class TryTaskFilter(Filter):
+    name = "try-task"
 
     def accept(self, body):
         return True
