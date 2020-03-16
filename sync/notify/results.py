@@ -273,7 +273,7 @@ def get_push_changeset(commit):
            commit.canonical_rev)
     headers = {'Accept': "application/json",
                "User-Agent": "wpt-sync"}
-    resp = requests.get(url, header=headers)
+    resp = requests.get(url, headers=headers)
     try:
         resp.raise_for_status()
     except requests.exceptions.RequestException:
