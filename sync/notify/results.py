@@ -2,6 +2,7 @@ import json
 import os
 from collections import defaultdict
 
+import newrelic
 import requests
 from six import iterkeys, iteritems, itervalues
 
@@ -267,14 +268,38 @@ class Results(object):
         return self.iter_filter(is_browser_only)
 
 
+def get_push_changeset(commit):
+    url = ("https://hg.mozilla.org/mozilla-central/json-pushes?changeset=%s&version=2&tipsonly=1" %
+           commit.canonical_rev)
+    headers = {"Accept": "application/json",
+               "User-Agent": "wpt-sync"}
+    resp = requests.get(url, headers=headers)
+    try:
+        resp.raise_for_status()
+    except requests.exceptions.RequestException:
+        if resp.status_code != 404:
+            newrelic.agent.record_exception()
+        return None
+
+    result = resp.json()
+    pushes = result["pushes"]
+    [changeset] = pushes.values()[0]["changesets"]
+    return changeset
+
+
 def get_central_tasks(git_gecko, sync):
-    central_commit = sync_commit.GeckoCommit(
+    merge_base_commit = sync_commit.GeckoCommit(
         git_gecko,
         git_gecko.merge_base(sync.gecko_commits.head.sha1,
                              env.config["gecko"]["refs"]["central"])[0])
 
+    push_commit = sync_commit.GeckoCommit(git_gecko,
+                                          get_push_changeset(merge_base_commit))
+    if push_commit is None:
+        return False
+
     taskgroup_id, state, _ = tc.get_taskgroup_id("mozilla-central",
-                                                 central_commit.canonical_rev)
+                                                 push_commit.canonical_rev)
     if taskgroup_id is None:
         return
 
@@ -294,7 +319,7 @@ def get_central_tasks(git_gecko, sync):
         return None
 
     dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
-                        "central", central_commit.sha1)
+                        "central", push_commit.sha1)
 
     wpt_tasks.download_logs(dest, ["wptreport.json"])
 
