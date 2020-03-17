@@ -271,7 +271,7 @@ class Results(object):
 def get_push_changeset(commit):
     url = ("https://hg.mozilla.org/mozilla-central/json-pushes?changeset=%s&version=2&tipsonly=1" %
            commit.canonical_rev)
-    headers = {'Accept': "application/json",
+    headers = {"Accept": "application/json",
                "User-Agent": "wpt-sync"}
     resp = requests.get(url, headers=headers)
     try:
@@ -282,8 +282,8 @@ def get_push_changeset(commit):
         return None
 
     result = resp.json()
-    pushes = result['pushes']
-    [changeset] = pushes.values()[0]['changesets']
+    pushes = result["pushes"]
+    [changeset] = pushes.values()[0]["changesets"]
     return changeset
 
 
