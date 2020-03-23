@@ -9,7 +9,7 @@ root = logging.getLogger()
 
 
 @settings.configure
-def setup(config):
+def setup(config, force=False):
     # Add a handler for stdout on the root logger
     log_dir = os.path.join(config["root"],
                            config["paths"]["logs"])
@@ -22,9 +22,12 @@ def setup(config):
     lock_logger = logging.getLogger("filelock")
     lock_logger.setLevel(logging.INFO)
 
-    if root_logger.handlers:
-        # If we already have handlers set up for the root logger, don't add more
+    if root_logger.handlers and not force:
         return
+
+    while root_logger.handlers:
+        # If we already have handlers set up for the root logger, don't add more
+        root_logger.removeHandler(root_logger.handlers[0])
 
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setLevel(logging.INFO)
