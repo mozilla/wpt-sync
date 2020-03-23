@@ -36,7 +36,8 @@ def setup(config, force=False):
     stream_handler.setFormatter(basic_formatter)
 
     file_handler = handlers.TimedRotatingFileHandler(os.path.join(log_dir, "sync.log"),
-                                                     when="D", utc=True)
+                                                     when="midnight",
+                                                     utc=True)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(basic_formatter)
 
