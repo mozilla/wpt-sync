@@ -65,15 +65,29 @@ def test_msg_failure():
         pr = "1234"
         bug = "100000"
 
-    output = bugs.bug_data_failure(Sync(), [("/test/test.html",
-                                             None,
-                                             results_obj.test_results["/test/test.html"])])
+    output = bugs.bug_data_failure(Sync(),
+                                   [("/test/test.html",
+                                     None,
+                                     results_obj.test_results["/test/test.html"])],
+                                   "https://treeherder.mozilla.org/#/jobs?repo=try&revision=1234",
+                                   "12345")
     assert output == (
-        'New wpt failures from PR 1234',
-        """The following tests have untriaged failures in the CI runs for wpt PR 1234:
+        'New wpt failures in /test/test.html',
+        """Syncing wpt [PR 1234](https://github.com/web-platform-tests/wpt/pull/1234)\
+ found new untriaged test failures in CI
+
+# Tests Affected
 
 ### Tests with a Worse Result After Changes
 /test/test.html: FAIL (Chrome: PASS)
+
+
+# CI Results
+
+[Gecko CI (Treeherder)](https://treeherder.mozilla.org/#/jobs?repo=try&revision=1234)
+[GitHub PR Head](https://wpt.fyi/results/?sha=12345&label=pr_head)
+
+# Notes
 
 These updates will be on mozilla-central once bug 100000 lands.
 
@@ -195,3 +209,45 @@ def test_already_linked(env):
 
     assert ("Creating a bug in component Testing :: web-platform-tests"
             not in env.bz.output.getvalue())
+
+
+def test_get_common_prefix():
+    assert (bugs.get_common_prefix(["/a/b/c.html", "/a/b/c.html?1=/2"]) ==
+            ([("", "a", "b", "c.html"), ("", "a", "b", "c.html?1=/2")],
+             ("", "a", "b")))
+    assert (bugs.get_common_prefix(["/a/b/c.html", "/a/c/d.html"]) ==
+            ([("", "a", "b", "c.html"), ("", "a", "c", "d.html")],
+             ("", "a")))
+
+
+def test_make_summary():
+    test_results = ["/a/b/c.html", "/a/b/d.html", "/a/b/e.html", "/a/b/f.html",
+                    "/a/b/g.html"]
+    test_results = [(item, None, None) for item in test_results]
+    prefix = "Test failures"
+
+    assert (bugs.make_summary(test_results, prefix) ==
+            "Test failures in /a/b/ [c.html, d.html, e.html, and 2 others]")
+    assert (bugs.make_summary(test_results, prefix, max_length=55) ==
+            "Test failures in /a/b/ [c.html, d.html, and 3 others]")
+    assert (bugs.make_summary(test_results, prefix, max_length=50) ==
+            "Test failures in /a/b/ [c.html, and 4 others]")
+    assert (bugs.make_summary(test_results, prefix, max_length=35) ==
+            "Test failures in /a/b/ [5 tests]")
+    assert (bugs.make_summary(test_results, prefix, max_length=25) ==
+            "Test failures in /a/b/")
+    assert (bugs.make_summary(test_results, prefix, max_length=15) ==
+            "Test failures")
+
+    test_results = ["/a/b/c.html", "/a/b/d.html", "/a/b/e.html"]
+    test_results = [(item, None, None) for item in test_results]
+    assert (bugs.make_summary(test_results, prefix) ==
+            "Test failures in /a/b/ [c.html, d.html, e.html]")
+
+
+def test_split_id():
+    assert bugs.split_id("/a/b/c.html") == ("", "a", "b", "c.html")
+    assert bugs.split_id("/a/b/c.html?foo=bar/baz") == ("", "a", "b", "c.html?foo=bar/baz")
+    assert bugs.split_id("/a/b/c.html#bar/baz") == ("", "a", "b", "c.html#bar/baz")
+    assert (bugs.split_id("/a/b/c.html?foo=bar/baz#bar/baz") ==
+            ("", "a", "b", "c.html?foo=bar/baz#bar/baz"))
