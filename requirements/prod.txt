@@ -175,7 +175,8 @@ wcwidth==0.1.8 \
     --hash=sha256:f28b3e8a6483e5d49e7f8949ac1a78314e740333ae305b4ba5defd3e74fb37a8
 wrapt==1.12.0 \
     --hash=sha256:0ec40d9fd4ec9f9e3ff9bdd12dbd3535f4085949f4db93025089d7a673ea94e8
-zipp==1.2.0 \
-    --hash=sha256:e0d9e63797e483a30d27e09fffd308c59a700d365ec34e93cc100844168bf921  # pyup: <3.0
+zipp==2.2.1 \
+    --hash=sha256:6f181bdb1a8c8019f8c11517680f7c1a836a7274c40de9165abfd6da228e54f2 \
+    --hash=sha256:fddb41c555ab338cdf27bc1d92cc6e3c05db8d1f1e7ba89d9646976702367333  # pyup: <3.0
 phabricator==0.7.0 \
     --hash=sha256:7b0417ff6682f898019d40b0ff5fc41bc213440c416ce4ad21ff2743e0e9bb2b
