@@ -159,34 +159,193 @@ def for_sync(sync, results):
                 continue
 
             product, component = component.split(" :: ")
-            summary, comment = bug_data(sync, test_results)
+            summary, comment = bug_data(sync,
+                                        test_results,
+                                        results.treeherder_url,
+                                        results.wpt_sha)
             bug_id = make_bug(summary, comment, product, component, [sync.bug])
             rv[bug_id] = [item + (link_status,) for item in test_results]
 
     return rv
 
 
-def bug_data_crash(sync, test_results):
-    summary = "New wpt crashes from PR %s" % sync.pr
+class LengthCappedStringBuilder(object):
+    def __init__(self, max_length):
+        """Builder for a string that must not exceed a given length"""
+        self.max_length = max_length
+        self.data = []
+        self.current_length = 0
 
-    comment = """The following tests have crashes in the CI runs for wpt PR %s:
-%s
+    def append(self, other):
+        """Add a string the end of the data. Returns True if the add was
+        a success i.e. the new string is under the length limit, otherwise
+        False"""
+        len_other = len(other)
+        if len_other + self.current_length > self.max_length:
+            return False
+        self.data.append(other)
+        self.current_length += len_other
+        return True
 
-(getting the crash signature into these bug reports is a TODO; sorry)
+    def has_capacity(self, chars):
+        """Check if we have chars remaining capacity in the string"""
+        return self.current_length + chars <= self.max_length
 
-These updates will be on mozilla-central once bug %s lands.
+    def get(self):
+        """Return the complete string"""
+        return "".join(self.data)
 
-""" % (sync.pr,
-       detail_part(None, test_results, None, "head", False),
-       sync.bug)
 
-    comment += postscript
+def split_id(test_id):
+    """Convert a test id into a list of path parts, preserving the hash
+    and query fragments on the final part.
+
+    Unlike urlparse we don't split out the query or fragment, we want to
+    preserve the invariant that "/".join(split_id(test_id)) == test_id
+
+    :param test_id: The id of a test consisting of a url piece containing
+                    a path and optionally a query and/or fragment
+    :returns: [id_parts] consisting of all the path parts split on /
+              with the final element retaining any non-path parts
+    """
+    parts = test_id.split("/")
+    last = None
+    for i, part in enumerate(parts):
+        if "#" in part or "?" in part:
+            last = i
+            break
+    if last:
+        name = "/".join(parts[i:])
+        parts = parts[:i]
+        parts.append(name)
+    return tuple(parts)
+
+
+def get_common_prefix(test_ids):
+    """Given a list of test ids, return the paths split into directory parts,
+    and the longest common prefix directory shared by all the inputs.
+
+    :param test_ids: - List of test_ids
+    :returns: ([split_name], common_prefix) The unique test_ids split on / and
+              the longest path prefix shared by all test ids (excluding filename
+              parts
+    """
+    test_ids = list(test_ids)
+    common_prefix = split_id(test_ids[0])[:-1]
+    seen_names = set()
+    split_names = []
+    for test_id in test_ids:
+        split_name = split_id(test_id)
+        if split_name in seen_names:
+            continue
+        seen_names.add(split_name)
+        split_names.append(split_name)
+    common_prefix = os.path.commonprefix([item[:-1] for item in split_names])
+    return split_names, common_prefix
+
+
+def make_summary(test_results, prefix, max_length=255, max_tests=3):
+    """Construct a summary for the bugs based on the test results.
+
+    The approach here is to start building the string up using the
+    LengthCappedStringBuilder and when we get to an optional part check
+    if we have the capacity to add that part in, otherwise use an
+    alternative.
+
+    :param test_results: List of (test_id, subtest, result)
+    :param prefix: String prefix to use at the start of the summary
+    :param max_length: Maximum length of the summary to create
+    :param max_tests: Maximum number of tests names to include in the
+                      output
+    :returns: String containing a constructed bug summary
+    """
+    if len(prefix) > max_length:
+        raise ValueError("Prefix is too long")
+
+    # Start with the prefix
+    summary = LengthCappedStringBuilder(max_length)
+    summary.append(prefix)
+
+    # If we can fit some of the common path prefix, add that
+    split_names, common_test_prefix = get_common_prefix(item[0] for item in test_results)
+    joiner = " in "
+    if not summary.has_capacity(len(joiner) + len(common_test_prefix[0]) + 1):
+        return summary.get()
+
+    # Keep adding as much of the common path prefix as possible
+    summary.append(joiner)
+    for path_part in common_test_prefix:
+        if not summary.append("%s/" % path_part):
+            return summary.get()
+
+    test_names = ["/".join(item[len(common_test_prefix):]) for item in split_names]
+
+    # If there's a single test name add that and we're done
+    if len(test_names) == 1:
+        summary.append(test_names[0])
+        return summary.get()
+
+    # If there are multiple test names, add up to max_tests of those names
+    # and a suffix
+    prefix = " ["
+    # suffix is ", and N others]", N is at most len(test_results) so reserve that many
+    # characters
+    tests_remaining = len(test_names)
+    suffix_length = len(", and  others]") + len(str(tests_remaining))
+    if summary.has_capacity(len(test_names[0]) + len(prefix) + suffix_length):
+        summary.append(prefix)
+        summary.append(test_names[0])
+        tests_remaining -= 1
+        for test_name in test_names[1:max_tests]:
+            if summary.has_capacity(2 + len(test_name) + suffix_length):
+                summary.append(", %s" % test_name)
+                tests_remaining -= 1
+        if tests_remaining > 0:
+            summary.append(", and %s others]" % tests_remaining)
+        else:
+            summary.append("]")
+    else:
+        # If we couldn't fit any test names in try just adding the number of tests
+        summary.append(" [%s tests]" % tests_remaining)
+    return summary.get()
+
+
+def bug_data_crash(sync, test_results, treeherder_url, wpt_sha):
+    summary = make_summary(test_results,
+                           "New wpt crashes")
+
+    comment = """Syncing wpt \
+[PR %(pr_id)s](https://github.com/web-platform-tests/wpt/pull/%(pr_id)s)\
+ found new crashes in CI
+
+# Affected Tests
+
+%(details)s
+
+# CI Results
+
+[Gecko CI (Treeherder)](%(treeherder_url)s)
+[GitHub PR Head](https://wpt.fyi/results/?sha=%(wpt_sha)s&label=pr_head)
+
+# Notes
+
+Getting the crash signature into these bug reports is a TODO; sorry
+
+These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
+
+%(postscript)s""" % {"pr_id": sync.pr,
+                     "details": detail_part(None, test_results, None, "head", False),
+                     "treeherder_url": treeherder_url,
+                     "wpt_sha": wpt_sha,
+                     "sync_bug_id": sync.bug,
+                     "postscript": postscript}
 
     return summary, comment
 
 
-def bug_data_failure(sync, test_results):
-    summary = "New wpt failures from PR %s" % sync.pr
+def bug_data_failure(sync, test_results, treeherder_url, wpt_sha):
+    summary = make_summary(test_results,
+                           "New wpt failures")
 
     by_type = defaultdict(list)
     for (test, subtest, result) in test_results:
@@ -207,14 +366,29 @@ def bug_data_failure(sync, test_results):
         detail_msg.append(detail_part(details_type, test_results, None, "head",
                                       include_other_browser))
 
-    comment = """The following tests have untriaged failures in the CI runs for wpt PR %s:
+    comment = """Syncing wpt \
+[PR %(pr_id)s](https://github.com/web-platform-tests/wpt/pull/%(pr_id)s) \
+found new untriaged test failures in CI
 
-%s
-These updates will be on mozilla-central once bug %s lands.
+# Tests Affected
 
-""" % (sync.pr, "\n".join(detail_msg), sync.bug)
+%(details)s
 
-    comment += postscript
+# CI Results
+
+[Gecko CI (Treeherder)](%(treeherder_url)s)
+[GitHub PR Head](https://wpt.fyi/results/?sha=%(wpt_sha)s&label=pr_head)
+
+# Notes
+
+These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
+
+%(postscript)s""" % {"pr_id": sync.pr,
+                     "details": "\n".join(detail_msg),
+                     "treeherder_url": treeherder_url,
+                     "wpt_sha": wpt_sha,
+                     "sync_bug_id": sync.bug,
+                     "postscript": postscript}
 
     return summary, comment
 
