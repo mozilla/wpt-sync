@@ -2,6 +2,7 @@ import json
 from mock import Mock, patch
 
 from sync import downstream, load, meta
+from sync.base import FrozenDict
 from sync.lock import SyncLock
 from sync.notify import results, bugs
 from sync.wptmeta import MetaLink
@@ -110,6 +111,7 @@ def test_fx_only(env):
     results_obj = fx_only_failure()
     sync = Mock()
     sync.lock_key = ("downstream", None)
+    sync.notify_bugs = FrozenDict()
     env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
@@ -131,6 +133,7 @@ def test_crash(env):
     results_obj = fx_crash()
     sync = Mock()
     sync.lock_key = ("downstream", None)
+    sync.notify_bugs = FrozenDict()
     env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
@@ -197,6 +200,7 @@ def test_already_linked(env):
                  None))
     sync = Mock()
     sync.lock_key = ("downstream", None)
+    sync.notify_bugs = FrozenDict()
     env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
@@ -251,3 +255,23 @@ def test_split_id():
     assert bugs.split_id("/a/b/c.html#bar/baz") == ("", "a", "b", "c.html#bar/baz")
     assert (bugs.split_id("/a/b/c.html?foo=bar/baz#bar/baz") ==
             ("", "a", "b", "c.html?foo=bar/baz#bar/baz"))
+
+
+def test_already_filed(env):
+    results_obj = fx_only_failure()
+    sync = Mock()
+    sync.lock_key = ("downstream", None)
+    sync.notify_bugs = FrozenDict(**{"failure :: Testing :: web-platform-tests": "1234"})
+
+    env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
+    with patch("sync.notify.bugs.components_for_wpt_paths",
+               return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
+        with patch("sync.notify.bugs.test_ids_to_paths",
+                   return_value={"testing/web-platform/tests/test/test.html":
+                                 ["/test/test.html"]}):
+            bug_data = bugs.for_sync(sync, results_obj)
+
+    assert len(bug_data) == 1
+    assert list(bug_data.keys()) == ["1234"]
+    assert ("Creating a bug in component Testing :: web-platform-tests"
+            not in env.bz.output.getvalue())

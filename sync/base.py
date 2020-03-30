@@ -1,6 +1,6 @@
 import json
 import weakref
-from collections import defaultdict
+from collections import defaultdict, Mapping
 
 import git
 import pygit2
@@ -625,6 +625,31 @@ class ProcessData(object):
     @mut()
     def delete(self):
         self._delete = True
+
+
+class FrozenDict(Mapping):
+    def __init__(self, *args, **kwargs):
+        self._data = dict(*args, **kwargs)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def copy(self, **kwargs):
+        new_data = self._data.copy()
+        new_data.update(kwargs)
+        self.__class__(**new_data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+    def as_dict(self):
+        return self._data.copy()
 
 
 class entry_point(object):
