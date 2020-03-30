@@ -105,14 +105,16 @@ def for_sync(sync, results):
     if not new_failures and not new_crashes:
         return rv
 
+    existing = sync.notify_bugs
+
     git_work = sync.gecko_worktree.get()
     path_prefix = env.config["gecko"]["path"]["wpt"]
 
     seen = set()
 
-    for test_results, bug_data, link_status, require_opt_in in [
-            (new_crashes, bug_data_crash, "CRASH", False),
-            (new_failures, bug_data_failure, None, True)]:
+    for key, test_results, bug_data, link_status, require_opt_in in [
+            ("crash", new_crashes, bug_data_crash, "CRASH", False),
+            ("failure", new_failures, bug_data_failure, None, True)]:
 
         # Tests excluding those for which we already generated a bug
         test_results = [item for item in test_results
@@ -154,16 +156,22 @@ def for_sync(sync, results):
                 # For things with no component don't file a bug
                 continue
 
+            component_key = "%s :: %s" % (key, component)
+
             if require_opt_in and component not in opt_in_components:
                 logger.info("Not filing bugs for component %s" % component)
                 continue
 
-            product, component = component.split(" :: ")
-            summary, comment = bug_data(sync,
-                                        test_results,
-                                        results.treeherder_url,
-                                        results.wpt_sha)
-            bug_id = make_bug(summary, comment, product, component, [sync.bug])
+            if component_key not in existing:
+                product, component = component.split(" :: ")
+                summary, comment = bug_data(sync,
+                                            test_results,
+                                            results.treeherder_url,
+                                            results.wpt_sha)
+                bug_id = make_bug(summary, comment, product, component, [sync.bug])
+            else:
+                bug_id = existing[component_key]
+
             rv[bug_id] = [item + (link_status,) for item in test_results]
 
     return rv

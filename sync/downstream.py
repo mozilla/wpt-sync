@@ -23,7 +23,7 @@ import log
 import notify
 import trypush
 import commit as sync_commit
-from base import entry_point
+from base import FrozenDict, entry_point
 from env import Environment
 from errors import AbortError
 from gitutils import update_repositories
@@ -139,6 +139,15 @@ class DownstreamSync(SyncProcess):
     @mut()
     def pr_status(self, value):
         self.data["pr-status"] = value
+
+    @property
+    def notify_bugs(self):
+        return FrozenDict(**self.data.get("notify-bugs", {}))
+
+    @notify_bugs.setter
+    @mut()
+    def notify_bugs(self, value):
+        self.data["notify-bugs"] = value.as_dict()
 
     @property
     def next_action(self):
