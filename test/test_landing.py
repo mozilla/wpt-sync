@@ -124,7 +124,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     # Update central to contain the landing
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
     with patch("sync.landing.tasks.land.apply_async") as mock_apply:
-        landing.gecko_push(git_gecko, git_wpt, "central",
+        landing.gecko_push(git_gecko, git_wpt, "mozilla-central",
                            git_gecko.cinnabar.git2hg(new_head))
         assert mock_apply.call_count == 1
     assert sync.status == "complete"
@@ -420,7 +420,7 @@ def create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "central", rev, raise_on_error=True)
+    upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
 
     return sync
 

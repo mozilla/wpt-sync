@@ -273,8 +273,8 @@ def git_gecko(env, hg_gecko_upstream):
     git_gecko.remotes.mozilla.fetch()
     git_gecko.create_head("sync/upstream/inbound", "FETCH_HEAD")
     git_gecko.create_head("sync/upstream/autoland", "FETCH_HEAD")
-    git_gecko.create_head("sync/upstream/central", "FETCH_HEAD")
-    git_gecko.create_head("sync/landing/central", "FETCH_HEAD")
+    git_gecko.create_head("sync/upstream/mozilla-central", "FETCH_HEAD")
+    git_gecko.create_head("sync/landing/mozilla-central", "FETCH_HEAD")
     return git_gecko
 
 

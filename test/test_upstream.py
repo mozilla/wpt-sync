@@ -186,7 +186,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "central", rev,
+    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev,
                                                  raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
@@ -239,8 +239,8 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "central", rev,
-                                                 raise_on_error=True)
+    pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "mozilla-central",
+                                                 rev, raise_on_error=True)
 
     env.gh_wpt.set_status(sync.pr, "success", "http://test/", "tests failed",
                           "continuous-integration/travis-ci/pr")
@@ -451,7 +451,7 @@ def setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.gecko_push(git_gecko,
                                                  git_wpt,
-                                                 "central",
+                                                 "mozilla-central",
                                                  rev,
                                                  raise_on_error=True)
     assert len(pushed) == 0
