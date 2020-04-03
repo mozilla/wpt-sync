@@ -115,8 +115,9 @@ prompt-toolkit==1.0.18 \
     --hash=sha256:f7eec66105baf40eda9ab026cd8b2e251337eea8d111196695d82e0c5f0af852 # pyup: <2.0.0
 ptyprocess==0.6.0 \
     --hash=sha256:d7cc528d76e76342423ca640335bd3633420dc1366f258cb31d05e865ef5ca1f
-pycparser==2.19 \
-    --hash=sha256:a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3
+pycparser==2.20 \
+    --hash=sha256:2d475327684562c3a96cc71adf7dc8c4f0565175cf86b6d7a404ff4c771f15f0 \
+    --hash=sha256:7582ad22678f0fcd81102833f60ef8d0e57288b6b5fb00323d101be910e35705
 pygit2==0.28.2 \
     --hash=sha256:6f44ee84fbe9b0b69f018dbe187d01a1949ab33f2cb5844d87a1929ccbd2b310 # pyup: <1.0.0
 PyGithub==1.45 \
