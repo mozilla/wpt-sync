@@ -1204,7 +1204,6 @@ def try_notify_downstream(commits, landing_is_complete=False):
 def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False,
                base_rev=None):
     rev = git_gecko.cinnabar.hg2git(hg_rev)
-    central_ref = env.config["gecko"]["refs"]["central"]
     last_sync_point, base_commit = LandingSync.prev_gecko_commit(git_gecko,
                                                                  repository_name,
                                                                  base_rev)
@@ -1213,8 +1212,7 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
         logger.info("Last sync point moved past commit")
         return
 
-    landed_central = git_gecko.is_ancestor(rev, central_ref)
-
+    landed_central = repository_name == "mozilla-central"
     revish = "%s..%s" % (base_commit.sha1, rev)
 
     landing_sync = current(git_gecko, git_wpt)
