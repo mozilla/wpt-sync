@@ -546,7 +546,7 @@ class DownstreamSync(SyncProcess):
                 return True
 
             def rebase_apply():
-                logger.info("Applying with a rebase onto latest inbound")
+                logger.info("Applying with a rebase onto latest integration branch")
                 new_base = self.gecko_integration_branch()
                 gecko_work = self.gecko_worktree.get()
                 reset_head = "HEAD"
@@ -559,7 +559,7 @@ class DownstreamSync(SyncProcess):
                     reset_head = new_base
                 gecko_work.git.reset(reset_head, hard=True)
                 self.gecko_rebase(new_base, abort_on_fail=True)
-                self.wpt_to_gecko_commits(base=new_base)
+                self.wpt_to_gecko_commits()
                 return True
 
             def dependents_apply():
