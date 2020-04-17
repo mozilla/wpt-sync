@@ -229,4 +229,4 @@ class TaskFilter(Filter):
     name = "task"
 
     def accept(self, body):
-        return body.get("task", {}).get("tags", {}).get("createdForUser") == "wptsync@mozilla.com"
+        return True
