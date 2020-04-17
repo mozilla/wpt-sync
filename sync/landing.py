@@ -476,6 +476,9 @@ Automatic update from web-platform-tests\n%s
                         # Could do better here and have the mergetool handle this case
                         logger.info("Removing %s which was deleted somewhere" % head_path)
                         worktree.git.rm(head_path)
+                    if data["code"] in {"UA", "AU"}:
+                        logger.info("Adding %s which was added somewhere" % head_path)
+                        worktree.git.add(head_path)
                 logger.info("Running mergetool")
                 worktree.git.mergetool(tool="metamerge")
                 worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
