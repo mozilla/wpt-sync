@@ -149,7 +149,7 @@ def for_sync(sync, results):
 
         opt_in_components = set(item.strip()
                                 for item in
-                                env.config["notify"].get("components", "").split(","))
+                                env.config["notify"].get("components", "").split(";"))
 
         for component, test_results in iteritems(test_results_by_component):
             if component == "UNKNOWN":
