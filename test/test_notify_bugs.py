@@ -112,7 +112,7 @@ def test_fx_only(env):
     sync = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict()
-    env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
+    env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
         with patch("sync.notify.bugs.test_ids_to_paths",
@@ -134,7 +134,7 @@ def test_crash(env):
     sync = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict()
-    env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
+    env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
         with patch("sync.notify.bugs.test_ids_to_paths",
@@ -201,7 +201,7 @@ def test_already_linked(env):
     sync = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict()
-    env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
+    env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
         with patch("sync.notify.bugs.test_ids_to_paths",
@@ -263,7 +263,7 @@ def test_already_filed(env):
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict(**{"failure :: Testing :: web-platform-tests": "1234"})
 
-    env.config["notify"]["components"] = "Foo :: Bar, Testing :: web-platform-tests"
+    env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
                return_value={"Testing :: web-platform-tests": ["test/test.html"]}):
         with patch("sync.notify.bugs.test_ids_to_paths",
