@@ -103,7 +103,8 @@ class TryFuzzyCommit(TryCommit):
     def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
         super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
                                              hacks=hacks, **kwargs)
-        self.queries = self.extra_args.get("queries", ["web-platform-tests !macosx !shippable"])
+        self.queries = self.extra_args.get("queries",
+                                           ["web-platform-tests !macosx !shippable !asan !fis"])
         if isinstance(self.queries, basestring):
             self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
