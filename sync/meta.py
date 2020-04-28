@@ -1,4 +1,5 @@
 import git
+import newrelic
 
 import gh
 import log
@@ -115,6 +116,8 @@ class Metadata(object):
         retry = 0
         MAX_RETRY = 5
         while retry < MAX_RETRY:
+            newrelic.agent.record_custom_event("metadata_update", params={})
+
             self.repo.remotes.origin.fetch()
             self.pygit2_repo.create_reference(ref_name,
                                               self.pygit2_repo.revparse_single(
@@ -139,6 +142,9 @@ class Metadata(object):
                         raise
                 else:
                     if self.create_pr:
+                        newrelic.agent.record_custom_event("metadata_update_create_pr", params={
+                            "branch": self.branch
+                        })
                         self.github.create_pull(message,
                                                 "Update from bug %s" % self.process_name.obj_id,
                                                 self.branch,

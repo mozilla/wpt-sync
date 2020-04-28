@@ -92,6 +92,10 @@ def for_sync(sync, results):
               (test_id, subtest, results, status)"""
     rv = {}
 
+    newrelic.agent.record_custom_event("sync_bug", params={
+        "sync_bug": sync.bug,
+    })
+
     new_crashes = list(results.iter_filter(lambda _test, _subtest, result:
                                            (result.has_crash("firefox") and
                                             not result.has_link(status="CRASH"))))
@@ -103,6 +107,9 @@ def for_sync(sync, results):
                                              not result.has_link())))
 
     if not new_failures and not new_crashes:
+        newrelic.agent.record_custom_event("sync_bug_nothing_relevant", params={
+            "sync_bug": sync.bug,
+        })
         return rv
 
     existing = sync.notify_bugs
@@ -160,6 +167,10 @@ def for_sync(sync, results):
 
             if require_opt_in and component not in opt_in_components:
                 logger.info("Not filing bugs for component %s" % component)
+                newrelic.agent.record_custom_event("sync_bug_not_enabled", params={
+                    "sync_bug": sync.bug,
+                    "component": component
+                })
                 continue
 
             if component_key not in existing:
@@ -169,7 +180,15 @@ def for_sync(sync, results):
                                             results.treeherder_url,
                                             results.wpt_sha)
                 bug_id = make_bug(summary, comment, product, component, [sync.bug])
+                newrelic.agent.record_custom_event("sync_bug_filing", params={
+                    "sync_bug": sync.bug,
+                    "component": component
+                })
             else:
+                newrelic.agent.record_custom_event("sync_bug_existing", params={
+                    "sync_bug": sync.bug,
+                    "component": component
+                })
                 bug_id = existing[component_key]
 
             rv[bug_id] = [item + (link_status,) for item in test_results]
@@ -412,6 +431,10 @@ def make_bug(summary, comment, product, component, depends):
 
 @mut('sync')
 def update_metadata(sync, bugs):
+    newrelic.agent.record_custom_event("sync_bug_metadata", params={
+        "sync_bug": sync.bug,
+        "bugs": [bug_id for bug_id, _ in iteritems(bugs)]
+    })
     # TODO: Ensure that the metadata is added to the meta repo
     if not bugs:
         return
