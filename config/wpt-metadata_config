@@ -5,5 +5,5 @@
     ignorecase = true
     precomposeunicode = true
 [remote "origin"]
-    url = git@github.com:jgraham/wpt-metadata.git
+    url = git@github.com:web-platform-tests/wpt-metadata.git
     fetch = +refs/heads/*:refs/remotes/origin/*
