@@ -272,6 +272,10 @@ class TryTaskHandler(Handler):
             logger.debug("No try push for taskgroup %s" % taskgroup_id)
             # this is not one of our try_pushes
             return
+
+        if try_push.status == "complete":
+            return
+
         logger.info("Found try push for taskgroup %s" % taskgroup_id)
 
         # Check if the taskgroup has all tasks complete, excluding unscheduled tasks.
