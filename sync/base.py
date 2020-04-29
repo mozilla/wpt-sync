@@ -640,7 +640,7 @@ class FrozenDict(Mapping):
     def copy(self, **kwargs):
         new_data = self._data.copy()
         new_data.update(kwargs)
-        self.__class__(**new_data)
+        return self.__class__(**new_data)
 
     def __iter__(self):
         return iter(self._data)
