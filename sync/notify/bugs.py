@@ -180,6 +180,7 @@ def for_sync(sync, results):
                                             results.treeherder_url,
                                             results.wpt_sha)
                 bug_id = make_bug(summary, comment, product, component, [sync.bug])
+                sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})
                 newrelic.agent.record_custom_event("sync_bug_filing", params={
                     "sync_bug": sync.bug,
                     "component": component
