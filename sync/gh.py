@@ -50,7 +50,7 @@ class GitHub(object):
             # Check if there's already a PR for this head
             user = self.repo_name.split("/")[0]
             pulls = self.repo.get_pulls(head="%s:%s" % (user, head))
-            entries = list(pulls[:2])
+            entries = list(pulls)
             if len(entries) == 0:
                 raise
             elif len(entries) > 1:
