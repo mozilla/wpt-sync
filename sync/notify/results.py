@@ -293,8 +293,13 @@ def get_central_tasks(git_gecko, sync):
         git_gecko.merge_base(sync.gecko_commits.head.sha1,
                              env.config["gecko"]["refs"]["central"])[0])
 
-    push_commit = sync_commit.GeckoCommit(git_gecko,
-                                          get_push_changeset(merge_base_commit))
+    hg_push_sha = get_push_changeset(merge_base_commit)
+    try:
+        git_push_sha = git_gecko.cinnabar.hg2git(hg_push_sha)
+    except ValueError:
+        newrelic.agent.record_exception()
+        return False
+    push_commit = sync_commit.GeckoCommit(git_gecko, git_push_sha)
     if push_commit is None:
         return False
 
