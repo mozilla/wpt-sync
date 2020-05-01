@@ -151,7 +151,12 @@ def for_sync(sync, results):
         test_results_by_component = defaultdict(list)
 
         for test_id, subtest, test_result in test_results:
-            component = components_by_path[test_path_by_id[test_id]]
+            path = test_path_by_id.get(test_id)
+            if not path:
+                # This can be missing if the test landed in a commit that's upstream but not here
+                # so it's in wpt.fyi data but not here
+                continue
+            component = components_by_path[path]
             test_results_by_component[component].append((test_id, subtest, test_result))
 
         opt_in_components = set(item.strip()
