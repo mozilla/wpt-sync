@@ -67,6 +67,8 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                     "web-platform-tests !ccov !shippable",
                                     "-q",
                                     "web-platform-tests linux-32 shippable",
+                                    "-q",
+                                    "web-platform-tests mac !debug shippable",
                                     "--disable-target-task-filter")
 
 

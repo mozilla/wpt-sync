@@ -681,7 +681,8 @@ MANUAL PUSH: wpt sync bot
             try_cls=trypush.TryFuzzyCommit,
             disable_target_task_filter=True,
             queries=["web-platform-tests !ccov !shippable",
-                     "web-platform-tests linux-32 shippable"])
+                     "web-platform-tests linux-32 shippable",
+                     "web-platform-tests mac !debug shippable"])
 
     def try_result(self, try_push=None, tasks=None):
         """Determine whether a try push has infra failures, or an acceptable
