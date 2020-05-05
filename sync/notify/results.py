@@ -110,6 +110,23 @@ class Result(object):
 
         return True
 
+    def is_github_only_failure(self, target_browser="firefox"):
+        gh_status = self.statuses[target_browser].get("GitHub")
+        if not gh_status:
+            return False
+
+        if gh_status.head in passing_statuses:
+            return False
+
+        # Check if any non-GitHub status is a pass
+        if any(self.iter_filter_status(
+                lambda browser, platform, status: (browser == target_browser and
+                                                   platform != "GitHub" and
+                                                   status.head in passing_statuses))):
+            return False
+
+        return True
+
     def has_crash(self, target_browser="firefox"):
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
@@ -129,6 +146,12 @@ class Result(object):
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_disabled())))
+
+    def has_non_disabled(self, target_browser="firefox"):
+        return any(self.iter_filter_status(
+            lambda browser, platform, status: (browser == target_browser and
+                                               platform != "GitHub" and
+                                               not status.is_disabled())))
 
     def has_link(self, status=None):
         if status is None:
