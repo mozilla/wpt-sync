@@ -283,6 +283,10 @@ class TryTaskHandler(Handler):
         # even when there are tasks that won't be scheduled because the task they depend on
         # failed. Otherwise we'd have to wait until those unscheduled tasks time out, which
         # usually takes 24hr
+        if try_push.taskgroup_id is None:
+            with SyncLock.for_process(try_push.process_name) as lock:
+                with try_push.as_mut(lock):
+                    try_push.taskgroup_id = taskgroup_id
         tasks = try_push.tasks()
         if tasks.complete(allow_unscheduled=True):
             taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
@@ -306,6 +310,12 @@ class TaskGroupHandler(Handler):
 
 def taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push):
     sync = try_push.sync(git_gecko, git_wpt)
+    if not sync:
+        newrelic.agent.record_custom_event("taskgroup_sync_missing", params={
+            "taskgroup-id": taskgroup_id,
+            "try_push": try_push,
+        })
+        return
 
     with SyncLock.for_process(sync.process_name) as lock:
         with sync.as_mut(lock), try_push.as_mut(lock):
