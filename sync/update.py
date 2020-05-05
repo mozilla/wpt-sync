@@ -270,7 +270,7 @@ def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
                        "task": {"tags": {"kind": "decision-task"}},
                        "runId": len(runs) - 1,
                        "version": 1}
-                handle_sync("task", msg)
+                handle_sync("decision-task", msg)
             else:
                 logger.warning("Not setting taskgroup id because decision task is in state %s" %
                                state)
