@@ -78,6 +78,22 @@ def fallback_test_ids_to_paths(test_ids):
     return data
 
 
+def filter_test_failures(test, subtest, result):
+    if result.has_link():
+        return False
+    if result.has_regression("firefox"):
+        return True
+    if result.is_browser_only_failure("firefox"):
+        return True
+    if result.has_new_non_passing("firefox"):
+        if not result.has_non_disabled():
+            return False
+        if not result.is_github_only_failure():
+            return False
+        return True
+    return False
+
+
 @mut('sync')
 def for_sync(sync, results):
     """Create the bugs for followup work for test problems found in a sync.
@@ -100,11 +116,7 @@ def for_sync(sync, results):
                                            (result.has_crash("firefox") and
                                             not result.has_link(status="CRASH"))))
 
-    new_failures = list(results.iter_filter(lambda _test, _subtest, result:
-                                            ((result.has_regression("firefox") or
-                                              result.has_new_non_passing("firefox") or
-                                              result.is_browser_only_failure("firefox")) and
-                                             not result.has_link())))
+    new_failures = list(results.iter_filter(filter_test_failures))
 
     if not new_failures and not new_crashes:
         newrelic.agent.record_custom_event("sync_bug_nothing_relevant", params={
