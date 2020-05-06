@@ -153,6 +153,10 @@ class Result(object):
                                                platform != "GitHub" and
                                                not status.is_disabled())))
 
+    def has_passing(self):
+        return any(self.iter_filter_status(
+            lambda _browser, _platform, status: status.head in passing_statuses))
+
     def has_link(self, status=None):
         if status is None:
             return len(self.bug_links) > 0

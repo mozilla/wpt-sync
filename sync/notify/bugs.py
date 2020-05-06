@@ -88,6 +88,8 @@ def filter_test_failures(test, subtest, result):
     if result.has_new_non_passing("firefox"):
         if not result.has_non_disabled():
             return False
+        if not result.has_passing():
+            return False
         if not result.is_github_only_failure():
             return False
         return True
