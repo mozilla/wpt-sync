@@ -54,6 +54,7 @@ class TaskclusterClient(object):
         return self._queue
 
     def retrigger(self, task_id, count=1, retries=5):
+        logger.info("Retriggering task %s" % task_id)
         payload = self.queue.task(task_id)
         now = taskcluster.fromNow("0 days")
         created = datetime.strptime(payload["created"], _DATE_FMT)
