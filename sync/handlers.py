@@ -191,6 +191,9 @@ class DecisionTaskHandler(Handler):
         task_id = body["status"]["taskId"]
         taskgroup_id = body["status"]["taskGroupId"]
 
+        msg = "Expected kind decision-task, got %s" % body["task"]["tags"]["kind"]
+        assert body["task"]["tags"]["kind"] == "decision-task", msg
+
         newrelic.agent.add_custom_parameter("tc_task", task_id)
         newrelic.agent.add_custom_parameter("tc_taskgroup", taskgroup_id)
 
@@ -255,6 +258,8 @@ class DecisionTaskHandler(Handler):
                                 sync.bug,
                                 "Try push failed: decision task %s returned error" % task_id)
                     else:
+                        logger.info("Retriggering decision task for sync %s" %
+                                    (sync.process_name,))
                         client = tc.TaskclusterClient()
                         client.retrigger(task_id)
 
