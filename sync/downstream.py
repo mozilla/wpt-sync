@@ -264,15 +264,40 @@ class DownstreamSync(SyncProcess):
         Paths are relative to the gecko root"""
         affected_tests = self.affected_tests()
         base_path = env.config["gecko"]["path"]["wpt"]
-        if not affected_tests:
+        # Filter out paths that aren't in the head.
+        # This can happen if the files were moved in a previous PR that we haven't yet
+        # merged
+        affected_paths = {}
+
+        head_tree = self.gecko_commits.head.commit.tree
+
+        def contains(tree, path):
+            path_parts = path.split(os.path.sep)
+            for part in path_parts:
+                try:
+                    tree = tree[part]
+                except KeyError:
+                    return False
+            return True
+
+        for test_type, wpt_paths in affected_tests.iteritems():
+            paths = []
+            for path in wpt_paths:
+                gecko_path = os.path.join(base_path, path)
+                if contains(head_tree, gecko_path):
+                    paths.append(gecko_path)
+            if paths:
+                affected_paths[test_type] = paths
+
+        if not affected_paths:
+            # Default to just running infra tests
             infra_path = os.path.join(base_path, "infrastructure/")
-            return {
+            affected_paths = {
                 "testharness": [infra_path],
                 "reftest": [infra_path],
                 "wdspec": [infra_path],
             }
-        return {test_type: [os.path.join(base_path, path) for path in paths]
-                for test_type, paths in affected_tests.iteritems()}
+        return affected_paths
 
     @mut()
     def next_try_push(self, try_cls=trypush.TryFuzzyCommit):
