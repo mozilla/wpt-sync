@@ -193,6 +193,10 @@ def get_parser():
     parser_download_logs.add_argument("taskgroup_id", help="id of the taskgroup (decision task)")
     parser_download_logs.set_defaults(func=do_download_logs)
 
+    parser_bugupdate = subparsers.add_parser("bug-update",
+                                             help="Run the bug update task")
+    parser_bugupdate.set_defaults(func=do_bugupdate)
+
     parser_build_index = subparsers.add_parser("build-index",
                                                help="Build indexes")
     parser_build_index.add_argument("index_name", nargs="*",
@@ -663,6 +667,11 @@ def do_download_logs(git_gecko, git_wpt, log_path, taskgroup_id, **kwargs):
     try_tasks = trypush.TryPushTasks(tasks)
     try_tasks.wpt_tasks.download_logs(os.path.join(log_path, taskgroup_id),
                                       ["wptreport.json"])
+
+
+def do_bugupdate(git_gecko, git_wpt, **kwargs):
+    import handlers
+    handlers.BugUpdateHandler(env.config)(git_gecko, git_wpt)
 
 
 def do_build_index(git_gecko, git_wpt, index_name, **kwargs):
