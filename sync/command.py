@@ -113,6 +113,13 @@ def get_parser():
     parser_delete.add_argument("--try", action="store_true", help="Delete try pushes for a sync")
     parser_delete.set_defaults(func=do_delete)
 
+    parser_worktree = subparsers.add_parser("worktree", help="Create worktree for a sync")
+    parser_worktree.add_argument("sync_type", help="Type of sync")
+    parser_worktree.add_argument("obj_id", help="Bug or PR id for the sync")
+    parser_worktree.add_argument("worktree_type", choices=["gecko", "wpt"],
+                                 help="Repo type of worktree")
+    parser_worktree.set_defaults(func=do_worktree)
+
     parser_status = subparsers.add_parser("status", help="Set the status of a Sync or Try push")
     parser_status.add_argument("obj_type", choices=["try", "sync"],
                                help="Object type")
@@ -386,6 +393,15 @@ def do_delete(git_gecko, git_wpt, sync_type, obj_ids, *args, **kwargs):
             with SyncLock.for_process(obj.process_name) as lock:
                 with obj.as_mut(lock):
                     obj.delete()
+
+
+def do_worktree(git_gecko, git_wpt, sync_type, obj_id, worktree_type, *args, **kwargs):
+    attr_name = worktree_type + "_worktree"
+    syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
+    for sync in syncs:
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                getattr(sync, attr_name).get()
 
 
 def do_start_listener(git_gecko, git_wpt, *args, **kwargs):
