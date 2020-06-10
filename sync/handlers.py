@@ -253,6 +253,7 @@ class DecisionTaskHandler(Handler):
                             lambda x: x["task"]["metadata"]["name"] == "Gecko Decision Task")) > 5:
                         try_push.status = "complete"
                         try_push.infra_fail = True
+                        try_push.taskgroup_id = taskgroup_id
                         if sync and sync.bug:
                             env.bz.comment(
                                 sync.bug,
