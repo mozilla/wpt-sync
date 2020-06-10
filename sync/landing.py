@@ -82,7 +82,7 @@ class LandingSync(SyncProcess):
     sync_type = "landing"
     obj_id = "bug"
     statuses = ("open", "complete")
-    status_transitions = [("open", "complete")]
+    status_transitions = [("open", "complete"), ("complete", "open")]
 
     def __init__(self, git_gecko, git_wpt, process_name):
         super(LandingSync, self).__init__(git_gecko, git_wpt, process_name)
