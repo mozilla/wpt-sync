@@ -233,7 +233,7 @@ class DecisionTaskFilter(Filter):
 
     def accept(self, body):
         tags = body.get("task", {}).get("tags", {})
-        return (tags["kind"] == "decision-task" and
+        return (tags.get("kind") == "decision-task" and
                 tags.get("createdForUser") == "wptsync@mozilla.com")
 
 
