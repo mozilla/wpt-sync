@@ -109,6 +109,7 @@ class TryFuzzyCommit(TryCommit):
             self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
         self.disable_target_task_filter = self.extra_args.get("disable_target_task_filter", False)
+        self.artifact = self.extra_args.get("artifact", True)
 
     def create(self):
         if self.hacks:
@@ -137,7 +138,7 @@ class TryFuzzyCommit(TryCommit):
 
         can_push_routes = "--route " in mach.try_("fuzzy", "--help")
 
-        args = ["fuzzy", "--artifact"] + query_args
+        args = ["fuzzy"] + query_args
         if self.rebuild:
             args.append("--rebuild")
             args.append(str(self.rebuild))
@@ -147,6 +148,10 @@ class TryFuzzyCommit(TryCommit):
             args.append("--disable-target-task-filter")
         if can_push_routes:
             args.append("--route=notify.pulse.wptsync.try-task.on-any")
+        if self.artifact:
+            args.append("--artifact")
+        else:
+            args.append("--no-artifact")
 
         if self.tests_by_type is not None:
             paths = []

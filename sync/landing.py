@@ -680,6 +680,7 @@ MANUAL PUSH: wpt sync bot
             rebuild_count=0,
             try_cls=trypush.TryFuzzyCommit,
             disable_target_task_filter=True,
+            artifact=not stability,
             queries=["web-platform-tests !ccov !shippable",
                      "web-platform-tests linux-32 shippable",
                      "web-platform-tests mac !debug shippable"])
