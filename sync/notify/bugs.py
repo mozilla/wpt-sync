@@ -442,7 +442,7 @@ These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
 
 def make_bug(summary, comment, product, component, depends):
     bug_id = env.bz.new(summary, comment, product, component, whiteboard="[wpt]",
-                        bug_type="defect")
+                        bug_type="defect", assign_to_sync=False)
     with env.bz.bug_ctx(bug_id) as bug:
         for item in depends:
             bug.add_depends(item)
