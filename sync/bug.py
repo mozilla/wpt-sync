@@ -130,16 +130,17 @@ class Bugzilla(object):
                               method='POST', json=body)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None, bug_type="task"):
+            url=None, bug_type="task", assign_to_sync=True):
         bug = bugsy.Bug(self.bugzilla,
                         type=bug_type,
                         summary=summary,
                         product=product,
                         component=component)
-        # Self-assign bugs by default to get them off triage radars
-        bz_username = env.config["bugzilla"]["username"]
-        if bz_username:
-            bug._bug["assigned_to"] = bz_username
+        if assign_to_sync:
+            # Self-assign bugs by default to get them off triage radars
+            bz_username = env.config["bugzilla"]["username"]
+            if bz_username:
+                bug._bug["assigned_to"] = bz_username
         bug.add_comment(comment)
         if priority is not None:
             if priority not in ("P1", "P2", "P3", "P4", "P5"):
@@ -376,10 +377,10 @@ class MockBugzilla(Bugzilla):
         return MockBugContext(self, bug_id)
 
     def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None, bug_type="task"):
+            url=None, bug_type="task", assign_to_sync=True):
         self._log("Creating a bug in component {product} :: {component}\nSummary: {summary}\n"
                   "Comment: {comment}\nWhiteboard: {whiteboard}\nPriority: {priority}\n"
-                  "URL: {url}\nType: {bug_type}".format(
+                  "URL: {url}\nType: {bug_type}\nAssign to sync: {assign_to_sync}".format(
                       product=product,
                       component=component,
                       summary=summary,
@@ -387,7 +388,8 @@ class MockBugzilla(Bugzilla):
                       whiteboard=whiteboard,
                       priority=priority,
                       url=url,
-                      bug_type=bug_type))
+                      bug_type=bug_type,
+                      assign_to_sync=assign_to_sync))
         if self.known_bugs:
             bug_id = self.known_bugs[-1] + 1
         else:
