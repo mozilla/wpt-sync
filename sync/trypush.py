@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import re
 import shutil
@@ -9,16 +10,17 @@ import newrelic
 import taskcluster
 import yaml
 
-import base
-import log
-import tc
-import tree
-from env import Environment
-from index import TaskGroupIndex, TryCommitIndex
-from load import get_syncs
-from lock import constructor, mut
-from errors import AbortError, RetryableError
-from projectutil import Mach
+from . import base
+from . import log
+from . import tc
+from . import tree
+from .env import Environment
+from .index import TaskGroupIndex, TryCommitIndex
+from .load import get_syncs
+from .lock import constructor, mut
+from .errors import AbortError, RetryableError
+from .projectutil import Mach
+import six
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -105,7 +107,7 @@ class TryFuzzyCommit(TryCommit):
                                              hacks=hacks, **kwargs)
         self.queries = self.extra_args.get("queries",
                                            ["web-platform-tests !macosx !shippable !asan !fis"])
-        if isinstance(self.queries, basestring):
+        if isinstance(self.queries, six.string_types):
             self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
         self.disable_target_task_filter = self.extra_args.get("disable_target_task_filter", False)
@@ -156,7 +158,7 @@ class TryFuzzyCommit(TryCommit):
         if self.tests_by_type is not None:
             paths = []
             all_paths = set()
-            for values in self.tests_by_type.itervalues():
+            for values in six.itervalues(self.tests_by_type):
                 for item in values:
                     if (item not in all_paths and
                         os.path.exists(os.path.join(self.worktree.working_dir,
@@ -207,7 +209,7 @@ class TryPush(base.ProcessData):
 
         if rebuild_count is None:
             rebuild_count = 0 if not stability else env.config['gecko']['try']['stability_count']
-            if not isinstance(rebuild_count, (int, long)):
+            if not isinstance(rebuild_count, six.integer_types):
                 logger.error("Could not find config for Stability rebuild count, using default 5")
                 rebuild_count = 5
         with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks,
@@ -520,7 +522,7 @@ class TryPushTasks(object):
         def is_excluded(name):
             return "-aarch64" in name
 
-        failures = [data["task_id"] for name, data in task_states.iteritems()
+        failures = [data["task_id"] for name, data in six.iteritems(task_states)
                     if is_failure(data) and not is_excluded(name)]
         retriggered_count = 0
         for task_id in failures:
@@ -539,7 +541,7 @@ class TryPushTasks(object):
         #       }}
         by_name = self.wpt_tasks.by_name()
         task_states = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-        for name, tasks in by_name.iteritems():
+        for name, tasks in six.iteritems(by_name):
             for task in tasks:
                 task_id = task.get("status", {}).get("taskId")
                 state = task.get("status", {}).get("state")
@@ -562,8 +564,8 @@ class TryPushTasks(object):
         # manual/automatic retriggers made outside of wptsync
         threshold = max(1, self._retrigger_count / 2)
         task_counts = self.wpt_states()
-        return {name: data for name, data in task_counts.iteritems()
-                if sum(data["states"].itervalues()) > threshold}
+        return {name: data for name, data in six.iteritems(task_counts)
+                if sum(six.itervalues(data["states"])) > threshold}
 
     def success(self):
         """Check if all the wpt tasks in a try push ended with a successful status"""

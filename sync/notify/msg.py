@@ -1,11 +1,13 @@
+from __future__ import absolute_import
 from collections import defaultdict
 from six import iteritems, iterkeys, itervalues
-import urlparse
+import six.moves.urllib.parse
 
 from ..bug import bug_number_from_url, max_comment_length
 from ..env import Environment
 
-from results import statuses, browsers
+from .results import statuses, browsers
+import six
 
 env = Environment()
 
@@ -24,7 +26,7 @@ def status_str(result, browser="firefox", include_status="head", include_other_b
                "both": ["base", "head"]}[include_status]
 
     if all(result.is_consistent(browser, target) for target in targets):
-        value = "->".join(getattr(itervalues(result.statuses[browser]).next(), target)
+        value = "->".join(getattr(next(itervalues(result.statuses[browser])), target)
                           for target in targets)
     else:
         by_value = defaultdict(list)
@@ -39,7 +41,7 @@ def status_str(result, browser="firefox", include_status="head", include_other_b
 
     if include_other_browser:
         other_browser_values = []
-        for other_browser, job_results in result.statuses.iteritems():
+        for other_browser, job_results in six.iteritems(result.statuses):
             if other_browser == browser:
                 continue
             browser_status = job_results.get("GitHub")
@@ -60,7 +62,7 @@ def summary_value(result_data):
         by_result[value].append(job_name)
 
     if len(by_result) == 1:
-        return str(iterkeys(by_result).next())
+        return str(next(iterkeys(by_result)))
 
     return " ".join("%s[%s]" % (count, ", ".join(sorted(jobs)))
                     for count, jobs in sorted(iteritems(by_result)))
@@ -71,7 +73,7 @@ def bug_str(url):
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
     elif url.startswith("https://github.com"):
-        return "[Issue %s](%s)" % (urlparse.urlsplit(url).path.split("/")[-1],
+        return "[Issue %s](%s)" % (six.moves.urllib.parse.urlsplit(url).path.split("/")[-1],
                                    url)
     return "[%s]()" % url
 

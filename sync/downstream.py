@@ -3,9 +3,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from __future__ import print_function
+from __future__ import absolute_import
+import six
+from six.moves import zip
 
 """Functionality to support VCS syncing for WPT."""
 
+from __future__ import absolute_import
 import os
 import re
 import subprocess
@@ -17,20 +21,20 @@ import enum
 import git
 import newrelic
 
-import bugcomponents
-import gitutils
-import log
-import notify
-import trypush
-import commit as sync_commit
-from base import FrozenDict, entry_point
-from env import Environment
-from errors import AbortError
-from gitutils import update_repositories
-from lock import SyncLock, mut, constructor
-from projectutil import Mach, WPT
-from sync import LandableStatus, SyncProcess
-from trypush import TryPush
+from . import bugcomponents
+from . import gitutils
+from . import log
+from . import notify
+from . import trypush
+from . import commit as sync_commit
+from .base import FrozenDict, entry_point
+from .env import Environment
+from .errors import AbortError
+from .gitutils import update_repositories
+from .lock import SyncLock, mut, constructor
+from .projectutil import Mach, WPT
+from .sync import LandableStatus, SyncProcess
+from .trypush import TryPush
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -280,7 +284,7 @@ class DownstreamSync(SyncProcess):
                     return False
             return True
 
-        for test_type, wpt_paths in affected_tests.iteritems():
+        for test_type, wpt_paths in six.iteritems(affected_tests):
             paths = []
             for path in wpt_paths:
                 gecko_path = os.path.join(base_path, path)
@@ -496,7 +500,7 @@ class DownstreamSync(SyncProcess):
 
         gecko_work = self.gecko_worktree.get()
         metadata_base = env.config["gecko"]["path"]["meta"]
-        for old_path, new_path in renames.iteritems():
+        for old_path, new_path in six.iteritems(renames):
             old_meta_path = os.path.join(metadata_base,
                                          old_path + ".ini")
             if os.path.exists(os.path.join(gecko_work.working_dir,
@@ -743,7 +747,7 @@ class DownstreamSync(SyncProcess):
                             patch_fallback=True)
 
     def unlanded_commits_same_files(self):
-        import landing
+        from . import landing
 
         sync_point = landing.load_sync_point(self.git_gecko, self.git_wpt)
         base = sync_point["upstream"]
@@ -939,7 +943,7 @@ class DownstreamSync(SyncProcess):
             if sha in unreverted_commits[sync]:
                 unreverted_commits[sync].remove(sha)
 
-        rv = {sync for sync, unreverted in unreverted_commits.iteritems()
+        rv = {sync for sync, unreverted in six.iteritems(unreverted_commits)
               if not unreverted}
         return rv
 

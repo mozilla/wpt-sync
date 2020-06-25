@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import re
 import subprocess
@@ -5,10 +6,11 @@ import subprocess
 import git
 from mozautomation import commitparser
 
-import log
-from env import Environment
-from errors import AbortError
-from repos import pygit2_get
+from . import log
+from .env import Environment
+from .errors import AbortError
+from .repos import pygit2_get
+import six
 
 
 env = Environment()
@@ -67,7 +69,7 @@ class GitNotes(object):
 
     def __setitem__(self, key, value):
         self._data[key] = value
-        data = "\n".join("%s: %s" % item for item in self._data.iteritems())
+        data = "\n".join("%s: %s" % item for item in six.iteritems(self._data))
         self.pygit2_repo.create_note(data,
                                      self.pygit2_repo.default_signature,
                                      self.pygit2_repo.default_signature,
@@ -92,7 +94,7 @@ class Commit(object):
         elif hasattr(commit, "sha1"):
             # Commit subclass
             sha1 = commit.sha1
-        elif isinstance(commit, (str, unicode)):
+        elif isinstance(commit, (str, six.text_type)):
             commit = self.pygit2_repo.revparse_single(commit)
             sha1 = str(commit.id)
         elif hasattr(commit, "id"):
@@ -186,7 +188,7 @@ class Commit(object):
             metadata_str = "\n".join("%s: %s" % item for item in sorted(metadata.items()))
             new_lines = "\n\n" if not msg.endswith("\n") else "\n"
             msg = "".join([msg, new_lines, metadata_str])
-        if isinstance(msg, unicode):
+        if isinstance(msg, six.text_type):
             msg = msg.encode("utf8")
         return msg
 
@@ -372,12 +374,12 @@ class GeckoCommit(Commit):
 
     @property
     def is_downstream(self):
-        import downstream
+        from . import downstream
         return downstream.DownstreamSync.has_metadata(self.msg)
 
     @property
     def is_landing(self):
-        import landing
+        from . import landing
         return landing.LandingSync.has_metadata(self.msg)
 
     def commits_backed_out(self):
@@ -423,7 +425,7 @@ class GeckoCommit(Commit):
         return commits, set(bugs)
 
     def upstream_sync(self, git_gecko, git_wpt):
-        import upstream
+        from . import upstream
         if "upstream-sync" in self.notes:
             bug, seq_id = self.notes["upstream-sync"].split(":", 1)
             if seq_id == "":
@@ -436,7 +438,7 @@ class GeckoCommit(Commit):
                 return syncs.pop()
 
     def set_upstream_sync(self, sync):
-        import upstream
+        from . import upstream
         if not isinstance(sync, upstream.UpstreamSync):
             raise ValueError
         seq_id = sync.seq_id

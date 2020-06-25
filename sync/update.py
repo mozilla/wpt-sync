@@ -1,21 +1,22 @@
-import downstream
-import landing
-import log
-import tc
-import trypush
-import upstream
-from env import Environment
-from load import get_bug_sync, get_pr_sync
-from lock import SyncLock
-from gitutils import update_repositories
-from errors import AbortError
+from __future__ import absolute_import
+from . import downstream
+from . import landing
+from . import log
+from . import tc
+from . import trypush
+from . import upstream
+from .env import Environment
+from .load import get_bug_sync, get_pr_sync
+from .lock import SyncLock
+from .gitutils import update_repositories
+from .errors import AbortError
 
 env = Environment()
 logger = log.get_logger(__name__)
 
 
 def handle_sync(task, body):
-    from tasks import get_handlers, setup
+    from .tasks import get_handlers, setup
 
     handlers = get_handlers()
     if task in handlers:
@@ -298,7 +299,7 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
 
 
 def retrigger(git_gecko, git_wpt, unlandable_prs):
-    from sync import LandableStatus
+    from .sync import LandableStatus
 
     retriggerable_prs = [(pr_id, commits, status)
                          for (pr_id, commits, status) in unlandable_prs

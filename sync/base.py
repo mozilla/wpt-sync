@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import json
 import weakref
 from collections import defaultdict, Mapping
@@ -5,11 +6,12 @@ from collections import defaultdict, Mapping
 import git
 import pygit2
 
-import log
-import commit as sync_commit
-from env import Environment
-from lock import MutGuard, RepoLock, mut, constructor
-from repos import pygit2_get
+from . import log
+from . import commit as sync_commit
+from .env import Environment
+from .lock import MutGuard, RepoLock, mut, constructor
+from .repos import pygit2_get
+import six
 
 env = Environment()
 
@@ -127,9 +129,7 @@ def iter_process_names(pygit2_repo, kind=["sync", "try"]):
                     yield process_name
 
 
-class ProcessNameIndex(object):
-    __metaclass__ = IdentityMap
-
+class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
     def __init__(self, repo):
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
@@ -182,12 +182,12 @@ class ProcessNameIndex(object):
             if isinstance(item, set):
                 rv |= item
             else:
-                stack.extend(item.itervalues())
+                stack.extend(six.itervalues(item))
 
         return rv
 
 
-class ProcessName(object):
+class ProcessName(six.with_metaclass(IdentityMap, object)):
     """Representation of a name that is used to identify a sync operation.
     This has the general form <obj type>/<subtype>/<obj_id>[/<seq_id>].
 
@@ -197,7 +197,6 @@ class ProcessName(object):
     to cover cases where we might have multiple processes with the same obj_id.
 
     """
-    __metaclass__ = IdentityMap
 
     def __init__(self, obj_type, subtype, obj_id, seq_id):
         assert obj_type is not None
@@ -273,13 +272,12 @@ class ProcessName(object):
         return cls(obj_type, subtype, obj_id, seq_id)
 
 
-class VcsRefObject(object):
+class VcsRefObject(six.with_metaclass(IdentityMap, object)):
     """Representation of a named reference to a git object associated with a
     specific process_name.
 
     This is typically either a tag or a head (i.e. branch), but can be any
     git object."""
-    __metaclass__ = IdentityMap
 
     ref_prefix = None
 
@@ -460,7 +458,7 @@ class CommitBuilder(object):
 
     def add_tree(self, tree):
         self.has_changes = True
-        for path, data in tree.iteritems():
+        for path, data in six.iteritems(tree):
             blob = self.pygit2_repo.create_blob(data)
             index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
             self.index.add(index_entry)
@@ -475,8 +473,7 @@ class CommitBuilder(object):
         return self.commit
 
 
-class ProcessData(object):
-    __metaclass__ = IdentityMap
+class ProcessData(six.with_metaclass(IdentityMap, object)):
     obj_type = None
 
     def __init__(self, repo, process_name):
@@ -501,7 +498,7 @@ class ProcessData(object):
     def exit_mut(self):
         message = "Update %s\n\n" % self.path
         with CommitBuilder(self.repo, message=message, ref=self.ref.path) as commit:
-            import index
+            from . import index
             if self._delete:
                 self._delete_data("Delete %s" % self.path)
                 self._delete = False
@@ -559,7 +556,7 @@ class ProcessData(object):
 
     @classmethod
     def load_by_status(cls, repo, subtype, status):
-        import index
+        from . import index
         process_names = index.SyncIndex(repo).get((cls.obj_type,
                                                    subtype,
                                                    status))
@@ -607,7 +604,7 @@ class ProcessData(object):
         return self._data.get(key, default)
 
     def items(self):
-        for key, value in self._data.iteritems():
+        for key, value in six.iteritems(self._data):
             yield key, value
 
     @mut()

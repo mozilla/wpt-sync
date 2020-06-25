@@ -1,14 +1,16 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 import sys
 
 from collections import defaultdict
-from ConfigParser import RawConfigParser
+from six.moves.configparser import RawConfigParser
 
 _config = None
 
 
 def read_ini(path):
-    print("Loading config from path %s" % path)
+    print(("Loading config from path %s" % path))
     parser = RawConfigParser()
     # make option names case sensitive
     parser.optionxform = str
@@ -57,8 +59,8 @@ def load_files(ini_sync, ini_credentials):
     config["root"] = root
     config["repo_root"] = repo_root
 
-    print >> sys.stderr, "WPTSYNC_ROOT: %s" % root
-    print >> sys.stderr, "WPTSYNC_REPO_ROOT: %s" % repo_root
+    print("WPTSYNC_ROOT: %s" % root, file=sys.stderr)
+    print("WPTSYNC_REPO_ROOT: %s" % repo_root, file=sys.stderr)
 
     for section in ini_sync.sections():
         for name, value in ini_sync.items(section):

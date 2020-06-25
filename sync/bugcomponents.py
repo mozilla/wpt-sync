@@ -1,11 +1,13 @@
+from __future__ import absolute_import
 import re
 import os
 from ast import literal_eval
 from collections import defaultdict
 
 from . import log
-from env import Environment
+from .env import Environment
 from .projectutil import Mach
+import six
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -76,7 +78,7 @@ def remove_obsolete(path, moves=None):
     if moves:
         moved_patterns = compute_moves(moves, unmatched_patterns)
         unmatched_patterns -= set(moved_patterns.keys())
-        for old_pattern, new_pattern in moved_patterns.iteritems():
+        for old_pattern, new_pattern in six.iteritems(moved_patterns):
             node, match_values = node_patterns[old_pattern]
             arg = match_values["arg"]
             arg.replace(arg.__class__(arg.type, '"%s"' % new_pattern))
@@ -85,7 +87,7 @@ def remove_obsolete(path, moves=None):
         logger.debug("Removing %s" % pattern)
         node_patterns[pattern][0].remove()
 
-    return unicode(tree)
+    return six.text_type(tree)
 
 
 def compute_moves(moves, unmatched_patterns):
@@ -96,11 +98,11 @@ def compute_moves(moves, unmatched_patterns):
         # or single-file patterns
         if "*" in pattern and not pattern.endswith("/**"):
             continue
-        for from_path, to_path in moves.iteritems():
+        for from_path, to_path in six.iteritems(moves):
             if match(from_path, pattern):
                 dest_paths[pattern].append(to_path)
 
-    for pattern, paths in dest_paths.iteritems():
+    for pattern, paths in six.iteritems(dest_paths):
         if "*" not in pattern:
             assert len(paths) == 1
             updated_patterns[pattern] = paths[0]
@@ -149,7 +151,7 @@ def get(git_gecko, files_changed, default):
     if not components:
         return default
 
-    components = sorted(components.items(), key=lambda x: -len(x[1]))
+    components = sorted(list(components.items()), key=lambda x: -len(x[1]))
     component = components[0][0]
     if component == "UNKNOWN" and len(components) > 1:
         component = components[1][0]
@@ -175,7 +177,7 @@ def update(worktree, renames):
         return os.path.join(tests_base, path)
 
     mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
-                            for old, new in renames.iteritems()}
+                            for old, new in six.iteritems(renames)}
 
     if os.path.exists(mozbuild_file_path):
         new_data = remove_obsolete(mozbuild_file_path,

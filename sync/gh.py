@@ -1,14 +1,16 @@
+from __future__ import absolute_import
 import itertools
 import random
 import re
 import time
-import urlparse
+import six.moves.urllib.parse
 from cStringIO import StringIO
 
 import github
 import newrelic
-import log
-from env import Environment
+from . import log
+from .env import Environment
+import six
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -17,7 +19,7 @@ env = Environment()
 class GitHub(object):
     def __init__(self, token, url):
         self.gh = github.Github(token)
-        self.repo_name = urlparse.urlsplit(url).path.lstrip("/")
+        self.repo_name = six.moves.urllib.parse.urlsplit(url).path.lstrip("/")
         self.pr_cache = {}
         self._repo = None
 
@@ -97,7 +99,7 @@ class GitHub(object):
                     newrelic.agent.record_exception()
 
     def _convert_pr_id(self, pr_id):
-        if not isinstance(pr_id, (int, long)):
+        if not isinstance(pr_id, six.integer_types):
             try:
                 pr_id = int(pr_id)
             except ValueError:
@@ -155,7 +157,7 @@ class GitHub(object):
         review_by_reviewer = {}
         for review in reviews:
             review_by_reviewer[review.user.login] = review.state
-        return "APPROVED" in review_by_reviewer.values()
+        return "APPROVED" in list(review_by_reviewer.values())
 
     def merge_sha(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -321,7 +323,7 @@ class MockGitHub(GitHub):
     def create_pull(self, title, body, base, head, _commits=None, _id=None,
                     _user=None):
         if _id is None:
-            id = self._id.next()
+            id = next(self._id)
         else:
             id = int(_id)
         assert id not in self.prs

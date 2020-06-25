@@ -1,15 +1,16 @@
+from __future__ import absolute_import
 import git
 import newrelic
 
-import gh
-import log
-import repos
-import worktree
-import wptmeta
+from . import gh
+from . import log
+from . import repos
+from . import worktree
+from . import wptmeta
 
-from env import Environment
-from base import CommitBuilder, iter_tree
-from lock import mut, MutGuard
+from .env import Environment
+from .base import CommitBuilder, iter_tree
+from .lock import mut, MutGuard
 
 
 env = Environment()

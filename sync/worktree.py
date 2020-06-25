@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import shutil
 import traceback
@@ -6,11 +7,11 @@ from datetime import datetime, timedelta
 import git
 import pygit2
 
-import log
-from base import ProcessName
-from env import Environment
-from lock import MutGuard, SyncLock, mut
-from repos import pygit2_get, wrapper_get
+from . import log
+from .base import ProcessName
+from .env import Environment
+from .lock import MutGuard, SyncLock, mut
+from .repos import pygit2_get, wrapper_get
 
 
 env = Environment()

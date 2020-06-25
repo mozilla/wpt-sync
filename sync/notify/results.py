@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import json
 import os
 from collections import defaultdict
@@ -79,7 +80,7 @@ class Result(object):
         browser_results = self.statuses.get(browser, {})
         if not browser_results:
             return True
-        first_result = getattr(itervalues(browser_results).next(), target)
+        first_result = getattr(next(itervalues(browser_results)), target)
 
         return all(getattr(result, target) == first_result
                    for result in itervalues(browser_results))
@@ -310,7 +311,7 @@ def get_push_changeset(commit):
 
     result = resp.json()
     pushes = result["pushes"]
-    [changeset] = pushes.values()[0]["changesets"]
+    [changeset] = list(pushes.values())[0]["changesets"]
     return changeset
 
 
