@@ -1,9 +1,10 @@
+from __future__ import absolute_import
 import logging
 import os
 import sys
 from logging import handlers
 
-import settings
+from . import settings
 
 root = logging.getLogger()
 

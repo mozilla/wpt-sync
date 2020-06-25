@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import enum
 import itertools
 import traceback
@@ -5,14 +6,15 @@ from collections import defaultdict
 
 import git
 
-import bug
-import commit as sync_commit
-import log
-from base import BranchRefObject, IdentityMap, ProcessData, ProcessName, ProcessNameIndex
-from env import Environment
-from errors import AbortError
-from lock import MutGuard, mut, constructor
-from worktree import Worktree
+from . import bug
+from . import commit as sync_commit
+from . import log
+from .base import BranchRefObject, IdentityMap, ProcessData, ProcessName, ProcessNameIndex
+from .env import Environment
+from .errors import AbortError
+from .lock import MutGuard, mut, constructor
+from .worktree import Worktree
+import six
 
 env = Environment()
 
@@ -182,11 +184,10 @@ class LandableStatus(enum.Enum):
                 LandableStatus.skip: "Skip"}.get(self, "Unknown")
 
 
-class SyncPointName(object):
+class SyncPointName(six.with_metaclass(IdentityMap, object)):
     """Like a process name but for pointers that aren't associated with a
     specific sync object, but with a general process e.g. the last update point
     for an upstream sync."""
-    __metaclass__ = IdentityMap
 
     def __init__(self, subtype, obj_id):
         self._obj_type = "sync"
@@ -224,9 +225,7 @@ class SyncData(ProcessData):
     obj_type = "sync"
 
 
-class SyncProcess(object):
-    __metaclass__ = IdentityMap
-
+class SyncProcess(six.with_metaclass(IdentityMap, object)):
     obj_type = "sync"
     sync_type = "*"
     obj_id = None  # Either "bug" or "pr"
@@ -291,7 +290,7 @@ class SyncProcess(object):
 
     @classmethod
     def for_pr(cls, git_gecko, git_wpt, pr_id):
-        import index
+        from . import index
         idx = index.PrIdIndex(git_gecko)
         process_name = idx.get((str(pr_id),))
         if process_name and process_name.subtype == cls.sync_type:
@@ -309,7 +308,7 @@ class SyncProcess(object):
         :returns: By default a dictionary of {status: [syncs]}, but if flat
                   is true, just returns a list of matching syncs.
         """
-        import index
+        from . import index
         bug = str(bug)
         statuses = set(statuses) if statuses is not None else set(cls.statuses)
         rv = defaultdict(set)
@@ -325,7 +324,7 @@ class SyncProcess(object):
                 if sync.status in statuses:
                     rv[sync.status].add(sync)
         if flat:
-            rv = list(itertools.chain.from_iterable(rv.itervalues()))
+            rv = list(itertools.chain.from_iterable(six.itervalues(rv)))
         return rv
 
     @classmethod
@@ -340,7 +339,7 @@ class SyncProcess(object):
 
     @classmethod
     def load_by_status(cls, git_gecko, git_wpt, status):
-        import index
+        from . import index
         idx = index.SyncIndex(git_gecko)
         key = (cls.obj_type, cls.sync_type, status)
         process_names = idx.get(key)
@@ -472,7 +471,7 @@ class SyncProcess(object):
         if (current, value) not in self.status_transitions:
             raise ValueError("Tried to change status from %s to %s" % (current, value))
 
-        import index
+        from . import index
         index.SyncIndex(self.git_gecko).delete(index.SyncIndex.make_key(self),
                                                self.process_name)
         index.BugIdIndex(self.git_gecko).delete(index.BugIdIndex.make_key(self),
@@ -493,7 +492,7 @@ class SyncProcess(object):
     @bug.setter
     @mut()
     def bug(self, value):
-        import index
+        from . import index
         if self.obj_id == "bug":
             raise AttributeError("Can't set attribute")
         old_key = None
@@ -513,7 +512,7 @@ class SyncProcess(object):
     @pr.setter
     @mut()
     def pr(self, value):
-        import index
+        from . import index
         if self.obj_id == "pr":
             raise AttributeError("Can't set attribute")
         old_key = None
@@ -553,12 +552,12 @@ class SyncProcess(object):
                 return item
             if isinstance(item, str):
                 return item
-            if isinstance(item, unicode):
+            if isinstance(item, six.text_type):
                 return item.encode("utf8", "replace")
             return repr(item)
 
         if value is not None:
-            if isinstance(value, (str, unicode)):
+            if isinstance(value, (str, six.text_type)):
                 message = value
                 stack = None
             else:
@@ -575,7 +574,7 @@ class SyncProcess(object):
             self.set_bug_data(None)
 
     def try_pushes(self, status=None):
-        import trypush
+        from . import trypush
         try_pushes = trypush.TryPush.load_by_obj(self.git_gecko,
                                                  self.sync_type,
                                                  self.process_name.obj_id)
@@ -618,7 +617,7 @@ class SyncProcess(object):
             wpt_base="origin/master", wpt_head=None,
             bug=None, pr=None, status="open"):
         # TODO: this object creation is extremely non-atomic :/
-        import index
+        from . import index
         if cls.obj_id == "bug":
             assert bug is not None
             obj_id = bug
@@ -713,7 +712,7 @@ class SyncProcess(object):
 
     @mut()
     def delete(self):
-        import index
+        from . import index
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
 

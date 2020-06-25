@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import traceback
 import time
@@ -5,15 +6,16 @@ import time
 import filelock
 import newrelic.agent
 
-import bug
-import env
-import gh
-import handlers
-import log
-import repos
-import settings
-from errors import RetryableError
-from worker import worker
+from . import bug
+from . import env
+from . import gh
+from . import handlers
+from . import log
+from . import repos
+from . import settings
+from .errors import RetryableError
+from .worker import worker
+import six
 
 
 logger = log.get_logger(__name__)
@@ -46,7 +48,7 @@ def with_lock(f):
             # will always  win over celery tasks, which we want
             time.sleep(0.1)
         except Exception as e:
-            logger.error(str(unicode(e).encode("utf8")))
+            logger.error(str(six.text_type(e).encode("utf8")))
             logger.error("".join(traceback.format_exc(e)))
             raise
     inner.__name__ = f.__name__
@@ -84,7 +86,7 @@ def setup(config):
     env.set_env(config, bz, gh_wpt)
     logger.info("Gecko repository: %s" % git_gecko.working_dir)
     logger.info("wpt repository: %s" % git_wpt.working_dir)
-    logger.info("Tasks enabled: %s" % (", ".join(config["sync"]["enabled"].keys())))
+    logger.info("Tasks enabled: %s" % (", ".join(list(config["sync"]["enabled"].keys()))))
 
     return git_gecko, git_wpt
 

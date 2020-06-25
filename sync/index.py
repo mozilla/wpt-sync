@@ -1,12 +1,14 @@
+from __future__ import absolute_import
 import json
 from collections import defaultdict
 
 import git
 
-import env
-import log
-from base import ProcessName, CommitBuilder, iter_tree, iter_process_names
-from repos import pygit2_get
+from . import env
+from . import log
+from .base import ProcessName, CommitBuilder, iter_tree, iter_process_names
+from .repos import pygit2_get
+import six
 
 
 logger = log.get_logger(__name__)
@@ -108,13 +110,13 @@ class Index(object):
             if isinstance(items, list):
                 changes[key] = items
             else:
-                for key_part, values in items.iteritems():
+                for key_part, values in six.iteritems(items):
                     stack.append((key + (key_part,), values))
         return changes
 
     def _update_changes(self, key, data):
         changes = self._read_changes(key)
-        for key_changes in changes.itervalues():
+        for key_changes in six.itervalues(changes):
             for old_value, new_value, _ in key_changes:
                 if new_value is None and old_value in data:
                     data.remove(old_value)
@@ -143,13 +145,13 @@ class Index(object):
         if message is None:
             message = "Update index %s\n" % self.name
 
-            for key_changes in changes.itervalues():
+            for key_changes in six.itervalues(changes):
                 for _, _, msg in key_changes:
                     message += "  %s\n" % msg
             commit_builder.message += message
 
         with commit_builder as commit:
-            for key, key_changes in changes.iteritems():
+            for key, key_changes in six.iteritems(changes):
                 self._update_key(commit, key, key_changes)
         self.reset()
 
@@ -261,7 +263,7 @@ class TaskGroupIndex(Index):
         return (value[:2], value[2:4], value[4:])
 
     def build_entries(self, *args, **kwargs):
-        import trypush
+        from . import trypush
         entries = []
         for try_push in trypush.TryPush.load_all(self.repo):
             if try_push.taskgroup_id is not None:
@@ -282,7 +284,7 @@ class TryCommitIndex(Index):
 
     def build_entries(self, *args, **kwargs):
         entries = []
-        import trypush
+        from . import trypush
         for try_push in trypush.TryPush.load_all(self.repo):
             if try_push.try_rev:
                 entries.append((self.make_key(try_push.try_rev),
@@ -304,9 +306,9 @@ class SyncIndex(Index):
                 str(sync.process_name.obj_id))
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
-        from downstream import DownstreamSync
-        from upstream import UpstreamSync
-        from landing import LandingSync
+        from .downstream import DownstreamSync
+        from .upstream import UpstreamSync
+        from .landing import LandingSync
 
         entries = []
         errors = []
@@ -341,8 +343,8 @@ class PrIdIndex(Index):
         return (str(sync.pr),)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
-        from downstream import DownstreamSync
-        from upstream import UpstreamSync
+        from .downstream import DownstreamSync
+        from .upstream import UpstreamSync
 
         entries = []
         errors = []
@@ -376,9 +378,9 @@ class BugIdIndex(Index):
         return (str(sync.bug), sync.status)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
-        from downstream import DownstreamSync
-        from upstream import UpstreamSync
-        from landing import LandingSync
+        from .downstream import DownstreamSync
+        from .upstream import UpstreamSync
+        from .landing import LandingSync
 
         entries = []
         errors = []

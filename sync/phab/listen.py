@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import time
 import re
 from phabricator import Phabricator
@@ -5,6 +6,7 @@ import newrelic.agent
 
 from .. import log
 from ..tasks import handle
+from six.moves import map
 
 
 logger = log.get_logger(__name__)
@@ -79,8 +81,8 @@ class PhabEventListener(object):
         while True:
             result = self.phab.feed.query(before=before, view='text')
             if result.response:
-                results = sorted(result.response.items(), key=chrono_key)
-                results = map(self.map_feed_tuple, results)
+                results = sorted(list(result.response.items()), key=chrono_key)
+                results = list(map(self.map_feed_tuple, results))
                 feed.extend(results)
                 if len(results) == 100 and before is not None:
                     # There may be more events we wish to fetch

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from collections import defaultdict
 from datetime import datetime
 from six import iteritems
@@ -119,7 +120,7 @@ def update_triage_bugs(git_gecko, comment=True):
 
     updates = {}
 
-    for bug in triage_bugs.updated_bugs(meta_links.keys()):
+    for bug in triage_bugs.updated_bugs(list(meta_links.keys())):
         if bug.resolution == "INVALID":
             updates[bug.id] = None
         elif bug.resolution == "DUPLICATE":

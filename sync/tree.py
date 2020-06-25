@@ -1,8 +1,9 @@
+from __future__ import absolute_import
 import traceback
 
 import requests
 
-import log
+from . import log
 
 
 logger = log.get_logger(__name__)

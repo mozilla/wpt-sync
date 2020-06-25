@@ -1,14 +1,15 @@
+from __future__ import absolute_import
 import base64
-import log
+from . import log
 import re
 import sys
 import traceback
-import urlparse
+import six.moves.urllib.parse
 
 import bugsy
 import newrelic
 
-from env import Environment
+from .env import Environment
 
 env = Environment()
 
@@ -25,15 +26,15 @@ if "REOPENED" not in bugsy.bug.VALID_STATUS:
 def bz_url_from_api_url(api_url):
     if api_url is None:
         return None
-    parts = urlparse.urlparse(api_url)
+    parts = six.moves.urllib.parse.urlparse(api_url)
     bz_url = (parts.scheme, parts.netloc, "", "", "", "")
-    return urlparse.urlunparse(bz_url)
+    return six.moves.urllib.parse.urlunparse(bz_url)
 
 
 def bug_number_from_url(url):
     if url is None:
         return None
-    bugs = urlparse.parse_qs(urlparse.urlsplit(url).query).get("id")
+    bugs = six.moves.urllib.parse.parse_qs(six.moves.urllib.parse.urlsplit(url).query).get("id")
     if bugs:
         return bugs[0]
 
@@ -96,8 +97,8 @@ class Bugzilla(object):
             bz_url = self.bz_url
         if not url.startswith(bz_url):
             return None
-        parts = urlparse.urlsplit(url)
-        query = urlparse.parse_qs(parts.query)
+        parts = six.moves.urllib.parse.urlsplit(url)
+        query = six.moves.urllib.parse.parse_qs(parts.query)
         if "id" not in query or len(query["id"]) != 1:
             return None
         return query["id"][0]

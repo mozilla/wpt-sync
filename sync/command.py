@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import argparse
 import itertools
 import json
@@ -8,14 +10,16 @@ import traceback
 
 import git
 
-import listen
-from phab import listen as phablisten
-import log
-from tasks import setup
-from env import Environment
-from gitutils import update_repositories
-from load import get_syncs
-from lock import RepoLock, SyncLock
+from . import listen
+from .phab import listen as phablisten
+from . import log
+from .tasks import setup
+from .env import Environment
+from .gitutils import update_repositories
+from .load import get_syncs
+from .lock import RepoLock, SyncLock
+import six
+from six.moves import filter
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -218,20 +222,20 @@ def get_parser():
 
 
 def sync_from_path(git_gecko, git_wpt):
-    import base
+    from . import base
     git_work = git.Repo(os.curdir)
     branch = git_work.active_branch.name
     parts = branch.split("/")
     if not parts[0] == "sync":
         return None
     if parts[1] == "downstream":
-        import downstream
+        from . import downstream
         cls = downstream.DownstreamSync
     elif parts[1] == "upstream":
-        import upstream
+        from . import upstream
         cls = upstream.UpstreamSync
     elif parts[1] == "landing":
-        import landing
+        from . import landing
         cls = landing.LandingSync
     else:
         raise ValueError
@@ -240,9 +244,9 @@ def sync_from_path(git_gecko, git_wpt):
 
 
 def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
-    import downstream
-    import landing
-    import upstream
+    from . import downstream
+    from . import landing
+    from . import upstream
     syncs = []
 
     def filter(sync):
@@ -253,7 +257,7 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
     for cls in [upstream.UpstreamSync, downstream.DownstreamSync, landing.LandingSync]:
         if not sync_type or cls.sync_type in sync_type:
             syncs.extend(item for item in cls.load_by_status(git_gecko, git_wpt, "open")
-                         if filter(item))
+                         if list(filter(item)))
 
     for sync in syncs:
         extra = []
@@ -265,26 +269,26 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                 if try_push.taskgroup_id:
                     extra.append(try_push.taskgroup_id)
         error = sync.error
-        print("%s %s %s bug:%s PR:%s %s%s" % ("*"if sync.error else " ",
+        print(("%s %s %s bug:%s PR:%s %s%s" % ("*"if sync.error else " ",
                                               sync.sync_type,
                                               sync.status,
                                               sync.bug,
                                               sync.pr,
                                               " ".join(extra),
                                               "ERROR: %s" %
-                                              error["message"].split("\n", 1)[0] if error else ""))
+                                              error["message"].split("\n", 1)[0] if error else "")))
 
 
 def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
-        print(sync.output())
+        print((sync.output()))
 
 
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
-    import errors
-    import landing
-    import update
+    from . import errors
+    from . import landing
+    from . import update
     current_landing = landing.current(git_gecko, git_wpt)
 
     accept_failures = kwargs["accept_failures"]
@@ -332,9 +336,9 @@ def do_landing(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_update(git_gecko, git_wpt, *args, **kwargs):
-    import downstream
-    import update
-    import upstream
+    from . import downstream
+    from . import update
+    from . import upstream
     sync_classes = []
     if not kwargs["sync_type"]:
         kwargs["sync_type"] = ["upstream", "downstream"]
@@ -345,13 +349,13 @@ def do_update(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_update_tasks(git_gecko, git_wpt, *args, **kwargs):
-    import update
+    from . import update
     update.update_taskgroup_ids(git_gecko, git_wpt)
     update.update_tasks(git_gecko, git_wpt, kwargs["pr_id"])
 
 
 def do_pr(git_gecko, git_wpt, pr_ids, *args, **kwargs):
-    import update
+    from . import update
     if not pr_ids:
         pr_ids = [sync_from_path(git_gecko, git_wpt).pr]
     for pr_id in pr_ids:
@@ -361,14 +365,14 @@ def do_pr(git_gecko, git_wpt, pr_ids, *args, **kwargs):
 
 
 def do_bug(git_gecko, git_wpt, bug, *args, **kwargs):
-    import update
+    from . import update
     if bug is None:
         bug = sync_from_path(git_gecko, git_wpt).bug
     update.update_bug(git_gecko, git_wpt, bug)
 
 
 def do_push(git_gecko, git_wpt, *args, **kwargs):
-    import update
+    from . import update
     rev = kwargs["rev"]
     base_rev = kwargs["base_rev"]
     processes = kwargs["processes"]
@@ -379,7 +383,7 @@ def do_push(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_delete(git_gecko, git_wpt, sync_type, obj_ids, *args, **kwargs):
-    import trypush
+    from . import trypush
     for obj_id in obj_ids:
         logger.info("%s %s" % (sync_type, obj_id))
         if kwargs["try"]:
@@ -413,7 +417,7 @@ def do_start_phab_listener(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_fetch(git_gecko, git_wpt, *args, **kwargs):
-    import repos
+    from . import repos
     c = env.config
     name = kwargs.get("repo")
     r = repos.wrappers[name](c)
@@ -431,7 +435,7 @@ def do_fetch(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_configure_repos(git_gecko, git_wpt, *args, **kwargs):
-    import repos
+    from . import repos
     name = kwargs.get("repo")
     r = repos.wrappers[name](env.config)
     with RepoLock(r.repo()):
@@ -439,10 +443,10 @@ def do_configure_repos(git_gecko, git_wpt, *args, **kwargs):
 
 
 def do_status(git_gecko, git_wpt, obj_type, sync_type, obj_id, *args, **kwargs):
-    import upstream
-    import downstream
-    import landing
-    import trypush
+    from . import upstream
+    from . import downstream
+    from . import landing
+    from . import trypush
     if obj_type == "try":
         objs = trypush.TryPush.load_by_obj(git_gecko,
                                            sync_type,
@@ -491,12 +495,12 @@ def do_test(*args, **kwargs):
 
 
 def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
-    from tasks import cleanup
+    from .tasks import cleanup
     cleanup()
 
 
 def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
-    import downstream
+    from . import downstream
     if not pr_ids:
         syncs = [sync_from_path(git_gecko, git_wpt)]
     else:
@@ -511,7 +515,7 @@ def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
 
 
 def do_notify(git_gecko, git_wpt, pr_ids, *args, **kwargs):
-    import downstream
+    from . import downstream
     if not pr_ids:
         syncs = [sync_from_path(git_gecko, git_wpt)]
     else:
@@ -526,21 +530,21 @@ def do_notify(git_gecko, git_wpt, pr_ids, *args, **kwargs):
 
 
 def do_landable(git_gecko, git_wpt, *args, **kwargs):
-    import update
-    from sync import LandableStatus
-    from downstream import DownstreamAction, DownstreamSync
-    from landing import current, load_sync_point, landable_commits, unlanded_with_type
+    from . import update
+    from .sync import LandableStatus
+    from .downstream import DownstreamAction, DownstreamSync
+    from .landing import current, load_sync_point, landable_commits, unlanded_with_type
 
     current_landing = current(git_gecko, git_wpt)
 
     if kwargs["prev_wpt_head"] is not None:
         prev_wpt_head = kwargs["prev_wpt_head"]
     elif current_landing:
-        print("Current landing will update head to %s" % current_landing.wpt_commits.head.sha1)
+        print(("Current landing will update head to %s" % current_landing.wpt_commits.head.sha1))
         prev_wpt_head = current_landing.wpt_commits.head.sha1
     else:
         sync_point = load_sync_point(git_gecko, git_wpt)
-        print("Last sync was to commit %s" % sync_point["upstream"])
+        print(("Last sync was to commit %s" % sync_point["upstream"]))
         prev_wpt_head = sync_point["upstream"]
 
     landable = landable_commits(git_gecko, git_wpt, prev_wpt_head,
@@ -551,8 +555,8 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         wpt_head = None
     else:
         wpt_head, commits = landable
-        print("Next landing will update wpt head to %s, adding %i new PRs" %
-              (wpt_head, len(commits)))
+        print(("Next landing will update wpt head to %s, adding %i new PRs" %
+              (wpt_head, len(commits))))
 
     if kwargs["all"] or kwargs["retrigger"]:
         unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
@@ -576,22 +580,22 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 msg = "%s (%s)" % (msg, sync.error["message"].split("\n")[0])
-            print("%s: %s" % (pr, msg))
+            print(("%s: %s" % (pr, msg)))
 
-        print ("%i PRs are unlandable:" % count)
+        print(("%i PRs are unlandable:" % count))
 
         if kwargs["retrigger"]:
             errors = update.retrigger(git_gecko, git_wpt, unlandable)
             if errors:
-                print("The following PRs have errors:\n%s" % "\n".join(
-                    str(item) for item in errors))
+                print(("The following PRs have errors:\n%s" % "\n".join(
+                    str(item) for item in errors)))
 
 
 def do_retrigger(git_gecko, git_wpt, **kwargs):
-    import errors
-    import update
-    import upstream
-    from landing import current, load_sync_point, unlanded_with_type
+    from . import errors
+    from . import update
+    from . import upstream
+    from .landing import current, load_sync_point, unlanded_with_type
 
     update_repositories(git_gecko, git_wpt)
 
@@ -604,7 +608,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
                         try:
                             upstream.update_sync(git_gecko, git_wpt, sync, repo_update=False)
                         except errors.AbortError as e:
-                            print("Update failed:\n%s" % e)
+                            print(("Update failed:\n%s" % e))
                             pass
 
     if kwargs["downstream"]:
@@ -619,13 +623,13 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
 
         errors = update.retrigger(git_gecko, git_wpt, unlandable)
         if errors:
-            print("The following PRs have errors:\n%s" % "\n".join(errors))
+            print(("The following PRs have errors:\n%s" % "\n".join(errors)))
 
 
 def do_try_push_add(git_gecko, git_wpt, sync_type=None, sync_id=None, **kwargs):
-    import downstream
-    import landing
-    import trypush
+    from . import downstream
+    from . import landing
+    from . import trypush
 
     sync = None
     if sync_type is None:
@@ -664,12 +668,12 @@ def do_try_push_add(git_gecko, git_wpt, sync_type=None, sync_id=None, **kwargs):
                                              try_cls=FakeTry, rebuild_count=kwargs["rebuild_count"],
                                              check_open=False)
 
-    print "Now run an update for the sync"
+    print("Now run an update for the sync")
 
 
 def do_download_logs(git_gecko, git_wpt, log_path, taskgroup_id, **kwargs):
-    import tc
-    import trypush
+    from . import tc
+    from . import trypush
     import tempfile
 
     if log_path is None:
@@ -686,12 +690,12 @@ def do_download_logs(git_gecko, git_wpt, log_path, taskgroup_id, **kwargs):
 
 
 def do_bugupdate(git_gecko, git_wpt, **kwargs):
-    import handlers
+    from . import handlers
     handlers.BugUpdateHandler(env.config)(git_gecko, git_wpt)
 
 
 def do_build_index(git_gecko, git_wpt, index_name, **kwargs):
-    import index
+    from . import index
     if not index_name:
         index_names = None
     else:
@@ -699,7 +703,7 @@ def do_build_index(git_gecko, git_wpt, index_name, **kwargs):
     for idx_cls in index.indicies:
         if index_names and idx_cls.name not in index_names:
             continue
-        print "Building %s index" % idx_cls.name
+        print("Building %s index" % idx_cls.name)
         idx = idx_cls(git_gecko)
         idx.build(git_gecko, git_wpt)
 
@@ -708,7 +712,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
     # Migrate refs from the refs/<type>/<subtype>/<status>/<obj_id>[/<seq_id>] format
     # to refs/<type>/<subtype>/<obj_id>/<seq_id>
     from collections import defaultdict
-    import base
+    from . import base
 
     import pygit2
 
@@ -717,7 +721,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     repo_map = {git_gecko: git2_gecko,
                 git_wpt: git2_wpt}
-    rev_repo_map = {value: key for key, value in repo_map.iteritems()}
+    rev_repo_map = {value: key for key, value in six.iteritems(repo_map)}
 
     special = {}
 
@@ -728,7 +732,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                           "(?P<status>[^0-9/]+)/"
                           "(?P<obj_id>[0-9]+)"
                           "(?:/(?P<seq_id>[0-9]*))?$")
-    print "Updating refs"
+    print("Updating refs")
     seen = defaultdict(list)
     total_refs = 0
     processing_refs = 0
@@ -757,7 +761,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     duplicate = {}
     delete = set()
-    for (repo, new_ref), refs in seen.iteritems():
+    for (repo, new_ref), refs in six.iteritems(seen):
         if len(refs) > 1:
             # If we have multiple /syncs/ ref, but only one /heads/ ref, use the corresponding one
             if new_ref.startswith("refs/syncs/"):
@@ -769,8 +773,8 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                     else:
                         no_head.add((ref.name, status))
                 if len(has_head) == 1:
-                    print "  Using %s from %s" % (list(has_head)[0][0].path,
-                                                  " ".join(ref.name for ref, _ in refs))
+                    print("  Using %s from %s" % (list(has_head)[0][0].path,
+                                                  " ".join(ref.name for ref, _ in refs)))
                     refs[:] = list(has_head)
                     delete |= set((repo, ref_name) for ref_name, _ in no_head)
 
@@ -780,8 +784,8 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
             by_status = {matches[ref.name].group("status"): (ref, status) for (ref, status) in refs}
             for target_status in ["complete", "wpt-merged", "incomplete", "infra-fail"]:
                 if target_status in by_status:
-                    print "  Using %s from %s" % (by_status[target_status][0].name,
-                                                  " ".join(ref.name for ref, _ in refs))
+                    print("  Using %s from %s" % (by_status[target_status][0].name,
+                                                  " ".join(ref.name for ref, _ in refs)))
                     delete |= set((repo, ref.name) for ref, status in refs
                                   if ref != by_status[target_status])
                     refs[:] = [by_status[target_status]]
@@ -790,14 +794,14 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
             duplicate[(repo, new_ref)] = refs
 
     if duplicate:
-        print "  ERROR! Got duplicate %s source refs" % len(duplicate)
-        for (repo, new_ref), refs in duplicate.iteritems():
-            print "    %s %s: %s" % (repo.working_dir,
+        print("  ERROR! Got duplicate %s source refs" % len(duplicate))
+        for (repo, new_ref), refs in six.iteritems(duplicate):
+            print("    %s %s: %s" % (repo.working_dir,
                                      new_ref,
-                                     " ".join(ref.name for ref, _ in refs))
+                                     " ".join(ref.name for ref, _ in refs)))
         return
 
-    for (repo, new_ref), refs in seen.iteritems():
+    for (repo, new_ref), refs in six.iteritems(seen):
         ref, _ = refs[0]
 
         if ref.name.startswith("refs/syncs/sync/"):
@@ -809,15 +813,15 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                                                        m.group("obj_id"),
                                                        m.group("seq_id"))
                 if ref_path not in repo.references:
-                    print "  Missing head %s" % (ref.name)
+                    print("  Missing head %s" % (ref.name))
 
     created = 0
-    for i, ((repo, new_ref), refs) in enumerate(seen.iteritems()):
+    for i, ((repo, new_ref), refs) in enumerate(six.iteritems(seen)):
         assert len(refs) == 1
         ref, status = refs[0]
-        print "Updating %s" % ref.name
+        print("Updating %s" % ref.name)
 
-        print "  Moving %s to %s %d/%d" % (ref.name, new_ref, i + 1, len(seen))
+        print("  Moving %s to %s %d/%d" % (ref.name, new_ref, i + 1, len(seen)))
 
         if "/syncs/" in ref.name:
             ref_obj = ref.peel().id
@@ -829,31 +833,31 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                         data = json.loads(repo[ref.peel().tree["data"].id].data)
                     data["status"] = status
                     commit.add_tree({"data": json.dumps(data)})
-                    print "Making commit"
+                    print("Making commit")
             commit = commit.get().sha1
         else:
             commit = ref.peel().id
 
-        print "  Got commit %s" % commit
+        print("  Got commit %s" % commit)
 
         if new_ref not in repo.references:
-            print "  Rename %s %s" % (ref.name, new_ref)
+            print("  Rename %s %s" % (ref.name, new_ref))
             repo.references.create(new_ref, commit)
             created += 1
         else:
-            print "  %s already exists" % new_ref
+            print("  %s already exists" % new_ref)
         delete.add((repo, ref.name))
 
     for repo, ref_name in delete:
-        print "  Deleting %s" % ref_name
+        print("  Deleting %s" % ref_name)
         repo.references.delete(ref_name)
 
-    print "%s total refs" % total_refs
-    print "%s refs to process" % processing_refs
-    print "%s refs to create" % created
-    print "%s refs to delete" % len(delete)
+    print("%s total refs" % total_refs)
+    print("%s refs to process" % processing_refs)
+    print("%s refs to create" % created)
+    print("%s refs to delete" % len(delete))
 
-    print "Moving to single history"
+    print("Moving to single history")
     # Migrate from refs/syncs/ to paths
     sync_ref = re.compile("^refs/"
                           "syncs/"
@@ -880,7 +884,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                                     "Migrate %s to single ref for data" % ref.path,
                                     ref="refs/syncs/data") as commit:
                 data = json.load(ref.commit.tree["data"].data_stream)
-                print "  Moving path %s" % (path,)
+                print("  Moving path %s" % (path,))
                 tree = {path: json.dumps(data)}
                 commit.add_tree(tree)
         delete.add(ref.path)

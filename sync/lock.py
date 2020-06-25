@@ -1,10 +1,11 @@
+from __future__ import absolute_import
 import inspect
 import os
 
 import filelock
 
-import log
-from env import Environment
+from . import log
+from .env import Environment
 
 env = Environment()
 

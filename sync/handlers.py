@@ -1,19 +1,20 @@
+from __future__ import absolute_import
 import newrelic.agent
 
-import downstream
-import log
-import landing
-import tc
-import trypush
-import update
-import upstream
-import worktree
-from env import Environment
-from errors import RetryableError
-from gitutils import pr_for_commit, update_repositories, gecko_repo
-from load import get_pr_sync
-from lock import SyncLock
-from notify import bugupdate
+from . import downstream
+from . import log
+from . import landing
+from . import tc
+from . import trypush
+from . import update
+from . import upstream
+from . import worktree
+from .env import Environment
+from .errors import RetryableError
+from .gitutils import pr_for_commit, update_repositories, gecko_repo
+from .load import get_pr_sync
+from .lock import SyncLock
+from .notify import bugupdate
 
 env = Environment()
 
@@ -107,7 +108,7 @@ def handle_status(git_gecko, git_wpt, event):
         # Presumably this is a thing we ought to be downstreaming, but missed somehow
         logger.info("Got a status update for PR %s which is unknown to us; starting downstreaming" %
                     pr_id)
-        from update import schedule_pr_task
+        from .update import schedule_pr_task
         schedule_pr_task("opened", env.gh_wpt.get_pull(pr_id))
 
     update_func = None

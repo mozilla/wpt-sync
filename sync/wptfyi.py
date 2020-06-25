@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 import requests
 import time
-import urllib
-import urlparse
+import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
+import six.moves.urllib.parse
 
 from six import iteritems
+import six
 
 
 WPT_FYI_BASE = "https://wpt.fyi/api/"
@@ -13,11 +15,11 @@ STAGING_HOST = "staging.wpt.fyi"
 class Url(object):
     def __init__(self, initial_url):
         if initial_url:
-            parts = urlparse.urlsplit(initial_url)
+            parts = six.moves.urllib.parse.urlsplit(initial_url)
             self.scheme = parts.scheme
             self.host = parts.netloc
             self.path = parts.path
-            self.query = urlparse.parse_qsl(parts.query, keep_blank_values=True)
+            self.query = six.moves.urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
             self.fragment = parts.fragment
         else:
             self.scheme = ""
@@ -39,7 +41,7 @@ class Url(object):
         return self
 
     def add_path(self, value):
-        self.path = urlparse.urljoin(self.path, value)
+        self.path = six.moves.urllib.parse.urljoin(self.path, value)
         return self
 
     def query(self, value):
@@ -55,10 +57,10 @@ class Url(object):
         return self
 
     def build(self):
-        return urlparse.urlunsplit((self.scheme,
+        return six.moves.urllib.parse.urlunsplit((self.scheme,
                                     self.host,
                                     self.path,
-                                    urllib.urlencode(self.query),
+                                    six.moves.urllib.parse.urlencode(self.query),
                                     self.fragment))
 
 
@@ -111,7 +113,7 @@ def get_metadata(products, link, staging=False):
     if staging:
         url.host = STAGING_HOST
 
-    if isinstance(products, basestring):
+    if isinstance(products, six.string_types):
         url.add_query("product", products)
     else:
         for product in products:

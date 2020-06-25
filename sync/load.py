@@ -1,6 +1,8 @@
-import log
+from __future__ import absolute_import
+from . import log
 
-from env import Environment
+from .env import Environment
+import six
 
 env = Environment()
 
@@ -8,8 +10,8 @@ logger = log.get_logger(__name__)
 
 
 def get_pr_sync(git_gecko, git_wpt, pr_id, log=True):
-    import downstream
-    import upstream
+    from . import downstream
+    from . import upstream
 
     sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if not sync:
@@ -23,9 +25,9 @@ def get_pr_sync(git_gecko, git_wpt, pr_id, log=True):
 
 
 def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
-    import downstream
-    import landing
-    import upstream
+    from . import downstream
+    from . import landing
+    from . import upstream
 
     syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, bug_number,
                                         statuses=statuses)
@@ -37,7 +39,7 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
                                                   statuses=statuses)
     if syncs:
         all_syncs = []
-        for item in syncs.itervalues():
+        for item in six.itervalues(syncs):
             all_syncs.extend(item)
         logger.info("Got syncs %r for bug %s" % (all_syncs, bug_number))
     else:
@@ -46,9 +48,9 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
 
 
 def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None, seq_id=None):
-    import downstream
-    import landing
-    import upstream
+    from . import downstream
+    from . import landing
+    from . import upstream
 
     cls_types = {
         "downstream": downstream.DownstreamSync,

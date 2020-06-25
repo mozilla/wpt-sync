@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import re
 import time
@@ -9,17 +10,18 @@ from bugsy.errors import BugsyException
 from github import GithubException
 from mozautomation import commitparser
 
-import log
-import commit as sync_commit
-from base import entry_point
-from downstream import DownstreamSync
-from errors import AbortError
-from env import Environment
-from gitutils import update_repositories, gecko_repo
-from gh import AttrDict
-from lock import SyncLock, constructor, mut
-from sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
-from repos import pygit2_get
+from . import log
+from . import commit as sync_commit
+from .base import entry_point
+from .downstream import DownstreamSync
+from .errors import AbortError
+from .env import Environment
+from .gitutils import update_repositories, gecko_repo
+from .gh import AttrDict
+from .lock import SyncLock, constructor, mut
+from .sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
+from .repos import pygit2_get
+import six
 
 env = Environment()
 
@@ -721,7 +723,7 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
 
 def create_syncs(lock, git_gecko, git_wpt, create_endpoints):
     rv = []
-    for bug, endpoints in create_endpoints.iteritems():
+    for bug, endpoints in six.iteritems(create_endpoints):
         if bug is not None:
             endpoints = [endpoints]
         for endpoint in endpoints:
@@ -748,7 +750,7 @@ def create_syncs(lock, git_gecko, git_wpt, create_endpoints):
 
 def update_sync_heads(lock, syncs_by_bug):
     rv = []
-    for bug, (sync, commit) in syncs_by_bug.iteritems():
+    for bug, (sync, commit) in six.iteritems(syncs_by_bug):
         if sync.status not in ("open", "incomplete"):
             # TODO: Create a new sync with a non-zero seq-id in this case
             raise ValueError("Tried to modify a closed sync for bug %s with commit %s" %
@@ -786,7 +788,7 @@ def update_modified_sync(git_gecko, git_wpt, sync):
             if not sync.pr:
                 logger.info("Applying to origin/master failed; "
                             "retrying with the current sync point")
-                from landing import load_sync_point
+                from .landing import load_sync_point
                 sync_point = load_sync_point(git_gecko, git_wpt)
                 sync.set_wpt_base(sync_point["upstream"])
                 try:

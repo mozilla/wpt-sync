@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import celery
 from celery.beat import crontab
 from celery.signals import after_setup_logger
@@ -6,7 +7,7 @@ from celery.signals import after_setup_logger
 @after_setup_logger.connect
 def config_loggers(*args, **kwags):
     # This prevents celery reconfiguring the logging
-    import log
+    from . import log
     log.setup(force=True)
 
 

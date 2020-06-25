@@ -1,10 +1,12 @@
+from __future__ import absolute_import
 import json
 import os
 import shutil
 import git
 import pygit2
 
-import log
+from . import log
+import six
 
 logger = log.get_logger(__name__)
 
@@ -26,7 +28,7 @@ class GitSettings(object):
 
     @property
     def remotes(self):
-        return self.config[self.name]["repo"]["remote"].iteritems()
+        return six.iteritems(self.config[self.name]["repo"]["remote"])
 
     def repo(self):
         repo = git.Repo(self.root)
@@ -62,13 +64,13 @@ class Gecko(GitSettings):
     def setup(self, repo):
         data_ref = git.Reference(repo, self.config["sync"]["ref"])
         if not data_ref.is_valid():
-            import base
+            from . import base
             with base.CommitBuilder(repo, "Create initial sync metadata",
                                     ref=data_ref) as commit:
                 path = "_metadata"
                 data = json.dumps({"name": "wptsync"})
                 commit.add_tree({path: data})
-        import index
+        from . import index
         for idx in index.indicies:
             idx.get_or_create(repo)
 

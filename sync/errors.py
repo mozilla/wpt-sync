@@ -1,4 +1,5 @@
-import log
+from __future__ import absolute_import
+from . import log
 
 logger = log.get_logger(__name__)
 

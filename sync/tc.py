@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import requests
 import shutil
@@ -11,10 +12,11 @@ import newrelic.agent
 import slugid
 import taskcluster
 
-import log
-from env import Environment
-from errors import RetryableError
-from threadexecutor import ThreadExecutor
+from . import log
+from .env import Environment
+from .errors import RetryableError
+from .threadexecutor import ThreadExecutor
+import six
 
 
 TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
@@ -350,7 +352,7 @@ def is_status(statuses, task):
 
 
 def is_status_fn(statuses):
-    if isinstance(statuses, (str, unicode)):
+    if isinstance(statuses, (str, six.text_type)):
         statuses = {statuses}
     return lambda x: is_status(statuses, x)
 
