@@ -2,7 +2,7 @@ from __future__ import absolute_import
 import json
 import logging
 import os
-import six.moves.urllib.parse
+from six.moves import urllib
 
 import kombu
 
@@ -190,13 +190,14 @@ class Filter(object):
 
 class GitHubFilter(Filter):
     name = "github"
-    event_filters = {item: lambda x: True for item in handlers.GitHubHandler.dispatch_event.keys()}
+    event_filters = {item: lambda x: True
+                     for item in handlers.GitHubHandler.dispatch_event.keys()}
     event_filters["status"] = lambda x: x["payload"]["context"] != "upstream/gecko"
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
     def __init__(self, config, logger):
         super(GitHubFilter, self).__init__(config, logger)
-        repo_path = six.moves.urllib.parse.urlparse(config["web-platform-tests"]["repo"]["url"]).path
+        repo_path = urllib.parse.urlparse(config["web-platform-tests"]["repo"]["url"]).path
         self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
     def accept(self, body):

@@ -2,20 +2,20 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import print_function
-from __future__ import absolute_import
-import six
-from six.moves import zip
-
 """Functionality to support VCS syncing for WPT."""
 
+from __future__ import print_function
 from __future__ import absolute_import
+
 import os
 import re
 import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime
+import six
+from six.moves import zip
+
 
 import enum
 import git

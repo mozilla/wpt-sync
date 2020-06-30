@@ -19,7 +19,6 @@ from .gitutils import update_repositories
 from .load import get_syncs
 from .lock import RepoLock, SyncLock
 import six
-from six.moves import filter
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -249,7 +248,7 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
     from . import upstream
     syncs = []
 
-    def filter(sync):
+    def filter_sync(sync):
         if kwargs["error"]:
             return sync.error is not None and sync.status == "open"
         return True
@@ -257,7 +256,7 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
     for cls in [upstream.UpstreamSync, downstream.DownstreamSync, landing.LandingSync]:
         if not sync_type or cls.sync_type in sync_type:
             syncs.extend(item for item in cls.load_by_status(git_gecko, git_wpt, "open")
-                         if list(filter(item)))
+                         if filter_sync(item))
 
     for sync in syncs:
         extra = []
@@ -269,14 +268,15 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                 if try_push.taskgroup_id:
                     extra.append(try_push.taskgroup_id)
         error = sync.error
-        print(("%s %s %s bug:%s PR:%s %s%s" % ("*"if sync.error else " ",
-                                              sync.sync_type,
-                                              sync.status,
-                                              sync.bug,
-                                              sync.pr,
-                                              " ".join(extra),
-                                              "ERROR: %s" %
-                                              error["message"].split("\n", 1)[0] if error else "")))
+        print(("%s %s %s bug:%s PR:%s %s%s" %
+               ("*"if sync.error else " ",
+                sync.sync_type,
+                sync.status,
+                sync.bug,
+                sync.pr,
+                " ".join(extra),
+                "ERROR: %s" %
+                error["message"].split("\n", 1)[0] if error else "")))
 
 
 def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):

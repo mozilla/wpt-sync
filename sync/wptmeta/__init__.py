@@ -53,7 +53,7 @@ def parse_test(test_id):
     if dir_name[0] == "/":
         dir_name = dir_name[1:]
     test_name = six.moves.urllib.parse.urlunsplit((None, None, test_file, id_parts.query,
-                                     id_parts.fragment))
+                                                   id_parts.fragment))
     return dir_name, test_name
 
 
