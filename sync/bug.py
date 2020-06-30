@@ -4,7 +4,7 @@ from . import log
 import re
 import sys
 import traceback
-import six.moves.urllib.parse
+from six.moves import urllib
 
 import bugsy
 import newrelic
@@ -26,15 +26,15 @@ if "REOPENED" not in bugsy.bug.VALID_STATUS:
 def bz_url_from_api_url(api_url):
     if api_url is None:
         return None
-    parts = six.moves.urllib.parse.urlparse(api_url)
+    parts = urllib.parse.urlparse(api_url)
     bz_url = (parts.scheme, parts.netloc, "", "", "", "")
-    return six.moves.urllib.parse.urlunparse(bz_url)
+    return urllib.parse.urlunparse(bz_url)
 
 
 def bug_number_from_url(url):
     if url is None:
         return None
-    bugs = six.moves.urllib.parse.parse_qs(six.moves.urllib.parse.urlsplit(url).query).get("id")
+    bugs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("id")
     if bugs:
         return bugs[0]
 
@@ -97,8 +97,8 @@ class Bugzilla(object):
             bz_url = self.bz_url
         if not url.startswith(bz_url):
             return None
-        parts = six.moves.urllib.parse.urlsplit(url)
-        query = six.moves.urllib.parse.parse_qs(parts.query)
+        parts = urllib.parse.urlsplit(url)
+        query = urllib.parse.parse_qs(parts.query)
         if "id" not in query or len(query["id"]) != 1:
             return None
         return query["id"][0]

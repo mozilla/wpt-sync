@@ -14,11 +14,9 @@ from . import commit as sync_commit
 from . import downstream
 from . import gitutils
 from . import log
-from . import tasks
 from . import tree
 from . import load
 from . import trypush
-from . import update
 from . import upstream
 from .base import entry_point
 from .commit import first_non_merge
@@ -922,6 +920,7 @@ def wpt_push(git_gecko, git_wpt, commits, create_missing=True):
             prs.add(pr)
     if create_missing:
         for pr in prs:
+            from . import update
             sync = load.get_pr_sync(git_gecko, git_wpt, pr)
             if not sync:
                 # If we don't have a sync for this PR create one
@@ -1041,6 +1040,7 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
 
         if pushed:
             try:
+                from . import tasks
                 tasks.retrigger.apply_async()
             except OperationalError:
                 logger.warning("Failed to retrigger blocked syncs")
@@ -1269,4 +1269,5 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
                 last_sync_point.commit = rev
 
     if landing_sync and landing_sync.status == "complete":
+        from . import tasks
         tasks.land.apply_async()
