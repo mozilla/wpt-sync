@@ -125,10 +125,10 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     assert sync_point["upstream"] == head_rev
     # Update central to contain the landing
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
-    with patch("sync.landing.tasks.land.apply_async") as mock_apply:
+    with patch("sync.landing.start_next_landing") as start_next_landing:
         landing.gecko_push(git_gecko, git_wpt, "mozilla-central",
                            git_gecko.cinnabar.git2hg(new_head))
-        assert mock_apply.call_count == 1
+        assert start_next_landing.call_count == 1
     assert sync.status == "complete"
 
 

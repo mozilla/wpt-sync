@@ -1039,13 +1039,17 @@ def update_landing(git_gecko, git_wpt, prev_wpt_head=None, new_wpt_head=None,
         try_notify_downstream(commits, landing_is_complete=pushed)
 
         if pushed:
-            try:
-                from . import tasks
-                tasks.retrigger.apply_async()
-            except OperationalError:
-                logger.warning("Failed to retrigger blocked syncs")
-
+            retrigger()
     return landing
+
+
+def retrigger():
+    try:
+        # Avoid circular import
+        from . import tasks
+        tasks.retrigger.apply_async()
+    except OperationalError:
+        logger.warning("Failed to retrigger blocked syncs")
 
 
 @entry_point("landing")
@@ -1269,5 +1273,9 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
                 last_sync_point.commit = rev
 
     if landing_sync and landing_sync.status == "complete":
-        from . import tasks
-        tasks.land.apply_async()
+        start_next_landing()
+
+
+def start_next_landing():
+    from . import tasks
+    tasks.land.apply_async()
