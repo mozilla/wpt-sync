@@ -1,16 +1,24 @@
 FROM ubuntu:18.04
 
-RUN groupadd --gid 10001 app && \
+ARG PYTHON_BINARY
+ARG PIP_BINARY
+
+ENV PYTHON=${PYTHON_BINARY} \
+    PIP=${PIP_BINARY} \
+    PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
+    RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq \
+    # Mach requires that this is set
+    SHELL=/bin/bash \
+    WPTSYNC_ROOT=/app/workspace \
+    WPTSYNC_REPO_ROOT=/app/repos/
+
+RUN echo "Using Python ${PYTHON} and pip ${PIP}"; \
+        groupadd --gid 10001 app && \
         useradd --uid 10001 --gid 10001 --home /app --create-home app && \
         groupadd --gid 10002 rabbitmq && \
-        useradd --uid 10002 --gid 10002 rabbitmq --home /home/rabbitmq --create-home
-
-COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
-COPY ./docker/get_ini.py /app/get_ini.py
-RUN chmod +x /app/get_ini.py /app/start_wptsync.sh
-
-# Disable ipv6 in gpg to avoid signing failures
-RUN mkdir ~/.gnupg && echo "disable-ipv6" >> ~/.gnupg/dirmngr.conf
+        useradd --uid 10002 --gid 10002 rabbitmq --home /home/rabbitmq --create-home && \
+        # Disable ipv6 in gpg to avoid signing failures
+        mkdir ~/.gnupg && echo "disable-ipv6" >> ~/.gnupg/dirmngr.conf
 
 # install/update pip, git and erlang/rabbitmq dependencies
 RUN set -eux; \
@@ -24,13 +32,24 @@ RUN set -eux; \
         gnupg \
         less \
         locales \
-        python \
-        python-virtualenv \
-        python-pip \
         sudo \
-        wget \
-        ;\
-    pip install --upgrade pip
+        wget; \
+    if [ "$PYTHON" = "python3" ]; then \
+        apt-get install -y \
+           # Required by cinnabar
+           python2.7 \
+           python3 \
+           python3-pip; \
+        $PIP install --upgrade pip; \
+        $PIP install --user requests; \
+    else \
+        apt-get install -y \
+           python2.7 \
+           python-pip; \
+        $PIP install --upgrade pip; \
+        $PIP install --user requests; \
+    fi;
+
 
 RUN set -eux; \
     count=0; \
@@ -75,86 +94,64 @@ RUN chmod +x /tini
 RUN apt-get purge -y --auto-remove gnupg apt-transport-https
 
 RUN locale-gen en_US.UTF-8
-ENV LC_ALL en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8
 
 RUN adduser app sudo; \
     echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;
 
-COPY . /app/wpt-sync
-RUN chown -R app:app /app/wpt-sync
-
 COPY ./config/rabbitmq.conf /etc/rabbitmq/rabbitmq.conf
 RUN echo LOG_BASE=/app/workspace/logs/rabbitmq >> /etc/rabbitmq/rabbitmq-env.conf
+
+COPY ./docker/start_wptsync.sh /app/start_wptsync.sh
+COPY ./docker/get_ini.py /app/get_ini.py
+RUN chmod +x /app/get_ini.py /app/start_wptsync.sh
 
 USER app
 
 # Set up files and config
-RUN mkdir /app/workspace \
+RUN mkdir -p /app/workspace \
     /app/workspace/logs \
     /app/workspace/logs/rabbitmq \
-    /app/testdata \
+    /app/wpt-sync \
     /app/repos \
-    /app/git-cinnabar \
-    /app/fzf \
-    /app/.ssh
+    /app/third_party/git-cinnabar \
+    /app/third_party/fzf \
+    /app/.ssh \
+    /app/requirements \
+    /app/.ipython/profile_default/startup/
 
 RUN sudo chown -R rabbitmq:rabbitmq /app/workspace/logs/rabbitmq
 
-ENV RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq
-
-COPY ./config/ssh_config /app/.ssh/config
+COPY ./config/ssh_config ./config/known_hosts /app/.ssh/
 RUN sudo chown -R app:app /app/.ssh/
 
 # Install git-cinnabar
-WORKDIR /app/git-cinnabar
-ENV PATH=/app/git-cinnabar:$PATH
-
-RUN git clone https://github.com/glandium/git-cinnabar.git . \
-    && git checkout origin/release; \
-    pip install --user requests \
+RUN cd /app/third_party/git-cinnabar \
+    && git clone https://github.com/glandium/git-cinnabar.git . \
+    && git checkout origin/release \
     && git cinnabar download
 
 # Install fzf for mach try fuzzy
-WORKDIR /app/fzf
-
-RUN git clone --depth 1 https://github.com/junegunn/fzf.git . \
+RUN cd /app/third_party/fzf \
+    && git clone --depth 1 https://github.com/junegunn/fzf.git . \
     && ./install --bin
 
-ENV PATH=/app/fzf/bin:$PATH
-
-WORKDIR /app/wpt-sync
+# Need the files required for setup in the image, but the actual
+# code will be mounted from the host
+COPY ./requirements /app/wpt-sync/requirements/
+COPY ./00-startup.py /app/.ipython/profile_default/startup/
+COPY ./setup.py ./setup.cfg /app/wpt-sync/
 
 RUN set -eux; \
     git config --global user.name moz-wptsync-bot; \
     git config --global user.email wptsync@mozilla.com; \
-    cp /app/wpt-sync/config/known_hosts /app/.ssh/known_hosts; \
-    # Configure ipython
-    mkdir -p /app/.ipython/profile_default/startup/ \
-    && cp 00-startup.py /app/.ipython/profile_default/startup/; \
-    # Install the wptsync app in development mode
-    virtualenv /app/venv \
-    && /app/venv/bin/pip install -r requirements/prod.txt --no-deps --require-hashes \
-    && /app/venv/bin/pip install -r requirements/dev.txt --no-deps \
-    && /app/venv/bin/pip install -r requirements/mozautomation.txt --no-deps
-
-WORKDIR /app
-
-# This puts the egg-info dir in /app, which won't be overwritten
-# when docker mounts the volume for our source code
-RUN /app/venv/bin/python /app/wpt-sync/setup.py develop --no-deps
-
-ENV PYTHONPATH=/app/wpt-sync
-ENV WPTSYNC_ROOT=/app/workspace
-ENV WPTSYNC_REPO_ROOT=/app/repos/
-# Allow git-cinnabar to find latest hg
-ENV PATH=/app/venv/bin:$PATH
-
-# Mach requires that this is set
-ENV SHELL=/bin/bash
-
-WORKDIR /app/wpt-sync
+    # Install the wptsync app in development
+    $PIP install -r /app/wpt-sync/requirements/prod.txt --no-deps --require-hashes \
+    && $PIP install -r /app/wpt-sync/requirements/dev.txt --no-deps \
+    && $PIP install -r /app/wpt-sync/requirements/mozautomation.txt --no-deps; \
+    if [ "$PYTHON" = "python2" ]; then $PIP install -r /app/wpt-sync/requirements/dev-py2.txt --no-deps; fi;
 
 # /app/wpt-sync: bind mount to src dir (only on dev) or dir with wheels?
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs

@@ -19,17 +19,4 @@ setup(
             'wptsync = sync.command:main'
         ]
     },
-    install_requires=[
-        'bugsy>=0.10.1',
-        'celery>=4.1',
-        'enum34>=1.1.6',
-        'GitPython>=2.1.8',
-        'PyGithub>=1.35',
-        'Mercurial>=4.4',
-        'requests>=2.18',
-        'filelock>=2.0.13',
-        'slugid>=1.0.7',
-        'taskcluster>=3.0.0',
-        'phabricator>=0.7.0'
-    ],
 )

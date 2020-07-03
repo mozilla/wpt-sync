@@ -94,7 +94,8 @@ mohawk==1.1.0 \
     --hash=sha256:3ed296a30453d0b724679e0fd41e4e940497f8e461a9a9c3b7f36e43bab0fa09 \
     --hash=sha256:d2a0e3ab10a209cc79e95e28f2dd54bd4a73fd1998ffe27b7ba0f962b6be9723
 more_itertools==5.0.0 \
-    --hash=sha256:c0a5785b1109a6bd7fac76d6837fd1feca158e54e521ccd2ae8bfe393cc9d4fc # pyup < 6.0.0
+    --hash=sha256:c0a5785b1109a6bd7fac76d6837fd1feca158e54e521ccd2ae8bfe393cc9d4fc \
+    --hash=sha256:fe7a7cae1ccb57d33952113ff4fa1bc5f879963600ed74918f1236e212ee50b9 # pyup < 6.0.0
 newrelic==5.6.0.135 \
     --hash=sha256:8283dd54299b3fd2818a262f38f9193a2ee52b2a02fecca1a1d04764be533c92
 pathlib2==2.3.5 \
@@ -117,7 +118,8 @@ ptyprocess==0.6.0 \
 pycparser==2.19 \
     --hash=sha256:a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3
 pygit2==0.28.2 \
-    --hash=sha256:6f44ee84fbe9b0b69f018dbe187d01a1949ab33f2cb5844d87a1929ccbd2b310 # pyup: <1.0.0
+    --hash=sha256:6f44ee84fbe9b0b69f018dbe187d01a1949ab33f2cb5844d87a1929ccbd2b310 \
+    --hash=sha256:d4c84cd7c5a3d71757933d190018f5fc131aeb392d304ba9c505e9e95473f935 # pyup: <1.0.0
 PyGithub==1.45 \
     --hash=sha256:980ac6288f3b38332ae988b7d7374e2b71e21d4e3332413c079fd92dda040126 # pyup: <1.46
 Pygments==2.5.2 \
@@ -161,7 +163,8 @@ taskcluster==25.3.0 \
     --hash=sha256:9f7ad8de338c894a5b916523b4e1150fb210b821dcd93c1fadf1016cc737844b \
     --hash=sha256:c1108a9611c540529f08c9c2a15d104fe8853e0fa6b2d97f030e69c0f3460925
 taskcluster-urls==12.1.0 \
-    --hash=sha256:4a62c776aeba6d45044789a8845ec4d8521bc1bb6ebfc86d79ee759bcdd4f2f7
+    --hash=sha256:4a62c776aeba6d45044789a8845ec4d8521bc1bb6ebfc86d79ee759bcdd4f2f7 \
+    --hash=sha256:1dc740c32c7beb31e11ed7ccf9da2d47a504acdb3170c8900649433b0fd16fb2
 traitlets==4.3.3 \
     --hash=sha256:70b4c6a1d9019d7b4f6846832288f86998aa3b9207c6821f3578a6a6a467fe44 \
     --hash=sha256:d023ee369ddd2763310e4c3eae1ff649689440d4ae59d7485eb4cfbbe3e359f7

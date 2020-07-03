@@ -267,7 +267,7 @@ def set_remote_urls(repo):
 @pytest.fixture(scope="function")
 def git_gecko(env, hg_gecko_upstream):
     git_gecko = repos.Gecko(env.config)
-    git_gecko.configure(os.path.join(here, "testdata", "gecko_config"))
+    git_gecko.configure("/app/wpt-sync/test/testdata/gecko_config")
     set_remote_urls(git_gecko)
     git_gecko = git_gecko.repo()
     git_gecko.remotes.mozilla.fetch()
@@ -281,7 +281,7 @@ def git_gecko(env, hg_gecko_upstream):
 @pytest.fixture(scope="function")
 def git_wpt(env, git_wpt_upstream):
     git_wpt = repos.WebPlatformTests(env.config)
-    git_wpt.configure(os.path.join(here, "testdata", "wpt_config"))
+    git_wpt.configure("/app/wpt-sync/test/testdata/wpt_config")
     set_remote_urls(git_wpt)
     return git_wpt.repo()
 
@@ -289,7 +289,7 @@ def git_wpt(env, git_wpt_upstream):
 @pytest.fixture(scope="function")
 def git_wpt_metadata(env, git_wpt_metadata_upstream):
     git_wpt_metadata = repos.WptMetadata(env.config)
-    git_wpt_metadata.configure(os.path.join(here, "testdata", "wpt_metadata_config"))
+    git_wpt_metadata.configure("/app/wpt-sync/test/testdata/wpt-metadata_config")
     set_remote_urls(git_wpt_metadata)
     return git_wpt_metadata.repo()
 
