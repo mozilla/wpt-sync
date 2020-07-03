@@ -3,7 +3,7 @@ language: python
 python:
   - "2.7.14"
 
-matrix:
+jobs:
   include:
 
     # Job 1: Linters
@@ -11,13 +11,11 @@ matrix:
       sudo: false
       language: python
       python: "2.7.14"
+      install:
+        - ./bin/run_docker_dev.sh build --test
+        - sudo chown -R 10001 .
       script:
-        - pip install -r requirements/prod.txt --no-deps --require-hashes
-        - pip check
-        - pip install -r requirements/dev.txt --no-deps
-        - pip install -r requirements/mozautomation.txt --no-deps
-        - pip check
-        - flake8 --show-source
+        - ./bin/run_docker_dev.sh test --no-pytest
 
     # Job 2: Unit Tests in Docker env
     - env: docker-wptsync-test
@@ -30,10 +28,26 @@ matrix:
       services:
         - docker
       install:
-        - docker build -t wptsync_dev --file docker/Dockerfile.dev .
+        - ./bin/run_docker_dev.sh build --test
         - sudo chown -R 10001 .
       script:
         - ./bin/run_docker_dev.sh test --no-flake8
+
+    # Job 3: Unit Tests in Python 3 Docker env
+    - env: docker-wptsync-test-py3
+      # Upgrade to newer docker version
+      addons:
+        apt:
+          packages:
+            - docker-ce
+      sudo: required
+      services:
+        - docker
+      install:
+        - ./bin/run_docker_dev.sh build --py3 --test
+        - sudo chown -R 10001 .
+      script:
+        - ./bin/run_docker_dev.sh test --py3 --no-flake8
 
     # Job 3: Static Analysis
     - env: static-analysis
@@ -43,10 +57,5 @@ matrix:
       script:
         - pip install bandit
         - bandit -r sync -ll
-
-notifications:
-  irc:
-    channels:
-      - "irc.mozilla.org#wpt-sync"
-    on_success: change
-    on_failure: always
+  allow_failures:
+  - env: docker-wptsync-test-py3
