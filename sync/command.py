@@ -492,7 +492,7 @@ def do_test(*args, **kwargs):
 
         logger.info("Running pytest")
         cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
-        subprocess.check_call(cmd, cwd="/app/wpt-sync/")
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
 
 
 def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
