@@ -4,10 +4,12 @@ import os
 from ast import literal_eval
 from collections import defaultdict
 
+import six
+from six import iteritems
+
 from . import log
 from .env import Environment
 from .projectutil import Mach
-import six
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -78,7 +80,7 @@ def remove_obsolete(path, moves=None):
     if moves:
         moved_patterns = compute_moves(moves, unmatched_patterns)
         unmatched_patterns -= set(moved_patterns.keys())
-        for old_pattern, new_pattern in six.iteritems(moved_patterns):
+        for old_pattern, new_pattern in iteritems(moved_patterns):
             node, match_values = node_patterns[old_pattern]
             arg = match_values["arg"]
             arg.replace(arg.__class__(arg.type, '"%s"' % new_pattern))
@@ -98,11 +100,11 @@ def compute_moves(moves, unmatched_patterns):
         # or single-file patterns
         if "*" in pattern and not pattern.endswith("/**"):
             continue
-        for from_path, to_path in six.iteritems(moves):
+        for from_path, to_path in iteritems(moves):
             if match(from_path, pattern):
                 dest_paths[pattern].append(to_path)
 
-    for pattern, paths in six.iteritems(dest_paths):
+    for pattern, paths in iteritems(dest_paths):
         if "*" not in pattern:
             assert len(paths) == 1
             updated_patterns[pattern] = paths[0]
@@ -177,7 +179,7 @@ def update(worktree, renames):
         return os.path.join(tests_base, path)
 
     mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
-                            for old, new in six.iteritems(renames)}
+                            for old, new in iteritems(renames)}
 
     if os.path.exists(mozbuild_file_path):
         new_data = remove_obsolete(mozbuild_file_path,

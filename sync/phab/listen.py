@@ -4,9 +4,10 @@ import re
 from phabricator import Phabricator
 import newrelic.agent
 
+from six.moves import map
+
 from .. import log
 from ..tasks import handle
-from six.moves import map
 
 
 logger = log.get_logger(__name__)

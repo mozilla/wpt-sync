@@ -4,9 +4,10 @@ import os
 import shutil
 import git
 import pygit2
+from six import iteritems
 
 from . import log
-import six
+
 
 logger = log.get_logger(__name__)
 
@@ -28,7 +29,7 @@ class GitSettings(object):
 
     @property
     def remotes(self):
-        return six.iteritems(self.config[self.name]["repo"]["remote"])
+        return iteritems(self.config[self.name]["repo"]["remote"])
 
     def repo(self):
         repo = git.Repo(self.root)

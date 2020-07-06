@@ -1,13 +1,13 @@
 from __future__ import absolute_import
-import six.moves.urllib.parse
 import os
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, namedtuple
 from copy import deepcopy
 
 import yaml
-from six import iteritems, itervalues
 import six
+from six.moves import urllib
+from six import iteritems, itervalues
 
 """Module for interacting with a web-platform-tests metadata repository"""
 
@@ -48,12 +48,12 @@ class DeleteTrackingList(list):
 
 
 def parse_test(test_id):
-    id_parts = six.moves.urllib.parse.urlsplit(test_id)
+    id_parts = urllib.parse.urlsplit(test_id)
     dir_name, test_file = id_parts.path.rsplit("/", 1)
     if dir_name[0] == "/":
         dir_name = dir_name[1:]
-    test_name = six.moves.urllib.parse.urlunsplit((None, None, test_file, id_parts.query,
-                                                   id_parts.fragment))
+    test_name = urllib.parse.urlunsplit((None, None, test_file, id_parts.query,
+                                         id_parts.fragment))
     return dir_name, test_name
 
 

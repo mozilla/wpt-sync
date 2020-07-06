@@ -21,7 +21,7 @@ from .gh import AttrDict
 from .lock import SyncLock, constructor, mut
 from .sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
 from .repos import pygit2_get
-import six
+from six import iteritems
 
 env = Environment()
 
@@ -723,7 +723,7 @@ def updated_syncs_for_push(git_gecko, git_wpt, first_commit, head_commit):
 
 def create_syncs(lock, git_gecko, git_wpt, create_endpoints):
     rv = []
-    for bug, endpoints in six.iteritems(create_endpoints):
+    for bug, endpoints in iteritems(create_endpoints):
         if bug is not None:
             endpoints = [endpoints]
         for endpoint in endpoints:
@@ -750,7 +750,7 @@ def create_syncs(lock, git_gecko, git_wpt, create_endpoints):
 
 def update_sync_heads(lock, syncs_by_bug):
     rv = []
-    for bug, (sync, commit) in six.iteritems(syncs_by_bug):
+    for bug, (sync, commit) in iteritems(syncs_by_bug):
         if sync.status not in ("open", "incomplete"):
             # TODO: Create a new sync with a non-zero seq-id in this case
             raise ValueError("Tried to modify a closed sync for bug %s with commit %s" %

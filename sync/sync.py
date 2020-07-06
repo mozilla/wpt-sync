@@ -5,6 +5,8 @@ import traceback
 from collections import defaultdict
 
 import git
+import six
+from six import itervalues
 
 from . import bug
 from . import commit as sync_commit
@@ -14,7 +16,6 @@ from .env import Environment
 from .errors import AbortError
 from .lock import MutGuard, mut, constructor
 from .worktree import Worktree
-import six
 
 env = Environment()
 
@@ -324,7 +325,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                 if sync.status in statuses:
                     rv[sync.status].add(sync)
         if flat:
-            rv = list(itertools.chain.from_iterable(six.itervalues(rv)))
+            rv = list(itertools.chain.from_iterable(itervalues(rv)))
         return rv
 
     @classmethod

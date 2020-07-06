@@ -3,14 +3,16 @@ import itertools
 import random
 import re
 import time
-import six.moves.urllib.parse
 from cStringIO import StringIO
 
 import github
 import newrelic
+import six
+from six.moves import urllib
+
+
 from . import log
 from .env import Environment
-import six
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -19,7 +21,7 @@ env = Environment()
 class GitHub(object):
     def __init__(self, token, url):
         self.gh = github.Github(token)
-        self.repo_name = six.moves.urllib.parse.urlsplit(url).path.lstrip("/")
+        self.repo_name = urllib.parse.urlsplit(url).path.lstrip("/")
         self.pr_cache = {}
         self._repo = None
 

@@ -1,8 +1,9 @@
 from __future__ import absolute_import
-from . import log
 
+from six import itervalues
+
+from . import log
 from .env import Environment
-import six
 
 env = Environment()
 
@@ -39,7 +40,7 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
                                                   statuses=statuses)
     if syncs:
         all_syncs = []
-        for item in six.itervalues(syncs):
+        for item in itervalues(syncs):
             all_syncs.extend(item)
         logger.info("Got syncs %r for bug %s" % (all_syncs, bug_number))
     else:
