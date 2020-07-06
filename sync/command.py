@@ -268,21 +268,21 @@ def do_list(git_gecko, git_wpt, sync_type, *args, **kwargs):
                 if try_push.taskgroup_id:
                     extra.append(try_push.taskgroup_id)
         error = sync.error
-        print(("%s %s %s bug:%s PR:%s %s%s" %
-               ("*"if sync.error else " ",
-                sync.sync_type,
-                sync.status,
-                sync.bug,
-                sync.pr,
-                " ".join(extra),
-                "ERROR: %s" %
-                error["message"].split("\n", 1)[0] if error else "")))
+        print("%s %s %s bug:%s PR:%s %s%s" %
+              ("*"if sync.error else " ",
+               sync.sync_type,
+               sync.status,
+               sync.bug,
+               sync.pr,
+               " ".join(extra),
+               "ERROR: %s" %
+               error["message"].split("\n", 1)[0] if error else ""))
 
 
 def do_detail(git_gecko, git_wpt, sync_type, obj_id, *args, **kwargs):
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
-        print((sync.output()))
+        print(sync.output())
 
 
 def do_landing(git_gecko, git_wpt, *args, **kwargs):
@@ -540,11 +540,11 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
     if kwargs["prev_wpt_head"] is not None:
         prev_wpt_head = kwargs["prev_wpt_head"]
     elif current_landing:
-        print(("Current landing will update head to %s" % current_landing.wpt_commits.head.sha1))
+        print("Current landing will update head to %s" % current_landing.wpt_commits.head.sha1)
         prev_wpt_head = current_landing.wpt_commits.head.sha1
     else:
         sync_point = load_sync_point(git_gecko, git_wpt)
-        print(("Last sync was to commit %s" % sync_point["upstream"]))
+        print("Last sync was to commit %s" % sync_point["upstream"])
         prev_wpt_head = sync_point["upstream"]
 
     landable = landable_commits(git_gecko, git_wpt, prev_wpt_head,
@@ -555,8 +555,8 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
         wpt_head = None
     else:
         wpt_head, commits = landable
-        print(("Next landing will update wpt head to %s, adding %i new PRs" %
-              (wpt_head, len(commits))))
+        print("Next landing will update wpt head to %s, adding %i new PRs" %
+              (wpt_head, len(commits)))
 
     if kwargs["all"] or kwargs["retrigger"]:
         unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
@@ -580,15 +580,15 @@ def do_landable(git_gecko, git_wpt, *args, **kwargs):
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 msg = "%s (%s)" % (msg, sync.error["message"].split("\n")[0])
-            print(("%s: %s" % (pr, msg)))
+            print("%s: %s" % (pr, msg))
 
-        print(("%i PRs are unlandable:" % count))
+        print("%i PRs are unlandable:" % count)
 
         if kwargs["retrigger"]:
             errors = update.retrigger(git_gecko, git_wpt, unlandable)
             if errors:
-                print(("The following PRs have errors:\n%s" % "\n".join(
-                    str(item) for item in errors)))
+                print("The following PRs have errors:\n%s" % "\n".join(
+                    str(item) for item in errors))
 
 
 def do_retrigger(git_gecko, git_wpt, **kwargs):
@@ -608,7 +608,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
                         try:
                             upstream.update_sync(git_gecko, git_wpt, sync, repo_update=False)
                         except errors.AbortError as e:
-                            print(("Update failed:\n%s" % e))
+                            print("Update failed:\n%s" % e)
                             pass
 
     if kwargs["downstream"]:
@@ -623,7 +623,7 @@ def do_retrigger(git_gecko, git_wpt, **kwargs):
 
         errors = update.retrigger(git_gecko, git_wpt, unlandable)
         if errors:
-            print(("The following PRs have errors:\n%s" % "\n".join(errors)))
+            print("The following PRs have errors:\n%s" % "\n".join(errors))
 
 
 def do_try_push_add(git_gecko, git_wpt, sync_type=None, sync_id=None, **kwargs):
