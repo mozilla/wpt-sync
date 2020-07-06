@@ -7,6 +7,7 @@ from collections import defaultdict
 import enum
 import git
 from celery.exceptions import OperationalError
+from six import iteritems, itervalues
 
 from . import bug
 from . import bugcomponents
@@ -27,7 +28,6 @@ from .errors import AbortError, RetryableError
 from .projectutil import Mach
 from .repos import pygit2_get
 from .sync import LandableStatus, SyncProcess
-import six
 
 env = Environment()
 
@@ -60,7 +60,7 @@ class SyncPoint(object):
         fp.write(self.dumps() + "\n")
 
     def dumps(self):
-        return "\n".join("%s: %s" % (key, value) for key, value in six.iteritems(self._items))
+        return "\n".join("%s: %s" % (key, value) for key, value in iteritems(self._items))
 
 
 @enum.unique
@@ -437,11 +437,11 @@ Automatic update from web-platform-tests\n%s
             logger.info("Cherry-pick failed, trying again with only test-related changes")
             # Try to reset all metadata files that aren't related to an affected test.
             affected_metadata = {os.path.join(env.config["gecko"]["path"]["meta"], item) + ".ini"
-                                 for items in six.itervalues(sync.affected_tests_readonly)
+                                 for items in itervalues(sync.affected_tests_readonly)
                                  for item in items}
             checkout = []
             status = gitutils.status(worktree)
-            for head_path, data in six.iteritems(status):
+            for head_path, data in iteritems(status):
                 if data["code"] not in {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}:
                     # Only try to reset merge conflicts
                     continue
@@ -470,7 +470,7 @@ Automatic update from web-platform-tests\n%s
             try:
                 logger.info("Cherry-pick had merge conflicts trying to automatically resolve")
                 status = gitutils.status(worktree)
-                for head_path, data in six.iteritems(status):
+                for head_path, data in iteritems(status):
                     if data["code"] in {"DD", "UD", "DU"}:
                         # Deleted by remote or local
                         # Could do better here and have the mergetool handle this case
@@ -817,7 +817,7 @@ def unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head="orig
             pr_data = commits_by_pr.pop(idx)
             assert pr_data[0] == pr
             index_by_pr = {key: (value if value < idx else value - 1)
-                           for key, value in six.iteritems(index_by_pr)}
+                           for key, value in iteritems(index_by_pr)}
         for c in extra_commits + [commit]:
             pr_data[1].append(c)
         commits_by_pr.append(pr_data)

@@ -1,13 +1,13 @@
 from __future__ import absolute_import
 from collections import defaultdict
+
 from six import iteritems, iterkeys, itervalues
-import six.moves.urllib.parse
+from six.moves import urllib
 
 from ..bug import bug_number_from_url, max_comment_length
 from ..env import Environment
 
 from .results import statuses, browsers
-import six
 
 env = Environment()
 
@@ -41,7 +41,7 @@ def status_str(result, browser="firefox", include_status="head", include_other_b
 
     if include_other_browser:
         other_browser_values = []
-        for other_browser, job_results in six.iteritems(result.statuses):
+        for other_browser, job_results in iteritems(result.statuses):
             if other_browser == browser:
                 continue
             browser_status = job_results.get("GitHub")
@@ -73,7 +73,7 @@ def bug_str(url):
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
     elif url.startswith("https://github.com"):
-        return "[Issue %s](%s)" % (six.moves.urllib.parse.urlsplit(url).path.split("/")[-1],
+        return "[Issue %s](%s)" % (urllib.parse.urlsplit(url).path.split("/")[-1],
                                    url)
     return "[%s]()" % url
 

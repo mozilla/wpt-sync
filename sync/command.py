@@ -9,6 +9,7 @@ import subprocess
 import traceback
 
 import git
+from six import iteritems
 
 from . import listen
 from .phab import listen as phablisten
@@ -18,7 +19,7 @@ from .env import Environment
 from .gitutils import update_repositories
 from .load import get_syncs
 from .lock import RepoLock, SyncLock
-import six
+
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -721,7 +722,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     repo_map = {git_gecko: git2_gecko,
                 git_wpt: git2_wpt}
-    rev_repo_map = {value: key for key, value in six.iteritems(repo_map)}
+    rev_repo_map = {value: key for key, value in iteritems(repo_map)}
 
     special = {}
 
@@ -761,7 +762,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     duplicate = {}
     delete = set()
-    for (repo, new_ref), refs in six.iteritems(seen):
+    for (repo, new_ref), refs in iteritems(seen):
         if len(refs) > 1:
             # If we have multiple /syncs/ ref, but only one /heads/ ref, use the corresponding one
             if new_ref.startswith("refs/syncs/"):
@@ -795,13 +796,13 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     if duplicate:
         print("  ERROR! Got duplicate %s source refs" % len(duplicate))
-        for (repo, new_ref), refs in six.iteritems(duplicate):
+        for (repo, new_ref), refs in iteritems(duplicate):
             print("    %s %s: %s" % (repo.working_dir,
                                      new_ref,
                                      " ".join(ref.name for ref, _ in refs)))
         return
 
-    for (repo, new_ref), refs in six.iteritems(seen):
+    for (repo, new_ref), refs in iteritems(seen):
         ref, _ = refs[0]
 
         if ref.name.startswith("refs/syncs/sync/"):
@@ -816,7 +817,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                     print("  Missing head %s" % (ref.name))
 
     created = 0
-    for i, ((repo, new_ref), refs) in enumerate(six.iteritems(seen)):
+    for i, ((repo, new_ref), refs) in enumerate(iteritems(seen)):
         assert len(refs) == 1
         ref, status = refs[0]
         print("Updating %s" % ref.name)

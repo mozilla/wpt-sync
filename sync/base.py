@@ -5,13 +5,15 @@ from collections import defaultdict, Mapping
 
 import git
 import pygit2
+import six
+from six import iteritems, itervalues
 
 from . import log
 from . import commit as sync_commit
 from .env import Environment
 from .lock import MutGuard, RepoLock, mut, constructor
 from .repos import pygit2_get
-import six
+
 
 env = Environment()
 
@@ -182,7 +184,7 @@ class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
             if isinstance(item, set):
                 rv |= item
             else:
-                stack.extend(six.itervalues(item))
+                stack.extend(itervalues(item))
 
         return rv
 
@@ -458,7 +460,7 @@ class CommitBuilder(object):
 
     def add_tree(self, tree):
         self.has_changes = True
-        for path, data in six.iteritems(tree):
+        for path, data in iteritems(tree):
             blob = self.pygit2_repo.create_blob(data)
             index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
             self.index.add(index_entry)
@@ -604,7 +606,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
         return self._data.get(key, default)
 
     def items(self):
-        for key, value in six.iteritems(self._data):
+        for key, value in iteritems(self._data):
             yield key, value
 
     @mut()

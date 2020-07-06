@@ -2,13 +2,13 @@ from __future__ import absolute_import
 import time
 
 import git
+from six import iteritems
+from six.moves import range
 
 from . import log
 from .env import Environment
 from .errors import RetryableError
 from .lock import RepoLock
-import six
-from six.moves import range
 
 env = Environment()
 
@@ -87,7 +87,7 @@ def pr_for_commit(git_wpt, rev):
 
 def gecko_repo(git_gecko, head):
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
-             [(name, ref) for name, ref in six.iteritems(env.config["gecko"]["refs"])
+             [(name, ref) for name, ref in iteritems(env.config["gecko"]["refs"])
               if name != "central"])
 
     for name, ref in repos:

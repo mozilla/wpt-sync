@@ -4,13 +4,14 @@ import re
 import subprocess
 
 import git
+import six
 from mozautomation import commitparser
+from six import iteritems
 
 from . import log
 from .env import Environment
 from .errors import AbortError
 from .repos import pygit2_get
-import six
 
 
 env = Environment()
@@ -69,7 +70,7 @@ class GitNotes(object):
 
     def __setitem__(self, key, value):
         self._data[key] = value
-        data = "\n".join("%s: %s" % item for item in six.iteritems(self._data))
+        data = "\n".join("%s: %s" % item for item in iteritems(self._data))
         self.pygit2_repo.create_note(data,
                                      self.pygit2_repo.default_signature,
                                      self.pygit2_repo.default_signature,
@@ -94,7 +95,7 @@ class Commit(object):
         elif hasattr(commit, "sha1"):
             # Commit subclass
             sha1 = commit.sha1
-        elif isinstance(commit, (str, six.text_type)):
+        elif isinstance(commit, (six.binary_type, six.text_type)):
             commit = self.pygit2_repo.revparse_single(commit)
             sha1 = str(commit.id)
         elif hasattr(commit, "id"):

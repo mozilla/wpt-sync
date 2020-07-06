@@ -2,6 +2,8 @@ from __future__ import absolute_import
 import json
 import logging
 import os
+
+from six import iteritems, itervalues
 from six.moves import urllib
 
 import kombu
@@ -11,7 +13,6 @@ from kombu.mixins import ConsumerMixin
 from . import log
 from . import handlers
 from . import tasks
-import six
 
 here = os.path.dirname(__file__)
 
@@ -123,12 +124,12 @@ def run_pulse_listener(config):
     """
     exchanges = []
     queues = {}
-    for queue_name, queue_props in six.iteritems(config['pulse']):
+    for queue_name, queue_props in iteritems(config['pulse']):
         if (isinstance(queue_props, dict) and
             set(queue_props.keys()) == {"queue", "exchange", "routing_key"}):
             queues[queue_name] = queue_props
 
-    for queue in six.itervalues(queues):
+    for queue in itervalues(queues):
         logger.info("Connecting to pulse queue:%(queue)s exchange:%(exchange)s"
                     " route:%(routing_key)s" % queue)
         exchanges.append((queue['queue'],
@@ -161,7 +162,7 @@ def run_pulse_listener(config):
                                     userid=config['pulse']['username'],
                                     exchanges=exchanges,
                                     logger=listen_logger)
-            for queue_name, queue in six.iteritems(queues):
+            for queue_name, queue in iteritems(queues):
                 queue_filter = filter_map[queue_name](config, listen_logger)
                 listener.add_callback(queue['exchange'], queue_filter)
 

@@ -1,7 +1,8 @@
 from __future__ import absolute_import
-import six.moves.queue
+
 import threading
-from six.moves import range
+
+from six.moves import range, queue
 
 
 class Worker(threading.Thread):
@@ -22,7 +23,7 @@ class Worker(threading.Thread):
         while True:
             try:
                 task_data = self.queue.get(False)
-            except six.moves.queue.Empty:
+            except queue.Empty:
                 return
 
             if task_data is None:
@@ -59,7 +60,7 @@ class ThreadExecutor(object):
 
         :param data: List of (args, kwargs) to pass to the work_fn, where args is a
         tuple and kwargs is a dict."""
-        work_queue = six.moves.queue.Queue()
+        work_queue = queue.Queue()
         for item in data:
             work_queue.put(item)
 

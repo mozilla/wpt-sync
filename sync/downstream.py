@@ -13,7 +13,7 @@ import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime
-import six
+from six import iteritems
 from six.moves import zip
 
 
@@ -284,7 +284,7 @@ class DownstreamSync(SyncProcess):
                     return False
             return True
 
-        for test_type, wpt_paths in six.iteritems(affected_tests):
+        for test_type, wpt_paths in iteritems(affected_tests):
             paths = []
             for path in wpt_paths:
                 gecko_path = os.path.join(base_path, path)
@@ -500,7 +500,7 @@ class DownstreamSync(SyncProcess):
 
         gecko_work = self.gecko_worktree.get()
         metadata_base = env.config["gecko"]["path"]["meta"]
-        for old_path, new_path in six.iteritems(renames):
+        for old_path, new_path in iteritems(renames):
             old_meta_path = os.path.join(metadata_base,
                                          old_path + ".ini")
             if os.path.exists(os.path.join(gecko_work.working_dir,
@@ -943,7 +943,7 @@ class DownstreamSync(SyncProcess):
             if sha in unreverted_commits[sync]:
                 unreverted_commits[sync].remove(sha)
 
-        rv = {sync for sync, unreverted in six.iteritems(unreverted_commits)
+        rv = {sync for sync, unreverted in iteritems(unreverted_commits)
               if not unreverted}
         return rv
 

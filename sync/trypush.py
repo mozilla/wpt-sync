@@ -9,6 +9,8 @@ from collections import defaultdict
 import newrelic
 import taskcluster
 import yaml
+import six
+from six import iteritems, itervalues
 
 from . import base
 from . import log
@@ -20,7 +22,6 @@ from .load import get_syncs
 from .lock import constructor, mut
 from .errors import AbortError, RetryableError
 from .projectutil import Mach
-import six
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -158,7 +159,7 @@ class TryFuzzyCommit(TryCommit):
         if self.tests_by_type is not None:
             paths = []
             all_paths = set()
-            for values in six.itervalues(self.tests_by_type):
+            for values in itervalues(self.tests_by_type):
                 for item in values:
                     if (item not in all_paths and
                         os.path.exists(os.path.join(self.worktree.working_dir,
@@ -522,7 +523,7 @@ class TryPushTasks(object):
         def is_excluded(name):
             return "-aarch64" in name
 
-        failures = [data["task_id"] for name, data in six.iteritems(task_states)
+        failures = [data["task_id"] for name, data in iteritems(task_states)
                     if is_failure(data) and not is_excluded(name)]
         retriggered_count = 0
         for task_id in failures:
@@ -541,7 +542,7 @@ class TryPushTasks(object):
         #       }}
         by_name = self.wpt_tasks.by_name()
         task_states = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
-        for name, tasks in six.iteritems(by_name):
+        for name, tasks in iteritems(by_name):
             for task in tasks:
                 task_id = task.get("status", {}).get("taskId")
                 state = task.get("status", {}).get("state")
@@ -564,8 +565,8 @@ class TryPushTasks(object):
         # manual/automatic retriggers made outside of wptsync
         threshold = max(1, self._retrigger_count / 2)
         task_counts = self.wpt_states()
-        return {name: data for name, data in six.iteritems(task_counts)
-                if sum(six.itervalues(data["states"])) > threshold}
+        return {name: data for name, data in iteritems(task_counts)
+                if sum(itervalues(data["states"])) > threshold}
 
     def success(self):
         """Check if all the wpt tasks in a try push ended with a successful status"""
