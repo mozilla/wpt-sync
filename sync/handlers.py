@@ -103,6 +103,8 @@ def handle_status(git_gecko, git_wpt, event):
                     (rev, pr_id, event["context"], event["target_url"], event["state"]))
 
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
+    if not isinstance(sync, upstream.UpstreamSync):
+        return
 
     if not sync:
         # Presumably this is a thing we ought to be downstreaming, but missed somehow

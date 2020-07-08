@@ -983,33 +983,6 @@ def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=Tru
 
 
 @entry_point("downstream")
-@mut("sync")
-def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, head_sha,
-                          raise_on_error=False, repo_update=True):
-    if repo_update:
-        update_repositories(git_gecko, git_wpt)
-    if sync.skip:
-        return
-    try:
-        logger.debug("Got status %s for PR %s" % (status, sync.pr))
-        if status == "pending":
-            # We got new commits that we missed
-            sync.update_commits()
-            sync.update_github_check()
-            return
-        check_state, _ = env.gh_wpt.get_combined_status(sync.pr)
-        sync.last_pr_check = {"state": check_state, "sha": head_sha}
-        if check_state == "success":
-            sync.next_try_push()
-            sync.update_github_check()
-    except Exception as e:
-        sync.error = e
-        if raise_on_error:
-            raise
-        logger.error(e)
-
-
-@entry_point("downstream")
 @mut("try_push", "sync")
 def try_push_complete(git_gecko, git_wpt, try_push, sync):
     if not try_push.taskgroup_id:
