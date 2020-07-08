@@ -11,6 +11,8 @@ from .lock import SyncLock
 from .gitutils import update_repositories
 from .errors import AbortError
 
+from six import iteritems
+
 env = Environment()
 logger = log.get_logger(__name__)
 
@@ -46,15 +48,14 @@ def schedule_pr_task(action, pr, repo_update=True):
     handle_sync(*args)
 
 
-def schedule_status_task(commit, status, repo_update=True):
-    event = construct_event("status",
-                            {"sha": commit.sha,
-                             "context": status.context,
-                             "state": status.state,
-                             "description": status.description,
-                             "target_url": status.target_url,
-                             "branches": []  # Hopefully we don't use this
-                             },
+def schedule_check_run_task(commit, name, check_run, repo_update=True):
+    check_run_data = check_run.copy()
+    del check_run_data["required"]
+    check_run_data["name"] = name
+    check_run_data["head_sha"] = commit.sha
+    event = construct_event("check_run",
+                            {"action": "completed",
+                             "check_run": check_run},
                             _wptsync={"repo_update": repo_update})
     logger.info("Status changed for commit %s" % commit.sha)
     args = ("github", event)
@@ -62,11 +63,9 @@ def schedule_status_task(commit, status, repo_update=True):
 
 
 def update_for_status(pr, repo_update=True):
-    commits = pr.get_commits()
-    head = commits.reversed[0]
-    for status in head.get_combined_status().statuses:
-        if (status.context != "upstream/gecko"):
-            schedule_status_task(head, status)
+    for name, check_run in iteritems(env.gh.get_check_runs(pr.id)):
+        if check_run["required"]:
+            schedule_check_run_task(pr.head.sha, name, check_run)
             return
 
 

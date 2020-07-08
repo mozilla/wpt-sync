@@ -212,7 +212,7 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
 
 
 def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                     upstream_gecko_commit):
+                                     upstream_gecko_commit, set_pr_status):
     bug = "1234"
     test_changes = {"README": "Change README\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
@@ -227,31 +227,26 @@ def test_land_pr_after_status_change(env, git_gecko, git_wpt, hg_gecko_upstream,
     sync = syncs["open"].pop()
     env.gh_wpt.get_pull(sync.pr).mergeable = True
 
-    env.gh_wpt.set_status(sync.pr, "failure", "http://test/", "tests failed",
-                          "continuous-integration/travis-ci/pr")
+    set_pr_status(sync.pr, "failure")
     with SyncLock("upstream", None) as lock:
         with sync.as_mut(lock):
-            upstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                           "continuous-integration/travis-ci/pr",
-                                           "failure", "http://test/", sync.wpt_commits.head.sha1)
+            upstream.commit_check_changed(git_gecko, git_wpt, sync)
 
-    assert sync.last_pr_check == {"state": "failure", "sha": sync.wpt_commits.head.sha1}
+    pr = env.gh_wpt.get_pull(sync.pr)
+    assert sync.last_pr_check == {"state": "failure", "sha": pr._commits[-1].sha}
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "mozilla-central",
                                                  rev, raise_on_error=True)
 
-    env.gh_wpt.set_status(sync.pr, "success", "http://test/", "tests failed",
-                          "continuous-integration/travis-ci/pr")
+    set_pr_status(sync.pr, "success")
 
     with SyncLock("upstream", None) as lock:
         with sync.as_mut(lock):
-            upstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                           "continuous-integration/travis-ci/pr",
-                                           "success", "http://test/", sync.wpt_commits.head.sha1)
+            upstream.commit_check_changed(git_gecko, git_wpt, sync)
 
-    assert sync.last_pr_check == {"state": "success", "sha": sync.wpt_commits.head.sha1}
+    assert sync.last_pr_check == {"state": "success", "sha": pr._commits[-1].sha}
     assert sync.gecko_landed()
     assert sync.status == "wpt-merged"
 
@@ -429,7 +424,8 @@ def test_upstream_reprocess_commits(git_gecko, git_wpt, upstream_gecko_commit,
     assert len(pushed) == len(landed) == len(failed) == 0
 
 
-def setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit):
+def setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit,
+               set_pr_status):
     bug = "1234"
     changes = {"README": "Changes to README\n"}
     upstream_gecko_commit(test_changes=changes, bug=bug,
@@ -444,6 +440,7 @@ def setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     sync = syncs["open"].pop()
+    set_pr_status(sync.pr, "success")
     env.gh_wpt.get_pull(sync.pr).mergeable = True
 
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
@@ -467,9 +464,10 @@ def setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit
 
 
 def test_pr_commits_merge(env, git_wpt, git_gecko, git_wpt_upstream,
-                          hg_gecko_upstream, upstream_gecko_commit):
+                          hg_gecko_upstream, upstream_gecko_commit, set_pr_status):
 
-    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
+    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit,
+                      set_pr_status)
 
     # Make changes on master
     git_wpt_upstream.branches.master.checkout()
@@ -501,9 +499,11 @@ def test_pr_commits_merge(env, git_wpt, git_gecko, git_wpt_upstream,
 
 
 def test_pr_commits_squash_merge(env, git_wpt, git_gecko, git_wpt_upstream,
-                                 hg_gecko_upstream, upstream_gecko_commit):
+                                 hg_gecko_upstream, upstream_gecko_commit,
+                                 set_pr_status):
 
-    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
+    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit,
+                      set_pr_status)
 
     # Make changes on master
     git_wpt_upstream.branches.master.checkout()
@@ -536,9 +536,11 @@ def test_pr_commits_squash_merge(env, git_wpt, git_gecko, git_wpt_upstream,
 
 
 def test_pr_commits_fast_forward(env, git_wpt, git_gecko, git_wpt_upstream,
-                                 hg_gecko_upstream, upstream_gecko_commit):
+                                 hg_gecko_upstream, upstream_gecko_commit,
+                                 set_pr_status):
 
-    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit)
+    sync = setup_repo(env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit,
+                      set_pr_status)
 
     base = git_wpt_upstream.head.commit.hexsha
 

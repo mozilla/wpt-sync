@@ -32,21 +32,6 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     assert "Creating a bug in component Testing :: web-platform" in env.bz.output.getvalue()
 
 
-def test_wpt_pr_status_success(git_gecko, git_wpt, pull_request, set_pr_status,
-                               hg_gecko_try, mock_wpt, mock_mach):
-    with patch("sync.trypush.Mach", mock_mach):
-        mock_wpt.set_data("tests-affected", "")
-
-        pr = pull_request([("Test commit", {"README": "Example change\n"})],
-                          "Test PR")
-        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-        with patch("sync.tree.is_open", Mock(return_value=True)):
-            sync = set_pr_status(pr, "success")
-        try_push = sync.latest_try_push
-        assert sync.last_pr_check == {"state": "success", "sha": pr.head}
-        assert try_push is None  # No Try push for the status check passing.
-
-
 def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
                          hg_gecko_try, local_gecko_commit,
                          sample_gecko_metadata, initial_wpt_content, mock_mach):
@@ -57,7 +42,7 @@ def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
                       "Test PR")
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-        sync = set_pr_status(pr, "success")
+        sync = set_pr_status(pr.number, "success")
     assert sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
 
 
@@ -70,15 +55,13 @@ def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
     pr._approved = False
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-        sync = set_pr_status(pr, "success")
+        sync = set_pr_status(pr.number, "success")
 
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock):
                 sync.data["affected-tests"] = {"testharness": ["example"]}
 
             assert sync.latest_try_push is None
-
-            assert sync.last_pr_check == {"state": "success", "sha": pr.head}
 
         pr._approved = True
         # A Try push is not run after approval.
@@ -138,7 +121,7 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
                       "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
-        sync = set_pr_status(pr, "success")
+        sync = set_pr_status(pr.number, "success")
 
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock):
@@ -188,7 +171,7 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
     mach_patch = patch("sync.trypush.Mach", mock_mach)
 
     with tree_open_patch, try_patch, taskgroup_patch, mach_patch:
-        sync = set_pr_status(pr, "success")
+        sync = set_pr_status(pr.number, "success")
         env.gh_wpt.get_pull(sync.pr).merged = True
 
         with SyncLock.for_process(sync.process_name) as lock:

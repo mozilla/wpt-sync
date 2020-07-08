@@ -18,6 +18,53 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 
+class CheckRun(github.GithubObject.NonCompletableGithubObject):
+    def _initAttributes(self):
+        self._id = github.GithubObject.NotSet
+        self._status = github.GithubObject.NotSet
+        self._name = github.GithubObject.NotSet
+        self._conclusion = github.GithubObject.NotSet
+        self._url = github.GithubObject.NotSet
+
+    def _useAttributes(self, attributes):
+        if "id" in attributes:
+            self._id = self._makeIntAttribute(attributes["id"])
+        if "status" in attributes:
+            self._status = self._makeStringAttribute(attributes["status"])
+        if "name" in attributes:
+            self._name = self._makeStringAttribute(attributes["name"])
+        if "conclusion" in attributes:
+            self._conclusion = self._makeStringAttribute(attributes["conclusion"])
+        if "url" in attributes:
+            self._url = self._makeStringAttribute(attributes["url"])
+        if "head_sha" in attributes:
+            self._head_sha = self._makeStringAttribute(attributes["head_sha"])
+
+    @property
+    def id(self):
+        return self._id.value
+
+    @property
+    def status(self):
+        return self._status.value
+
+    @property
+    def name(self):
+        return self._name.value
+
+    @property
+    def conclusion(self):
+        return self._conclusion.value
+
+    @property
+    def url(self):
+        return self._url.value
+
+    @property
+    def head_sha(self):
+        return self._head_sha.value
+
+
 class GitHub(object):
     def __init__(self, token, url):
         self.gh = github.Github(token)
@@ -108,26 +155,42 @@ class GitHub(object):
                 raise ValueError('PR ID is not a valid number')
         return pr_id
 
-    @staticmethod
-    def _summary_state(statuses):
-        states = {item.state for item in statuses}
-        overall = None
-        if states == {"success"}:
-            overall = "success"
-        elif "pending" in states or states == set():
-            overall = "pending"
-        if "failure" in states or "error" in states:
-            overall = "failure"
-        return overall
+    def required_checks(self, branch_name):
+        branch = self.get_branch(branch_name)
+        return branch._rawData["protection"]["required_status_checks"]["contexts"]
 
-    def get_combined_status(self, pr_id, exclude=None):
-        if exclude is None:
-            exclude = set()
+    def get_check_runs(self, pr_id):
         pr = self.get_pull(pr_id)
-        combined = self.repo.get_commit(pr.head.sha).get_combined_status()
-        statuses = [item for item in combined.statuses if item.context not in exclude]
-        state = combined.state if not exclude else GitHub._summary_state(statuses)
-        return state, statuses
+        check_runs = list(self._get_check_runs(self.pr.head.sha))
+        required_contexts = self.required_checks(pr.base.ref)
+        rv = {}
+        id_by_name = {}
+        for item in check_runs:
+            if item.name in id_by_name and item.id < id_by_name[item.name]:
+                continue
+            id_by_name[item.name] = item.id
+            rv[item.name] = {
+                "status": item.status,
+                "conclusion": item.conclusion,
+                "url": item.url,
+                "required": item.name in required_contexts,
+                "head_sha": item.head_sha
+            }
+        return rv
+
+    def _get_check_runs(self, sha1, check_name=None):
+        query = []
+        if check_name:
+            query.append(("check_name", check_name))
+        commit = self.repo.get_commit(sha1)
+        url = commit._parentUrl(commit.url) + "/" + commit.sha + "/check-runs"
+        headers = {"Accept": "application/vnd.github.antiope-preview+json"}
+        return github.PaginatedList.PaginatedList(CheckRun,
+                                                  commit._requester,
+                                                  url,
+                                                  query,
+                                                  headers=headers,
+                                                  list_item="check_runs")
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)
@@ -334,7 +397,8 @@ class MockGitHub(GitHub):
         if _commits is None:
             _commits = [AttrDict(**{"sha": "%040x" % random.getrandbits(160),
                                     "message": "Test commit",
-                                    "_statuses": []})]
+                                    "_statuses": [],
+                                    "_checks": []})]
         data = AttrDict(**{
             "number": id,
             "title": title,
@@ -383,20 +447,18 @@ class MockGitHub(GitHub):
         pr.merged = data["merged"]
         pr.state = data["state"]
 
-    def get_combined_status(self, pr_id, exclude=None):
-        if exclude is None:
-            exclude = set()
+    def required_checks(self, branch_name):
+        return ["wpt-decision-task", "sink-task"]
+
+    def get_check_runs(self, pr_id):
         pr = self.get_pull(pr_id)
+        rv = {}
         if pr:
             self._log("Got status for PR %s " % pr_id)
-            statuses = pr["_commits"][-1]["_statuses"]
-            latest = {}
-            for item in statuses:
-                if item.context not in latest:
-                    latest[item.context] = item
-            statuses = [item for item in latest.values() if item.context not in exclude]
-            state = GitHub._summary_state(statuses)
-            return state, statuses
+            for item in pr["_commits"][-1]["_checks"]:
+                rv[item["name"]] = item.copy()
+                del rv[item["name"]]["name"]
+        return rv
 
     def pull_state(self, pr_id):
         pr = self.get_pull(pr_id)
