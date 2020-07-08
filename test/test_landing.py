@@ -30,7 +30,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
 
     trypush.Mach = mock_mach
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    sync = set_pr_status(pr, "success")
+    sync = set_pr_status(pr.number, "success")
 
     git_wpt_upstream.head.commit = head_rev
     git_wpt.remotes.origin.fetch()
@@ -80,7 +80,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     trypush.Mach = mock_mach
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    downstream_sync = set_pr_status(pr, "success")
+    downstream_sync = set_pr_status(pr.number, "success")
 
     git_wpt_upstream.head.commit = head_rev
     git_wpt.remotes.origin.fetch()
@@ -141,7 +141,7 @@ def test_landable_skipped(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     trypush.Mach = mock_mach
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    downstream_sync = set_pr_status(pr, "success")
+    downstream_sync = set_pr_status(pr.number, "success")
 
     with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
         with downstream_sync.as_mut(downstream_lock):
@@ -295,7 +295,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     pr = pull_request([("Upstream change 1", {"upstream1": "UPSTREAM1\n"})])
     head_rev = pr._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    downstream_sync = set_pr_status(pr, "success")
+    downstream_sync = set_pr_status(pr.number, "success")
     git_wpt_upstream.head.commit = head_rev
     git_wpt_upstream.git.reset(hard=True)
     with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
@@ -309,7 +309,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     pr = pull_request([("Upstream change 2", {"upstream2": "UPSTREAM2\n"})])
     head_rev = pr._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    downstream_sync = set_pr_status(pr, "success")
+    downstream_sync = set_pr_status(pr.number, "success")
     git_wpt_upstream.head.commit = head_rev
     git_wpt_upstream.git.reset(hard=True)
 
@@ -368,7 +368,7 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     head_rev = pr._commits[0]["sha"]
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    downstream_sync = set_pr_status(pr, "success")
+    downstream_sync = set_pr_status(pr.number, "success")
 
     # Create a metadata commit
     with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
@@ -436,7 +436,7 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     pr0 = pull_request([("Non Gecko PR", {"SOMEFILE": "Made changes"})])
     unrelated_rev = pr0._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr0)
-    downstream_sync = set_pr_status(pr0, 'success')
+    downstream_sync = set_pr_status(pr0.number, 'success')
     git_wpt_upstream.head.commit = unrelated_rev
     git_wpt.remotes.origin.fetch()
 

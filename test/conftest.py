@@ -396,7 +396,8 @@ def pull_request_fn(env, git_wpt_upstream):
         for commit in git_wpt_upstream.iter_commits("master..%s" % branch):
             gh_commits.append(AttrDict(**{"sha": commit.hexsha,
                                           "message": commit.message,
-                                          "_statuses": []}))
+                                          "_statuses": [],
+                                          "_checks": []}))
 
         pr_id = env.gh_wpt.create_pull(title,
                                        body,
@@ -511,17 +512,26 @@ def directory(request, env):
 def set_pr_status(git_gecko, git_wpt, env):
     def inner(pr, status="success"):
         from sync import load
-        env.gh_wpt.set_status(pr["number"], status, "http://test/",
-                              "description",
-                              "continuous-integration/travis-ci/pr")
+        pr = env.gh_wpt.get_pull(pr)
+        check_id = 0 if not pr._commits[-1]._checks else pr._commits[-1]._checks[0]["id"] + 1
+        for context in env.gh_wpt.required_checks("master"):
+            pr._commits[-1]._checks.append({"name": context,
+                                            "status": "completed",
+                                            "conclusion": status,
+                                            "id": check_id,
+                                            "url": "http://test/",
+                                            "head_sha": pr._commits[-1].sha,
+                                            "required": True})
+            check_id += 1
+        # Add a non-required check
+        pr._commits[-1]._checks.append({"name": "another-check",
+                                        "status": "completed",
+                                        "conclusion": "failure",
+                                        "id": check_id,
+                                        "url": "http://test/",
+                                        "head_sha": pr._commits[-1].sha,
+                                        "required": False})
         sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
-        with SyncLock.for_process(sync.process_name) as lock:
-            with sync.as_mut(lock):
-                with patch("sync.tree.is_open", Mock(return_value=True)):
-                    downstream.commit_status_changed(git_gecko, git_wpt, sync,
-                                                     "continuous-integration/travis-ci/pr",
-                                                     status, "http://test/", pr["head"],
-                                                     raise_on_error=True)
         return sync
     return inner
 
@@ -619,7 +629,7 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
     trypush.Mach = mock_mach
     with patch("sync.tree.is_open", Mock(return_value=True)):
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-        sync = set_pr_status(pr, "success")
+        sync = set_pr_status(pr.number, "success")
 
         with SyncLock.for_process(sync.process_name) as sync_lock:
             git_wpt_upstream.head.commit = head_rev

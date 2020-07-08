@@ -193,7 +193,7 @@ class GitHubFilter(Filter):
     name = "github"
     event_filters = {item: lambda x: True
                      for item in handlers.GitHubHandler.dispatch_event.keys()}
-    event_filters["status"] = lambda x: x["payload"]["context"] != "upstream/gecko"
+    event_filters["check_run"] = lambda x: x["payload"]["action"] == "completed"
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
     def __init__(self, config, logger):

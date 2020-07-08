@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import enum
 import os
 import re
 import time
@@ -21,7 +22,7 @@ from .gh import AttrDict
 from .lock import SyncLock, constructor, mut
 from .sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
 from .repos import pygit2_get
-from six import iteritems
+from six import iteritems, itervalues
 
 env = Environment()
 
@@ -419,14 +420,16 @@ class UpstreamSync(SyncProcess):
         logger.info("Commit are landable; trying to land %s" % self.pr)
 
         msg = None
-        check_state, statuses = env.gh_wpt.get_combined_status(
-            self.pr, exclude={"upstream/gecko"})
-        if check_state not in ["success", "pending"]:
+        check_status, checks = get_check_status(self.pr)
+        if check_status not in [CheckStatus.SUCCESS, CheckStatus.PENDING]:
             details = ["Github PR %s" % env.gh_wpt.pr_url(self.pr)]
             msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
                    details)
-        elif not env.gh_wpt.is_mergeable(self.pr) and env.gh_wpt.is_approved(self.pr):
+        elif not env.gh_wpt.is_mergeable(self.pr):
             msg = "Can't merge web-platform-tests PR because it has merge conflicts"
+        elif not env.gh_wpt.is_approved(self.pr):
+            # This should be handled by the pr-bot
+            msg = "Can't merge web-platform-tests PR because it is missing approval"
         else:
             try:
                 merge_sha = env.gh_wpt.merge_pull(self.pr)
@@ -913,56 +916,87 @@ def gecko_push(git_gecko, git_wpt, repository_name, hg_rev, raise_on_error=False
     return pushed_syncs, landed_syncs, failed_syncs
 
 
+@enum.unique
+class CheckStatus(enum.Enum):
+    SUCCESS = "success"
+    PENDING = "pending"
+    FAILURE = "failure"
+
+
+def get_check_status(pr_id):
+    checks = env.gh_wpt.get_check_runs(pr_id)
+    if commit_checks_pass(checks):
+        status = CheckStatus.SUCCESS
+    elif not commit_checks_complete(checks):
+        status = CheckStatus.PENDING
+    else:
+        status = CheckStatus.FAILURE
+    return status, checks
+
+
+def commit_checks_pass(checks):
+    """Boolean indicating whether all required check runs pass"""
+    return all(item["required"] is False or (item["status"] == "completed" and
+                                             item["conclusion"] in ("success", "neutral"))
+               for item in itervalues(checks))
+
+
+def commit_checks_complete(checks):
+    """Boolean indicating whether all check runs are complete"""
+    return all(item["status"] == "completed" for item in itervalues(checks))
+
+
 @entry_point("upstream")
 @mut('sync')
-def commit_status_changed(git_gecko, git_wpt, sync, context, status, url, sha):
+def commit_check_changed(git_gecko, git_wpt, sync):
     landed = False
     if sync.status != "open":
         return True
 
-    if status == "pending":
-        # Never change anything for pending
-        return landed
-    previous_check = sync.last_pr_check
-    check_state, statuses = env.gh_wpt.get_combined_status(sync.pr, exclude={"upstream/gecko"})
-    check = {"state": check_state, "sha": sha}
-    if check_state == "success":
-        sync.last_pr_check = check
+    check_status, checks = get_check_status(sync.pr)
+
+    if not checks:
+        logger.error("No checks found for pr %s" % sync.pr)
+        return
+
+    # Record the overall status and commit so we only notify once per commit
+    this_pr_check = {"state": check_status.value,
+                     "sha": itervalues(checks).next()["head_sha"]}
+    last_pr_check = sync.last_pr_check
+    sync.last_pr_check = this_pr_check
+
+    if check_status == CheckStatus.SUCCESS:
         sync.error = None
         if sync.gecko_landed():
             landed = sync.try_land_pr()
-        elif previous_check != check:
+        elif this_pr_check != last_pr_check:
             env.bz.comment(sync.bug,
                            "Upstream web-platform-tests status checks passed, "
                            "PR will merge once commit reaches central.")
-    else:
-        # Don't report anything until all checks have completed
-        if (not any(item.state == "pending" for item in statuses) and
-            previous_check != check):
-            details = ["Github PR %s" % env.gh_wpt.pr_url(sync.pr)]
-            for item in statuses:
-                if item.state == "success":
-                    continue
-                url_str = " (%s)" % item.target_url if item.target_url else ""
-                details.append("* %s%s" % (item.context, url_str))
-            details = "\n".join(details)
-            msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
-                   details)
-            try:
-                with env.bz.bug_ctx(sync.bug) as bug:
-                    bug["comment"] = msg
-                    commit_author = sync.gecko_commits[0].email
-                    if commit_author:
-                        bug.needinfo(commit_author)
-            except BugsyException:
-                msg = traceback.format_exc()
-                logger.warning("Failed to update bug:\n%s" % msg)
-                # Sometimes needinfos fail because emails addresses in bugzilla don't
-                # match the commits. That's non-fatal, but record the exception here in
-                # case something more unexpected happens
-                newrelic.agent.record_exception()
+    elif check_status == CheckStatus.FAILURE and last_pr_check != this_pr_check:
+        details = ["Github PR %s" % env.gh_wpt.pr_url(sync.pr)]
+        for name, check_run in iteritems(checks):
+            if check_run["conclusion"] not in ("success", "neutral"):
+                details.append("* %s (%s)" % (name, check_run["url"]))
+        details = "\n".join(details)
+        msg = ("Can't merge web-platform-tests PR due to failing upstream checks:\n%s" %
+               details)
+        try:
+            with env.bz.bug_ctx(sync.bug) as bug:
+                bug["comment"] = msg
+            # Do this as a seperate operation
+            with env.bz.bug_ctx(sync.bug) as bug:
+                commit_author = sync.gecko_commits[0].email
+                if commit_author:
+                    bug.needinfo(commit_author)
+        except BugsyException:
+            msg = traceback.format_exc()
+            logger.warning("Failed to update bug:\n%s" % msg)
+            # Sometimes needinfos fail because emails addresses in bugzilla don't
+            # match the commits. That's non-fatal, but record the exception here in
+            # case something more unexpected happens
+            newrelic.agent.record_exception()
             sync.error = "Checks failed"
-            sync.last_pr_check = check
         else:
             logger.info("Some upstream web-platform-tests status checks still pending.")
     return landed

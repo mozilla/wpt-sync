@@ -69,60 +69,38 @@ def handle_pr(git_gecko, git_wpt, event):
                             merged_by)
 
 
-def handle_status(git_gecko, git_wpt, event):
-    newrelic.agent.set_transaction_name("handle_status")
-    if event["context"] == "upstream/gecko":
-        # Never handle changes to our own status
+def handle_check_run(git_gecko, git_wpt, event):
+    newrelic.agent.set_transaction_name("handle_check_run")
+    if event["action"] != "completed":
         return
+
+    check_run = event["check_run"]
+
+    newrelic.agent.add_custom_parameter("sha", check_run["head_sha"])
+    newrelic.agent.add_custom_parameter("name", check_run["name"])
+    newrelic.agent.add_custom_parameter("status", check_run["status"])
+    newrelic.agent.add_custom_parameter("conclusion", check_run["conclusion"])
+
+    if check_run["name"] not in env.gh_wpt.required_checks("master"):
+        logger.info("Check %s is not required" % check_run["name"])
+        return
+
+    # First check if the PR is head of any pull request
+    pr_id = pr_for_commit(git_wpt, check_run["head_sha"])
 
     repo_update = event.get("_wptsync", {}).get("repo_update", True)
     if repo_update:
         update_repositories(None, git_wpt, False)
 
-    rev = event["sha"]
-    # First check if the PR is head of any pull request
-    pr_id = pr_for_commit(git_wpt, rev)
-
-    newrelic.agent.add_custom_parameter("rev", rev)
-    newrelic.agent.add_custom_parameter("context", event["context"])
-    newrelic.agent.add_custom_parameter("state", event["state"])
-
-    if not pr_id:
-        # This usually happens if we got behind, so the commit is no longer the latest one
-        # There are a few possibilities for what happened:
-        # * Something new was pushed. In that case ignoring this message is fine
-        # * The PR got merged in a way that changes the SHAs. In that case we assume that
-        #   the sync will get triggered later like when there's a push for the commit
-        logger.warning("Got status for commit %s which is not the current HEAD of any PR\n"
-                       "context: %s url: %s state: %s" %
-                       (rev, event["context"], event["target_url"], event["state"]))
-        return
-    else:
-        logger.info("Got status for commit %s from PR %s\n"
-                    "context: %s url: %s state: %s" %
-                    (rev, pr_id, event["context"], event["target_url"], event["state"]))
-
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
     if not isinstance(sync, upstream.UpstreamSync):
         return
 
-    if not sync:
-        # Presumably this is a thing we ought to be downstreaming, but missed somehow
-        logger.info("Got a status update for PR %s which is unknown to us; starting downstreaming" %
-                    pr_id)
-        from .update import schedule_pr_task
-        schedule_pr_task("opened", env.gh_wpt.get_pull(pr_id))
-
-    update_func = None
-    if isinstance(sync, upstream.UpstreamSync):
-        update_func = upstream.commit_status_changed
-    elif isinstance(sync, downstream.DownstreamSync):
-        update_func = downstream.commit_status_changed
-    if update_func is not None:
-        with SyncLock.for_process(sync.process_name) as lock:
-            with sync.as_mut(lock):
-                update_func(git_gecko, git_wpt, sync, event["context"], event["state"],
-                            event["target_url"], event["sha"])
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            upstream.commit_check_changed(git_gecko,
+                                          git_wpt,
+                                          sync)
 
 
 def handle_push(git_gecko, git_wpt, event):
@@ -134,7 +112,7 @@ def handle_push(git_gecko, git_wpt, event):
 class GitHubHandler(Handler):
     dispatch_event = {
         "pull_request": handle_pr,
-        "status": handle_status,
+        "check_run": handle_check_run,
         "push": handle_push,
     }
 
