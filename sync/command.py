@@ -492,7 +492,7 @@ def do_test(*args, **kwargs):
 
         logger.info("Running pytest")
         cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
-        subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
 def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
@@ -503,10 +503,12 @@ def do_cleanup(git_gecko, git_wpt, *args, **kwargs):
 def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
     from . import downstream
     if not pr_ids:
-        syncs = [sync_from_path(git_gecko, git_wpt)]
+        sync = sync_from_path(git_gecko, git_wpt)
+        syncs = {sync.pr: sync}
     else:
-        syncs = [downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id) for pr_id in pr_ids]
-    for sync in syncs:
+        syncs = {pr_id: downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+                 for pr_id in pr_ids}
+    for pr_id, sync in iteritems(syncs):
         if sync is None:
             logger.error("No active sync for PR %s" % pr_id)
         else:
@@ -518,10 +520,12 @@ def do_skip(git_gecko, git_wpt, pr_ids, *args, **kwargs):
 def do_notify(git_gecko, git_wpt, pr_ids, *args, **kwargs):
     from . import downstream
     if not pr_ids:
-        syncs = [sync_from_path(git_gecko, git_wpt)]
+        sync = sync_from_path(git_gecko, git_wpt)
+        syncs = {sync.pr: sync}
     else:
-        syncs = [downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id) for pr_id in pr_ids]
-    for sync in syncs:
+        syncs = {pr_id: downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
+                 for pr_id in pr_ids}
+    for pr_id, sync in iteritems(syncs):
         if sync is None:
             logger.error("No active sync for PR %s" % pr_id)
         else:
@@ -918,7 +922,7 @@ def main():
 
     try:
         func_name = args.func.__name__
-    except AttributeError as e:
+    except AttributeError:
         func_name = None
     if func_name == "do_test":
         git_gecko, git_wpt = (None, None)

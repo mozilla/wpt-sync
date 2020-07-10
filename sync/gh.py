@@ -3,7 +3,7 @@ import itertools
 import random
 import re
 import time
-from cStringIO import StringIO
+from io import StringIO
 
 import github
 import newrelic
@@ -315,8 +315,9 @@ class MockGitHub(GitHub):
         self.checks = {}
 
     def _log(self, data):
+        data = six.ensure_text(data)
         self.output.write(data)
-        self.output.write("\n")
+        self.output.write(u"\n")
 
     def get_pull(self, id):
         self._log("Getting PR %s" % id)
