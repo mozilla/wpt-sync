@@ -8,12 +8,14 @@ import shutil
 import subprocess
 import types
 from collections import defaultdict
-from cStringIO import StringIO
+from io import StringIO
 from mock import Mock, patch
 
 import git
 import pytest
 import requests_mock
+import six
+from six import iteritems
 
 from sync import repos, settings, bugcomponents, base, downstream, landing, trypush, tree, tc
 from sync.env import Environment, set_env, clear_env
@@ -26,7 +28,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 def create_file_data(file_data, repo_workdir, repo_prefix=None):
     add_paths = []
     del_paths = []
-    for repo_path, contents in file_data.iteritems():
+    for repo_path, contents in iteritems(file_data):
         if repo_prefix is not None:
             repo_path = os.path.join(repo_prefix, repo_path)
         if contents is None:
@@ -58,7 +60,7 @@ def gecko_changes(env, test_changes=None, meta_changes=None, other_changes=None)
     def prefix_paths(changes, prefix):
         if changes is not None:
             return {os.path.join(prefix, path) if not path.startswith(prefix) else path:
-                    data for path, data in changes.iteritems()}
+                    data for path, data in iteritems(changes)}
 
     test_changes = prefix_paths(test_changes, test_prefix)
     meta_changes = prefix_paths(meta_changes, meta_prefix)
@@ -72,7 +74,7 @@ def gecko_changes(env, test_changes=None, meta_changes=None, other_changes=None)
 
 # TODO: Probably don't need all of these to be function scoped
 def cleanup(config):
-    for name, dir in config["paths"].iteritems():
+    for name, dir in iteritems(config["paths"]):
         if name == "logs":
             continue
         path = os.path.join(config["root"], dir)
@@ -100,7 +102,7 @@ def env(request, mock_mach, mock_wpt):
 
     set_env(config, bz, gh_wpt)
 
-    for name, dir in config["paths"].iteritems():
+    for name, dir in iteritems(config["paths"]):
         path = os.path.join(config["root"], dir)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -305,7 +307,7 @@ def upstream_wpt_commit(env, git_wpt_upstream, pull_request):
 def hg_commit(hg, message, bookmarks):
     hg.commit("-m", message)
     rev = hg.log("-l1", "--template={node}")
-    if isinstance(bookmarks, (str, unicode)):
+    if isinstance(bookmarks, (six.binary_type, six.text_type)):
         bookmarks = [bookmarks]
     for bookmark in bookmarks:
         hg.bookmark(bookmark)
@@ -331,9 +333,9 @@ def upstream_gecko_commit(env, hg_gecko_upstream):
 @pytest.fixture
 def upstream_gecko_backout(env, hg_gecko_upstream):
     def inner(revs, bugs, message=None, bookmarks="mozilla/autoland"):
-        if isinstance(revs, (str, unicode)):
+        if isinstance(revs, (six.binary_type, six.text_type)):
             revs = [revs]
-        if isinstance(bugs, (str, unicode)):
+        if isinstance(bugs, (six.binary_type, six.text_type)):
             bugs = [bugs] * len(revs)
         assert len(bugs) == len(revs)
         msg = ["Backed out %i changesets (bug %s) for test, r=backout" % (len(revs), bugs[0]), ""]
@@ -596,7 +598,7 @@ def open_wptreport_path(wptreport_json_data):
 def mock_tasks():
     def wpt_tasks(**kwargs):
         tasks = []
-        for state, names in kwargs.iteritems():
+        for state, names in iteritems(kwargs):
             for name in names:
                 t = {}
                 t["status"] = {

@@ -10,6 +10,7 @@ from sync.errors import AbortError
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
 from conftest import git_commit
+from six.moves import xrange
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):

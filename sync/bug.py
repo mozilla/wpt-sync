@@ -1,14 +1,15 @@
 from __future__ import absolute_import
 import base64
-from . import log
 import re
 import sys
 import traceback
-from six.moves import urllib
 
 import bugsy
 import newrelic
+import six
+from six.moves import urllib
 
+from . import log
 from .env import Environment
 
 env = Environment()
@@ -371,8 +372,9 @@ class MockBugzilla(Bugzilla):
         self.dupes = {}
 
     def _log(self, data):
+        data = six.ensure_text(data)
         self.output.write(data)
-        self.output.write("\n")
+        self.output.write(u"\n")
 
     def bug_ctx(self, bug_id):
         return MockBugContext(self, bug_id)
