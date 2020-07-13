@@ -13,6 +13,7 @@ import subprocess
 import types
 
 import newrelic
+import six
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,10 @@ class Command(object):
         def call(self, *args, **kwargs):
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
-        self.__dict__[name] = types.MethodType(call, self, self.__class__)
+        args = (call, self)
+        if six.PY2:
+            args += (self.__class__,)
+        self.__dict__[name] = types.MethodType(*args)
         return self.__dict__[name]
 
 
