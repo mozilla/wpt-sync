@@ -170,7 +170,10 @@ username=test""")
             print("%s, cwd=%s" % (" ".join(cmd), self.working_tree))
             return subprocess.check_output(cmd, cwd=self.working_tree)
         call.__name__ = name
-        return types.MethodType(call, self, hg)
+        args = (call, self)
+        if six.PY2:
+            args += (hg,)
+        return types.MethodType(*args)
 
 
 @pytest.fixture(scope="function")
