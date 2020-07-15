@@ -314,7 +314,7 @@ def hg_commit(hg, message, bookmarks):
         bookmarks = [bookmarks]
     for bookmark in bookmarks:
         hg.bookmark(bookmark)
-    assert "+" not in hg.identify("--id")
+    assert b"+" not in hg.identify("--id")
     return rev
 
 
