@@ -429,11 +429,12 @@ class UpstreamSync(SyncProcess):
         landed_status = "success" if self.gecko_landed() else "failure"
         logger.info("Setting landed status to %s" % landed_status)
         # TODO - Maybe ignore errors setting the status
-        env.gh_wpt.set_status(self.pr,
-                              landed_status,
-                              target_url=env.bz.bugzilla_url(self.bug),
-                              description="Landed on mozilla-central",
-                              context="upstream/gecko")
+        if env.gh_wpt.get_status(self.pr, "upstream/gecko") != landed_status:
+            env.gh_wpt.set_status(self.pr,
+                                  landed_status,
+                                  target_url=env.bz.bugzilla_url(self.bug),
+                                  description="Landed on mozilla-central",
+                                  context="upstream/gecko")
 
     @mut()
     def try_land_pr(self):
