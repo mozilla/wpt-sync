@@ -161,7 +161,7 @@ class GitHub(object):
 
     def get_check_runs(self, pr_id):
         pr = self.get_pull(pr_id)
-        check_runs = list(self._get_check_runs(self.pr.head.sha))
+        check_runs = list(self._get_check_runs(pr.head.sha))
         required_contexts = self.required_checks(pr.base.ref)
         rv = {}
         id_by_name = {}
