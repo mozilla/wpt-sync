@@ -106,7 +106,7 @@ class Commit(object):
             raise ValueError("Unrecognised commit %r" % commit)
         if sha1 not in self.pygit2_repo:
             raise ValueError("Commit with SHA1 %s not found" % sha1)
-        self.sha1 = sha1
+        self.sha1 = sha1.encode("ascii")
         self._commit = _commit
         self._pygit2_commit = _pygit2_commit
         self._notes = None

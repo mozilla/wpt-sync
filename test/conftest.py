@@ -39,7 +39,7 @@ def create_file_data(file_data, repo_workdir, repo_prefix=None):
             dirname = os.path.dirname(path)
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
-            with open(path, "w") as f:
+            with open(path, "wb") as f:
                 f.write(contents)
     return add_paths, del_paths
 
@@ -117,12 +117,12 @@ def env(request, mock_mach, mock_wpt):
 
 @pytest.fixture
 def initial_gecko_content():
-    return {"README": "Initial text\n"}
+    return {"README": b"Initial text\n"}
 
 
 @pytest.fixture
 def initial_wpt_content(env):
-    return {"example/test.html": """<title>Example test</title>
+    return {"example/test.html": b"""<title>Example test</title>
 <script src='/resources/testharness.js'></script>
 <script src='/resources/testharnessreport.js'></script>
 <script>
@@ -130,12 +130,12 @@ test(() => assert_true(true), "Passing test");
 test(() => assert_true(false), "Failing test");
 </script>
 """,
-            "LICENSE": "Initial license\n"}
+            "LICENSE": b"Initial license\n"}
 
 
 @pytest.fixture
 def initial_meta_content(env):
-    return {"example/META.yml": """
+    return {"example/META.yml": b"""
 links:
   - url: https://bugzilla-dev.allizom.org/show_bug.cgi?id=1234
     product: firefox
@@ -196,7 +196,7 @@ def hg_gecko_upstream(env, initial_gecko_content, initial_wpt_content, git_wpt_u
     local_rev = hg_gecko.log("-l1", "--template={node}")
     upstream_rev = git_wpt_upstream.commit("HEAD")
 
-    content = "local: %s\nupstream: %s\n" % (local_rev, upstream_rev)
+    content = b"local: %s\nupstream: %s\n" % (local_rev, upstream_rev.hexsha)
 
     wpt_paths, _ = create_file_data(initial_wpt_content, repo_dir,
                                     env.config["gecko"]["path"]["wpt"])
