@@ -141,6 +141,20 @@ class GitHub(object):
         except (github.GithubException, github.UnknownObjectException):
             return None
 
+    def get_status(self,
+                   pr_id,  # type: int
+                   context  # type: Text
+                   ):
+        # type: (...) -> Optional[Text]
+        pr = self.get_pull(pr_id)
+        head_commit = self.repo.get_commit(pr.head.ref)
+        statuses = [item for item in head_commit.get_statuses()
+                    if item.context == context]
+        statuses.sort(key=lambda x: -x.id)
+        if statuses:
+            return statuses[0].state
+        return None
+
     def set_status(self,
                    pr_id,  # type: int
                    status,  # type: Text
@@ -592,6 +606,19 @@ class MockGitHub(GitHub):
             if minimum_id and number >= minimum_id:
                 yield self.get_pull(number)
 
+    def get_status(self,
+                   pr_id,  # type: int
+                   context  # type: Text
+                   ):
+        # type (...) -> Optional[Text]
+        pr = self.get_pull(pr_id)
+        statuses = [item for item in pr._commits[-1]._statuses
+                    if item.context == context]
+        statuses.sort(key=lambda x: -x.id)
+        if statuses:
+            return statuses[0].state
+        return None
+
     def set_status(self,
                    pr_id,  # type: int
                    status,  # type: Text
@@ -602,8 +629,9 @@ class MockGitHub(GitHub):
         pr = self.get_pull(pr_id)
         head_commit = pr._commits[-1]
         kwargs = {
-            "status": status,
+            "state": status,
             "context": context,
+            "id": len(pr._commits[-1]._statuses),
         }
         if target_url is not None:
             kwargs["target_url"] = target_url
