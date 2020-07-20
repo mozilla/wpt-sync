@@ -18,6 +18,18 @@ from .errors import RetryableError
 from .threadexecutor import ThreadExecutor
 import six
 
+MYPY = False
+if MYPY:
+    from typing import Any
+    from typing import Dict
+    from typing import Optional
+    from typing import Text
+    from typing import Union
+    from typing import List
+    from typing import Callable
+    from typing import Iterator
+    from typing import Set
+
 
 TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
 QUEUE_BASE = TASKCLUSTER_ROOT_URL + "/api/queue/v1/"
@@ -88,6 +100,7 @@ class TaskclusterClient(object):
 
 
 def normalize_task_id(task_id):
+    # type: (Text) -> Text
     # For some reason, pulse doesn't get the real
     # task ID, but some alternate encoding of it that doesn't
     # work anywhere else. So we have to first convert to the canonical
@@ -135,11 +148,13 @@ def result_from_run(run):
 
 class TaskGroup(object):
     def __init__(self, taskgroup_id, tasks=None):
+        # type: (Text, Optional[Any]) -> None
         self.taskgroup_id = taskgroup_id
         self._tasks = tasks
 
     @property
     def tasks(self):
+        # type: () -> List[Dict[Text, Dict[Text, Any]]]
         if self._tasks:
             return self._tasks
 
@@ -161,18 +176,22 @@ class TaskGroup(object):
         return self._tasks
 
     def refresh(self):
+        # type: () -> Union[List[Dict[Text, Dict[Text, Any]]], List[Dict[str, Dict[str, Any]]]]
         self._tasks = None
         return self.tasks
 
     def tasks_by_id(self):
+        # type: () -> Dict[Text, Dict[Text, Any]]
         return {item["status"]["taskId"]: item for item in self.tasks}
 
     def view(self, filter_fn=None):
+        # type: (Optional[Callable]) -> TaskGroupView
         return TaskGroupView(self, filter_fn)
 
 
 class TaskGroupView(object):
     def __init__(self, taskgroup, filter_fn):
+        # type: (TaskGroup, Optional[Callable]) -> None
         self.taskgroup = taskgroup
         self.filter_fn = filter_fn if filter_fn is not None else lambda x: x
         self._tasks = None
@@ -181,14 +200,17 @@ class TaskGroupView(object):
         return bool(self.tasks)
 
     def __len__(self):
+        # type: () -> int
         return len(self.tasks)
 
     def __iter__(self):
+        # type: () -> Iterator[Dict[Text, Dict[Text, Any]]]
         for item in self.tasks:
             yield item
 
     @property
     def tasks(self):
+        # type: () -> Union[List[Dict[Text, Dict[Text, Any]]], List[Dict[str, Dict[str, Any]]]]
         if self._tasks:
             return self._tasks
 
@@ -201,27 +223,36 @@ class TaskGroupView(object):
         self.taskgroup.refresh()
         return self.tasks
 
-    def incomplete_tasks(self, allow_unscheduled=False):
+    def incomplete_tasks(self,
+                         allow_unscheduled=False,  # type: bool
+                         ):
+        # type: (...) -> Iterator[Dict[Text, Dict[Text, Any]]]
         tasks_by_id = self.taskgroup.tasks_by_id()
         for task in self.tasks:
             if task_is_incomplete(task, tasks_by_id, allow_unscheduled):
                 yield task
 
     def failed_builds(self):
+        # type: () -> TaskGroupView
         """Return the builds that failed"""
         builds = self.filter(is_build)
         return builds.filter(is_status_fn({FAIL, EXCEPTION}))
 
     def filter(self, filter_fn):
-        def combined_filter(task):
+        # type: (Callable) -> TaskGroupView
+        def combined_filter(task  # type: Dict[Text, Dict[Text, Any]]
+                            ):
+            # type: (...) -> Optional[bool]
             return self.filter_fn(task) and filter_fn(task)
 
         return self.taskgroup.view(combined_filter)
 
     def is_complete(self, allow_unscheduled=False):
+        # type: (bool) -> bool
         return not any(self.incomplete_tasks(allow_unscheduled))
 
     def by_name(self):
+        # type: () -> Dict
         rv = defaultdict(list)
         for task in self.tasks:
             name = task.get("task", {}).get("metadata", {}).get("name")
@@ -296,7 +327,11 @@ def get_task_artifacts(destination, task, file_names, session, retry):
         run["_log_paths"][params["file_name"]] = log_path
 
 
-def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
+def task_is_incomplete(task,  # type: Dict[Text, Dict[Text, Any]]
+                       tasks_by_id,  # type: Dict[Text, Dict[Text, Dict[Text, Any]]]
+                       allow_unscheduled,  # type: bool
+                       ):
+    # type: (...) -> bool
     status = task.get("status", {}).get("state", PENDING)
     if status in (PENDING, RUNNING):
         return True
@@ -322,7 +357,10 @@ def task_is_incomplete(task, tasks_by_id, allow_unscheduled):
     return False
 
 
-def is_suite(suite, task):
+def is_suite(suite,  # type: str
+             task,  # type: Dict[Text, Dict[Text, Any]]
+             ):
+    # type: (...) -> bool
     t = task.get("task", {}).get("extra", {}).get("suite", {})
     if isinstance(t, dict):
         t = t.get("name", "")
@@ -330,28 +368,39 @@ def is_suite(suite, task):
 
 
 def is_suite_fn(suite):
+    # type: (str) -> Callable
     return lambda x: is_suite(suite, x)
 
 
-def check_tag(task, tag):
+def check_tag(task,  # type: Dict[Text, Dict[Text, Any]]
+              tag,  # type: str
+              ):
+    # type: (...) -> Optional[bool]
     tags = task.get("task", {}).get("tags")
     if tags:
         return tags.get("kind") == tag
 
 
 def is_test(task):
+    # type: (Dict[Text, Dict[Text, Any]]) -> bool
     return check_tag(task, "test")
 
 
-def is_build(task):
+def is_build(task  # type: Dict[Text, Dict[Text, Any]]
+             ):
+    # type: (...) -> Optional[bool]
     return check_tag(task, "build")
 
 
-def is_status(statuses, task):
+def is_status(statuses,  # type: Union[Set[str], str]
+              task,  # type: Dict[Text, Dict[Text, Any]]
+              ):
+    # type: (...) -> bool
     return task.get("status", {}).get("state") in statuses
 
 
 def is_status_fn(statuses):
+    # type: (Union[Set[str], str]) -> Callable
     if isinstance(statuses, (str, six.text_type)):
         statuses = {statuses}
     return lambda x: is_status(statuses, x)

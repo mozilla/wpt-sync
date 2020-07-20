@@ -10,6 +10,25 @@ from . import log
 from .base import ProcessName, CommitBuilder, iter_tree, iter_process_names
 from .repos import pygit2_get
 
+MYPY = False
+if MYPY:
+    from typing import Callable
+    from git.repo.base import Repo
+    from test_index import TestIndex
+    from typing import Union
+    from typing import Tuple
+    from sync.downstream import DownstreamSync
+    from sync.landing import LandingSync
+    from sync.upstream import UpstreamSync
+    from typing import Text
+    from typing import Any
+    from typing import Set
+    from typing import Optional
+    from _pygit2 import Blob
+    from typing import List
+    from pygit2.repository import Repository
+    from typing import Iterator
+
 
 logger = log.get_logger(__name__)
 env = env.Environment()
@@ -27,15 +46,18 @@ class Index(object):
     changes = None
 
     def __init__(self, repo):
+        # type: (Repo) -> None
         if self.__class__.changes is None:
             self.reset()
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
 
     def reset(self):
+        # type: () -> None
         constructors = [list]
         for _ in self.key_fields[:-1]:
             def fn():
+                # type: () -> Callable
                 idx = len(constructors) - 1
                 constructors.append(lambda: defaultdict(constructors[idx]))
                 return constructors[-1]
@@ -44,6 +66,7 @@ class Index(object):
 
     @classmethod
     def create(cls, repo):
+        # type: (Repo) -> TestIndex
         logger.info("Creating index %s" % cls.name)
         data = {"name": cls.name,
                 "fields": list(cls.key_fields),
@@ -58,10 +81,12 @@ class Index(object):
 
     @classmethod
     def get_root_path(cls):
+        # type: () -> str
         return "index/%s" % cls.name
 
     @classmethod
     def get_or_create(cls, repo):
+        # type: (Repo) -> Union[TaskGroupIndex, TryCommitIndex]
         ref_name = env.config["sync"]["ref"]
         ref = git.Reference(repo, ref_name)
         try:
@@ -71,6 +96,7 @@ class Index(object):
         return cls(repo)
 
     def get(self, key):
+        # type: (Tuple[str, ...]) -> Any
         if len(key) > len(self.key_fields):
             raise ValueError
         items = self._read(key)
@@ -85,7 +111,11 @@ class Index(object):
             return rv.pop() if rv else None
         return rv
 
-    def _read(self, key, include_local=True):
+    def _read(self,
+              key,  # type: Union[Tuple[str, ...], Tuple[str, Text], Tuple[str, str, Text, str]]
+              include_local=True,  # type: bool
+              ):
+        # type: (...) -> Union[Set[Text], Set[str]]
         path = "%s/%s" % (self.get_root_path(), "/".join(key))
         data = set()
         for obj in iter_blobs(self.pygit2_repo, path):
@@ -95,6 +125,7 @@ class Index(object):
         return data
 
     def _read_changes(self, key):
+        # type: (Optional[Tuple[str, ...]]) -> Any
         target = self.changes
         if target is None:
             return {}
@@ -114,7 +145,11 @@ class Index(object):
                     stack.append((key + (key_part,), values))
         return changes
 
-    def _update_changes(self, key, data):
+    def _update_changes(self,
+                        key,  # type: Union[Tuple[str, ...], Tuple[str, str, Text, str]]
+                        data,  # type: Set[Text]
+                        ):
+        # type: (...) -> None
         changes = self._read_changes(key)
         for key_changes in itervalues(changes):
             for old_value, new_value, _ in key_changes:
@@ -124,12 +159,14 @@ class Index(object):
                     data.add(new_value)
 
     def _load_obj(self, obj):
+        # type: (Blob) -> Set[Text]
         rv = json.loads(obj.data)
         if isinstance(rv, list):
             return set(rv)
         return set([rv])
 
     def save(self, commit_builder=None, message=None, overwrite=False):
+        # type: (Optional[CommitBuilder], Optional[str], bool) -> None
         changes = self._read_changes(None)
         if not changes:
             return
@@ -155,7 +192,11 @@ class Index(object):
                 self._update_key(commit, key, key_changes)
         self.reset()
 
-    def insert(self, key, value):
+    def insert(self,
+               key,  # type: Union[Tuple[str, ...], Tuple[str, Text], Tuple[str, str, Text, str]]
+               value,  # type: Union[str, ProcessName]
+               ):
+        # type: (...) -> Any
         if len(key) != len(self.key_fields):
             raise ValueError
 
@@ -167,7 +208,11 @@ class Index(object):
         target.append((None, value, msg))
         return self
 
-    def delete(self, key, value):
+    def delete(self,
+               key,  # type: Union[Tuple[Text, Text, Text, str], Tuple[str, ...], Tuple[str, Text]]
+               value,  # type: Union[str, ProcessName]
+               ):
+        # type: (...) -> Any
         if len(key) != len(self.key_fields):
             raise ValueError
 
@@ -179,7 +224,12 @@ class Index(object):
         target.append((value, None, msg))
         return self
 
-    def move(self, old_key, new_key, value):
+    def move(self,
+             old_key,  # type: Optional[Any]
+             new_key,  # type: Union[Tuple[str, Text], Tuple[str]]
+             value,  # type: ProcessName
+             ):
+        # type: (...) -> Union[BugIdIndex, PrIdIndex]
         assert old_key != new_key
 
         if old_key is not None:
@@ -188,7 +238,12 @@ class Index(object):
             self.insert(new_key, value)
         return self
 
-    def _update_key(self, commit, key, key_changes):
+    def _update_key(self,
+                    commit,  # type: CommitBuilder
+                    key,  # type: Tuple[str, ...]
+                    key_changes,  # type: List[Tuple[Optional[str], Optional[str], Optional[str]]]
+                    ):
+        # type: (...) -> None
         existing = self._read(key, False)
         new = existing.copy()
 
@@ -219,12 +274,15 @@ class Index(object):
         commit.add_tree({path: json.dumps(index_value, indent=0)})
 
     def dump_value(self, value):
+        # type: (Union[str, ProcessName]) -> str
         return str(value)
 
     def load_value(self, value):
+        # type: (Text) -> ProcessName
         return self.value_cls(*(value.split("/")))
 
     def build(self, *args, **kwargs):
+        # type: (*List[Tuple[Tuple[str, str], str]], **Any) -> None
         # Delete all entries in existing keys
         for key in self.keys():
             assert len(key) == len(self.key_fields)
@@ -247,6 +305,7 @@ class Index(object):
         return (value,)
 
     def keys(self):
+        # type: () -> Set[Tuple[str, str]]
         return set(key for key, _ in
                    iter_tree(self.pygit2_repo, root_path=self.get_root_path())
                    if not key[-1] == "_metadata")
@@ -260,6 +319,7 @@ class TaskGroupIndex(Index):
 
     @classmethod
     def make_key(cls, value):
+        # type: (str) -> Tuple[str, str, str]
         return (value[:2], value[2:4], value[4:])
 
     def build_entries(self, *args, **kwargs):
@@ -280,6 +340,7 @@ class TryCommitIndex(Index):
 
     @classmethod
     def make_key(cls, value):
+        # type: (str) -> Tuple[str, str, str, str]
         return (value[:2], value[2:4], value[4:6], value[6:])
 
     def build_entries(self, *args, **kwargs):
@@ -299,7 +360,10 @@ class SyncIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls, sync):
+    def make_key(cls,
+                 sync,  # type: Union[DownstreamSync, LandingSync, UpstreamSync]
+                 ):
+        # type: (...) -> Tuple[Text, Text, Text, str]
         return (sync.process_name.obj_type,
                 sync.process_name.subtype,
                 sync.status,
@@ -340,6 +404,7 @@ class PrIdIndex(Index):
 
     @classmethod
     def make_key(cls, sync):
+        # type: (Union[DownstreamSync, UpstreamSync]) -> Tuple[str]
         return (str(sync.pr),)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
@@ -374,7 +439,10 @@ class BugIdIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls, sync):
+    def make_key(cls,
+                 sync,  # type: Union[DownstreamSync, LandingSync, UpstreamSync]
+                 ):
+        # type: (...) -> Tuple[str, Text]
         return (str(sync.bug), sync.status)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
@@ -406,6 +474,7 @@ class BugIdIndex(Index):
 
 
 def iter_blobs(repo, path):
+    # type: (Repository, Text) -> Iterator[Union[Iterator, Iterator[Blob]]]
     """Iterate over all blobs under a path
 
     :param repo: pygit2 repo

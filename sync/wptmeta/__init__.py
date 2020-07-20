@@ -9,6 +9,19 @@ import six
 from six.moves import urllib
 from six import iteritems, itervalues
 
+MYPY = False
+if MYPY:
+    from typing import Any
+    from typing import Dict
+    from mypy_extensions import NoReturn
+    from sync.meta import GitReader
+    from sync.meta import NullWriter
+    from typing import Iterator
+    from typing import Optional
+    from typing import Union
+    from typing import List
+    from typing import Tuple
+
 """Module for interacting with a web-platform-tests metadata repository"""
 
 
@@ -16,6 +29,7 @@ class DeleteTrackingList(list):
     """A list that holds a reference to any elements that are removed"""
 
     def __init__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         self._deleted = []
         super(DeleteTrackingList, self).__init__(*args, **kwargs)
 
@@ -41,6 +55,7 @@ class DeleteTrackingList(list):
         return rv
 
     def remove(self, item):
+        # type: (MetaLink) -> NoReturn
         try:
             return super(DeleteTrackingList, self).remove(item)
         finally:
@@ -48,6 +63,7 @@ class DeleteTrackingList(list):
 
 
 def parse_test(test_id):
+    # type: (str) -> Tuple[str, str]
     id_parts = urllib.parse.urlsplit(test_id)
     dir_name, test_file = id_parts.path.rsplit("/", 1)
     if dir_name[0] == "/":
@@ -141,6 +157,7 @@ def metadata_directory(root):
 
 class WptMetadata(object):
     def __init__(self, reader, writer):
+        # type: (GitReader, NullWriter) -> None
         """Object for working with a wpt-metadata tree
 
         :param reader: Object implementing Reader
@@ -149,7 +166,13 @@ class WptMetadata(object):
         self.writer = writer
         self.loaded = {}
 
-    def iterlinks(self, test_id, product=None, subtest=None, status=None):
+    def iterlinks(self,
+                  test_id,  # type: str
+                  product=None,  # type: Optional[str]
+                  subtest=None,  # type: Optional[Any]
+                  status=None,  # type: Optional[Any]
+                  ):
+        # type: (...) -> Iterator[Union[Iterator, Iterator[MetaLink]]]
         """Get the metadata matching a specified set of conditions"""
         if test_id is None:
             dir_names = self.reader.walk("")
@@ -168,6 +191,7 @@ class WptMetadata(object):
                 yield item
 
     def write(self):
+        # type: () -> List[str]
         """Write any updated metadata to the metadata tree"""
         rv = []
         for meta_file in itervalues(self.loaded):
@@ -176,6 +200,7 @@ class WptMetadata(object):
         return rv
 
     def append_link(self, url, product, test_id, subtest=None, status=None):
+        # type: (str, str, str, Optional[Any], Optional[Any]) -> None
         """Add a link to the metadata tree
 
         :param url: URL to link to
@@ -196,6 +221,7 @@ class WptMetadata(object):
 
 class MetaFile(object):
     def __init__(self, owner, dir_name):
+        # type: (WptMetadata, str) -> None
         """Object representing a single META.yml file
 
         This uses an unusual algorithm for updated; first we reread
@@ -228,13 +254,20 @@ class MetaFile(object):
                 self.links.append(MetaLink.from_file_data(self, link, result))
 
     def _load_file(self, rel_path):
+        # type: (str) -> Union[Dict[str, List[Dict[str, Any]]], Dict[str, List]]
         if self.owner.reader.exists(rel_path):
             data = yaml.safe_load(self.owner.reader.read_path(rel_path))
         else:
             data = {}
         return data
 
-    def iterlinks(self, product=None, test_id=None, subtest=None, status=None):
+    def iterlinks(self,
+                  product=None,  # type: Optional[str]
+                  test_id=None,  # type: str
+                  subtest=None,  # type: Optional[Any]
+                  status=None,  # type: Optional[Any]
+                  ):
+        # type: (...) -> Iterator[Union[Iterator, Iterator[MetaLink]]]
         """Iterator over all links in the file, filtered by arguments"""
         for item in self.links:
             if ((product is None or
@@ -248,6 +281,7 @@ class MetaFile(object):
                 yield item
 
     def write(self, reread=True):
+        # type: (bool) -> bool
         """Write the updated data to the underlying META.yml
 
         :param reread: Reread the underlying data before applying changes
@@ -264,6 +298,7 @@ class MetaFile(object):
         return True
 
     def _get_data(self, reread=True):
+        # type: (bool) -> Dict[str, List[Dict[str, Any]]]
         if not reread:
             data = deepcopy(self._file_data)
         else:
@@ -271,7 +306,10 @@ class MetaFile(object):
 
         return data
 
-    def _update_data(self, data):
+    def _update_data(self,
+                     data,  # type: Dict[str, List[Dict[str, Any]]]
+                     ):
+        # type: (...) -> Union[Dict[str, List[Dict[str, Any]]], Dict[str, List]]
         links_by_state = OrderedDict()
 
         for item in data.get("links", []):
@@ -326,7 +364,15 @@ LinkState = namedtuple("LinkState", ["url", "product", "test_id", "subtest", "st
 
 
 class MetaLink(object):
-    def __init__(self, meta_file, url, product, test_id=None, subtest=None, status=None):
+    def __init__(self,
+                 meta_file,  # type: Optional[MetaFile]
+                 url,  # type: str
+                 product,  # type: str
+                 test_id=None,  # type: str
+                 subtest=None,  # type: Optional[Any]
+                 status=None,  # type: Optional[Any]
+                 ):
+        # type: (...) -> None
         """A single link object"""
         assert test_id.startswith("/")
         self.meta_file = meta_file
@@ -339,6 +385,7 @@ class MetaLink(object):
 
     @classmethod
     def from_file_data(cls, meta_file, link, result):
+        # type: (MetaFile, Dict[str, Any], Dict[str, str]) -> MetaLink
         url = link.get("url")
         product = link.get("product")
         test_id = "/%s/%s" % (meta_file.dir_name, result.get("test"))
@@ -350,6 +397,7 @@ class MetaLink(object):
 
     @property
     def state(self):
+        # type: () -> LinkState
         return LinkState(self.url,
                          self.product,
                          self.test_id,
@@ -361,5 +409,6 @@ class MetaLink(object):
         return "<%s url:%s product:%s test:%s subtest:%s status:%s>" % data
 
     def delete(self):
+        # type: () -> None
         """Remove the link from the owning file"""
         self.meta_file.links.remove(self)

@@ -10,6 +10,12 @@ from .env import Environment
 from .errors import RetryableError
 from .lock import RepoLock
 
+MYPY = False
+if MYPY:
+    from git.repo.base import Repo
+    from typing import Optional
+    from typing import Callable
+
 env = Environment()
 
 
@@ -17,6 +23,7 @@ logger = log.get_logger(__name__)
 
 
 def have_gecko_hg_commit(git_gecko, hg_rev):
+    # type: (Repo, str) -> bool
     try:
         git_gecko.cinnabar.hg2git(hg_rev)
     except ValueError:
@@ -25,6 +32,7 @@ def have_gecko_hg_commit(git_gecko, hg_rev):
 
 
 def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
+    # type: (Repo, Repo, Optional[str]) -> None
     if git_gecko is not None:
         if wait_gecko_commit is not None:
             success = until(lambda: _update_gecko(git_gecko),
@@ -40,6 +48,7 @@ def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
 
 
 def until(func, cond, max_tries=5):
+    # type: (Callable, Callable, int) -> bool
     for i in range(max_tries):
         func()
         if cond():
@@ -51,6 +60,7 @@ def until(func, cond, max_tries=5):
 
 
 def _update_gecko(git_gecko):
+    # type: (Repo) -> None
     with RepoLock(git_gecko):
         logger.info("Fetching mozilla-unified")
         # Not using the built in fetch() function since that tries to parse the output
@@ -62,6 +72,7 @@ def _update_gecko(git_gecko):
 
 
 def _update_wpt(git_wpt):
+    # type: (Repo) -> None
     with RepoLock(git_wpt):
         logger.info("Fetching web-platform-tests")
         git_wpt.git.fetch("origin")
@@ -86,6 +97,7 @@ def pr_for_commit(git_wpt, rev):
 
 
 def gecko_repo(git_gecko, head):
+    # type: (Repo, str) -> str
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
              [(name, ref) for name, ref in iteritems(env.config["gecko"]["refs"])
               if name != "central"])
@@ -130,6 +142,7 @@ def handle_empty_commit(worktree, e):
 
 
 def cherry_pick(worktree, commit):
+    # type: (Repo, str) -> bool
     try:
         worktree.git.cherry_pick(commit)
         return True

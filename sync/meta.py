@@ -12,6 +12,19 @@ from .env import Environment
 from .base import CommitBuilder, iter_tree
 from .lock import mut, MutGuard
 
+MYPY = False
+if MYPY:
+    from sync.downstream import DownstreamSync
+    from typing import Tuple
+    from typing import Any
+    from typing import Optional
+    from git.repo.base import Repo
+    from sync.base import ProcessName
+    from sync.lock import SyncLock
+    from sync.wptmeta import MetaLink
+    from typing import Iterator
+    from typing import Union
+
 
 env = Environment()
 logger = log.get_logger(__name__)
@@ -21,15 +34,18 @@ class GitReader(wptmeta.Reader):
     """Reader that works with a Git repository (without a worktree)"""
 
     def __init__(self, repo, ref="origin/master"):
+        # type: (Repo, str) -> None
         self.repo = repo
         self.repo.remotes.origin.fetch()
         self.pygit2_repo = repos.pygit2_get(repo)
         self.rev = self.pygit2_repo.revparse_single(ref)
 
     def exists(self, rel_path):
+        # type: (str) -> bool
         return rel_path in self.rev.tree
 
     def read_path(self, rel_path):
+        # type: (str) -> str
         entry = self.rev.tree[rel_path]
         return self.pygit2_repo[entry.id].read_raw()
 
@@ -43,9 +59,11 @@ class GitWriter(wptmeta.Writer):
     """Writer that works with a Git repository (without a worktree)"""
 
     def __init__(self, builder):
+        # type: (CommitBuilder) -> None
         self.builder = builder
 
     def write(self, rel_path, data):
+        # type: (str, str) -> None
         self.builder.add_tree({rel_path: data})
 
 
@@ -56,6 +74,7 @@ class NullWriter(object):
 
 class Metadata(object):
     def __init__(self, process_name, create_pr=False, branch="master"):
+        # type: (ProcessName, bool, str) -> None
         """Object for working with a wpt-metadata repository without requiring
         a worktree.
 
@@ -96,6 +115,7 @@ class Metadata(object):
         raise NotImplementedError
 
     def as_mut(self, lock):
+        # type: (SyncLock) -> MutGuard
         return MutGuard(lock, self)
 
     @property
@@ -105,13 +125,16 @@ class Metadata(object):
 
     @classmethod
     def for_sync(cls, sync, create_pr=False):
+        # type: (DownstreamSync, bool) -> Metadata
         return cls(sync.process_name, create_pr=create_pr)
 
     @property
     def lock_key(self):
+        # type: () -> Tuple[str, str]
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def exit_mut(self):
+        # type: () -> None
         ref_name = str(self.process_name)
         message = "Gecko sync update"
         retry = 0
@@ -162,6 +185,7 @@ class Metadata(object):
         self.metadata.writer = NullWriter
 
     def get_remote_ref(self):
+        # type: () -> str
         if not self.create_pr:
             return self.branch
 
@@ -178,6 +202,7 @@ class Metadata(object):
 
     @mut()
     def link_bug(self, test_id, bug_url, product="firefox", subtest=None, status=None):
+        # type: (str, str, str, Optional[Any], Optional[Any]) -> None
         """Add a link to a bug to the metadata
 
         :param test_id: id of the test for which the link applies
@@ -192,11 +217,13 @@ class Metadata(object):
                                   status=status)
 
     def iterbugs(self,
-                 test_id,
-                 product="firefox",
-                 prefixes=None,
-                 subtest=None,
-                 status=None):
+                 test_id,  # type: str
+                 product="firefox",  # type: str
+                 prefixes=None,  # type: Optional[Tuple[str, str]]
+                 subtest=None,  # type: Optional[Any]
+                 status=None,  # type: Optional[Any]
+                 ):
+        # type: (...) -> Iterator[Union[Iterator, Iterator[MetaLink]]]
         if prefixes is None:
             prefixes = (env.bz.bz_url,
                         "https://github.com/wpt/web-platform-tests")

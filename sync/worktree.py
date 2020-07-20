@@ -13,6 +13,17 @@ from .env import Environment
 from .lock import MutGuard, SyncLock, mut
 from .repos import pygit2_get, wrapper_get
 
+MYPY = False
+if MYPY:
+    from typing import Tuple
+    from git.repo.base import Repo
+    from _pygit2 import Worktree as PyGit2Worktree
+    from pygit2.repository import Repository
+    from typing import Iterator
+    from typing import Union
+    from typing import Any
+    from typing import Optional
+
 
 env = Environment()
 
@@ -96,6 +107,7 @@ def cleanup_repo(pygit2_repo, max_count=None):
 
 
 def delete_worktree(process_name, worktree):
+    # type: (ProcessName, PyGit2Worktree) -> None
     assert worktree.path.startswith(os.path.join(env.config["root"],
                                                  env.config["paths"]["worktrees"]))
     with SyncLock.for_process(process_name):
@@ -111,6 +123,7 @@ def delete_worktree(process_name, worktree):
 
 
 def worktrees(pygit2_repo):
+    # type: (Repository) -> Iterator[Union[Iterator, Iterator[PyGit2Worktree]]]
     for name in pygit2_repo.list_worktrees():
         yield pygit2_repo.lookup_worktree(name)
 
@@ -125,6 +138,7 @@ def prune_worktrees(pygit2_repo):
 
 
 def get_max_worktree_count(repo):
+    # type: (Repo) -> Optional[Any]
     repo_wrapper = wrapper_get(repo)
     if not repo_wrapper:
         return None
@@ -145,6 +159,7 @@ class Worktree(object):
     """
 
     def __init__(self, repo, process_name):
+        # type: (Repo, ProcessName) -> None
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
         self._worktree = None
@@ -158,14 +173,17 @@ class Worktree(object):
         self._lock = None
 
     def as_mut(self, lock):
+        # type: (SyncLock) -> MutGuard
         return MutGuard(lock, self)
 
     @property
     def lock_key(self):
+        # type: () -> Tuple[str, str]
         return (self.process_name.subtype, self.process_name.obj_id)
 
     @mut()
     def get(self):
+        # type: () -> Repo
         """Return the worktree.
 
         On first access, the worktree is reset to the current HEAD. Subsequent
@@ -216,6 +234,7 @@ class Worktree(object):
 
     @mut()
     def delete(self):
+        # type: () -> None
         if not os.path.exists(self.path):
             return
         try:

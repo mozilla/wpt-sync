@@ -16,6 +16,12 @@ from .load import get_pr_sync
 from .lock import SyncLock
 from .notify import bugupdate
 
+MYPY = False
+if MYPY:
+    from git.repo.base import Repo
+    from typing import Any
+    from typing import Dict
+
 env = Environment()
 
 logger = log.get_logger(__name__)
@@ -30,6 +36,7 @@ class Handler(object):
 
 
 def handle_pr(git_gecko, git_wpt, event):
+    # type: (Repo, Repo, Dict[str, Any]) -> None
     newrelic.agent.set_transaction_name("handle_pr")
     pr_id = event["number"]
     newrelic.agent.add_custom_parameter("pr", pr_id)

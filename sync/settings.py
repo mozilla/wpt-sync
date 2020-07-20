@@ -6,6 +6,10 @@ import sys
 from collections import defaultdict
 from six.moves.configparser import RawConfigParser
 
+MYPY = False
+if MYPY:
+    from typing import Dict
+
 _config = None
 
 
@@ -53,6 +57,7 @@ def load_files(ini_sync, ini_credentials):
     root, repo_root = get_root()
 
     def nested():
+        # type: () -> Dict
         return defaultdict(nested)
 
     config = nested()
