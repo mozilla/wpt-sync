@@ -151,7 +151,8 @@ RUN set -eux; \
     $PIP install -r /app/wpt-sync/requirements/prod.txt --no-deps --require-hashes \
     && $PIP install -r /app/wpt-sync/requirements/dev.txt --no-deps \
     && $PIP install -r /app/wpt-sync/requirements/mozautomation.txt --no-deps; \
-    if [ "$PYTHON" = "python2" ]; then $PIP install -r /app/wpt-sync/requirements/dev-py2.txt --no-deps; fi;
+    if [ "$PYTHON" = "python2" ]; then $PIP install -r /app/wpt-sync/requirements/dev-py2.txt --no-deps; fi; \
+    if [ "$PYTHON" = "python3" ]; then $PIP install -r /app/wpt-sync/requirements/dev-py3.txt --no-deps; fi;
 
 # /app/wpt-sync: bind mount to src dir (only on dev) or dir with wheels?
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs
