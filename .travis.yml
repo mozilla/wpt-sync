@@ -49,7 +49,41 @@ jobs:
       script:
         - ./bin/run_docker_dev.sh test --py3 --no-flake8
 
-    # Job 3: Static Analysis
+    # Job 4: mypy in Python 3 Docker env
+    - env: docker-wptsync-mypy-py2
+      # Upgrade to newer docker version
+      addons:
+        apt:
+          packages:
+            - docker-ce
+      sudo: required
+      services:
+        - docker
+      install:
+        # Note that mypy always requires py3
+        - ./bin/run_docker_dev.sh build --py3 --test
+        - sudo chown -R 10001 .
+      script:
+        - ./bin/run_docker_dev.sh test --py3 --no-flake8 --no-pytest --mypy-2
+
+    # Job 5: mypy in Python 3 Docker env
+    - env: docker-wptsync-mypy-py3
+      # Upgrade to newer docker version
+      addons:
+        apt:
+          packages:
+            - docker-ce
+      sudo: required
+      services:
+        - docker
+      install:
+        # Note that mypy always requires py3
+        - ./bin/run_docker_dev.sh build --py3 --test
+        - sudo chown -R 10001 .
+      script:
+        - ./bin/run_docker_dev.sh test --py3 --no-flake8 --no-pytest --mypy-3
+
+    # Job 4: Static Analysis
     - env: static-analysis
       sudo: false
       language: python
@@ -59,3 +93,5 @@ jobs:
         - bandit -r sync -ll
   allow_failures:
   - env: docker-wptsync-test-py3
+  - env: docker-wptsync-mypy-py2
+  - env: docker-wptsync-mypy-py3
