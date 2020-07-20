@@ -1,33 +1,38 @@
-_config = None
-_bz = None
-_gh_wpt = None
-
-
 MYPY = False
 if MYPY:
-    from typing import Dict, Optional, Union
-    from sync.bug import Bugzilla, MockBugzilla
-    from sync.gh import GitHub, MockGitHub
+    from typing import Dict, Optional
+    from sync.bug import Bugzilla
+    from sync.gh import GitHub
+
+_config = None  # type: Optional[Dict]
+_bz = None  # type: Optional[Bugzilla]
+_gh_wpt = None  # type: Optional[GitHub]
 
 
 class Environment(object):
     @property
     def config(self):
-        # type: () -> Optional[Dict]
+        # type: () -> Dict
+        assert _config is not None
         return _config
 
     @property
     def bz(self):
-        # type: () -> Union[Bugzilla, MockBugzilla]
+        # type: () -> Bugzilla
+        assert _bz is not None
         return _bz
 
     @property
     def gh_wpt(self):
-        # type: () -> Union[GitHub, MockGitHub]
+        # type: () -> GitHub
+        assert _gh_wpt is not None
         return _gh_wpt
 
 
-def set_env(config, bz, gh_wpt):
+def set_env(config,  # type: Dict
+            bz,  # type: Bugzilla
+            gh_wpt  # type: GitHub
+            ):
     global _config
     global _bz
     global _gh_wpt
