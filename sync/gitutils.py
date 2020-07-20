@@ -35,6 +35,7 @@ def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
     # type: (Repo, Repo, Optional[str]) -> None
     if git_gecko is not None:
         if wait_gecko_commit is not None:
+            assert wait_gecko_commit is not None  # mypy
             success = until(lambda: _update_gecko(git_gecko),
                             lambda: have_gecko_hg_commit(git_gecko, wait_gecko_commit))
             if not success:
@@ -90,10 +91,12 @@ def refs(git, prefix=None):
 
 
 def pr_for_commit(git_wpt, rev):
+    # type: (Repo, str) -> Optional[int]
     prefix = "refs/remotes/origin/pr/"
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
         return int(pr_refs[rev][len(prefix):])
+    return None
 
 
 def gecko_repo(git_gecko, head):
