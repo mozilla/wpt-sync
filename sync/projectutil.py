@@ -14,6 +14,15 @@ import types
 
 import newrelic
 
+MYPY = False
+if MYPY:
+    from typing import Any
+    from typing import Dict
+    from typing import List
+    from typing import Text
+    from typing import Optional
+    from typing import Callable
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,10 +56,12 @@ class Command(object):
             raise e
 
     def __getattr__(self, name):
+        # type: (str) -> Callable
         if name.endswith("_"):
             name = name[:-1]
 
         def call(self, *args, **kwargs):
+            # type: (Any, *Text, **Any) -> Text
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
         self.__dict__[name] = types.MethodType(call, self, self.__class__)
@@ -85,18 +96,22 @@ def create_mock(name):
         _log = []
 
         def __init__(self, path):
+            # type: (Optional[str]) -> None
             self.name = name
             self.path = path
 
         @classmethod
         def set_data(cls, command, value):
+            # type: (str, str) -> None
             cls._data[command] = value
 
         @classmethod
         def get_log(cls):
+            # type: () -> List[Dict[Text, Any]]
             return cls._log
 
         def get(self, *args, **kwargs):
+            # type: (*Text, **Any) -> Text
             data = self._data.get(args[0], "")
             if callable(data):
                 data = data(*args[1:], **kwargs)

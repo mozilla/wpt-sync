@@ -12,6 +12,13 @@ from six.moves import urllib
 from . import log
 from .env import Environment
 
+MYPY = False
+if MYPY:
+    from typing import Text
+    from typing import Optional
+    from typing import Any
+    from typing import Tuple
+
 env = Environment()
 
 logger = log.get_logger(__name__)
@@ -33,6 +40,7 @@ def bz_url_from_api_url(api_url):
 
 
 def bug_number_from_url(url):
+    # type: (str) -> str
     if url is None:
         return None
     bugs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("id")
@@ -44,6 +52,7 @@ status_re = re.compile(r"\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
 
 
 def get_sync_data(whiteboard):
+    # type: (str) -> Tuple[None, None]
     matches = status_re.findall(whiteboard)
     if matches:
         subtype, status = matches[0]
@@ -54,6 +63,7 @@ def get_sync_data(whiteboard):
 
 
 def set_sync_data(whiteboard, subtype, status):
+    # type: (str, str, Optional[str]) -> str
     if subtype is None:
         raise ValueError
 
@@ -91,6 +101,7 @@ class Bugzilla(object):
         return BugContext(self, bug_id)
 
     def bugzilla_url(self, bug_id):
+        # type: (Text) -> Text
         return "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
 
     def id_from_url(self, url, bz_url=None):
@@ -372,15 +383,27 @@ class MockBugzilla(Bugzilla):
         self.dupes = {}
 
     def _log(self, data):
+        # type: (Text) -> None
         data = six.ensure_text(data)
         self.output.write(data)
         self.output.write(u"\n")
 
     def bug_ctx(self, bug_id):
+        # type: (str) -> MockBugContext
         return MockBugContext(self, bug_id)
 
-    def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None, bug_type="task", assign_to_sync=True):
+    def new(self,
+            summary,  # type: str
+            comment,  # type: Text
+            product,  # type: str
+            component,  # type: str
+            whiteboard=None,  # type: str
+            priority=None,  # type: Optional[str]
+            url=None,  # type: Optional[str]
+            bug_type="task",  # type: str
+            assign_to_sync=True,  # type: bool
+            ):
+        # type: (...) -> str
         self._log("Creating a bug in component {product} :: {component}\nSummary: {summary}\n"
                   "Comment: {comment}\nWhiteboard: {whiteboard}\nPriority: {priority}\n"
                   "URL: {url}\nType: {bug_type}\nAssign to sync: {assign_to_sync}".format(
@@ -401,15 +424,19 @@ class MockBugzilla(Bugzilla):
         return str(bug_id)
 
     def comment(self, bug_id, text):
+        # type: (Text, Text) -> None
         self._log("Posting to bug %s:\n%s" % (bug_id, text))
 
     def set_component(self, bug_id, product=None, component=None):
+        # type: (Text, str, str) -> None
         self._log("Setting bug %s product: %s component: %s" % (bug_id, product, component))
 
     def set_whiteboard(self, bug_id, whiteboard):
+        # type: (Text, str) -> None
         self._log("Setting bug %s whiteboard: %s" % (bug_id, whiteboard))
 
     def get_whiteboard(self, bug):
+        # type: (Text) -> str
         return "fake data"
 
     def get_status(self, bug):
@@ -424,25 +451,30 @@ class MockBugzilla(Bugzilla):
 
 class MockBugContext(object):
     def __init__(self, bugzilla, bug_id):
+        # type: (MockBugzilla, str) -> None
         self.bugzilla = bugzilla
         self.bug_id = bug_id
         self.changes = None
         self.comment = None
 
     def __enter__(self):
+        # type: () -> MockBugContext
         self.changes = []
         self.comment = None
         return self
 
     def __exit__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         for item in self.changes:
             self.bugzilla._log("%s\n" % item)
 
     def __setitem__(self, name, value):
+        # type: (str, str) -> None
         self.changes.append("Setting bug %s %s %s" % (self.bug_id,
                                                       name, value))
 
     def needinfo(self, *requestees):
+        # type: (*str) -> None
         for requestee in requestees:
             self.changes.append("Setting bug %s needinfo %s" % (self.bug_id, requestee))
 
@@ -452,6 +484,7 @@ class MockBugContext(object):
                     comment_tags=None,
                     is_private=False,
                     is_markdown=False):
+        # type: (Text, bool, Optional[Any], bool, bool) -> None
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
         self.comment = {"comment": comment,
@@ -486,12 +519,14 @@ class MockBugContext(object):
                             (self.bug_id, body))
 
     def add_depends(self, bug_id):
+        # type: (str) -> None
         self.changes.append("Setting bug %s add_depends %s" % (self.bug_id, bug_id))
 
     def remove_depends(self, bug_id):
         self.changes.append("Setting bug %s remove_depends %s" % (self.bug_id, bug_id))
 
     def add_blocks(self, bug_id):
+        # type: (Text) -> None
         self.changes.append("Setting bug %s add_blocks %s" % (self.bug_id, bug_id))
 
     def remove_blocks(self, bug_id):

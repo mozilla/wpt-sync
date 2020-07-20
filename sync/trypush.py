@@ -23,6 +23,23 @@ from .lock import constructor, mut
 from .errors import AbortError, RetryableError
 from .projectutil import Mach
 
+MYPY = False
+if MYPY:
+    from typing import Any
+    from typing import Dict
+    from sync.downstream import DownstreamSync
+    from sync.landing import LandingSync
+    from sync.lock import SyncLock
+    from typing import List
+    from typing import Optional
+    from typing import Union
+    from typing import Text
+    from sync.tc import TaskGroupView
+    from git.repo.base import Repo
+    from typing import Tuple
+    from sync.tc import TaskGroup
+
+
 logger = log.get_logger(__name__)
 env = Environment()
 
@@ -31,7 +48,15 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 
 
 class TryCommit(object):
-    def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
+    def __init__(self,
+                 git_gecko,  # type: Repo
+                 worktree,  # type: Repo
+                 tests_by_type,  # type: Optional[Dict[str, List[str]]]
+                 rebuild,  # type: int
+                 hacks=True,  # type: bool
+                 **kwargs  # type: Any
+                 ):
+        # type: (...) -> None
         self.git_gecko = git_gecko
         self.worktree = worktree
         self.tests_by_type = tests_by_type
@@ -42,16 +67,19 @@ class TryCommit(object):
         self.reset = None
 
     def __enter__(self):
+        # type: () -> TryFuzzyCommit
         self.create()
         return self
 
     def __exit__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         self.cleanup()
 
     def create(self):
         pass
 
     def cleanup(self):
+        # type: () -> None
         if self.reset is not None:
             logger.debug("Resetting working tree to %s" % self.reset)
             self.worktree.head.reset(self.reset, working_tree=True)
@@ -84,6 +112,7 @@ class TryCommit(object):
         raise NotImplementedError
 
     def read_treeherder(self, status, output):
+        # type: (int, Text) -> Optional[Any]
         if status != 0:
             logger.error("Failed to push to try:\n%s" % output)
             raise RetryableError(AbortError("Failed to push to try"))
@@ -103,7 +132,15 @@ class TryCommit(object):
 
 
 class TryFuzzyCommit(TryCommit):
-    def __init__(self, git_gecko, worktree, tests_by_type, rebuild, hacks=True, **kwargs):
+    def __init__(self,
+                 git_gecko,  # type: Repo
+                 worktree,  # type: Repo
+                 tests_by_type,  # type: Optional[Dict[str, List[str]]]
+                 rebuild,  # type: int
+                 hacks=True,  # type: bool
+                 **kwargs  # type: Any
+                 ):
+        # type: (...) -> None
         super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
                                              hacks=hacks, **kwargs)
         self.queries = self.extra_args.get("queries",
@@ -115,6 +152,7 @@ class TryFuzzyCommit(TryCommit):
         self.artifact = self.extra_args.get("artifact", True)
 
     def create(self):
+        # type: () -> None
         if self.hacks:
             self.reset = self.worktree.head.commit.hexsha
             self.apply_hacks()
@@ -123,6 +161,7 @@ class TryFuzzyCommit(TryCommit):
             self.worktree.index.commit(message="Apply task hacks before running try")
 
     def _push(self):
+        # type: () -> Tuple[int, Text]
         self.worktree.git.reset("--hard")
         mach = Mach(self.worktree.working_dir)
         # Gross hack to create a objdir until we figure out why this is failing
@@ -195,8 +234,18 @@ class TryPush(base.ProcessData):
     @classmethod
     @constructor(lambda args: (args["sync"].process_name.subtype,
                                args["sync"].process_name.obj_id))
-    def create(cls, lock, sync, affected_tests=None, stability=False, hacks=True,
-               try_cls=TryFuzzyCommit, rebuild_count=None, check_open=True, **kwargs):
+    def create(cls,
+               lock,  # type: SyncLock
+               sync,  # type: Union[DownstreamSync, LandingSync]
+               affected_tests=None,  # type: Optional[Dict[str, List[str]]]
+               stability=False,  # type: bool
+               hacks=True,  # type: bool
+               try_cls=TryFuzzyCommit,  # type: type
+               rebuild_count=None,  # type: Optional[int]
+               check_open=True,  # type: bool
+               **kwargs  # type: Any
+               ):
+        # type: (...) -> TryPush
         logger.info("Creating try push for PR %s" % sync.pr)
         if check_open and not tree.is_open("try"):
             logger.info("try is closed")
@@ -268,6 +317,7 @@ class TryPush(base.ProcessData):
 
     @property
     def treeherder_url(self):
+        # type: () -> Text
         return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % self.try_rev
 
     def __eq__(self, other):
@@ -277,20 +327,24 @@ class TryPush(base.ProcessData):
 
     @property
     def created(self):
+        # type: (str) -> Optional[Any]
         return self.get("created")
 
     @created.setter
     @mut()
     def created(self, value):
+        # type: (str) -> None
         self["created"] = value
 
     @property
     def try_rev(self):
+        # type: () -> Optional[Text]
         return self.get("try-rev")
 
     @try_rev.setter
     @mut()
     def try_rev(self, value):
+        # type: (str) -> None
         idx = TryCommitIndex(self.repo)
         if self.try_rev is not None:
             idx.delete(idx.make_key(self.try_rev), self.process_name)
@@ -299,11 +353,13 @@ class TryPush(base.ProcessData):
 
     @property
     def taskgroup_id(self):
+        # type: () -> Optional[Text]
         return self.get("taskgroup-id")
 
     @taskgroup_id.setter
     @mut()
     def taskgroup_id(self, value):
+        # type: (str) -> None
         self["taskgroup-id"] = value
         idx = TaskGroupIndex(self.repo)
         if value:
@@ -311,11 +367,13 @@ class TryPush(base.ProcessData):
 
     @property
     def status(self):
+        # type: () -> Text
         return self.get("status")
 
     @status.setter
     @mut()
     def status(self, value):
+        # type: (str) -> None
         if value not in self.statuses:
             raise ValueError("Unrecognised status %s" % value)
         current = self.get("status")
@@ -327,6 +385,7 @@ class TryPush(base.ProcessData):
 
     @property
     def wpt_head(self):
+        # type: () -> Text
         return self.get("wpt-head")
 
     def sync(self, git_gecko, git_wpt):
@@ -346,15 +405,18 @@ class TryPush(base.ProcessData):
 
     @property
     def stability(self):
+        # type: () -> bool
         """Is the current try push a stability test"""
         return self["stability"]
 
     @property
     def bug(self):
+        # type: () -> Text
         return self.get("bug")
 
     @property
     def infra_fail(self):
+        # type: () -> bool
         """Does this push have infrastructure failures"""
         if self.status == "infra-fail":
             self.status = "complete"
@@ -362,6 +424,7 @@ class TryPush(base.ProcessData):
         return self.get("infra-fail", False)
 
     def notify_failed_builds(self):
+        # type: () -> None
         tasks = tc.TaskGroup(self.taskgroup_id).view()
         failed = tasks.failed_builds()
 
@@ -383,6 +446,7 @@ class TryPush(base.ProcessData):
     @infra_fail.setter
     @mut()
     def infra_fail(self, value):
+        # type: (bool) -> None
         """Set the status of this push's infrastructure failure state"""
         if value == self.get("infra-fail"):
             return
@@ -392,14 +456,17 @@ class TryPush(base.ProcessData):
 
     @property
     def accept_failures(self):
+        # type: () -> bool
         return self.get("accept-failures", False)
 
     @accept_failures.setter
     @mut()
     def accept_failures(self, value):
+        # type: (bool) -> None
         self["accept-failures"] = value
 
     def tasks(self):
+        # type: () -> TryPushTasks
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
@@ -415,11 +482,13 @@ class TryPush(base.ProcessData):
         return TryPushTasks(tasks)
 
     def log_path(self):
+        # type: () -> str
         return os.path.join(env.config["root"], env.config["paths"]["try_logs"],
                             "try", self.try_rev)
 
     @mut()
     def download_logs(self, wpt_tasks, first_only=False):
+        # type: (TryPushTasks, bool) -> TaskGroupView
         """Download all the wptreport logs for the current try push
 
         :return: List of paths to logs
@@ -431,6 +500,7 @@ class TryPush(base.ProcessData):
         exclude = set()
 
         def included(t):
+            # type: (Dict[str, Dict[str, Any]]) -> bool
             # if a name is on the excluded list, only download SUCCESS job logs
             name = t.get("task", {}).get("metadata", {}).get("name")
             state = t.get("status", {}).get("state")
@@ -488,14 +558,17 @@ class TryPushTasks(object):
     _min_success = 0.7
 
     def __init__(self, tasks):
+        # type: (TaskGroup) -> None
         """Wrapper object that implements sync-specific business logic on top of a
         list of tasks"""
         self.wpt_tasks = tasks.view(tc.is_suite_fn("web-platform-tests"))
 
     def __len__(self):
+        # type: () -> int
         return len(self.wpt_tasks)
 
     def complete(self, allow_unscheduled=False):
+        # type: (bool) -> bool
         return self.wpt_tasks.is_complete(allow_unscheduled)
 
     def validate(self):
@@ -514,13 +587,16 @@ class TryPushTasks(object):
         return True
 
     def retrigger_failures(self, count=_retrigger_count):
+        # type: (int) -> int
         task_states = self.wpt_states()
 
         def is_failure(task_data):
+            # type: (Dict) -> bool
             states = task_data["states"]
             return states[tc.FAIL] > 0 or states[tc.EXCEPTION] > 0
 
         def is_excluded(name):
+            # type: (str) -> bool
             return "-aarch64" in name
 
         failures = [data["task_id"] for name, data in iteritems(task_states)
@@ -533,6 +609,7 @@ class TryPushTasks(object):
         return retriggered_count
 
     def wpt_states(self):
+        # type: () -> Dict
         # e.g. {"test-linux32-stylo-disabled/opt-web-platform-tests-e10s-6": {
         #           "task_id": "abc123"
         #           "states": {
@@ -552,6 +629,7 @@ class TryPushTasks(object):
         return task_states
 
     def failed_builds(self):
+        # type: () -> TaskGroupView
         """Return the builds that failed"""
         return self.wpt_tasks.failed_builds()
 
@@ -561,6 +639,7 @@ class TryPushTasks(object):
         return builds.filter(tc.is_status_fn({tc.SUCCESS}))
 
     def retriggered_wpt_states(self):
+        # type: () -> Dict[str, Dict]
         # some retrigger requests may have failed, and we try to ignore
         # manual/automatic retriggers made outside of wptsync
         threshold = max(1, self._retrigger_count / 2)
@@ -569,6 +648,7 @@ class TryPushTasks(object):
                 if sum(itervalues(data["states"])) > threshold}
 
     def success(self):
+        # type: () -> bool
         """Check if all the wpt tasks in a try push ended with a successful status"""
         wpt_tasks = self.wpt_tasks
         if wpt_tasks:
@@ -583,6 +663,7 @@ class TryPushTasks(object):
         return False
 
     def has_completed_tests(self):
+        # type: () -> bool
         """Check if all the wpt tasks in a try push completed"""
         wpt_tasks = self.wpt_tasks.filter(tc.is_test)
         if wpt_tasks:
@@ -591,6 +672,7 @@ class TryPushTasks(object):
         return False
 
     def success_rate(self):
+        # type: () -> float
         wpt_tasks = self.wpt_tasks
 
         if not wpt_tasks:
@@ -600,4 +682,5 @@ class TryPushTasks(object):
         return float(len(success)) / len(wpt_tasks)
 
     def failure_limit_exceeded(self, target_rate=_min_success):
+        # type: (float) -> bool
         return self.success_rate() < target_rate

@@ -10,6 +10,15 @@ from six import iteritems
 from . import log
 from .env import Environment
 from .projectutil import Mach
+MYPY = False
+if MYPY:
+    from typing import Text
+    from typing import Dict
+    from typing import Set
+    from git.repo.base import Repo
+    from typing import Union
+    from typing import List
+    from typing import Tuple
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -19,6 +28,7 @@ re_cache = {}
 
 
 def match(path, pattern):
+    # type: (str, str) -> bool
     '''
     Return whether the given path matches the given pattern.
     An asterisk can be used to match any string, including the null string, in
@@ -45,6 +55,7 @@ def match(path, pattern):
 
 
 def remove_obsolete(path, moves=None):
+    # type: (str, Dict[str, str]) -> Text
     from lib2to3 import pygram, pytree, patcomp
     from lib2to3.pgen2 import driver
 
@@ -93,6 +104,7 @@ def remove_obsolete(path, moves=None):
 
 
 def compute_moves(moves, unmatched_patterns):
+    # type: (Dict[str, str], Set[str]) -> Dict[str, str]
     updated_patterns = {}
     dest_paths = defaultdict(list)
     for pattern in unmatched_patterns:
@@ -124,6 +136,7 @@ def compute_moves(moves, unmatched_patterns):
 
 
 def components_for_wpt_paths(git_gecko, wpt_paths):
+    # type: (Repo, Union[Set[Text], Set[str]]) -> Dict
     path_prefix = env.config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in wpt_paths]
 
@@ -145,7 +158,11 @@ def components_for_wpt_paths(git_gecko, wpt_paths):
     return components
 
 
-def get(git_gecko, files_changed, default):
+def get(git_gecko,  # type: Repo
+        files_changed,  # type: Union[Set[Text], Set[str]]
+        default,  # type: Tuple[str, str]
+        ):
+    # type: (...) -> Union[List[str], Tuple[str, str]]
     if not files_changed:
         return default
 
@@ -165,6 +182,7 @@ def get(git_gecko, files_changed, default):
 
 
 def mozbuild_path(worktree):
+    # type: (Repo) -> str
     return os.path.join(worktree.working_dir,
                         env.config["gecko"]["path"]["wpt"],
                         os.pardir,
@@ -172,10 +190,12 @@ def mozbuild_path(worktree):
 
 
 def update(worktree, renames):
+    # type: (Repo, Dict[Text, Text]) -> None
     mozbuild_file_path = mozbuild_path(worktree)
     tests_base = os.path.split(env.config["gecko"]["path"]["wpt"])[1]
 
     def tests_rel_path(path):
+        # type: (Text) -> Text
         return os.path.join(tests_base, path)
 
     mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)

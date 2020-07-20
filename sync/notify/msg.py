@@ -9,10 +9,29 @@ from ..env import Environment
 
 from .results import statuses, browsers
 
+MYPY = False
+if MYPY:
+    from sync.notify.results import Result
+    from sync.notify.results import SubtestResult
+    from sync.notify.results import TestResult
+    from typing import Text
+    from typing import Union
+    from typing import Dict
+    from typing import Iterator
+    from sync.notify.results import Results
+    from typing import List
+    from typing import Optional
+    from typing import Tuple
+
 env = Environment()
 
 
-def status_str(result, browser="firefox", include_status="head", include_other_browser=False):
+def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
+               browser="firefox",  # type: str
+               include_status="head",  # type: str
+               include_other_browser=False,  # type: bool
+               ):
+    # type: (...) -> Text
     """Construct a string containing the statuses for a results.
 
     :param result: The Result object for which to construct the string.
@@ -57,6 +76,7 @@ def status_str(result, browser="firefox", include_status="head", include_other_b
 
 
 def summary_value(result_data):
+    # type: (Dict) -> str
     by_result = defaultdict(list)
     for job_name, value in iteritems(result_data):
         by_result[value].append(job_name)
@@ -69,6 +89,7 @@ def summary_value(result_data):
 
 
 def bug_str(url):
+    # type: (str) -> str
     """Create a bug string for a given bug url"""
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
@@ -79,6 +100,7 @@ def bug_str(url):
 
 
 def list_join(items):
+    # type: (Iterator) -> str
     """Join a list of strings using commands, with "and" before the final item."""
     items = list(items)
     if len(items) == 0:
@@ -91,6 +113,7 @@ def list_join(items):
 
 
 def summary_message(results):
+    # type: (Results) -> str
     """Generate a summary message for results indicating how many tests ran"""
     summary = results.summary()
 
@@ -135,6 +158,7 @@ def summary_message(results):
 
 
 def links_message(results):
+    # type: (Results) -> str
     """Generate a list of relevant links for the results"""
     data = []
 
@@ -155,6 +179,7 @@ def links_message(results):
 
 
 def detail_message(results):
+    # type: (Results) -> List[Text]
     """Generate a message for results highlighting specific noteworthy test outcomes"""
     data = []
 
@@ -185,7 +210,13 @@ def detail_message(results):
     return data
 
 
-def detail_part(details_type, iterator, include_bugs, include_status, include_other_browser):
+def detail_part(details_type,  # type: Optional[str]
+                iterator,  # type: Iterator[Tuple[str, str, Union[Result, TestResult]]]
+                include_bugs,  # type: Optional[Tuple[str, ...]]
+                include_status,  # type: Optional[str]
+                include_other_browser,  # type: bool
+                ):
+    # type: (...) -> Optional[Text]
     """Generate a message for a specific class of notable results.
 
     :param details_type: The name of the results class
@@ -242,6 +273,7 @@ def detail_part(details_type, iterator, include_bugs, include_status, include_ot
 
 
 def for_results(results):
+    # type: (Results) -> Tuple[Text, None]
     """Generate a notification message for results
 
     :param results: a Results object
@@ -265,6 +297,7 @@ def for_results(results):
 
 
 def truncate_message(parts):
+    # type: (List[str]) -> Tuple[bool, Text]
     """Take an iterator of message parts and return a string consisting of
     all the parts starting from the first that will fit into a
     bugzilla comment, seperated by new lines.

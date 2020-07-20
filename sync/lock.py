@@ -7,6 +7,18 @@ import filelock
 from . import log
 from .env import Environment
 
+MYPY = False
+if MYPY:
+    from git.repo.base import Repo
+    from typing import Any
+    from typing import Optional
+    from sync.base import BranchRefObject
+    from sync.sync import SyncData
+    from typing import Union
+    from sync.base import ProcessName
+    from typing import Text
+    from typing import List
+
 env = Environment()
 
 logger = log.get_logger(__name__)
@@ -111,10 +123,12 @@ class Lock(object):
     locks = {}
 
     def __init__(self, *args):
+        # type: (*Any) -> None
         self.path = self.lock_path(*args)
         self.lock = filelock.FileLock(self.path)
 
     def __enter__(self):
+        # type: () -> Union[RepoLock, SyncLock]
         if self.path in self.locks:
             # If this is already locked by the current process
             # then locking again is a no-op
@@ -124,6 +138,7 @@ class Lock(object):
         return self
 
     def __exit__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         if self.locks[self.path] != self:
             return
         del self.locks[self.path]
@@ -137,10 +152,12 @@ class Lock(object):
 
 class RepoLock(Lock):
     def __init__(self, repo):
+        # type: (Repo) -> None
         super(RepoLock, self).__init__(repo)
 
     @staticmethod
     def lock_path(repo):
+        # type: (Repo) -> str
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
@@ -156,6 +173,7 @@ class ProcessLock(Lock):
     locks = {}
 
     def __init__(self, sync_type, obj_id):
+        # type: (Text, Optional[str]) -> None
         assert sync_type in self.lock_per_obj | self.lock_per_type
 
         if sync_type in self.lock_per_type:
@@ -169,6 +187,7 @@ class ProcessLock(Lock):
 
     @classmethod
     def for_process(cls, process_name):
+        # type: (ProcessName) -> SyncLock
         """Get the SyncLock for the provided ProcessName."""
         # This is sort of an antipattern because it requires the class to know about consumers.
         # But it also enforces some invariants to ensure that things have the right kind of
@@ -179,6 +198,7 @@ class ProcessLock(Lock):
         return cls(sync_type, obj_id)
 
     def check(self, sync_type, obj_id):
+        # type: (Text, str) -> None
         """Check that the current lock is valid for the provided sync_type and obj_id"""
         if sync_type in self.lock_per_type:
             obj_id = None
@@ -195,6 +215,7 @@ class ProcessLock(Lock):
 
     @staticmethod
     def lock_path(obj_type, sync_type, obj_id):
+        # type: (str, Text, Optional[str]) -> Text
         if obj_id is None:
             filename = "%s_%s.lock" % (obj_type, sync_type)
         else:
@@ -224,7 +245,12 @@ class ProcLock(ProcessLock):
 
 
 class MutGuard(object):
-    def __init__(self, lock, instance, props=None):
+    def __init__(self,
+                 lock,  # type: SyncLock
+                 instance,  # type: Any
+                 props=None,  # type: Optional[List[Any]]
+                 ):
+        # type: (...) -> None
         """Context Manager wrapping an object that is to be accessed for mutation.
 
         Mutability is re-entrant in the sense that if we already have a certain object
@@ -239,6 +265,7 @@ class MutGuard(object):
         self.took_lock = None
 
     def __enter__(self):
+        # type: () -> Any
         logger.debug("Making object mutable %r" % self.instance)
         if self.instance._lock is not None:
             if self.instance._lock is not self.lock:
@@ -257,6 +284,7 @@ class MutGuard(object):
         return self.instance
 
     def __exit__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         try:
             if not self.took_lock:
                 return
@@ -286,6 +314,7 @@ class mut(object):
 
     def __call__(self, f):
         def inner(*args, **kwargs):
+            # type: (*Any, **Any) -> Optional[Repo]
             arg_values = inspect.getcallargs(f, *args, **kwargs)
 
             for arg in self.args:
@@ -314,6 +343,7 @@ class constructor(object):
 
     def __call__(self, f):
         def inner(cls, lock, *args, **kwargs):
+            # type: (Any, SyncLock, *Any, **Any) -> Union[BranchRefObject, SyncData]
             if lock is None:
                 raise ValueError("Tried to access constructor %s without locking")
 

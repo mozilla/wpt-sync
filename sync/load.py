@@ -5,12 +5,25 @@ from six import itervalues
 from . import log
 from .env import Environment
 
+MYPY = False
+if MYPY:
+    from git.repo.base import Repo
+    from sync.downstream import DownstreamSync
+    from sync.upstream import UpstreamSync
+    from typing import Text
+    from typing import Union
+
 env = Environment()
 
 logger = log.get_logger(__name__)
 
 
-def get_pr_sync(git_gecko, git_wpt, pr_id, log=True):
+def get_pr_sync(git_gecko,  # type: Repo
+                git_wpt,  # type: Repo
+                pr_id,  # type: Union[Text, int]
+                log=True,  # type: bool
+                ):
+    # type: (...) -> Union[DownstreamSync, UpstreamSync]
     from . import downstream
     from . import upstream
 

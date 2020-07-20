@@ -16,6 +16,25 @@ from ..lock import mut
 from ..meta import Metadata
 from ..projectutil import Mach
 
+MYPY = False
+if MYPY:
+    from sync.downstream import DownstreamSync
+    from sync.notify.results import Results
+    from sync.notify.results import TestResult
+    from typing import Dict
+    from typing import List
+    from typing import Tuple
+    from typing import Union
+    from git.repo.base import Repo
+    from typing import Text
+    from typing import Any
+    from typing import Optional
+    from typing import Iterator
+    from test_notify_bugs import Sync
+    from mock.mock import Mock
+
+    Result = Tuple[str, Optional[str], TestResult]
+
 logger = log.get_logger(__name__)
 env = Environment()
 
@@ -35,6 +54,7 @@ be cause the bot to automatically update or remove the annotation.
 
 
 def test_ids_to_paths(git_work, test_ids):
+    # type: (Repo, List[str]) -> Dict[Text, List[Text]]
     mach = Mach(git_work.working_dir)
     data = {}
     min_idx = 0
@@ -52,6 +72,7 @@ def test_ids_to_paths(git_work, test_ids):
 
 
 def fallback_test_ids_to_paths(test_ids):
+    # type: (List[str]) -> Dict
     """Fallback for known rules mapping test_id to path, for cases where we
     can't read the manifest"""
     data = defaultdict(list)
@@ -80,6 +101,7 @@ def fallback_test_ids_to_paths(test_ids):
 
 
 def filter_test_failures(test, subtest, result):
+    # type: (str, Optional[Any], TestResult) -> bool
     if result.has_link():
         return False
     if result.has_regression("firefox"):
@@ -98,7 +120,10 @@ def filter_test_failures(test, subtest, result):
 
 
 @mut('sync')
-def for_sync(sync, results):
+def for_sync(sync,  # type: DownstreamSync
+             results,  # type: Results
+             ):
+    # type: (...) -> Dict[str, List[Tuple[str, str, TestResult, str]]]
     """Create the bugs for followup work for test problems found in a sync.
 
     This creates bugs that will be owned by the triage owner of the component
@@ -219,12 +244,14 @@ def for_sync(sync, results):
 
 class LengthCappedStringBuilder(object):
     def __init__(self, max_length):
+        # type: (int) -> None
         """Builder for a string that must not exceed a given length"""
         self.max_length = max_length
         self.data = []
         self.current_length = 0
 
     def append(self, other):
+        # type: (str) -> bool
         """Add a string the end of the data. Returns True if the add was
         a success i.e. the new string is under the length limit, otherwise
         False"""
@@ -236,15 +263,18 @@ class LengthCappedStringBuilder(object):
         return True
 
     def has_capacity(self, chars):
+        # type: (int) -> bool
         """Check if we have chars remaining capacity in the string"""
         return self.current_length + chars <= self.max_length
 
     def get(self):
+        # type: () -> str
         """Return the complete string"""
         return "".join(self.data)
 
 
 def split_id(test_id):
+    # type: (str) -> Tuple[str, ...]
     """Convert a test id into a list of path parts, preserving the hash
     and query fragments on the final part.
 
@@ -269,7 +299,9 @@ def split_id(test_id):
     return tuple(parts)
 
 
-def get_common_prefix(test_ids):
+def get_common_prefix(test_ids  # type: Iterator[str]
+                      ):
+    # type: (...) -> Tuple[List[Tuple[str, ...]], Tuple[str, ...]]
     """Given a list of test ids, return the paths split into directory parts,
     and the longest common prefix directory shared by all the inputs.
 
@@ -292,7 +324,12 @@ def get_common_prefix(test_ids):
     return split_names, common_prefix
 
 
-def make_summary(test_results, prefix, max_length=255, max_tests=3):
+def make_summary(test_results,  # type: List[Result]
+                 prefix,  # type: str
+                 max_length=255,  # type: int
+                 max_tests=3,  # type: int
+                 ):
+    # type: (...) -> str
     """Construct a summary for the bugs based on the test results.
 
     The approach here is to start building the string up using the
@@ -358,7 +395,12 @@ def make_summary(test_results, prefix, max_length=255, max_tests=3):
     return summary.get()
 
 
-def bug_data_crash(sync, test_results, treeherder_url, wpt_sha):
+def bug_data_crash(sync,  # type: Any
+                   test_results,  # type: List[Tuple[str, str, TestResult]]
+                   treeherder_url,  # type: str
+                   wpt_sha,  # type: str
+                   ):
+    # type: (...) -> Tuple[str, str]
     summary = make_summary(test_results,
                            "New wpt crashes")
 
@@ -391,7 +433,12 @@ These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
     return summary, comment
 
 
-def bug_data_failure(sync, test_results, treeherder_url, wpt_sha):
+def bug_data_failure(sync,  # type: Union[DownstreamSync, Sync]
+                     test_results,  # type: List[Tuple[str, Optional[str], TestResult]]
+                     treeherder_url,  # type: str
+                     wpt_sha,  # type: str
+                     ):
+    # type: (...) -> Tuple[str, str]
     summary = make_summary(test_results,
                            "New wpt failures")
 
@@ -442,6 +489,7 @@ These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
 
 
 def make_bug(summary, comment, product, component, depends):
+    # type: (str, str, str, str, Union[List[Mock], List[str]]) -> str
     bug_id = env.bz.new(summary, comment, product, component, whiteboard="[wpt]",
                         bug_type="defect", assign_to_sync=False)
     with env.bz.bug_ctx(bug_id) as bug:
@@ -451,7 +499,10 @@ def make_bug(summary, comment, product, component, depends):
 
 
 @mut('sync')
-def update_metadata(sync, bugs):
+def update_metadata(sync,  # type: DownstreamSync
+                    bugs,  # type: Dict[str, List[Tuple[str, Optional[str], TestResult, str]]]
+                    ):
+    # type: (...) -> None
     newrelic.agent.record_custom_event("sync_bug_metadata", params={
         "sync_bug": sync.bug,
         "bugs": [bug_id for bug_id, _ in iteritems(bugs)]

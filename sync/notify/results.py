@@ -15,6 +15,21 @@ from ..errors import RetryableError
 from ..meta import Metadata
 from .. import wptfyi
 
+MYPY = False
+if MYPY:
+    from typing import Union
+    from typing import Optional
+    from typing import Text
+    from typing import Any
+    from typing import List
+    from typing import Callable
+    from typing import Iterator
+    from typing import Tuple
+    from typing import Dict
+    from typing import Set
+    from mypy_extensions import NoReturn
+
+
 logger = log.get_logger(__name__)
 env = Environment()
 
@@ -26,12 +41,14 @@ browsers = ["firefox", "chrome", "safari"]
 
 class StatusResult(object):
     def __init__(self, base=None, head=None):
+        # type: (Optional[Any], Optional[Any]) -> None
         self.base = None
         self.head = None
         self.head_expected = []
         self.base_expected = []
 
     def set(self, has_changes, status, expected):
+        # type: (bool, Text, Union[List[Text], List[str]]) -> None
         if has_changes:
             self.head = status
             self.head_expected = expected
@@ -40,12 +57,15 @@ class StatusResult(object):
             self.base_expected = expected
 
     def is_crash(self):
+        # type: () -> bool
         return self.head == "CRASH"
 
     def is_new_non_passing(self):
+        # type: () -> bool
         return self.base is None and self.head not in passing_statuses
 
     def is_regression(self):
+        # type: () -> bool
         # Regression if we go from a pass to a fail or a fail to a worse
         # failure and the result isn't marked as a known intermittent
 
@@ -57,25 +77,32 @@ class StatusResult(object):
                  self.head not in self.head_expected))
 
     def is_disabled(self):
+        # type: () -> bool
         return self.head == "SKIP"
 
 
 class Result(object):
     def __init__(self):
+        # type: () -> None
         # Mapping {browser: {platform: StatusResult}}
         self.statuses = defaultdict(lambda: defaultdict(StatusResult))
         self.bug_links = []
 
-    def iter_filter_status(self, fn):
+    def iter_filter_status(self,
+                           fn,  # type: Callable
+                           ):
+        # type: (...) -> Iterator[Union[Iterator, Iterator[Tuple[str, str, StatusResult]]]]
         for browser, by_platform in iteritems(self.statuses):
             for platform, status in iteritems(by_platform):
                 if fn(browser, platform, status):
                     yield browser, platform, status
 
     def set_status(self, browser, job_name, run_has_changes, status, expected):
+        # type: (str, str, bool, Text, Union[List[Text], List[str]]) -> None
         self.statuses[browser][job_name].set(run_has_changes, status, expected)
 
     def is_consistent(self, browser, target="head"):
+        # type: (str, str) -> bool
         assert target in ["base", "head"]
         browser_results = self.statuses.get(browser, {})
         if not browser_results:
@@ -86,6 +113,7 @@ class Result(object):
                    for result in itervalues(browser_results))
 
     def is_browser_only_failure(self, target_browser="firefox"):
+        # type: (str) -> bool
         gh_target = self.statuses[target_browser].get("GitHub")
         gh_other = [self.statuses.get(browser, {}).get("GitHub")
                     for browser in browsers
@@ -129,21 +157,25 @@ class Result(object):
         return True
 
     def has_crash(self, target_browser="firefox"):
+        # type: (str) -> bool
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_crash())))
 
     def has_new_non_passing(self, target_browser="firefox"):
+        # type: (str) -> bool
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_new_non_passing())))
 
     def has_regression(self, target_browser="firefox"):
+        # type: (str) -> bool
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_regression())))
 
     def has_disabled(self, target_browser="firefox"):
+        # type: (str) -> bool
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_disabled())))
@@ -159,6 +191,7 @@ class Result(object):
             lambda _browser, _platform, status: status.head in passing_statuses))
 
     def has_link(self, status=None):
+        # type: (Optional[str]) -> bool
         if status is None:
             return len(self.bug_links) > 0
         return any(item for item in self.bug_links if item.status == status)
@@ -166,6 +199,7 @@ class Result(object):
 
 class TestResult(Result):
     def __init__(self):
+        # type: () -> None
         # Mapping {subtestname: SubtestResult}
         self.subtests = defaultdict(SubtestResult)
         super(TestResult, self).__init__()
@@ -177,6 +211,7 @@ class SubtestResult(Result):
 
 class Results(object):
     def __init__(self):
+        # type: () -> None
         # Mapping of {test: TestResult}
         self.test_results = defaultdict(TestResult)
         self.errors = []
@@ -184,17 +219,20 @@ class Results(object):
         self.treeherder_url = None
 
     def iter_results(self):
+        # type: () -> Iterator[Any]
         for test_name, result in iteritems(self.test_results):
             yield test_name, None, result
             for subtest_name, subtest_result in iteritems(result.subtests):
                 yield test_name, subtest_name, subtest_result
 
     def iter_filter(self, fn):
+        # type: (Callable) -> Iterator[Any]
         for test_name, subtest_name, result in self.iter_results():
             if fn(test_name, subtest_name, result):
                 yield test_name, subtest_name, result
 
     def add_jobs_from_log_files(self, logs_no_changes, logs_with_changes):
+        # type: (Dict[str, Dict], Dict[str, Dict]) -> None
         for (browser_logs, run_has_changes) in [(logs_with_changes, True),
                                                 (logs_no_changes, False)]:
             for browser, job_logs in iteritems(browser_logs):
@@ -212,6 +250,7 @@ class Results(object):
                         self.add_log(json_data, browser, job_name, run_has_changes)
 
     def add_log(self, data, browser, job_name, run_has_changes):
+        # type: (Dict[Text, Any], str, str, bool) -> None
         for test in data["results"]:
             use_result = run_has_changes or test["test"] in self.log_data
             if use_result:
@@ -247,6 +286,7 @@ class Results(object):
         return browsers
 
     def job_names(self, browser):
+        # type: (str) -> Set[str]
         job_names = set()
         for result in itervalues(self.test_results):
             if browser in result.statuses:
@@ -255,6 +295,7 @@ class Results(object):
         return job_names
 
     def summary(self):
+        # type: () -> Dict
         summary = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
         # Work out how many tests ran, etc.
 
@@ -262,6 +303,7 @@ class Results(object):
         summary["subtests"] = 0
 
         def update_for_result(result):
+            # type: (Union[SubtestResult, TestResult]) -> None
             for browser, browser_result in iteritems(result.statuses):
                 for job_name, job_result in iteritems(browser_result):
                     summary[job_result.head][browser][job_name] += 1
@@ -275,23 +317,29 @@ class Results(object):
         return summary
 
     def iter_crashes(self, target_browser="firefox"):
+        # type: (str) -> Iterator
         return self.iter_filter(lambda _test, _subtest, result:
                                 result.has_crash(target_browser))
 
     def iter_new_non_passing(self, target_browser="firefox"):
+        # type: (str) -> Iterator
         return self.iter_filter(lambda _test, _subtest, result:
                                 result.has_new_non_passing(target_browser))
 
     def iter_regressions(self, target_browser="firefox"):
+        # type: (str) -> Iterator
         return self.iter_filter(lambda _test, _subtest, result:
                                 result.has_regression(target_browser))
 
     def iter_disabled(self, target_browser="firefox"):
+        # type: (str) -> Iterator
         return self.iter_filter(lambda _test, _subtest, result:
                                 result.has_disabled(target_browser))
 
     def iter_browser_only(self, target_browser="firefox"):
+        # type: (str) -> Iterator
         def is_browser_only(_test, _subtest, result):
+            # type: (Text, Optional[Text], Union[SubtestResult, TestResult]) -> bool
             return result.is_browser_only_failure(target_browser)
         return self.iter_filter(is_browser_only)
 
@@ -364,6 +412,7 @@ class LogFile(object):
         self.path = path
 
     def json(self):
+        # type: () -> NoReturn
         with open(self.path) as f:
             return json.load(f)
 

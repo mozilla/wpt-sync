@@ -13,6 +13,16 @@ from six.moves import urllib
 
 from . import log
 from .env import Environment
+MYPY = False
+if MYPY:
+    from typing import List
+    from datetime import datetime
+    from typing import Any
+    from typing import Dict
+    from typing import Optional
+    from typing import Text
+    from typing import Tuple
+    from typing import Union
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -73,6 +83,7 @@ class GitHub(object):
         self._repo = None
 
     def pr_url(self, pr_id):
+        # type: (int) -> str
         return ("%s/pull/%s" %
                 (env.config["web-platform-tests"]["repo"]["url"],
                  pr_id))
@@ -231,6 +242,7 @@ class GitHub(object):
         return None
 
     def is_mergeable(self, pr_id):
+        # type: (int) -> bool
         mergeable = None
         count = 0
         while mergeable is None and count < 6:
@@ -278,13 +290,25 @@ class GitHub(object):
         return list(self.get_pull(pr_id).commits)
 
     def cleanup_pr_body(self, text):
+        # type: (str) -> str
         r = re.compile(re.escape("<!-- Reviewable:start -->") + ".*" +
                        re.escape("<!-- Reviewable:end -->"), re.DOTALL)
         return r.sub("", text)
 
-    def _construct_check_data(self, name, commit_sha=None, check_id=None, url=None,
-                              external_id=None, status=None, started_at=None,
-                              conclusion=None, completed_at=None, output=None, actions=None):
+    def _construct_check_data(self,
+                              name,  # type: str
+                              commit_sha=None,  # type: str
+                              check_id=None,  # type: Optional[int]
+                              url=None,  # type: Text
+                              external_id=None,  # type: Text
+                              status=None,  # type: str
+                              started_at=None,  # type: Optional[Any]
+                              conclusion=None,  # type: str
+                              completed_at=None,  # type: datetime
+                              output=None,  # type: Union[Dict[str, Text], Dict[str, str]]
+                              actions=None,  # type: Optional[Any]
+                              ):
+        # type: (...) -> Tuple[str, Dict[str, Optional[str]]]
         if check_id is not None and commit_sha is not None:
             raise ValueError("Only one of check_id and commit_sha may be supplied")
 
@@ -363,6 +387,7 @@ class GitHub(object):
 
 class AttrDict(dict):
     def __getattr__(self, name):
+        # type: (str) -> Any
         if name in self:
             return self[name]
         else:
@@ -378,16 +403,26 @@ class MockGitHub(GitHub):
         self.checks = {}
 
     def _log(self, data):
+        # type: (str) -> None
         data = six.ensure_text(data)
         self.output.write(data)
         self.output.write(u"\n")
 
     def get_pull(self, id):
+        # type: (Union[int, str]) -> AttrDict
         self._log("Getting PR %s" % id)
         return self.prs.get(int(id))
 
-    def create_pull(self, title, body, base, head, _commits=None, _id=None,
-                    _user=None):
+    def create_pull(self,
+                    title,  # type: Text
+                    body,  # type: Text
+                    base,  # type: str
+                    head,  # type: Text
+                    _commits=None,  # type: Optional[List[AttrDict]]
+                    _id=None,  # type: Optional[Any]
+                    _user=None,  # type: Optional[str]
+                    ):
+        # type: (...) -> int
         if _id is None:
             id = next(self._id)
         else:
@@ -424,11 +459,13 @@ class MockGitHub(GitHub):
         return id
 
     def get_branch(self, name):
+        # type: (str) -> bool
         # For now we are only using this to check a branch exists
         self._log("Checked branch %s" % name)
         return True
 
     def set_status(self, pr_id, status, target_url, description, context):
+        # type: (int, str, str, str, str) -> None
         pr = self.get_pull(pr_id)
         pr._commits[-1]._statuses.insert(0, AttrDict(state=status,
                                                      target_url=target_url,
@@ -437,13 +474,16 @@ class MockGitHub(GitHub):
         self._log("Set status on PR %s to %s" % (pr_id, status))
 
     def add_labels(self, pr_id, *labels):
+        # type: (str, *str) -> None
         self.get_pull(pr_id)["labels"].extend(labels)
 
     def remove_labels(self, pr_id, *labels):
+        # type: (str, *str) -> None
         pr = self.get_pull(pr_id)
         pr["labels"] = [item for item in pr["labels"] if item not in labels]
 
     def load_pull(self, data):
+        # type: (Dict[str, Any]) -> None
         pr = self.get_pull(data["number"])
         pr.merged = data["merged"]
         pr.state = data["state"]
@@ -462,30 +502,35 @@ class MockGitHub(GitHub):
         return rv
 
     def pull_state(self, pr_id):
+        # type: (int) -> str
         pr = self.get_pull(pr_id)
         if not pr:
             raise ValueError
         return pr["state"]
 
     def reopen_pull(self, pr_id):
+        # type: (int) -> None
         pr = self.get_pull(pr_id)
         if not pr:
             raise ValueError
         pr["state"] = "open"
 
     def close_pull(self, pr_id):
+        # type: (int) -> None
         pr = self.get_pull(pr_id)
         if not pr:
             raise ValueError
         pr["state"] = "closed"
 
     def merge_sha(self, pr_id):
+        # type: (int) -> Optional[Any]
         pr = self.get_pull(pr_id)
         if pr.merged:
             return pr.merge_commit_sha
         return None
 
     def merge_pull(self, pr_id):
+        # type: (int) -> None
         pr = self.get_pull(pr_id)
         if self.is_mergeable:
             pr.merged = True
@@ -500,6 +545,7 @@ class MockGitHub(GitHub):
         return pr._approved
 
     def pr_for_commit(self, sha):
+        # type: (Text) -> Optional[int]
         return self.commit_prs.get(sha)
 
     def get_pulls(self, minimum_id=None):
@@ -507,9 +553,20 @@ class MockGitHub(GitHub):
             if minimum_id and number >= minimum_id:
                 yield self.get_pull(number)
 
-    def set_check(self, name, check_id=None, commit_sha=None, url=None, external_id=None,
-                  status=None, started_at=None, conclusion=None, completed_at=None,
-                  output=None, actions=None):
+    def set_check(self,
+                  name,  # type: str
+                  check_id=None,  # type: Optional[int]
+                  commit_sha=None,  # type: str
+                  url=None,  # type: Text
+                  external_id=None,  # type: Text
+                  status=None,  # type: str
+                  started_at=None,  # type: Optional[Any]
+                  conclusion=None,  # type: str
+                  completed_at=None,  # type: datetime
+                  output=None,  # type: Union[Dict[str, Text], Dict[str, str]]
+                  actions=None,  # type: Optional[Any]
+                  ):
+        # type: (...) -> Dict[str, int]
 
         req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
                                                           url, external_id, status,

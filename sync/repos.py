@@ -8,6 +8,15 @@ from six import iteritems
 
 from . import log
 
+MYPY = False
+if MYPY:
+    from typing import Dict
+    from git.repo.base import Repo
+    from typing import Text
+    from git.objects.commit import Commit
+    from typing import Union
+    from pygit2.repository import Repository
+
 
 logger = log.get_logger(__name__)
 
@@ -21,10 +30,12 @@ class GitSettings(object):
     cinnabar = False
 
     def __init__(self, config):
+        # type: (Dict) -> None
         self.config = config
 
     @property
     def root(self):
+        # type: () -> str
         return os.path.join(self.config["repo_root"], self.config["paths"]["repos"], self.name)
 
     @property
@@ -32,6 +43,7 @@ class GitSettings(object):
         return iteritems(self.config[self.name]["repo"]["remote"])
 
     def repo(self):
+        # type: () -> Repo
         repo = git.Repo(self.root)
         wrapper_map[repo] = self
         pygit2_map[repo] = pygit2.Repository(repo.git_dir)
@@ -46,6 +58,7 @@ class GitSettings(object):
         return repo
 
     def setup(self, repo):
+        # type: (Repo) -> None
         pass
 
     def configure(self, file):
@@ -94,6 +107,7 @@ class Cinnabar(object):
         self.git = repo.git
 
     def hg2git(self, rev):
+        # type: (Text) -> Text
         if rev not in self.hg2git_cache:
             value = self.git.cinnabar("hg2git", rev)
             if all(c == "0" for c in value):
@@ -102,6 +116,7 @@ class Cinnabar(object):
         return self.hg2git_cache[rev]
 
     def git2hg(self, rev):
+        # type: (Union[Text, Commit]) -> Text
         if rev not in self.git2hg_cache:
             value = self.git.cinnabar("git2hg", rev)
             if all(c == "0" for c in value):
@@ -118,10 +133,12 @@ wrappers = {
 
 
 def pygit2_get(repo):
+    # type: (Repo) -> Repository
     if repo not in pygit2_map:
         pygit2_map[repo] = pygit2.Repository(repo.git_dir)
     return pygit2_map[repo]
 
 
 def wrapper_get(repo):
+    # type: (Repo) -> Union[Gecko, WebPlatformTests]
     return wrapper_map.get(repo)

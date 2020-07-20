@@ -36,6 +36,24 @@ from .projectutil import Mach, WPT
 from .sync import LandableStatus, SyncProcess
 from .trypush import TryPush
 
+MYPY = False
+if MYPY:
+    from mypy_extensions import NoReturn
+    from git.objects.tree import Tree
+    from git.repo.base import Repo
+    from typing import Text
+    from sync.commit import WptCommit
+    from typing import Any
+    from typing import Optional
+    from sync.projectutil import MockCommand
+    from typing import Dict
+    from typing import List
+    from sync.commit import GeckoCommit
+    from typing import Set
+    from typing import Union
+    from typing import Tuple
+    from sync.gh import AttrDict
+
 logger = log.get_logger(__name__)
 env = Environment()
 
@@ -67,7 +85,16 @@ class DownstreamSync(SyncProcess):
 
     @classmethod
     @constructor(lambda args: ("downstream", str(args["pr_id"])))
-    def new(cls, lock, git_gecko, git_wpt, wpt_base, pr_id, pr_title, pr_body):
+    def new(cls,
+            lock,  # type: SyncLock
+            git_gecko,  # type: Repo
+            git_wpt,  # type: Repo
+            wpt_base,  # type: str
+            pr_id,  # type: int
+            pr_title,  # type: str
+            pr_body,  # type: str
+            ):
+        # type: (...) -> DownstreamSync
         # TODO: add PR link to the comment
         sync = super(DownstreamSync, cls).new(lock,
                                               git_gecko,
@@ -83,6 +110,7 @@ class DownstreamSync(SyncProcess):
         return sync
 
     def make_bug_comment(self, git_wpt, pr_id, pr_title, pr_body):
+        # type: (Repo, int, str, str) -> Text
         pr_msg = env.gh_wpt.cleanup_pr_body(pr_body)
         # TODO: Ensure we have the right set of commits before geting here
         author = self.wpt_commits[0].author if self.wpt_commits else ""
@@ -102,6 +130,7 @@ class DownstreamSync(SyncProcess):
 
     @classmethod
     def has_metadata(cls, message):
+        # type: (Text) -> bool
         required_keys = ["wpt-commits",
                          "wpt-pr"]
         metadata = sync_commit.get_metadata(message)
@@ -109,6 +138,7 @@ class DownstreamSync(SyncProcess):
 
     @property
     def landable_status(self):
+        # type: () -> LandableStatus
         if self.skip:
             return LandableStatus.skip
         if self.metadata_ready:
@@ -120,6 +150,7 @@ class DownstreamSync(SyncProcess):
 
     @property
     def pr_head(self):
+        # type: () -> WptCommit
         """Head commit of the PR. Typically this is equal to
         self.wpt_commits.head but if the PR is rebased onto master
         then the head of the PR won't match the commit that actually
@@ -128,6 +159,7 @@ class DownstreamSync(SyncProcess):
 
     @SyncProcess.error.setter
     def error(self, value):
+        # type: (Optional[str]) -> Optional[Any]
         if self.pr:
             if value is not None:
                 env.gh_wpt.add_labels(self.pr, "mozilla:gecko-blocked")
@@ -146,15 +178,18 @@ class DownstreamSync(SyncProcess):
 
     @property
     def notify_bugs(self):
+        # type: () -> FrozenDict
         return FrozenDict(**self.data.get("notify-bugs", {}))
 
     @notify_bugs.setter
     @mut()
     def notify_bugs(self, value):
+        # type: (FrozenDict) -> None
         self.data["notify-bugs"] = value.as_dict()
 
     @property
     def next_action(self):
+        # type: () -> DownstreamAction
         """Work out the next action for the sync based on the current status.
 
         Returns a DownstreamAction indicating the next step to take."""
@@ -208,10 +243,12 @@ class DownstreamSync(SyncProcess):
 
     @property
     def metadata_ready(self):
+        # type: () -> bool
         return self.next_action == DownstreamAction.ready
 
     @property
     def results_notified(self):
+        # type: () -> bool
         return self.data.get("results-notified", False)
 
     @results_notified.setter
@@ -221,29 +258,35 @@ class DownstreamSync(SyncProcess):
 
     @property
     def skip(self):
+        # type: () -> bool
         return self.data.get("skip", False)
 
     @skip.setter
     @mut()
     def skip(self, value):
+        # type: (bool) -> None
         self.data["skip"] = value
 
     @property
     def wpt(self):
+        # type: () -> MockCommand
         git_work = self.wpt_worktree.get()
         git_work.git.reset(hard=True)
         return WPT(os.path.join(git_work.working_dir))
 
     @property
     def requires_try(self):
+        # type: () -> bool
         return not self.skip
 
     @property
     def requires_stability_try(self):
+        # type: () -> bool
         return self.requires_try and self.has_affected_tests_readonly
 
     @property
     def latest_valid_try_push(self):
+        # type: () -> Optional[TryPush]
         """Try push for the current head of the PR, if any.
 
         In legacy cases we don't store the wpt-head for the try push
@@ -263,6 +306,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def try_paths(self):
+        # type: () -> Dict[str, List[str]]
         """Return a mapping of {test_type: path} for tests that should be run on try.
 
         Paths are relative to the gecko root"""
@@ -276,6 +320,7 @@ class DownstreamSync(SyncProcess):
         head_tree = self.gecko_commits.head.commit.tree
 
         def contains(tree, path):
+            # type: (Tree, str) -> bool
             path_parts = path.split(os.path.sep)
             for part in path_parts:
                 try:
@@ -305,6 +350,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def next_try_push(self, try_cls=trypush.TryFuzzyCommit):
+        # type: (type) -> Optional[TryPush]
         """Schedule a new try push for the sync, if required.
 
         A stability try push will only be scheduled if the upstream PR is
@@ -337,6 +383,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def create_bug(self, git_wpt, pr_id, pr_title, pr_body):
+        # type: (Repo, int, str, str) -> None
         if self.bug is not None:
             return
         comment = self.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
@@ -354,6 +401,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def update_wpt_commits(self):
+        # type: () -> None
         """Update the set of commits in the PR from the latest upstream."""
         if not self.wpt_commits.head or self.wpt_commits.head.sha1 != self.pr_head.sha1:
             self.wpt_commits.head = self.pr_head
@@ -374,6 +422,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def update_github_check(self):
+        # type: () -> None
         if not env.config["web-platform-tests"]["github"]["checks"]["enabled"]:
             return
         title = "gecko/sync"
@@ -416,6 +465,7 @@ class DownstreamSync(SyncProcess):
             logger.error(traceback.format_exc(e))
 
     def build_check_text(self, commit_sha):
+        # type: (str) -> Text
         text = """
 
         # Summary
@@ -449,11 +499,13 @@ class DownstreamSync(SyncProcess):
                        "error_section": error_section}
 
     def files_changed(self):
+        # type: () -> Union[Set[Text], Set[str]]
         # TODO: Would be nice to do this from mach with a gecko worktree
         return set(self.wpt.files_changed().split("\n"))
 
     @property
     def metadata_commit(self):
+        # type: () -> Optional[GeckoCommit]
         if len(self.gecko_commits) == 0:
             return
         if self.gecko_commits[-1].metadata.get("wpt-type") == "metadata":
@@ -461,6 +513,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def ensure_metadata_commit(self):
+        # type: () -> GeckoCommit
         if self.metadata_commit:
             return self.metadata_commit
 
@@ -486,6 +539,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def set_bug_component(self, files_changed):
+        # type: (Union[Set[Text], Set[str]]) -> None
         new_component = bugcomponents.get(self.gecko_worktree.get(),
                                           files_changed,
                                           default=("Testing", "web-platform-tests"))
@@ -493,6 +547,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def move_metadata(self, renames):
+        # type: (Dict[Text, Text]) -> None
         if not renames:
             return
 
@@ -517,6 +572,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def update_bug_components(self, renames):
+        # type: (Dict[Text, Text]) -> None
         if not renames:
             return
 
@@ -529,6 +585,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def _commit_metadata(self, amend=True):
+        # type: (bool) -> None
         assert self.metadata_commit
         gecko_work = self.gecko_worktree.get()
         if gecko_work.is_dirty():
@@ -542,6 +599,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def update_commits(self):
+        # type: () -> bool
         exception = None
         try:
             self.update_wpt_commits()
@@ -570,11 +628,13 @@ class DownstreamSync(SyncProcess):
             logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
 
             def plain_apply():
+                # type: () -> bool
                 logger.info("Applying on top of the current commits")
                 self.wpt_to_gecko_commits()
                 return True
 
             def rebase_apply():
+                # type: () -> NoReturn
                 logger.info("Applying with a rebase onto latest integration branch")
                 new_base = self.gecko_integration_branch()
                 gecko_work = self.gecko_worktree.get()
@@ -592,6 +652,7 @@ class DownstreamSync(SyncProcess):
                 return True
 
             def dependents_apply():
+                # type: () -> bool
                 logger.info("Applying with upstream dependents")
                 dependencies = self.unlanded_commits_same_files()
                 if dependencies:
@@ -646,6 +707,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def wpt_to_gecko_commits(self, dependencies=None):
+        # type: (Optional[List[WptCommit]]) -> None
         """Create a patch based on wpt branch, apply it to corresponding gecko branch.
 
         If there is a commit with wpt-type metadata, this function will remove it. The
@@ -747,6 +809,7 @@ class DownstreamSync(SyncProcess):
                             patch_fallback=True)
 
     def unlanded_commits_same_files(self):
+        # type: () -> List[WptCommit]
         from . import landing
 
         sync_point = landing.load_sync_point(self.git_gecko, self.git_wpt)
@@ -770,6 +833,7 @@ class DownstreamSync(SyncProcess):
         return commits
 
     def message_filter(self, msg):
+        # type: (Text) -> Tuple[Text, Dict]
         msg = sync_commit.try_filter(msg)
         parts = msg.split("\n", 1)
         if len(parts) > 1:
@@ -786,6 +850,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def affected_tests(self, revish=None):
+        # type: (Optional[Any]) -> Dict[str, List[str]]
         # TODO? support files, harness changes -- don't want to update metadata
         if "affected-tests" not in self.data:
             tests_by_type = defaultdict(list)
@@ -816,6 +881,7 @@ class DownstreamSync(SyncProcess):
 
     @property
     def has_affected_tests_readonly(self):
+        # type: () -> bool
         if "affected-tests" not in self.data:
             logger.warning("Trying to get affected tests before it's set")
             return True
@@ -854,6 +920,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def try_notify(self, force=False):
+        # type: (bool) -> None
         newrelic.agent.record_custom_event("try_notify", params={
             "sync_bug": self.bug,
             "sync_pr": self.pr
@@ -911,6 +978,7 @@ class DownstreamSync(SyncProcess):
                     try_push.cleanup_logs()
 
     def reverts_syncs(self):
+        # type: () -> Set[DownstreamSync]
         """Return a set containing the previous syncs reverted by this one, if any"""
         revert_re = re.compile("This reverts commit ([0-9A-Fa-f]+)")
         unreverted_commits = defaultdict(set)
@@ -950,6 +1018,7 @@ class DownstreamSync(SyncProcess):
 
 @entry_point("downstream")
 def new_wpt_pr(git_gecko, git_wpt, pr_data, raise_on_error=True, repo_update=True):
+    # type: (Repo, Repo, AttrDict, bool, bool) -> None
     """ Start a new downstream sync """
     if pr_data["user"]["login"] == env.config["web-platform-tests"]["github"]["user"]:
         raise ValueError("Tried to create a downstream sync for a PR created "
@@ -1058,7 +1127,15 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
 
 @entry_point("downstream")
 @mut("sync")
-def update_pr(git_gecko, git_wpt, sync, action, merge_sha, base_sha, merged_by=None):
+def update_pr(git_gecko,  # type: Repo
+              git_wpt,  # type: Repo
+              sync,  # type: DownstreamSync
+              action,  # type: str
+              merge_sha,  # type: str
+              base_sha,  # type: str
+              merged_by=None,  # type: str
+              ):
+    # type: (...) -> None
     try:
         if action == "closed" and not merge_sha:
             sync.pr_status = "closed"
