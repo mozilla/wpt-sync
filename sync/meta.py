@@ -135,7 +135,7 @@ class Metadata(object):
 
     def exit_mut(self):
         # type: () -> None
-        ref_name = str(self.process_name)
+        ref_name = self.process_name.path()
         message = "Gecko sync update"
         retry = 0
         MAX_RETRY = 5
@@ -189,7 +189,7 @@ class Metadata(object):
         if not self.create_pr:
             return self.branch
 
-        base_ref_name = "gecko/%s" % str(self.process_name).replace("/", "-")
+        base_ref_name = "gecko/%s" % self.process_name.path().replace("/", "-")
         ref_name = base_ref_name
         prefix = "refs/remotes/origin/"
         count = 0

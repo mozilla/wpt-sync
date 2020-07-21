@@ -473,7 +473,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     def _output_data(self):
         rv = ["%s%s" % ("*" if self.error else " ",
-                        str(self.process_name)),
+                        self.process_name.path()),
               "gecko range: %s..%s" % (self.gecko_commits.base.sha1,
                                        self.gecko_commits.head.sha1),
               "wpt range: %s..%s" % (self.wpt_commits.base.sha1,
@@ -544,8 +544,8 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def branch_name(self):
-        # type: () -> str
-        return str(self.process_name)
+        # type: () -> Text
+        return self.process_name.path()
 
     @property
     def status(self):

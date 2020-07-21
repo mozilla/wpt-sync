@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import json
+import sys
 import weakref
 from collections import defaultdict, Mapping
 
@@ -259,12 +260,19 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
         return (obj_type, subtype, str(obj_id), str(seq_id) if seq_id is not None else None)
 
     def __str__(self):
-        # type: () -> Text
-        return "%s/%s/%s/%s" % self.as_tuple()
+        # type: () -> str
+        data = u"%s/%s/%s/%s" % self.as_tuple()
+        if sys.version_info[0] == 2:
+            data = data.encode("utf8")
+        return data
 
     def key(self):
         # type: () -> Tuple[str, str, str, str]
         return self._cache_key(self._obj_type, self._subtype, self._obj_id, self._seq_id)
+
+    def path(self):
+        # type: () -> Text
+        return u"%s/%s/%s/%s" % self.as_tuple()
 
     def __eq__(self, other):
         # type: (ProcessName) -> bool
@@ -633,8 +641,8 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
     @classmethod
     def get_path(self, process_name):
-        # type: (ProcessName) -> str
-        return str(process_name)
+        # type: (ProcessName) -> Text
+        return process_name.path()
 
     @classmethod
     def load_by_obj(cls, repo, subtype, obj_id, seq_id=None):
