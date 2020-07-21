@@ -7,11 +7,11 @@ from .env import Environment
 
 MYPY = False
 if MYPY:
+    from typing import Iterable, List, Optional, Text, Union
     from git.repo.base import Repo
+    from sync.sync import SyncProcess
     from sync.downstream import DownstreamSync
     from sync.upstream import UpstreamSync
-    from typing import Text
-    from typing import Union
 
 env = Environment()
 
@@ -20,10 +20,10 @@ logger = log.get_logger(__name__)
 
 def get_pr_sync(git_gecko,  # type: Repo
                 git_wpt,  # type: Repo
-                pr_id,  # type: Union[Text, int]
+                pr_id,  # type: Text
                 log=True,  # type: bool
                 ):
-    # type: (...) -> Union[DownstreamSync, UpstreamSync]
+    # type: (...) -> Optional[Union[DownstreamSync, UpstreamSync]]
     from . import downstream
     from . import upstream
 
@@ -38,7 +38,12 @@ def get_pr_sync(git_gecko,  # type: Repo
     return sync
 
 
-def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
+def get_bug_sync(git_gecko,  # type: Repo
+                 git_wpt,  # type: Repo
+                 bug_number,  # type: Text
+                 statuses=None  # type: Optional[Iterable[Text]]
+                 ):
+    # type: (...) -> List[SyncProcess]
     from . import downstream
     from . import landing
     from . import upstream
@@ -51,6 +56,8 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
     if not syncs:
         syncs = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number,
                                                   statuses=statuses)
+
+    assert isinstance(syncs, list)
     if syncs:
         all_syncs = []
         for item in itervalues(syncs):
@@ -61,7 +68,14 @@ def get_bug_sync(git_gecko, git_wpt, bug_number, statuses=None):
     return syncs
 
 
-def get_syncs(git_gecko, git_wpt, sync_type, obj_id, status=None, seq_id=None):
+def get_syncs(git_gecko,  # type: Repo
+              git_wpt,  # type: Repo
+              sync_type,  # type: Text
+              obj_id,  # type: Text
+              status=None,  # type: Optional[Text]
+              seq_id=None  # type: Optional[Text]
+              ):
+    # type: (...) -> List[SyncProcess]
     from . import downstream
     from . import landing
     from . import upstream
