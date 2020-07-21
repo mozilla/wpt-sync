@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import enum
 import itertools
+import sys
 import traceback
 from collections import defaultdict
 
@@ -124,7 +125,7 @@ class CommitRange(object):
 
     @property
     def lock_key(self):
-        # type: () -> Tuple[str, str]
+        # type: () -> Tuple[Text, Text]
         return (self._head_ref.name.subtype,
                 self._head_ref.name.obj_id)
 
@@ -242,7 +243,7 @@ class SyncPointName(six.with_metaclass(IdentityMap, object)):
     for an upstream sync."""
 
     def __init__(self, subtype, obj_id):
-        # type: (str, str) -> None
+        # type: (Text, Text) -> None
         self._obj_type = "sync"
         self._subtype = subtype
         self._obj_id = str(obj_id)
@@ -255,28 +256,36 @@ class SyncPointName(six.with_metaclass(IdentityMap, object)):
 
     @property
     def subtype(self):
-        # type: () -> str
+        # type: () -> Text
         return self._subtype
 
     @property
     def obj_id(self):
-        # type: () -> str
+        # type: () -> Text
         return self._obj_id
 
     @classmethod
     def _cache_key(cls, subtype, obj_id):
-        # type: (str, str) -> Tuple[str, str]
+        # type: (Text, Text) -> Tuple[Text, Text]
         return (subtype, str(obj_id))
 
     def key(self):
-        # type: () -> Tuple[str, str]
+        # type: () -> Tuple[Text, Text]
         return (self._subtype, self._obj_id)
 
     def __str__(self):
         # type: () -> str
-        return "%s/%s/%s" % (self._obj_type,
-                             self._subtype,
-                             self._obj_id)
+        data = u"%s/%s/%s" % (self._obj_type,
+                              self._subtype,
+                              self._obj_id)
+        if sys.version_info[0] == 2:
+            data = data.encode("utf8")
+        return data
+
+    def path(self):
+        return u"%s/%s/%s" % (self._obj_type,
+                              self._subtype,
+                              self._obj_id)
 
 
 class SyncData(ProcessData):
@@ -342,7 +351,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def lock_key(self):
-        # type: () -> Tuple[str, str]
+        # type: () -> Tuple[Text, Text]
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def __repr__(self):

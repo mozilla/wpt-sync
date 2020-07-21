@@ -198,7 +198,7 @@ class ProcessLock(Lock):
         return cls(sync_type, obj_id)
 
     def check(self, sync_type, obj_id):
-        # type: (Text, str) -> None
+        # type: (Text, Text) -> None
         """Check that the current lock is valid for the provided sync_type and obj_id"""
         if sync_type in self.lock_per_type:
             obj_id = None
