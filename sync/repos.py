@@ -1,20 +1,20 @@
 from __future__ import absolute_import
+import abc
 import json
 import os
 import shutil
 import git
 import pygit2
+import six
 from six import iteritems
 
 from . import log
 
 MYPY = False
 if MYPY:
-    from typing import Dict
+    from typing import Any, Dict, Text, Optional, Union
     from git.repo.base import Repo
-    from typing import Text
     from git.objects.commit import Commit
-    from typing import Union
     from pygit2.repository import Repository
 
 
@@ -25,18 +25,21 @@ wrapper_map = {}
 pygit2_map = {}
 
 
-class GitSettings(object):
-    name = None
+class GitSettings(six.with_metaclass(abc.ABCMeta, object)):
+
+    name = None  # type: Text
     cinnabar = False
 
     def __init__(self, config):
-        # type: (Dict) -> None
+        # type: (Dict[Text, Any]) -> None
         self.config = config
 
     @property
     def root(self):
-        # type: () -> str
-        return os.path.join(self.config["repo_root"], self.config["paths"]["repos"], self.name)
+        # type: () -> Text
+        return os.path.join(self.config["repo_root"],
+                            self.config["paths"]["repos"],
+                            self.name)
 
     @property
     def remotes(self):
@@ -100,8 +103,8 @@ class WptMetadata(GitSettings):
 
 
 class Cinnabar(object):
-    hg2git_cache = {}
-    git2hg_cache = {}
+    hg2git_cache = {}  # type: Dict[Text, Text]
+    git2hg_cache = {}  # type: Dict[Text, Text]
 
     def __init__(self, repo):
         self.git = repo.git
@@ -140,5 +143,5 @@ def pygit2_get(repo):
 
 
 def wrapper_get(repo):
-    # type: (Repo) -> Union[Gecko, WebPlatformTests]
+    # type: (Repo) -> Optional[GitSettings]
     return wrapper_map.get(repo)
