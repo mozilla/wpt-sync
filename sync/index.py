@@ -24,7 +24,7 @@ if MYPY:
     from typing import Any
     from typing import Set
     from typing import Optional
-    from _pygit2 import Blob
+    from pygit2 import Blob
     from typing import List
     from pygit2.repository import Repository
     from typing import Iterator

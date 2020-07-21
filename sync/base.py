@@ -33,7 +33,7 @@ if MYPY:
     from sync.trypush import TryPush
     from typing import Dict
     from typing import Set
-    from _pygit2 import TreeEntry
+    from pygit2 import TreeEntry
     from pygit2.repository import Repository
     from typing import Iterator
 
