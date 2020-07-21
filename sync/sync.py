@@ -20,25 +20,16 @@ from .worktree import Worktree
 
 MYPY = False
 if MYPY:
-    from typing import Optional
-    from typing import Text
-    from typing import Tuple
-    from sync.commit import GeckoCommit
-    from sync.commit import WptCommit
-    from typing import Union
-    from typing import List
-    from typing import Set
-    from typing import Any
+    from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Text, Tuple, Union
+    from sync.commit import GeckoCommit, WptCommit
     from git.repo.base import Repo
     from sync.downstream import DownstreamSync
     from sync.upstream import UpstreamSync
     from sync.landing import LandingSync
-    from typing import Dict
     from sync.trypush import TryPush
     from sync.gh import AttrDict
     from sync.upstream import BackoutCommitFilter
     from sync.lock import SyncLock
-    from typing import Iterator
 
 env = Environment()
 
@@ -366,7 +357,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                git_wpt,  # type: Repo
                pr_id,  # type: Union[Text, int]
                ):
-        # type: (...) -> Union[None, DownstreamSync, UpstreamSync]
+        # type: (...) -> Optional[Union[DownstreamSync, UpstreamSync]]
         from . import index
         idx = index.PrIdIndex(git_gecko)
         process_name = idx.get((str(pr_id),))
@@ -377,11 +368,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
     def for_bug(cls,
                 git_gecko,  # type: Repo
                 git_wpt,  # type: Repo
-                bug,  # type: str
-                statuses=None,  # type: Union[List[str], None, Set[str]]
+                bug,  # type: Text
+                statuses=None,  # type: Iterable[Text]
                 flat=False,  # type: bool
                 ):
-        # type: (...) -> Union[Dict, List[LandingSync], List[UpstreamSync]]
+        # type: (...) -> Union[Dict[Text, Set[SyncProcess]], List[SyncProcess]]
         """Get the syncs for a specific bug.
 
         :param bug: The bug number for which to find syncs.
