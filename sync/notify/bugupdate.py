@@ -10,6 +10,11 @@ from ..env import Environment
 from ..lock import mut, MutGuard, ProcLock
 from ..meta import Metadata
 
+MYPY = False
+if MYPY:
+    from typing import Text, Tuple
+
+
 env = Environment()
 
 bugzilla_url = "https://bugzilla.mozilla.org"
@@ -40,6 +45,7 @@ class TriageBugs(object):
 
     @property
     def lock_key(self):
+        # type: () -> Tuple[Text, Text]
         return (self.process_name.subtype,
                 self.process_name.obj_id)
 

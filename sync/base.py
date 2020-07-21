@@ -238,7 +238,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
     """
 
     def __init__(self, obj_type, subtype, obj_id, seq_id):
-        # type: (Text, Text, Union[Text, int], Union[Text, int]) -> None
+        # type: (Text, Text, Text, Union[Text, int]) -> None
         assert obj_type is not None
         assert subtype is not None
         assert obj_id is not None
@@ -253,11 +253,11 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
     def _cache_key(cls,
                    obj_type,  # type: Text
                    subtype,  # type: Text
-                   obj_id,  # type: Union[Text, int]
-                   seq_id=None,  # type: Union[Text, int]
+                   obj_id,  # type: Text
+                   seq_id,  # type: Union[Text, int]
                    ):
-        # type: (...) -> Tuple[Text, Text, str, str]
-        return (obj_type, subtype, str(obj_id), str(seq_id) if seq_id is not None else None)
+        # type: (...) -> Tuple[Text, Text, Text, Text]
+        return (obj_type, subtype, str(obj_id), str(seq_id))
 
     def __str__(self):
         # type: () -> str
@@ -267,7 +267,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
         return data
 
     def key(self):
-        # type: () -> Tuple[str, str, str, str]
+        # type: () -> Tuple[Text, Text, Text, Text]
         return self._cache_key(self._obj_type, self._subtype, self._obj_id, self._seq_id)
 
     def path(self):
@@ -275,7 +275,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
         return u"%s/%s/%s/%s" % self.as_tuple()
 
     def __eq__(self, other):
-        # type: (ProcessName) -> bool
+        # type: (Any) -> bool
         if self is other:
             return True
         if self.__class__ != other.__class__:
@@ -298,7 +298,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
 
     @property
     def obj_id(self):
-        # type: () -> str
+        # type: () -> Text
         return self._obj_id
 
     @property
@@ -307,7 +307,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
         return int(self._seq_id)
 
     def as_tuple(self):
-        # type: () -> Tuple[Text, Text, str, int]
+        # type: () -> Tuple[Text, Text, Text, int]
         return (self.obj_type, self.subtype, self.obj_id, self.seq_id)
 
     @classmethod
@@ -317,8 +317,8 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
 
     @classmethod
     def from_tuple(cls, parts):
-        # type: (List[str]) -> ProcessName
-        if parts[0] not in ["sync", "try"]:
+        # type: (List[Text]) -> Optional[ProcessName]
+        if parts[0] not in [u"sync", u"try"]:
             return None
         if len(parts) != 4:
             return None
@@ -326,7 +326,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
 
     @classmethod
     def with_seq_id(cls, repo, obj_type, subtype, obj_id):
-        # type: (Repo, str, str, Union[int, str]) -> ProcessName
+        # type: (Repo, Text, Text, Text) -> ProcessName
         existing = ProcessNameIndex(repo).get(obj_type, subtype, obj_id)
         last_id = -1
         for process_name in existing:
@@ -334,7 +334,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
                 int(process_name.seq_id) > last_id):
                 last_id = int(process_name.seq_id)
         seq_id = last_id + 1
-        return cls(obj_type, subtype, obj_id, seq_id)
+        return cls(obj_type, subtype, obj_id, str(seq_id))
 
 
 class VcsRefObject(six.with_metaclass(IdentityMap, object)):
@@ -364,7 +364,7 @@ class VcsRefObject(six.with_metaclass(IdentityMap, object)):
 
     @property
     def lock_key(self):
-        # type: () -> Tuple[str, str]
+        # type: () -> Tuple[Text, Text]
         return (self.name.subtype, self.name.obj_id)
 
     @classmethod
@@ -373,7 +373,7 @@ class VcsRefObject(six.with_metaclass(IdentityMap, object)):
                    process_name,  # type: Union[ProcessName, SyncPointName]
                    commit_cls=sync_commit.Commit,  # type: type
                    ):
-        # type: (...) -> Tuple[Repo, Union[Tuple[Text, Text, str, str], Tuple[str, ...]]]
+        # type: (...) -> Tuple[Repo, Tuple[Text, Text, Text, Text]]
         return (repo, process_name.key())
 
     def _cache_verify(self, repo, process_name, commit_cls=sync_commit.Commit):
@@ -394,6 +394,7 @@ class VcsRefObject(six.with_metaclass(IdentityMap, object)):
         return cls(repo, name, commit_cls)
 
     def __str__(self):
+        # type: () -> str
         return self.path
 
     def delete(self):
@@ -587,7 +588,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
     def exit_mut(self):
         # type: () -> None
-        message = "Update %s\n\n" % self.path
+        message = u"Update %s\n\n" % self.path
         with CommitBuilder(self.repo, message=message, ref=self.ref.path) as commit:
             from . import index
             if self._delete:
@@ -696,7 +697,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
     @property
     def lock_key(self):
-        # type: () -> Tuple[str, str]
+        # type: () -> Tuple[Text, Text]
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def __getitem__(self, key):

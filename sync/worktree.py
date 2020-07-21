@@ -178,7 +178,7 @@ class Worktree(object):
 
     @property
     def lock_key(self):
-        # type: () -> Tuple[str, str]
+        # type: () -> Tuple[Text, Text]
         return (self.process_name.subtype, self.process_name.obj_id)
 
     @mut()
