@@ -1,17 +1,13 @@
 from __future__ import absolute_import
 
-from six import itervalues
-
 from . import log
 from .env import Environment
 
 MYPY = False
 if MYPY:
-    from typing import Iterable, List, Optional, Text, Union
+    from typing import Dict, Iterable, Optional, Set, Text
     from git.repo.base import Repo
     from sync.sync import SyncProcess
-    from sync.downstream import DownstreamSync
-    from sync.upstream import UpstreamSync
 
 env = Environment()
 
@@ -23,7 +19,7 @@ def get_pr_sync(git_gecko,  # type: Repo
                 pr_id,  # type: Text
                 log=True,  # type: bool
                 ):
-    # type: (...) -> Optional[Union[DownstreamSync, UpstreamSync]]
+    # type: (...) -> Optional[SyncProcess]
     from . import downstream
     from . import upstream
 
@@ -43,7 +39,7 @@ def get_bug_sync(git_gecko,  # type: Repo
                  bug_number,  # type: Text
                  statuses=None  # type: Optional[Iterable[Text]]
                  ):
-    # type: (...) -> List[SyncProcess]
+    # type: (...) -> Dict[Text, Set[SyncProcess]]
     from . import downstream
     from . import landing
     from . import upstream
@@ -57,14 +53,7 @@ def get_bug_sync(git_gecko,  # type: Repo
         syncs = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number,
                                                   statuses=statuses)
 
-    assert isinstance(syncs, list)
-    if syncs:
-        all_syncs = []
-        for item in itervalues(syncs):
-            all_syncs.extend(item)
-        logger.info("Got syncs %r for bug %s" % (all_syncs, bug_number))
-    else:
-        logger.info("No sync found for bug %s" % bug_number)
+    assert isinstance(syncs, dict)
     return syncs
 
 
@@ -75,15 +64,15 @@ def get_syncs(git_gecko,  # type: Repo
               status=None,  # type: Optional[Text]
               seq_id=None  # type: Optional[Text]
               ):
-    # type: (...) -> List[SyncProcess]
+    # type: (...) -> Set[SyncProcess]
     from . import downstream
     from . import landing
     from . import upstream
 
     cls_types = {
-        "downstream": downstream.DownstreamSync,
-        "landing": landing.LandingSync,
-        "upstream": upstream.UpstreamSync
+        u"downstream": downstream.DownstreamSync,
+        u"landing": landing.LandingSync,
+        u"upstream": upstream.UpstreamSync
     }
     cls = cls_types[sync_type]
     syncs = cls.load_by_obj(git_gecko, git_wpt, obj_id, seq_id=seq_id)
