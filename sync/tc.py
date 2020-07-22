@@ -20,15 +20,8 @@ import six
 
 MYPY = False
 if MYPY:
-    from typing import Any
-    from typing import Dict
-    from typing import Optional
-    from typing import Text
-    from typing import Union
-    from typing import List
-    from typing import Callable
-    from typing import Iterator
-    from typing import Set
+    from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
+    Task = Dict[Text, Dict[Text, Any]]
 
 
 TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
@@ -154,7 +147,7 @@ class TaskGroup(object):
 
     @property
     def tasks(self):
-        # type: () -> List[Dict[Text, Dict[Text, Any]]]
+        # type: () -> List[Task]
         if self._tasks:
             return self._tasks
 
@@ -176,12 +169,12 @@ class TaskGroup(object):
         return self._tasks
 
     def refresh(self):
-        # type: () -> Union[List[Dict[Text, Dict[Text, Any]]], List[Dict[str, Dict[str, Any]]]]
+        # type: () -> List[Task]
         self._tasks = None
         return self.tasks
 
     def tasks_by_id(self):
-        # type: () -> Dict[Text, Dict[Text, Any]]
+        # type: () -> Dict[Text, Task]
         return {item["status"]["taskId"]: item for item in self.tasks}
 
     def view(self, filter_fn=None):
@@ -191,10 +184,11 @@ class TaskGroup(object):
 
 class TaskGroupView(object):
     def __init__(self, taskgroup, filter_fn):
-        # type: (TaskGroup, Optional[Callable]) -> None
+        # type: (TaskGroup, Optional[Callable[[Task], bool]]) -> None
         self.taskgroup = taskgroup
-        self.filter_fn = filter_fn if filter_fn is not None else lambda x: x
-        self._tasks = None
+        self.filter_fn = (filter_fn if filter_fn is not None
+                          else lambda x: bool(x))  # type: Callable[[Task], bool]
+        self._tasks = None  # type: Optional[List[Task]]
 
     def __bool__(self):
         return bool(self.tasks)
@@ -204,18 +198,19 @@ class TaskGroupView(object):
         return len(self.tasks)
 
     def __iter__(self):
-        # type: () -> Iterator[Dict[Text, Dict[Text, Any]]]
+        # type: () -> Iterator[Task]
         for item in self.tasks:
             yield item
 
     @property
     def tasks(self):
-        # type: () -> Union[List[Dict[Text, Dict[Text, Any]]], List[Dict[str, Dict[str, Any]]]]
+        # type: () -> List[Task]
         if self._tasks:
             return self._tasks
 
         self._tasks = [item for item in self.taskgroup.tasks
                        if self.filter_fn(item)]
+        assert self._tasks is not None
         return self._tasks
 
     def refresh(self):
@@ -226,7 +221,7 @@ class TaskGroupView(object):
     def incomplete_tasks(self,
                          allow_unscheduled=False,  # type: bool
                          ):
-        # type: (...) -> Iterator[Dict[Text, Dict[Text, Any]]]
+        # type: (...) -> Iterator[Task]
         tasks_by_id = self.taskgroup.tasks_by_id()
         for task in self.tasks:
             if task_is_incomplete(task, tasks_by_id, allow_unscheduled):
@@ -239,10 +234,10 @@ class TaskGroupView(object):
         return builds.filter(is_status_fn({FAIL, EXCEPTION}))
 
     def filter(self, filter_fn):
-        # type: (Callable) -> TaskGroupView
-        def combined_filter(task  # type: Dict[Text, Dict[Text, Any]]
+        # type: (Callable[[Task], bool]) -> TaskGroupView
+        def combined_filter(task  # type: Task
                             ):
-            # type: (...) -> Optional[bool]
+            # type: (...) -> bool
             return self.filter_fn(task) and filter_fn(task)
 
         return self.taskgroup.view(combined_filter)
@@ -252,7 +247,7 @@ class TaskGroupView(object):
         return not any(self.incomplete_tasks(allow_unscheduled))
 
     def by_name(self):
-        # type: () -> Dict
+        # type: () -> Dict[Text, List[Task]]
         rv = defaultdict(list)
         for task in self.tasks:
             name = task.get("task", {}).get("metadata", {}).get("name")
@@ -261,7 +256,11 @@ class TaskGroupView(object):
         return rv
 
     @newrelic.agent.function_trace()
-    def download_logs(self, destination, file_names, retry=5):
+    def download_logs(self, destination,  # type: Text
+                      file_names,  # type: List[Text]
+                      retry=5  # type: int
+                      ):
+        # type (...) -> None
         if not os.path.exists(destination):
             os.makedirs(destination)
 
@@ -291,7 +290,12 @@ def start_session():
     return {"session": requests.Session()}
 
 
-def get_task_artifacts(destination, task, file_names, session, retry):
+def get_task_artifacts(destination,  # type: Text
+                       task,  # type: Task
+                       file_names,  # type: List[Text]
+                       session,  # type: Optional[requests.Session]
+                       retry  # type: int
+                       ):
     status = task.get("status", {})
     if not status.get("runs"):
         logger.debug("No runs for task %s" % status["taskId"])
@@ -327,8 +331,8 @@ def get_task_artifacts(destination, task, file_names, session, retry):
         run["_log_paths"][params["file_name"]] = log_path
 
 
-def task_is_incomplete(task,  # type: Dict[Text, Dict[Text, Any]]
-                       tasks_by_id,  # type: Dict[Text, Dict[Text, Dict[Text, Any]]]
+def task_is_incomplete(task,  # type: Task
+                       tasks_by_id,  # type: Dict[Text, Task]
                        allow_unscheduled,  # type: bool
                        ):
     # type: (...) -> bool
@@ -344,7 +348,7 @@ def task_is_incomplete(task,  # type: Dict[Text, Dict[Text, Any]]
         # complete and successful but this task has not yet been scheduled?
 
         # A task can depend on its image; it's OK to ignore this for our purposes
-        image = task.get("task", []).get("payload", {}).get("image", {}).get("taskId")
+        image = task.get("task", {}).get("payload", {}).get("image", {}).get("taskId")
         dependencies = [item for item in task.get("task", {}).get("dependencies", [])
                         if item != image]
         if not dependencies:
@@ -357,7 +361,7 @@ def task_is_incomplete(task,  # type: Dict[Text, Dict[Text, Any]]
     return False
 
 
-def is_suite(suite,  # type: str
+def is_suite(suite,  # type: Text
              task,  # type: Dict[Text, Dict[Text, Any]]
              ):
     # type: (...) -> bool
@@ -372,41 +376,43 @@ def is_suite_fn(suite):
     return lambda x: is_suite(suite, x)
 
 
-def check_tag(task,  # type: Dict[Text, Dict[Text, Any]]
-              tag,  # type: str
+def check_tag(task,  # type: Task
+              tag,  # type: Text
               ):
-    # type: (...) -> Optional[bool]
+    # type: (...) -> bool
     tags = task.get("task", {}).get("tags")
     if tags:
         return tags.get("kind") == tag
+    return False
 
 
 def is_test(task):
-    # type: (Dict[Text, Dict[Text, Any]]) -> bool
+    # type: (Task) -> bool
     return check_tag(task, "test")
 
 
-def is_build(task  # type: Dict[Text, Dict[Text, Any]]
-             ):
-    # type: (...) -> Optional[bool]
+def is_build(task):
+    # type: (Task) -> bool
     return check_tag(task, "build")
 
 
-def is_status(statuses,  # type: Union[Set[str], str]
-              task,  # type: Dict[Text, Dict[Text, Any]]
+def is_status(statuses,  # type: Union[Set[Text], Text]
+              task,  # type: Task
               ):
     # type: (...) -> bool
-    return task.get("status", {}).get("state") in statuses
+    state = task.get("status", {}).get("state")  # type: Optional[Text]
+    return state is not None and state in statuses
 
 
 def is_status_fn(statuses):
-    # type: (Union[Set[str], str]) -> Callable
+    # type: (Union[Set[Text], Text]) -> Callable
     if isinstance(statuses, (str, six.text_type)):
         statuses = {statuses}
     return lambda x: is_status(statuses, x)
 
 
 def lookup_index(index_name):
+    # type: (Text) -> Optional[Text]
     if index_name is None:
         return None
 
@@ -423,13 +429,14 @@ def lookup_index(index_name):
 
 
 def lookup_treeherder(project, revision):
+    # type: (Text, Text) -> Optional[Text]
     push_data = fetch_json(TREEHERDER_BASE + "api/project/%s/push/" % (project,),
                            params={"revision": revision})
 
     pushes = push_data.get("results", [])
     push_id = pushes[0].get("id") if pushes else None
     if push_id is None:
-        return
+        return None
 
     jobs_data = fetch_json(TREEHERDER_BASE + "api/jobs/",
                            {"push_id": push_id})
@@ -442,6 +449,7 @@ def lookup_treeherder(project, revision):
 
 
 def get_task(task_id):
+    # type: (Text) -> Optional[Dict[Text, Any]]
     if task_id is None:
         return
     task_url = QUEUE_BASE + "task/" + task_id
@@ -450,9 +458,11 @@ def get_task(task_id):
     if task.get("taskGroupId"):
         return task
     logger.warning("Task %s not found: %s" % (task_id, task.get("message", "")))
+    return None
 
 
 def get_task_status(task_id):
+    # type: (Text) -> Optional[Dict[Text, Any]]
     if task_id is None:
         return
     status_url = "%stask/%s/status" % (QUEUE_BASE, task_id)
@@ -461,9 +471,11 @@ def get_task_status(task_id):
     if status.get("status"):
         return status["status"]
     logger.warning("Task %s not found: %s" % (task_id, status.get("message", "")))
+    return None
 
 
 def download(log_url, log_path, retry, session=None):
+    # type: (Text, Text, int, Optional[requests.Session]) -> bool
     if session is None:
         session = requests.Session()
     while retry > 0:
@@ -482,13 +494,17 @@ def download(log_url, log_path, retry, session=None):
             os.rename(tmp_path, log_path)
             logger.debug("Download took %s" % (time.time() - t0))
             return True
-        except Exception as e:
-            logger.warning(traceback.format_exc(e))
+        except Exception:
+            logger.warning(traceback.format_exc())
             retry -= 1
     return False
 
 
-def fetch_json(url, params=None, session=None):
+def fetch_json(url,  # type: Text
+               params=None,  # type: Dict[Text, Text]
+               session=None  # type: requests.Session
+               ):
+    # type (...) -> Union[Dict[Text, Any], List[Any]]
     if session is None:
         session = requests.Session()
     t0 = time.time()
@@ -504,6 +520,7 @@ def fetch_json(url, params=None, session=None):
 
 
 def get_taskgroup_id(project, revision):
+    # type: (Text, Text) -> Tuple[Text, Text, List[Dict[Text, Any]]]
     idx = "gecko.v2.%s.revision.%s.firefox.decision" % (project, revision)
     try:
         task_id = lookup_index(idx)
