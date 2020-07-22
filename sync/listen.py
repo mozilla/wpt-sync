@@ -1,18 +1,23 @@
 from __future__ import absolute_import
+import abc
 import json
 import logging
 import os
 
+import six
 from six import iteritems, itervalues
 from six.moves import urllib
 
 import kombu
-
 from kombu.mixins import ConsumerMixin
 
 from . import log
 from . import handlers
 from . import tasks
+
+MYPY = False
+if MYPY:
+    from typing import Any, Dict, Text
 
 here = os.path.dirname(__file__)
 
@@ -117,6 +122,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
 
 
 def run_pulse_listener(config):
+    # type: (Dict[Text, Any]) -> None
     """
     Configures Pulse connection and triggers events from Pulse messages.
 
@@ -169,10 +175,11 @@ def run_pulse_listener(config):
             listener.run()
         except KeyboardInterrupt:
             pass
+    return None
 
 
-class Filter(object):
-    name = None
+class Filter(six.with_metaclass(abc.ABCMeta, object)):
+    name = None  # type: Text
     task = tasks.handle
 
     def __init__(self, config, logger):
@@ -186,6 +193,7 @@ class Filter(object):
             self.task.apply_async((self.name, body))
 
     def accept(self, body):
+        # type: (Dict[Text, Any]) -> bool
         raise NotImplementedError
 
 
@@ -229,7 +237,7 @@ class TaskGroupFilter(Filter):
     name = "taskgroup"
 
     def accept(self, body):
-        return body.get("taskGroupId")
+        return body.get("taskGroupId") is not None
 
 
 class DecisionTaskFilter(Filter):
