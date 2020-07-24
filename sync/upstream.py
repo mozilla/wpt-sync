@@ -346,7 +346,7 @@ class UpstreamSync(SyncProcess):
 
         assert self.remote_branch is not None
         assert self.remote_branch in self.git_wpt.remotes.origin.refs
-        while not env.gh_wpt.get_branch(self.remote_branch):
+        while not env.gh_wpt.has_branch(self.remote_branch):
             logger.debug("Waiting for branch")
             time.sleep(1)
 
