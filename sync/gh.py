@@ -15,14 +15,9 @@ from . import log
 from .env import Environment
 MYPY = False
 if MYPY:
-    from typing import List
     from datetime import datetime
-    from typing import Any
-    from typing import Dict
-    from typing import Optional
-    from typing import Text
-    from typing import Tuple
-    from typing import Union
+    from github import Branch, Commit, PullRequest, Repository
+    from typing import Any, Dict, List, Optional, Text, Tuple, Union
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -77,9 +72,10 @@ class CheckRun(github.GithubObject.NonCompletableGithubObject):
 
 class GitHub(object):
     def __init__(self, token, url):
+        # type: (Text, Text) -> None
         self.gh = github.Github(token)
         self.repo_name = urllib.parse.urlsplit(url).path.lstrip("/")
-        self.pr_cache = {}
+        self.pr_cache = {}  # type: Dict[int, PullRequest]
         self._repo = None
 
     def pr_url(self, pr_id):
@@ -89,22 +85,34 @@ class GitHub(object):
                  pr_id))
 
     def load_pull(self, data):
+        # type: (Dict[Text, Any]) -> None
         pr = self.gh.create_from_raw_data(github.PullRequest.PullRequest, data)
         self.pr_cache[pr.number] = pr
 
     @property
     def repo(self):
+        # type: () -> Repository
         if self._repo is None:
             self._repo = self.gh.get_repo(self.repo_name)
         return self._repo
 
     def get_pull(self, id):
+        # type: (int) -> PullRequest
         id = int(id)
         if id not in self.pr_cache:
-            self.pr_cache[id] = self.repo.get_pull(id)
+            pr = self.repo.get_pull(id)
+            if pr is None:
+                raise ValueError("No pull request with id %s" % id)
+            self.pr_cache[id] = pr
         return self.pr_cache[id]
 
-    def create_pull(self, title, body, base, head):
+    def create_pull(self,
+                    title,  # type: Text
+                    body,  # type: Text
+                    base,  # type: Text
+                    head  # type: Text
+                    ):
+        # type: (...) -> int
         try:
             pr = self.repo.create_pull(title=title, body=body, base=base, head=head)
             logger.info("Created PR %s" % pr.number)
@@ -122,13 +130,24 @@ class GitHub(object):
         self.pr_cache[pr.number] = pr
         return pr.number
 
-    def get_branch(self, name):
+    def has_branch(self, name):
+        # type: (Text) -> bool
+        return self._get_branch(name) is not None
+
+    def _get_branch(self, name):
+        # type: (Text) -> Optional[Branch]
         try:
             return self.repo.get_branch(name)
         except (github.GithubException, github.UnknownObjectException):
             return None
 
-    def set_status(self, pr_id, status, target_url, description, context):
+    def set_status(self,
+                   pr_id,  # type: int
+                   status,  # type: Text
+                   target_url,  # type: Optional[Text]
+                   description,  # type: Optional[Text]
+                   context  # type: Text
+                   ):
         pr = self.get_pull(pr_id)
         head_commit = self.repo.get_commit(pr.head.ref)
         kwargs = {}
@@ -140,13 +159,19 @@ class GitHub(object):
                                   context=context,
                                   **kwargs)
 
-    def add_labels(self, pr_id, *labels):
+    def add_labels(self,
+                   pr_id,  # type: int
+                   *labels  # type: Text
+                   ):
         logger.debug("Adding labels %s to PR %s" % (", ".join(labels), pr_id))
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
         issue.add_to_labels(*labels)
 
-    def remove_labels(self, pr_id, *labels):
+    def remove_labels(self,
+                      pr_id,  # type: int
+                      *labels  # type: Text
+                      ):
         logger.debug("Removing labels %s from PR %s" % (labels, pr_id))
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
@@ -158,7 +183,10 @@ class GitHub(object):
                     logger.warning("Error handling label removal: %s" % e)
                     newrelic.agent.record_exception()
 
-    def _convert_pr_id(self, pr_id):
+    def _convert_pr_id(self,
+                       pr_id  # type: Union[Text, int]
+                       ):
+        # (...) -> int
         if not isinstance(pr_id, six.integer_types):
             try:
                 pr_id = int(pr_id)
@@ -167,15 +195,20 @@ class GitHub(object):
         return pr_id
 
     def required_checks(self, branch_name):
-        branch = self.get_branch(branch_name)
+        # type: (Text) -> List[Text]
+        branch = self._get_branch(branch_name)
+        if branch is None:
+            # TODO: Maybe raise an exception here
+            return []
         return branch._rawData["protection"]["required_status_checks"]["contexts"]
 
     def get_check_runs(self, pr_id):
+        # type: (int) -> Dict[Text, Dict[Text, Any]]
         pr = self.get_pull(pr_id)
         check_runs = list(self._get_check_runs(pr.head.sha))
         required_contexts = self.required_checks(pr.base.ref)
-        rv = {}
-        id_by_name = {}
+        rv = {}  # type: Dict[Text, Dict[Text, Any]]
+        id_by_name = {}  # type: Dict[Text, int]
         for item in check_runs:
             if item.name in id_by_name and item.id < id_by_name[item.name]:
                 continue
@@ -204,27 +237,25 @@ class GitHub(object):
                                                   list_item="check_runs")
 
     def pull_state(self, pr_id):
+        # type: (int) -> Text
         pr = self.get_pull(pr_id)
-        if not pr:
-            raise ValueError
         return pr.state
 
     def reopen_pull(self, pr_id):
+        # type: (int) -> None
         pr = self.get_pull(pr_id)
-        if not pr:
-            raise ValueError
         pr.edit(state="open")
 
     def close_pull(self, pr_id):
+        # type: (int) -> None
         pr = self.get_pull(pr_id)
-        if not pr:
-            raise ValueError
         # Perhaps?
         # issue = self.repo.get_issue(pr_id)
         # issue.add_to_labels("mozilla:backed-out")
         pr.edit(state="closed")
 
     def is_approved(self, pr_id):
+        # type: (int) -> bool
         pr = self.get_pull(pr_id)
         reviews = pr.get_reviews()
         # We get a chronological list of all reviews, so we want to
@@ -236,6 +267,7 @@ class GitHub(object):
         return "APPROVED" in list(review_by_reviewer.values())
 
     def merge_sha(self, pr_id):
+        # type: (int) -> Optional[Text]
         pr = self.get_pull(pr_id)
         if pr.merged:
             return pr.merge_commit_sha
@@ -249,7 +281,7 @@ class GitHub(object):
             # GitHub sometimes doesn't have the mergability information ready;
             # In this case mergeable is None and we need to wait and try again
             pr = self.get_pull(pr_id)
-            mergeable = pr.mergeable
+            mergeable = pr is not None and pr.mergeable
             if mergeable is None:
                 time.sleep(2**count)
                 count += 1
@@ -257,6 +289,7 @@ class GitHub(object):
         return bool(mergeable)
 
     def merge_pull(self, pr_id):
+        # type: (int) -> Text
         pr = self.get_pull(pr_id)
         post_parameters = {"merge_method": "rebase"}
         headers, data = pr._requester.requestJsonAndCheck(
@@ -267,11 +300,12 @@ class GitHub(object):
         return data["sha"]
 
     def pr_for_commit(self, sha):
+        # type: (Text) -> Optional[int]
         logger.info("Looking up PR for commit %s" % sha)
         owner, repo = self.repo_name.split("/")
         prs = list(self.gh.search_issues(query="is:pr repo:%s/%s sha:%s" % (owner, repo, sha)))
         if len(prs) == 0:
-            return
+            return None
 
         if len(prs) > 1:
             logger.warning("Got multiple PRs related to commit %s: %s" %
@@ -280,35 +314,30 @@ class GitHub(object):
 
         return prs[0].number
 
-    def get_pulls(self, minimum_id=None):
-        for item in self.repo.get_pulls():
-            if minimum_id and item.number < minimum_id:
-                break
-            yield item
-
     def get_commits(self, pr_id):
+        # type: (int) -> List[Commit]
         return list(self.get_pull(pr_id).commits)
 
     def cleanup_pr_body(self, text):
-        # type: (str) -> str
+        # type: (Text) -> Text
         r = re.compile(re.escape("<!-- Reviewable:start -->") + ".*" +
                        re.escape("<!-- Reviewable:end -->"), re.DOTALL)
         return r.sub("", text)
 
     def _construct_check_data(self,
-                              name,  # type: str
-                              commit_sha=None,  # type: str
+                              name,  # type: Text
+                              commit_sha=None,  # type: Optional[Text]
                               check_id=None,  # type: Optional[int]
-                              url=None,  # type: Text
-                              external_id=None,  # type: Text
-                              status=None,  # type: str
-                              started_at=None,  # type: Optional[Any]
-                              conclusion=None,  # type: str
-                              completed_at=None,  # type: datetime
-                              output=None,  # type: Union[Dict[str, Text], Dict[str, str]]
+                              url=None,  # type: Optional[Text]
+                              external_id=None,  # type: Optional[Text]
+                              status=None,  # type: Optional[Text]
+                              started_at=None,  # type: Optional[datetime]
+                              conclusion=None,  # type: Optional[Text]
+                              completed_at=None,  # type: Optional[datetime]
+                              output=None,  # type: Optional[Dict[Text, Text]]
                               actions=None,  # type: Optional[Any]
                               ):
-        # type: (...) -> Tuple[str, Dict[str, Optional[str]]]
+        # type: (...) -> Tuple[Text, Dict[Text, Any]]
         if check_id is not None and commit_sha is not None:
             raise ValueError("Only one of check_id and commit_sha may be supplied")
 
@@ -317,7 +346,7 @@ class GitHub(object):
                 raise ValueError("Invalid status %s" % status)
 
         if started_at is not None:
-            started_at = started_at.isoformat()
+            started_at_text = started_at.isoformat()
 
         if status == "completed" and conclusion is None:
             raise ValueError("Got a completed status but no conclusion")
@@ -331,7 +360,7 @@ class GitHub(object):
                 raise ValueError("Invalid conclusion %s" % conclusion)
 
         if completed_at is not None:
-            completed_at = completed_at.isoformat()
+            completed_at_text = completed_at.isoformat()
 
         if output is not None:
             if not "title"in output:
@@ -341,16 +370,16 @@ class GitHub(object):
 
         req_data = {
             "name": name,
-        }
+        }  # type: Dict[Text, Any]
 
         for (name, value) in [("head_sha", commit_sha),
                               ("id", check_id),
                               ("url", url),
                               ("external_id", external_id),
                               ("status", status),
-                              ("started_at", started_at),
+                              ("started_at", started_at_text),
                               ("conclusion", conclusion),
-                              ("completed_at", completed_at),
+                              ("completed_at", completed_at_text),
                               ("output", output),
                               ("actions", actions)]:
             req_data[name] = value
@@ -359,10 +388,20 @@ class GitHub(object):
 
         return req_method, req_data
 
-    def set_check(self, name, commit_sha=None, check_id=None, url=None, external_id=None,
-                  status=None, started_at=None, conclusion=None, completed_at=None,
-                  output=None, actions=None):
-
+    def set_check(self,
+                  name,  # type: Text
+                  commit_sha=None,  # type: Optional[Text]
+                  check_id=None,  # type: Optional[int]
+                  url=None,  # type: Optional[Text]
+                  external_id=None,  # type: Optional[Text]
+                  status=None,  # type: Optional[Text]
+                  started_at=None,  # type: Optional[datetime]
+                  conclusion=None,  # type: Optional[Text]
+                  completed_at=None,  # type: Optional[datetime]
+                  output=None,  # type: Optional[Dict[Text, Text]]
+                  actions=None  # type: Optional[List[Text]]
+                  ):
+        # type: (...) -> Dict[Text, Any]
         req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
                                                           url, external_id, status,
                                                           started_at, conclusion, completed_at,
@@ -370,13 +409,13 @@ class GitHub(object):
 
         req_headers = {"Accept": "application/vnd.github.antiope-preview+json"}
 
-        url = self.repo.url + "/check-runs"
+        req_url = self.repo.url + "/check-runs"
         if check_id is not None:
-            url += ("/%s" % check_id)
+            req_url += ("/%s" % check_id)
 
         headers, data = self.repo._requester.requestJsonAndCheck(
             req_method,
-            url,
+            req_url,
             input=req_data,
             headers=req_headers
         )
@@ -403,24 +442,24 @@ class MockGitHub(GitHub):
         self.checks = {}
 
     def _log(self, data):
-        # type: (str) -> None
+        # type: (Text) -> None
         data = six.ensure_text(data)
         self.output.write(data)
         self.output.write(u"\n")
 
     def get_pull(self, id):
-        # type: (Union[int, str]) -> AttrDict
+        # type: (int) -> Any
         self._log("Getting PR %s" % id)
         return self.prs.get(int(id))
 
     def create_pull(self,
                     title,  # type: Text
                     body,  # type: Text
-                    base,  # type: str
+                    base,  # type: Text
                     head,  # type: Text
                     _commits=None,  # type: Optional[List[AttrDict]]
-                    _id=None,  # type: Optional[Any]
-                    _user=None,  # type: Optional[str]
+                    _id=None,  # type: Optional[int]
+                    _user=None,  # type: Optional[Text]
                     ):
         # type: (...) -> int
         if _id is None:
@@ -458,40 +497,32 @@ class MockGitHub(GitHub):
         self._log("Created PR with id %s" % id)
         return id
 
-    def get_branch(self, name):
-        # type: (str) -> bool
-        # For now we are only using this to check a branch exists
+    def has_branch(self, name):
+        # type: (Text) -> bool
         self._log("Checked branch %s" % name)
         return True
 
-    def set_status(self, pr_id, status, target_url, description, context):
-        # type: (int, str, str, str, str) -> None
-        pr = self.get_pull(pr_id)
-        pr._commits[-1]._statuses.insert(0, AttrDict(state=status,
-                                                     target_url=target_url,
-                                                     description=description,
-                                                     context=context))
-        self._log("Set status on PR %s to %s" % (pr_id, status))
-
     def add_labels(self, pr_id, *labels):
-        # type: (str, *str) -> None
+        # type: (int, *Text) -> None
         self.get_pull(pr_id)["labels"].extend(labels)
 
     def remove_labels(self, pr_id, *labels):
-        # type: (str, *str) -> None
+        # type: (int, *Text) -> None
         pr = self.get_pull(pr_id)
         pr["labels"] = [item for item in pr["labels"] if item not in labels]
 
     def load_pull(self, data):
-        # type: (Dict[str, Any]) -> None
+        # type: (Dict[Text, Any]) -> None
         pr = self.get_pull(data["number"])
         pr.merged = data["merged"]
         pr.state = data["state"]
 
     def required_checks(self, branch_name):
+        # type: (Text) -> List[Text]
         return ["wpt-decision-task", "sink-task"]
 
     def get_check_runs(self, pr_id):
+        # type: (int) -> Dict[Text, Dict[Text, Any]]
         pr = self.get_pull(pr_id)
         rv = {}
         if pr:
@@ -502,7 +533,7 @@ class MockGitHub(GitHub):
         return rv
 
     def pull_state(self, pr_id):
-        # type: (int) -> str
+        # type: (int) -> Text
         pr = self.get_pull(pr_id)
         if not pr:
             raise ValueError
@@ -522,15 +553,20 @@ class MockGitHub(GitHub):
             raise ValueError
         pr["state"] = "closed"
 
+    def is_approved(self, pr_id):
+        # type: (int) -> bool
+        pr = self.get_pull(pr_id)
+        return pr._approved
+
     def merge_sha(self, pr_id):
-        # type: (int) -> Optional[Any]
+        # type: (int) -> Optional[Text]
         pr = self.get_pull(pr_id)
         if pr.merged:
             return pr.merge_commit_sha
         return None
 
     def merge_pull(self, pr_id):
-        # type: (int) -> None
+        # type: (int) -> Text
         pr = self.get_pull(pr_id)
         if self.is_mergeable:
             pr.merged = True
@@ -539,10 +575,7 @@ class MockGitHub(GitHub):
             raise ValueError
         pr["merged_by"] = {"login": env.config["web-platform-tests"]["github"]["user"]}
         self._log("Merged PR with id %s" % pr_id)
-
-    def is_approved(self, pr_id):
-        pr = self.get_pull(pr_id)
-        return pr._approved
+        return pr.merge_commit_sha
 
     def pr_for_commit(self, sha):
         # type: (Text) -> Optional[int]
@@ -554,19 +587,19 @@ class MockGitHub(GitHub):
                 yield self.get_pull(number)
 
     def set_check(self,
-                  name,  # type: str
+                  name,  # type: Text
+                  commit_sha=None,  # type: Optional[Text]
                   check_id=None,  # type: Optional[int]
-                  commit_sha=None,  # type: str
-                  url=None,  # type: Text
-                  external_id=None,  # type: Text
-                  status=None,  # type: str
-                  started_at=None,  # type: Optional[Any]
-                  conclusion=None,  # type: str
-                  completed_at=None,  # type: datetime
-                  output=None,  # type: Union[Dict[str, Text], Dict[str, str]]
-                  actions=None,  # type: Optional[Any]
+                  url=None,  # type: Optional[Text]
+                  external_id=None,  # type: Optional[Text]
+                  status=None,  # type: Optional[Text]
+                  started_at=None,  # type: Optional[datetime]
+                  conclusion=None,  # type: Optional[Text]
+                  completed_at=None,  # type: Optional[datetime]
+                  output=None,  # type: Optional[Dict[Text, Text]]
+                  actions=None,  # type: Optional[List[Text]]
                   ):
-        # type: (...) -> Dict[str, int]
+        # type: (...) -> Dict[Text, Any]
 
         req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
                                                           url, external_id, status,
