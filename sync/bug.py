@@ -14,10 +14,8 @@ from .env import Environment
 
 MYPY = False
 if MYPY:
-    from typing import Text
-    from typing import Optional
-    from typing import Any
-    from typing import Tuple
+    from typing import Any, Dict, List, Optional, Set, Text, Tuple, Union
+    from bugsy import Bug
 
 env = Environment()
 
@@ -40,19 +38,20 @@ def bz_url_from_api_url(api_url):
 
 
 def bug_number_from_url(url):
-    # type: (str) -> str
+    # type: (Text) -> Optional[Text]
     if url is None:
         return None
     bugs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("id")
     if bugs:
         return bugs[0]
+    return None
 
 
 status_re = re.compile(r"\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
 
 
 def get_sync_data(whiteboard):
-    # type: (str) -> Tuple[None, None]
+    # type: (Text) -> Tuple[Optional[Text], Optional[Text]]
     matches = status_re.findall(whiteboard)
     if matches:
         subtype, status = matches[0]
@@ -63,7 +62,7 @@ def get_sync_data(whiteboard):
 
 
 def set_sync_data(whiteboard, subtype, status):
-    # type: (str, str, Optional[str]) -> str
+    # type: (Text, Optional[Text], Optional[str]) -> Text
     if subtype is None:
         raise ValueError
 
@@ -87,7 +86,7 @@ def check_valid_comment(text):
 
 
 class Bugzilla(object):
-    bug_cache = {}
+    bug_cache = {}  # type: Dict[int, Bug]
 
     def __init__(self, config):
         self.api_url = config["bugzilla"]["url"]
@@ -98,6 +97,7 @@ class Bugzilla(object):
             self.bugzilla.DEFAULT_SEARCH += ["flags"]
 
     def bug_ctx(self, bug_id):
+        # type: (int) -> BugContext
         return BugContext(self, bug_id)
 
     def bugzilla_url(self, bug_id):
@@ -116,21 +116,27 @@ class Bugzilla(object):
         return query["id"][0]
 
     def _get_bug(self, bug_id):
+        # type: (int) -> Optional[Bug]
         if bug_id not in self.bug_cache:
             try:
                 bug = self.bugzilla.get(bug_id)
             except bugsy.BugsyException:
                 logger.error("Failed to retrieve bug with id %s" % bug_id)
-                return
+                return None
             except Exception as e:
                 logger.error("Failed to retrieve bug with id %s: %s" % (bug_id, e))
                 newrelic.agent.record_exception()
-                return
+                return None
 
             self.bug_cache[bug_id] = bug
         return self.bug_cache[bug_id]
 
-    def comment(self, bug_id, comment, **kwargs):
+    def comment(self,
+                bug_id,  # type: int
+                comment,  # type: Text
+                **kwargs  # type: Any
+                ):
+        # type: (...) -> None
         bug = self._get_bug(bug_id)
         if bug is None:
             logger.error("Failed to find bug %s to add comment:\n%s" % (bug_id, comment))
@@ -142,8 +148,18 @@ class Bugzilla(object):
         self.bugzilla.request('bug/{}/comment'.format(bug.id),
                               method='POST', json=body)
 
-    def new(self, summary, comment, product, component, whiteboard=None, priority=None,
-            url=None, bug_type="task", assign_to_sync=True):
+    def new(self,
+            summary,  # type: Text
+            comment,  # type: Text
+            product,  # type: Text
+            component,  # type: Text
+            whiteboard=None,  # type: Optional[Text]
+            priority=None,  # type: Optional[Text]
+            url=None,  # type: Optional[Text]
+            bug_type="task",  # type: Text
+            assign_to_sync=True  # type: bool
+            ):
+        # type (...) -> int
         bug = bugsy.Bug(self.bugzilla,
                         type=bug_type,
                         summary=summary,
@@ -168,11 +184,17 @@ class Bugzilla(object):
         self.bug_cache[bug.id] = bug
         return bug.id
 
-    def set_component(self, bug_id, product=None, component=None):
-        bug = self._get_bug(bug_id)
+    def set_component(self,
+                      bug,  # type: Union[Bug, int]
+                      product=None,  # type: Optional[Text]
+                      component=None  # type: Optional[Text]
+                      ):
+        # type (...) -> None
+        if not isinstance(bug, bugsy.Bug):
+            bug = self._get_bug(bug)
         if bug is None:
             logger.error("Failed to find bug %s to set component: %s::%s" %
-                         (bug_id, product, component))
+                         (bug, product, component))
             return
 
         if product is not None:
@@ -186,7 +208,11 @@ class Bugzilla(object):
             except bugsy.BugsyException:
                 logger.error("Failed to set component %s :: %s" % (bug.product, bug.component))
 
-    def set_whiteboard(self, bug, whiteboard):
+    def set_whiteboard(self,
+                       bug,  # type: Union[Bug, int]
+                       whiteboard  # type: Text
+                       ):
+        # type : (...) -> None
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if not bug:
@@ -201,6 +227,7 @@ class Bugzilla(object):
             newrelic.agent.record_exception()
 
     def get_whiteboard(self, bug):
+        # type: (Union[Bug, int]) -> Optional[Text]
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if not bug:
@@ -208,13 +235,23 @@ class Bugzilla(object):
         return bug._bug.get("whiteboard", "")
 
     def get_status(self, bug):
+        # type: (Union[Bug, int]) -> Optional[Tuple[Text, Text]]
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
+        if not bug:
+            return None
         return (bug.status, bug.resolution)
 
-    def set_status(self, bug, status, resolution=None):
+    def set_status(self,
+                   bug,  # type: Union[Bug, int]
+                   status,  # type: Text
+                   resolution=None  # type: Optional[Text]
+                   ):
+        # type: (...) -> None
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
+        if not bug:
+            return None
         bug.status = status
         if resolution is not None:
             assert status == "RESOLVED"
@@ -222,39 +259,38 @@ class Bugzilla(object):
         self.bugzilla.put(bug)
 
     def get_dupe(self, bug_id):
+        # type: (Union[Bug, int]) -> Optional[int]
         if not isinstance(bug_id, bugsy.Bug):
             bug = self._get_bug(bug_id)
         else:
             bug = bug_id
+        if not bug:
+            return None
         return bug._bug.get("dupe_of")
 
 
 class BugContext(object):
-    def __init__(self, bugzilla, bug_id):
+    def __init__(self,
+                 bugzilla,  # type: Bugzilla
+                 bug_id  # type: int
+                 ):
         self.bugzilla = bugzilla
         self.bug_id = bug_id
 
-        # These are set to usable values when we enter the context manager
-        self.bug = None
-        self._comments = None
-        self.comment = None
-        self.attachments = None
-        self.depends = None
-        self.blocks = None
-        self.dirty = None
-
     def __enter__(self):
-        self.bug = self.bugzilla._get_bug(self.bug_id)
+        # type: () -> BugContext
+        self.bug = self.bugzilla._get_bug(self.bug_id)  # type: Bug
         self._comments = None
-        self.comment = None
-        self.attachments = []
-        self.depends = {}
-        self.blocks = {}
-        self.dirty = set()
+        self.comment = None  # type: Optional[Dict[Text, Any]]
+        self.attachments = []  # type: List[Dict[Text, Any]]
+        self.depends = {}  # type: Dict[Text, List[int]]
+        self.blocks = {}  # type: Dict[Text, List[int]]
+        self.dirty = set()  # type: Set[Text]
 
         return self
 
     def __exit__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         if self.dirty:
             # Apparently we can't add comments atomically with other changes
             if "comment" in self.dirty:
@@ -276,18 +312,22 @@ class BugContext(object):
         # Poison the object so it can't be used outside a context manager
         self.bug = None
 
-    def __setitem__(self, name, value):
+    def __setitem__(self,
+                    name,  # type: Text
+                    value  # type: Any
+                    ):
         if name == "comment":
             return self.add_comment(value)
         self.bug._bug[name] = value
         self.dirty.add(name)
 
     def add_comment(self,
-                    comment,
-                    check_dupe=True,
-                    comment_tags=None,
-                    is_private=False,
-                    is_markdown=False):
+                    comment,  # type: Text
+                    check_dupe=True,  # type: bool
+                    comment_tags=None,  # type: List[Text]
+                    is_private=False,  # type: bool
+                    is_markdown=False  # type: bool
+                    ):
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
         comment = check_valid_comment(comment)
@@ -300,16 +340,18 @@ class BugContext(object):
                         "is_markdown": is_markdown,
                         "is_private": is_private}
         if comment_tags is not None:
-            self.comment["comment_tags"] = comment_tags
+            self.comment[u"comment_tags"] = comment_tags
         self.dirty.add("comment")
         return True
 
     def get_comments(self):
+        # type () -> List[bugsy.Comment]
         if self._comments is None:
             self._comments = self.bug.get_comments()
         return self._comments
 
     def needinfo(self, *requestees):
+        # type: (*Text) -> None
         if not requestees:
             return
         flags = self.bug._bug.get("flags", [])
@@ -326,15 +368,23 @@ class BugContext(object):
         self.bug._bug["flags"] = flags
         self.dirty.add("flags")
 
-    def add_attachment(self, data, file_name, summary, content_type="text/plain",
-                       comment=None, is_patch=False, is_private=False, is_markdown=None,
-                       flags=None):
+    def add_attachment(self,
+                       data,  # type: bytes
+                       file_name,  # type: Text
+                       summary,  # type: Text
+                       content_type="text/plain",  # type: Text
+                       comment=None,  # type Optional[Text]
+                       is_patch=False,  # type: bool
+                       is_private=False,  # type: bool
+                       is_markdown=False,  # type: bool
+                       flags=None  # type: Optional[List[Text]]
+                       ):
         body = {
             "data": base64.encodestring(data),
             "file_name": file_name,
             "summary": summary,
             "content_type": content_type
-        }
+        }  # type: Dict[Text, Any]
         if comment:
             body["comment"] = comment
         if is_patch:
@@ -350,24 +400,28 @@ class BugContext(object):
         self.dirty.add("attachment")
 
     def add_depends(self, bug_id):
+        # type: (int) -> None
         if "add" not in self.depends:
             self.depends["add"] = []
         self.depends["add"].append(bug_id)
         self.dirty.add("depends")
 
     def remove_depends(self, bug_id):
+        # type: (int) -> None
         if "remove" not in self.depends:
             self.depends["remove"] = []
         self.depends["remove"].append(bug_id)
         self.dirty.add("depends")
 
     def add_blocks(self, bug_id):
+        # type: (int) -> None
         if "add" not in self.blocks:
             self.blocks["add"] = []
         self.blocks["add"].append(bug_id)
         self.dirty.add("blocks")
 
     def remove_blocks(self, bug_id):
+        # type: (int) -> None
         if "remove" not in self.blocks:
             self.blocks["remove"] = []
         self.blocks["remove"].append(bug_id)
@@ -383,27 +437,27 @@ class MockBugzilla(Bugzilla):
         self.dupes = {}
 
     def _log(self, data):
-        # type: (Text) -> None
+        # type: (Union[Text, bytes]) -> None
         data = six.ensure_text(data)
         self.output.write(data)
         self.output.write(u"\n")
 
     def bug_ctx(self, bug_id):
-        # type: (str) -> MockBugContext
+        # type: (int) -> BugContext
         return MockBugContext(self, bug_id)
 
     def new(self,
-            summary,  # type: str
+            summary,  # type: Text
             comment,  # type: Text
-            product,  # type: str
-            component,  # type: str
-            whiteboard=None,  # type: str
-            priority=None,  # type: Optional[str]
-            url=None,  # type: Optional[str]
-            bug_type="task",  # type: str
+            product,  # type: Text
+            component,  # type: Text
+            whiteboard=None,  # type: Optional[Text]
+            priority=None,  # type: Optional[Text]
+            url=None,  # type: Optional[Text]
+            bug_type="task",  # type: Text
             assign_to_sync=True,  # type: bool
             ):
-        # type: (...) -> str
+        # type: (...) -> int
         self._log("Creating a bug in component {product} :: {component}\nSummary: {summary}\n"
                   "Comment: {comment}\nWhiteboard: {whiteboard}\nPriority: {priority}\n"
                   "URL: {url}\nType: {bug_type}\nAssign to sync: {assign_to_sync}".format(
@@ -421,46 +475,51 @@ class MockBugzilla(Bugzilla):
         else:
             bug_id = 100000
         self.known_bugs.append(bug_id)
-        return str(bug_id)
+        return bug_id
 
-    def comment(self, bug_id, text):
-        # type: (Text, Text) -> None
-        self._log("Posting to bug %s:\n%s" % (bug_id, text))
+    def comment(self,
+                bug_id,  # type: int
+                comment,  # type: Text
+                **kwargs  # type: Any
+                ):
+        # type: (...) -> None
+        self._log("Posting to bug %s:\n%s" % (bug_id, comment))
 
     def set_component(self, bug_id, product=None, component=None):
-        # type: (Text, str, str) -> None
+        # type: (int, Optional[Text], Optional[Text]) -> None
         self._log("Setting bug %s product: %s component: %s" % (bug_id, product, component))
 
     def set_whiteboard(self, bug_id, whiteboard):
-        # type: (Text, str) -> None
+        # type: (int, Text) -> None
         self._log("Setting bug %s whiteboard: %s" % (bug_id, whiteboard))
 
     def get_whiteboard(self, bug):
-        # type: (Text) -> str
+        # type: (Union[Bug, int]) -> Text
         return "fake data"
 
     def get_status(self, bug):
-        return ("NEW", None)
+        # type: (Union[Bug, int]) -> Tuple[Text, Text]
+        return ("NEW", "")
 
-    def set_status(self, bug, status):
+    def set_status(self, bug, status, resolution=None):
+        # type: (Union[Bug, int], Text, Optional[Text]) -> None
         self._log("Setting bug %s status %s" % (bug, status))
 
     def get_dupe(self, bug):
+        # type: (Union[Bug, int]) -> Optional[int]
         return self.dupes.get(bug)
 
 
-class MockBugContext(object):
+class MockBugContext(BugContext):
     def __init__(self, bugzilla, bug_id):
-        # type: (MockBugzilla, str) -> None
+        # type: (MockBugzilla, int) -> None
         self.bugzilla = bugzilla
         self.bug_id = bug_id
-        self.changes = None
-        self.comment = None
 
     def __enter__(self):
-        # type: () -> MockBugContext
-        self.changes = []
-        self.comment = None
+        # type: () -> BugContext
+        self.changes = []  # type: List[Text]
+        self.comment = None  # type: Optional[Dict[Text, Any]]
         return self
 
     def __exit__(self, *args, **kwargs):
@@ -469,22 +528,18 @@ class MockBugContext(object):
             self.bugzilla._log("%s\n" % item)
 
     def __setitem__(self, name, value):
-        # type: (str, str) -> None
+        # type: (Text, Text) -> None
         self.changes.append("Setting bug %s %s %s" % (self.bug_id,
                                                       name, value))
 
-    def needinfo(self, *requestees):
-        # type: (*str) -> None
-        for requestee in requestees:
-            self.changes.append("Setting bug %s needinfo %s" % (self.bug_id, requestee))
-
     def add_comment(self,
-                    comment,
-                    check_dupe=True,
-                    comment_tags=None,
-                    is_private=False,
-                    is_markdown=False):
-        # type: (Text, bool, Optional[Any], bool, bool) -> None
+                    comment,  # type: Text
+                    check_dupe=True,  # type: bool
+                    comment_tags=None,  # type: List[Text]
+                    is_private=False,  # type: bool
+                    is_markdown=False  # type: bool
+                    ):
+        # type: (...) -> None
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
         self.comment = {"comment": comment,
@@ -494,17 +549,31 @@ class MockBugContext(object):
             self.comment["comment_tags"] = comment_tags
 
     def get_comments(self):
+        # type () -> List[bugsy.Comment]
         return []
 
-    def add_attachment(self, data, file_name, summary, content_type="text/plain",
-                       comment=None, is_patch=False, is_private=False, is_markdown=False,
-                       flags=None):
+    def needinfo(self, *requestees):
+        # type: (*Text) -> None
+        for requestee in requestees:
+            self.changes.append("Setting bug %s needinfo %s" % (self.bug_id, requestee))
+
+    def add_attachment(self,
+                       data,  # type: bytes
+                       file_name,  # type: Text
+                       summary,  # type: Text
+                       content_type="text/plain",  # type: Text
+                       comment=None,  # type Optional[Text]
+                       is_patch=False,  # type: bool
+                       is_private=False,  # type: bool
+                       is_markdown=False,  # type: bool
+                       flags=None  # type: Optional[List[Text]]
+                       ):
         body = {
             "data": base64.encodestring(data),
             "file_name": file_name,
             "summary": summary,
             "content_type": content_type
-        }
+        }  # type: Dict[Text, Any]
         if comment:
             body["comment"] = comment
         if is_patch:
@@ -519,15 +588,17 @@ class MockBugContext(object):
                             (self.bug_id, body))
 
     def add_depends(self, bug_id):
-        # type: (str) -> None
+        # type: (int) -> None
         self.changes.append("Setting bug %s add_depends %s" % (self.bug_id, bug_id))
 
     def remove_depends(self, bug_id):
+        # type: (int) -> None
         self.changes.append("Setting bug %s remove_depends %s" % (self.bug_id, bug_id))
 
     def add_blocks(self, bug_id):
-        # type: (Text) -> None
+        # type: (int) -> None
         self.changes.append("Setting bug %s add_blocks %s" % (self.bug_id, bug_id))
 
     def remove_blocks(self, bug_id):
+        # type: (int) -> None
         self.changes.append("Setting bug %s remove_blocks %s" % (self.bug_id, bug_id))
