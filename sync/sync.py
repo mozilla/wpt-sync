@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 import enum
 import itertools
-import sys
 import traceback
 from collections import defaultdict
 
@@ -21,14 +20,9 @@ from .worktree import Worktree
 MYPY = False
 if MYPY:
     from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Text, Tuple, Union
-    from sync.commit import GeckoCommit, WptCommit
+    from sync.commit import Commit, GeckoCommit
     from git.repo.base import Repo
-    from sync.downstream import DownstreamSync
-    from sync.upstream import UpstreamSync
-    from sync.landing import LandingSync
     from sync.trypush import TryPush
-    from sync.gh import AttrDict
-    from sync.upstream import BackoutCommitFilter
     from sync.lock import SyncLock
 
 env = Environment()
@@ -40,7 +34,7 @@ class CommitFilter(object):
     """Filter of a range of commits"""
     def __init__(self):
         # type: () -> None
-        self._commits = {}
+        self._commits = {}  # type: Dict[Text, bool]
 
     def path_filter(self):
         # type: () -> Optional[Any]
@@ -50,7 +44,7 @@ class CommitFilter(object):
         return None
 
     def filter_commit(self, commit):
-        # type: (Union[GeckoCommit, WptCommit]) -> bool
+        # type: (Commit) -> bool
         """Per-commit filter.
 
         :param commit: wpt_commit.Commit object
@@ -60,13 +54,13 @@ class CommitFilter(object):
         return self._commits[commit.sha1]
 
     def _filter_commit(self, commit):
-        # type: (Union[GeckoCommit, WptCommit]) -> bool
+        # type: (Commit) -> bool
         return True
 
     def filter_commits(self,
-                       commits,  # type: Union[List[GeckoCommit], List[WptCommit]]
+                       commits,  # type: List[Commit]
                        ):
-        # type: (...) -> Union[List[GeckoCommit], List[WptCommit]]
+        # type: (...) -> List[Commit]
         """Filter that applies to the set of commits that were selected
         by the per-commit filter. Useful for e.g. removing backouts
         from a set of commits.
@@ -86,10 +80,10 @@ class CommitRange(object):
     """
     def __init__(self,
                  repo,  # type: Repo
-                 base,  # type: Union[Text, WptCommit]
-                 head_ref,  # type: Union[BranchRefObject, AttrDict]
+                 base,  # type: Union[Text, Commit]
+                 head_ref,  # type: BranchRefObject
                  commit_cls,  # type: type
-                 commit_filter=None,  # type: Union[CommitFilter, BackoutCommitFilter]
+                 commit_filter,  # type: CommitFilter
                  ):
         # type: (...) -> None
         self.repo = repo
@@ -97,16 +91,16 @@ class CommitRange(object):
         # This ended up a little confused because these used to both be
         # VcsRefObjects, but now the base is stored as a ref not associated
         # with a process_name. This should be refactored.
-        self._base_commit = None
+        self._base_commit = None  # type: Optional[Commit]
         self._base = base
         self._head_ref = head_ref
         self.commit_cls = commit_cls
         self.commit_filter = commit_filter
 
         # Cache for the commits in this range
-        self._commits = None
-        self._head_sha = None
-        self._base_sha = None
+        self._commits = []  # type: List[Commit]
+        self._head_sha = None  # type: Optional[Text]
+        self._base_sha = None  # type: Optional[Text]
 
         self._lock = None
 
@@ -123,11 +117,11 @@ class CommitRange(object):
     def __getitem__(self,
                     index,  # type: Union[int, slice]
                     ):
-        # type: (...) -> Union[List[GeckoCommit], GeckoCommit, WptCommit]
+        # type: (...) -> Union[List[Commit], Commit]
         return self.commits[index]
 
     def __iter__(self):
-        # type: () -> Iterator[Union[Iterator, Iterator[GeckoCommit], Iterator[WptCommit]]]
+        # type: () -> Iterator[Commit]
         for item in self.commits:
             yield item
 
@@ -136,27 +130,15 @@ class CommitRange(object):
         return len(self.commits)
 
     def __contains__(self, other_commit):
-        # type: (GeckoCommit) -> bool
+        # type: (Any) -> bool
         for commit in self:
             if commit == other_commit:
                 return True
         return False
 
     @property
-    def base(self):
-        # type: () -> Union[GeckoCommit, WptCommit]
-        if self._base_commit is None:
-            self._base_commit = self.commit_cls(self.repo, self._base)
-        return self._base_commit
-
-    @property
-    def head(self):
-        # type: () -> Union[GeckoCommit, WptCommit]
-        return self._head_ref.commit
-
-    @property
     def commits(self):
-        # type: () -> Union[List[GeckoCommit], List[WptCommit]]
+        # type: () -> List[Commit]
         if self._commits:
             if (self.head.sha1 == self._head_sha and
                 self.base.sha1 == self._base_sha):
@@ -189,22 +171,37 @@ class CommitRange(object):
                     files.add(part.strip())
         return files
 
-    @base.setter
+    @property
+    def base(self):
+        # type: () -> Commit
+        if self._base_commit is None:
+            self._base_commit = self.commit_cls(self.repo, self._base)
+        assert self._base_commit is not None
+        return self._base_commit
+
+    @base.setter  # type: ignore
     @mut()
     def base(self, value):
-        # type: (Union[Text, GeckoCommit]) -> None
+        # type: (Text) -> None
         # Note that this doesn't actually update the stored value of the base
         # anywhere, unlike the head setter which will update the associated ref
-        self._commits = None
+        self._commits = []
         self._base_sha = value
         self._base = self.commit_cls(self.repo, value)
         self._base_commit = None
 
-    @head.setter
+    @property
+    def head(self):
+        # type: () -> Commit
+        head_commit = self._head_ref.commit
+        assert head_commit is not None
+        return head_commit
+
+    @head.setter  # type: ignore
     @mut()
     def head(self, value):
-        # type: (Any) -> None
-        self._head_ref.commit = value
+        # type: (Commit) -> None
+        self._head_ref.commit = value  # type: ignore
 
 
 @enum.unique
@@ -218,14 +215,14 @@ class LandableStatus(enum.Enum):
     skip = 6
 
     def reason_str(self):
-        # type: () -> str
-        return {LandableStatus.ready: "Ready",
-                LandableStatus.no_pr: "No PR",
-                LandableStatus.upstream: "From gecko",
-                LandableStatus.no_sync: "No sync created",
-                LandableStatus.error: "Error",
-                LandableStatus.missing_try_results: "Incomplete try results",
-                LandableStatus.skip: "Skip"}.get(self, "Unknown")
+        # type: () -> Text
+        return {LandableStatus.ready: u"Ready",
+                LandableStatus.no_pr: u"No PR",
+                LandableStatus.upstream: u"From gecko",
+                LandableStatus.no_sync: u"No sync created",
+                LandableStatus.error: u"Error",
+                LandableStatus.missing_try_results: u"Incomplete try results",
+                LandableStatus.skip: u"Skip"}.get(self, u"Unknown")
 
 
 class SyncPointName(six.with_metaclass(IdentityMap, object)):
@@ -243,6 +240,7 @@ class SyncPointName(six.with_metaclass(IdentityMap, object)):
 
     @property
     def obj_type(self):
+        # type: () -> Text
         return self._obj_type
 
     @property
@@ -258,7 +256,7 @@ class SyncPointName(six.with_metaclass(IdentityMap, object)):
     @classmethod
     def _cache_key(cls, subtype, obj_id):
         # type: (Text, Text) -> Tuple[Text, Text]
-        return (subtype, str(obj_id))
+        return (subtype, six.ensure_text(str(obj_id)))
 
     def key(self):
         # type: () -> Tuple[Text, Text]
@@ -269,9 +267,7 @@ class SyncPointName(six.with_metaclass(IdentityMap, object)):
         data = u"%s/%s/%s" % (self._obj_type,
                               self._subtype,
                               self._obj_id)
-        if sys.version_info[0] == 2:
-            data = data.encode("utf8")
-        return data
+        return six.ensure_str(data)
 
     def path(self):
         return u"%s/%s/%s" % (self._obj_type,
@@ -284,16 +280,18 @@ class SyncData(ProcessData):
 
 
 class SyncProcess(six.with_metaclass(IdentityMap, object)):
-    obj_type = "sync"
-    sync_type = "*"
-    obj_id = None  # Either "bug" or "pr"
-    statuses = ()
-    status_transitions = []
-    multiple_syncs = False  # Can multiple syncs have the same obj_id
+    obj_type = "sync"  # type: Text
+    sync_type = "*"  # type: Text
+    # Either "bug" or "pr"
+    obj_id = None    # type: Text
+    statuses = ()  # type: Tuple[Text, ...]
+    status_transitions = []  # type: List[Tuple[Text, Text]]
+    # Can multiple syncs have the same obj_id
+    multiple_syncs = False  # type: bool
 
     def __init__(self, git_gecko, git_wpt, process_name):
         # type: (Repo, Repo, ProcessName) -> None
-        self._lock = None
+        self._lock = None  # type: Optional[SyncLock]
 
         assert process_name.obj_type == self.obj_type
         assert process_name.subtype == self.sync_type
@@ -329,7 +327,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @classmethod
     def _cache_key(cls, git_gecko, git_wpt, process_name):
-        # type: (Repo, Repo, ProcessName) -> Tuple[Text, Text, str, str]
+        # type: (Repo, Repo, ProcessName) -> Tuple[Text, Text, Text, Text]
         return process_name.key()
 
     def as_mut(self, lock):
@@ -346,10 +344,10 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def __repr__(self):
-        # type: () -> Text
-        return "<%s %s %s>" % (self.__class__.__name__,
-                               self.sync_type,
-                               self.process_name)
+        # type: () -> str
+        return six.ensure_str("<%s %s %s>" % (self.__class__.__name__,
+                                              self.sync_type,
+                                              self.process_name))
 
     @classmethod
     def for_pr(cls,
@@ -357,12 +355,13 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                git_wpt,  # type: Repo
                pr_id,  # type: Union[Text, int]
                ):
-        # type: (...) -> Optional[Union[DownstreamSync, UpstreamSync]]
+        # type: (...) -> Optional[SyncProcess]
         from . import index
         idx = index.PrIdIndex(git_gecko)
         process_name = idx.get((str(pr_id),))
         if process_name and process_name.subtype == cls.sync_type:
             return cls(git_gecko, git_wpt, process_name)
+        return None
 
     @classmethod
     def for_bug(cls,
@@ -399,12 +398,12 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                 if sync.status in statuses:
                     rv[sync.status].add(sync)
         if flat:
-            rv = list(itertools.chain.from_iterable(itervalues(rv)))
+            return list(itertools.chain.from_iterable(itervalues(rv)))
         return rv
 
     @classmethod
     def load_by_obj(cls, git_gecko, git_wpt, obj_id, seq_id=None):
-        # type: (Repo, Repo, Text, int) -> Set[UpstreamSync]
+        # type: (Repo, Repo, Text, Optional[Text]) -> Set[SyncProcess]
         process_names = ProcessNameIndex(git_gecko).get(cls.obj_type,
                                                         cls.sync_type,
                                                         str(obj_id))
@@ -415,7 +414,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @classmethod
     def load_by_status(cls, git_gecko, git_wpt, status):
-        # type: (Repo, Repo, str) -> Union[Set[LandingSync], Set[UpstreamSync]]
+        # type: (Repo, Repo, Text) -> Set[SyncProcess]
         from . import index
         idx = index.SyncIndex(git_gecko)
         key = (cls.obj_type, cls.sync_type, status)
@@ -430,9 +429,8 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
     @classmethod
     def prev_gecko_commit(cls,
                           git_gecko,  # type: Repo
-                          repository_name,  # type: str
-                          base_rev=None,  # type: Optional[Any]
-                          default=None,  # type: Optional[Any]
+                          repository_name,  # type: Text
+                          base_rev=None,  # type: Optional[Text]
                           ):
         # type: (...) -> Tuple[BranchRefObject, GeckoCommit]
         """Get the last gecko commit processed by a sync process.
@@ -444,21 +442,24 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                   case the base_rev override is passed in the LastSyncPoint may be pointing
                   at a different commit to the returned gecko commit"""
 
-        last_sync_point = cls.last_sync_point(git_gecko, repository_name,
-                                              default=default)
+        last_sync_point = cls.last_sync_point(git_gecko, repository_name)
 
+        assert last_sync_point.commit is not None
         logger.info("Last sync point was %s" % last_sync_point.commit.sha1)
 
         if base_rev is None:
             prev_commit = last_sync_point.commit
+            # TODO: Would be good if we could link the repo class to the commit type
+            # in the type system
+            assert isinstance(prev_commit, GeckoCommit)
         else:
             prev_commit = sync_commit.GeckoCommit(git_gecko,
                                                   git_gecko.cinnabar.hg2git(base_rev))
         return last_sync_point, prev_commit
 
     @classmethod
-    def last_sync_point(cls, git_gecko, repository_name, default=None):
-        # type: (Repo, str, Optional[Any]) -> BranchRefObject
+    def last_sync_point(cls, git_gecko, repository_name):
+        # type: (Repo, Text) -> BranchRefObject
         assert "/" not in repository_name
         name = SyncPointName(cls.sync_type,
                              repository_name)
@@ -469,9 +470,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def landable_status(self):
-        return None
+        # type: () -> LandableStatus
+        raise NotImplementedError
 
     def _output_data(self):
+        # type: () -> List[Text]
         rv = ["%s%s" % ("*" if self.error else " ",
                         self.process_name.path()),
               "gecko range: %s..%s" % (self.gecko_commits.base.sha1,
@@ -500,10 +503,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         return rv
 
     def output(self):
-        return "\n".join(self._output_data())
+        # type: () -> Text
+        return u"\n".join(self._output_data())
 
     def __eq__(self, other):
-        # type: (Union[DownstreamSync, UpstreamSync]) -> bool
+        # type: (Any) -> bool
         if not hasattr(other, "process_name"):
             return False
         for attr in ["obj_type", "subtype", "obj_id", "seq_id"]:
@@ -512,10 +516,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         return True
 
     def __ne__(self, other):
-        # type: (UpstreamSync) -> bool
+        # type: (Any) -> bool
         return not self == other
 
     def set_wpt_base(self, ref):
+        # type: (Text) -> None
         # This is kind of an appaling hack
         try:
             self.git_wpt.commit(ref)
@@ -526,12 +531,12 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @staticmethod
     def gecko_integration_branch():
-        # type: () -> str
+        # type: () -> Text
         return env.config["gecko"]["refs"][env.config["gecko"]["landing"]]
 
     @staticmethod
     def gecko_landing_branch():
-        # type: () -> str
+        # type: () -> Text
         return env.config["gecko"]["refs"]["central"]
 
     def gecko_commit_filter(self):
@@ -549,13 +554,13 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def status(self):
-        # type: () -> Text
+        # type: () -> Optional[Text]
         return self.data.get("status")
 
-    @status.setter
+    @status.setter  # type: ignore
     @mut()
     def status(self, value):
-        # type: (str) -> None
+        # type: (Text) -> None
         if value not in self.statuses:
             raise ValueError("Unrecognised status %s" % value)
         current = self.status
@@ -583,10 +588,10 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         else:
             return self.data.get("bug")
 
-    @bug.setter
+    @bug.setter  # type: ignore
     @mut()
     def bug(self, value):
-        # type: (str) -> None
+        # type: (Text) -> None
         from . import index
         if self.obj_id == "bug":
             raise AttributeError("Can't set attribute")
@@ -599,13 +604,13 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def pr(self):
-        # type: () -> Union[None, int, str]
+        # type: () -> Optional[int]
         if self.obj_id == "pr":
-            return self.process_name.obj_id
+            return int(self.process_name.obj_id)
         else:
-            return self.data.get("pr")
+            return int(self.data.get("pr"))
 
-    @pr.setter
+    @pr.setter  # type: ignore
     @mut()
     def pr(self, value):
         # type: (int) -> None
@@ -628,13 +633,13 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def last_pr_check(self):
-        # type: () -> Union[Dict[str, Text], Dict[str, str]]
+        # type: () -> Dict[Text, Text]
         return self.data.get("last-pr-check", {})
 
-    @last_pr_check.setter
+    @last_pr_check.setter  # type: ignore
     @mut()
     def last_pr_check(self, value):
-        # type: (Union[Dict[str, Text], Dict[str, str]]) -> None
+        # type: (Dict[Text, Text]) -> None
         if value is not None:
             self.data["last-pr-check"] = value
         else:
@@ -642,10 +647,10 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @property
     def error(self):
-        # type: () -> Optional[Dict[str, Optional[str]]]
+        # type: () -> Optional[Dict[Text, Optional[Text]]]
         return self.data.get("error")
 
-    @error.setter
+    @error.setter  # type: ignore
     @mut()
     def error(self, value):
         # type: (Optional[Text]) -> None
@@ -677,7 +682,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
             self.set_bug_data(None)
 
     def try_pushes(self, status=None):
-        # type: (Optional[Any]) -> List[TryPush]
+        # type: (Optional[Text]) -> List[TryPush]
         from . import trypush
         try_pushes = trypush.TryPush.load_by_obj(self.git_gecko,
                                                  self.sync_type,
@@ -687,6 +692,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         return list(sorted(try_pushes, key=lambda x: x.process_name.seq_id))
 
     def latest_busted_try_pushes(self):
+        # type: () -> List[TryPush]
         try_pushes = self.try_pushes(status="complete")
         busted = []
         for push in reversed(try_pushes):
@@ -703,6 +709,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         if try_pushes:
             try_pushes = sorted(try_pushes, key=lambda x: x.process_name.seq_id)
             return try_pushes[-1]
+        return None
 
     def wpt_renames(self):
         # type: () -> Dict[Text, Text]
@@ -769,11 +776,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @mut()
     def finish(self, status="complete"):
-        # type: (str) -> None
+        # type: (Text) -> None
         # TODO: cancel related try pushes &c.
         logger.info("Marking sync %s as %s" % (self.process_name, status))
-        self.status = status
-        self.error = None
+        self.status = status  # type: ignore
+        self.error = None  # type: ignore
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
         for repo in [self.git_gecko, self.git_wpt]:
@@ -781,7 +788,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @mut()
     def gecko_rebase(self, new_base_ref, abort_on_fail=False):
-        # type: (str, bool) -> None
+        # type: (Text, bool) -> None
         new_base = sync_commit.GeckoCommit(self.git_gecko, new_base_ref)
         git_worktree = self.gecko_worktree.get()
         set_new_base = True
@@ -798,10 +805,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         finally:
             if set_new_base:
                 self.data["gecko-base"] = new_base_ref
-                self.gecko_commits.base = new_base
+                self.gecko_commits.base = new_base.sha1  # type: ignore
 
     @mut()
     def wpt_rebase(self, ref):
+        # type: (Text) -> None
         assert ref in self.git_wpt.refs
         git_worktree = self.wpt_worktree.get()
         git_worktree.git.rebase(ref)
@@ -809,7 +817,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     @mut()
     def set_bug_data(self, status=None):
-        # type: (Optional[str]) -> None
+        # type: (Optional[Text]) -> None
         if self.bug:
             whiteboard = env.bz.get_whiteboard(self.bug)
             if not whiteboard:
@@ -826,6 +834,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         for worktree in [self.gecko_worktree, self.wpt_worktree]:
             worktree.delete()
 
+        assert self._lock is not None
         for try_push in self.try_pushes():
             with try_push.as_mut(self._lock):
                 try_push.delete()
