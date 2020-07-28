@@ -15,15 +15,10 @@ from .repos import pygit2_get, wrapper_get
 
 MYPY = False
 if MYPY:
-    from typing import Tuple
     from git.repo.base import Repo
-    from _pygit2 import Worktree as PyGit2Worktree
+    from pygit2 import Worktree as PyGit2Worktree
     from pygit2.repository import Repository
-    from typing import Iterator
-    from typing import Union
-    from typing import Any
-    from typing import Optional
-
+    from typing import Any, Iterator, Optional, Text, Tuple
 
 env = Environment()
 
@@ -31,12 +26,14 @@ logger = log.get_logger(__name__)
 
 
 def cleanup(git_gecko, git_wpt):
+    # type: (Repo, Repo) -> None
     for repo in [git_gecko, git_wpt]:
         pygit2_repo = pygit2_get(repo)
         cleanup_repo(pygit2_repo, get_max_worktree_count(repo))
 
 
 def cleanup_repo(pygit2_repo, max_count=None):
+    # type: (Repository, Optional[int]) -> None
     # TODO: Always cleanup repos where the sync is finished
     prune_worktrees(pygit2_repo)
     unprunable = []
@@ -123,12 +120,13 @@ def delete_worktree(process_name, worktree):
 
 
 def worktrees(pygit2_repo):
-    # type: (Repository) -> Iterator[Union[Iterator, Iterator[PyGit2Worktree]]]
+    # type: (Repository) -> Iterator[PyGit2Worktree]
     for name in pygit2_repo.list_worktrees():
         yield pygit2_repo.lookup_worktree(name)
 
 
 def prune_worktrees(pygit2_repo):
+    # type: (Repository) -> Iterator[PyGit2Worktree]
     for worktree in worktrees(pygit2_repo):
         # For some reason libgit2 thinks worktrees are not prunable when their
         # working dir is gone
