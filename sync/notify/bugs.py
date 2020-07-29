@@ -19,21 +19,13 @@ from ..projectutil import Mach
 MYPY = False
 if MYPY:
     from sync.downstream import DownstreamSync
-    from sync.notify.results import Results
+    from sync.notify.results import Result, Results
     from sync.notify.results import TestResult
-    from typing import Dict
-    from typing import List
-    from typing import Tuple
-    from typing import Union
+    from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional, Text, Tuple
     from git.repo.base import Repo
-    from typing import Text
-    from typing import Any
-    from typing import Optional
-    from typing import Iterator
-    from test_notify_bugs import Sync
-    from mock.mock import Mock
 
-    Result = Tuple[str, Optional[str], TestResult]
+    from sync.notify.results import ResultsEntry
+    ResultsEntryStatus = Tuple[Text, Optional[Text], Result, Optional[Text]]
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -54,7 +46,7 @@ be cause the bot to automatically update or remove the annotation.
 
 
 def test_ids_to_paths(git_work, test_ids):
-    # type: (Repo, List[str]) -> Dict[Text, List[Text]]
+    # type: (Repo, List[Text]) -> Dict[Text, List[Text]]
     mach = Mach(git_work.working_dir)
     data = {}
     min_idx = 0
@@ -72,7 +64,7 @@ def test_ids_to_paths(git_work, test_ids):
 
 
 def fallback_test_ids_to_paths(test_ids):
-    # type: (List[str]) -> Dict
+    # type: (List[Text]) -> Dict
     """Fallback for known rules mapping test_id to path, for cases where we
     can't read the manifest"""
     data = defaultdict(list)
@@ -101,7 +93,7 @@ def fallback_test_ids_to_paths(test_ids):
 
 
 def filter_test_failures(test, subtest, result):
-    # type: (str, Optional[Any], TestResult) -> bool
+    # type: (Text, Text, TestResult) -> bool
     if result.has_link():
         return False
     if result.has_regression("firefox"):
@@ -123,7 +115,7 @@ def filter_test_failures(test, subtest, result):
 def for_sync(sync,  # type: DownstreamSync
              results,  # type: Results
              ):
-    # type: (...) -> Dict[str, List[Tuple[str, str, TestResult, str]]]
+    # type: (...) -> Mapping[int, List[ResultsEntryStatus]]
     """Create the bugs for followup work for test problems found in a sync.
 
     This creates bugs that will be owned by the triage owner of the component
@@ -134,7 +126,7 @@ def for_sync(sync,  # type: DownstreamSync
     :returns: A dict {bug_id: bug_info} where bug_info is a list of test results
               that are included in the bug, each represented as a tuple
               (test_id, subtest, results, status)"""
-    rv = {}
+    rv = {}  # type: MutableMapping[int, List[ResultsEntryStatus]]
 
     newrelic.agent.record_custom_event("sync_bug", params={
         "sync_bug": sync.bug,
@@ -191,12 +183,12 @@ def for_sync(sync,  # type: DownstreamSync
         test_results_by_component = defaultdict(list)
 
         for test_id, subtest, test_result in test_results:
-            path = test_path_by_id.get(test_id)
-            if not path:
+            test_path = test_path_by_id.get(test_id)
+            if not test_path:
                 # This can be missing if the test landed in a commit that's upstream but not here
                 # so it's in wpt.fyi data but not here
                 continue
-            component = components_by_path[path]
+            component = components_by_path[test_path]
             test_results_by_component[component].append((test_id, subtest, test_result))
 
         opt_in_components = set(item.strip()
@@ -224,7 +216,10 @@ def for_sync(sync,  # type: DownstreamSync
                                             test_results,
                                             results.treeherder_url,
                                             results.wpt_sha)
-                bug_id = make_bug(summary, comment, product, component, [sync.bug])
+                depends = []
+                if sync.bug:
+                    depends = [sync.bug]
+                bug_id = make_bug(summary, comment, product, component, depends)
                 sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})
                 newrelic.agent.record_custom_event("sync_bug_filing", params={
                     "sync_bug": sync.bug,
@@ -247,11 +242,11 @@ class LengthCappedStringBuilder(object):
         # type: (int) -> None
         """Builder for a string that must not exceed a given length"""
         self.max_length = max_length
-        self.data = []
+        self.data = []  # type: List[Text]
         self.current_length = 0
 
     def append(self, other):
-        # type: (str) -> bool
+        # type: (Text) -> bool
         """Add a string the end of the data. Returns True if the add was
         a success i.e. the new string is under the length limit, otherwise
         False"""
@@ -268,13 +263,13 @@ class LengthCappedStringBuilder(object):
         return self.current_length + chars <= self.max_length
 
     def get(self):
-        # type: () -> str
+        # type: () -> Text
         """Return the complete string"""
-        return "".join(self.data)
+        return "u".join(self.data)
 
 
 def split_id(test_id):
-    # type: (str) -> Tuple[str, ...]
+    # type: (Text) -> Tuple[Text, ...]
     """Convert a test id into a list of path parts, preserving the hash
     and query fragments on the final part.
 
@@ -299,9 +294,9 @@ def split_id(test_id):
     return tuple(parts)
 
 
-def get_common_prefix(test_ids  # type: Iterator[str]
+def get_common_prefix(test_ids  # type: Iterable[Text]
                       ):
-    # type: (...) -> Tuple[List[Tuple[str, ...]], Tuple[str, ...]]
+    # type: (...) -> Tuple[List[Tuple[Text, ...]], Tuple[Text, ...]]
     """Given a list of test ids, return the paths split into directory parts,
     and the longest common prefix directory shared by all the inputs.
 
@@ -310,8 +305,8 @@ def get_common_prefix(test_ids  # type: Iterator[str]
               the longest path prefix shared by all test ids (excluding filename
               parts
     """
-    test_ids = list(test_ids)
-    common_prefix = split_id(test_ids[0])[:-1]
+    test_ids_list = list(test_ids)
+    common_prefix = split_id(test_ids_list[0])[:-1]
     seen_names = set()
     split_names = []
     for test_id in test_ids:
@@ -320,16 +315,16 @@ def get_common_prefix(test_ids  # type: Iterator[str]
             continue
         seen_names.add(split_name)
         split_names.append(split_name)
-    common_prefix = os.path.commonprefix([item[:-1] for item in split_names])
+    common_prefix = os.path.commonprefix([item[:-1] for item in split_names])  # type: ignore
     return split_names, common_prefix
 
 
-def make_summary(test_results,  # type: List[Result]
-                 prefix,  # type: str
+def make_summary(test_results,  # type: List[ResultsEntry]
+                 prefix,  # type: Text
                  max_length=255,  # type: int
                  max_tests=3,  # type: int
                  ):
-    # type: (...) -> str
+    # type: (...) -> Text
     """Construct a summary for the bugs based on the test results.
 
     The approach here is to start building the string up using the
@@ -395,16 +390,26 @@ def make_summary(test_results,  # type: List[Result]
     return summary.get()
 
 
-def bug_data_crash(sync,  # type: Any
-                   test_results,  # type: List[Tuple[str, str, TestResult]]
-                   treeherder_url,  # type: str
-                   wpt_sha,  # type: str
+def bug_data_crash(sync,  # type: DownstreamSync
+                   test_results,  # type: List[ResultsEntry]
+                   treeherder_url,  # type: Optional[Text]
+                   wpt_sha,  # type: Optional[Text]
                    ):
-    # type: (...) -> Tuple[str, str]
+    # type: (...) -> Tuple[Text, Text]
     summary = make_summary(test_results,
-                           "New wpt crashes")
+                           u"New wpt crashes")
 
-    comment = """Syncing wpt \
+    if treeherder_url is not None:
+        treeherder_text = u"[Gecko CI (Treeherder)](%s)" % treeherder_url
+    else:
+        treeherder_text = u"Missing results from treeherder"
+
+    if wpt_sha is not None:
+        wpt_text = u"[GitHub PR Head](https://wpt.fyi/results/?sha=%s&label=pr_head)" % wpt_sha
+    else:
+        wpt_text = u"Missing results from GitHub"
+
+    comment = u"""Syncing wpt \
 [PR %(pr_id)s](https://github.com/web-platform-tests/wpt/pull/%(pr_id)s)\
  found new crashes in CI
 
@@ -414,8 +419,8 @@ def bug_data_crash(sync,  # type: Any
 
 # CI Results
 
-[Gecko CI (Treeherder)](%(treeherder_url)s)
-[GitHub PR Head](https://wpt.fyi/results/?sha=%(wpt_sha)s&label=pr_head)
+%(treeherder_text)s
+%(wpt_text)s
 
 # Notes
 
@@ -425,43 +430,53 @@ These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
 
 %(postscript)s""" % {"pr_id": sync.pr,
                      "details": detail_part(None, test_results, None, "head", False),
-                     "treeherder_url": treeherder_url,
-                     "wpt_sha": wpt_sha,
+                     "treeherder_text": treeherder_text,
+                     "wpt_text": wpt_text,
                      "sync_bug_id": sync.bug,
                      "postscript": postscript}
 
     return summary, comment
 
 
-def bug_data_failure(sync,  # type: Union[DownstreamSync, Sync]
-                     test_results,  # type: List[Tuple[str, Optional[str], TestResult]]
-                     treeherder_url,  # type: str
-                     wpt_sha,  # type: str
+def bug_data_failure(sync,  # type: DownstreamSync
+                     test_results,  # type: List[ResultsEntry]
+                     treeherder_url,  # type: Optional[Text]
+                     wpt_sha,  # type: Optional[Text]
                      ):
-    # type: (...) -> Tuple[str, str]
+    # type: (...) -> Tuple[Text, Text]
     summary = make_summary(test_results,
-                           "New wpt failures")
+                           u"New wpt failures")
 
     by_type = defaultdict(list)
     for (test, subtest, result) in test_results:
-        if result.is_browser_only_failure("firefox"):
-            by_type["firefox-only"].append((test, subtest, result))
-        elif result.has_regression("firefox"):
-            by_type["regression"].append((test, subtest, result))
-        elif result.has_new_non_passing("firefox"):
-            by_type["new-non-passing"].append((test, subtest, result))
+        if result.is_browser_only_failure(u"firefox"):
+            by_type[u"firefox-only"].append((test, subtest, result))
+        elif result.has_regression(u"firefox"):
+            by_type[u"regression"].append((test, subtest, result))
+        elif result.has_new_non_passing(u"firefox"):
+            by_type[u"new-non-passing"].append((test, subtest, result))
 
     detail_msg = []
     for (details_type, test_results, include_other_browser) in [
-            ("Firefox-only failures", by_type["firefox-only"], False),
-            ("Tests with a Worse Result After Changes", by_type["regression"], True),
-            ("New Tests That Don't Pass", by_type["new-non-passing"], True)]:
+            (u"Firefox-only failures", by_type[u"firefox-only"], False),
+            (u"Tests with a Worse Result After Changes", by_type[u"regression"], True),
+            (u"New Tests That Don't Pass", by_type[u"new-non-passing"], True)]:
         if not test_results:
             continue
-        detail_msg.append(detail_part(details_type, test_results, None, "head",
+        detail_msg.append(detail_part(details_type, test_results, None, u"head",
                                       include_other_browser))
 
-    comment = """Syncing wpt \
+    if treeherder_url is not None:
+        treeherder_text = u"[Gecko CI (Treeherder)](%s)" % treeherder_url
+    else:
+        treeherder_text = u"Missing results from treeherder"
+
+    if wpt_sha is not None:
+        wpt_text = u"[GitHub PR Head](https://wpt.fyi/results/?sha=%s&label=pr_head)" % wpt_sha
+    else:
+        wpt_text = u"Missing results from GitHub"
+
+    comment = u"""Syncing wpt \
 [PR %(pr_id)s](https://github.com/web-platform-tests/wpt/pull/%(pr_id)s) \
 found new untriaged test failures in CI
 
@@ -471,25 +486,25 @@ found new untriaged test failures in CI
 
 # CI Results
 
-[Gecko CI (Treeherder)](%(treeherder_url)s)
-[GitHub PR Head](https://wpt.fyi/results/?sha=%(wpt_sha)s&label=pr_head)
+%(treeherder_text)s
+%(wpt_text)s
 
 # Notes
 
 These updates will be on mozilla-central once bug %(sync_bug_id)s lands.
 
-%(postscript)s""" % {"pr_id": sync.pr,
-                     "details": "\n".join(detail_msg),
-                     "treeherder_url": treeherder_url,
-                     "wpt_sha": wpt_sha,
-                     "sync_bug_id": sync.bug,
-                     "postscript": postscript}
+%(postscript)s""" % {u"pr_id": sync.pr,
+                     u"details": u"\n".join(detail_msg),
+                     u"treeherder_text": treeherder_text,
+                     u"wpt_text": wpt_text,
+                     u"sync_bug_id": sync.bug,
+                     u"postscript": postscript}
 
     return summary, comment
 
 
 def make_bug(summary, comment, product, component, depends):
-    # type: (str, str, str, str, Union[List[Mock], List[str]]) -> str
+    # type: (Text, Text, Text, Text, List[int]) -> int
     bug_id = env.bz.new(summary, comment, product, component, whiteboard="[wpt]",
                         bug_type="defect", assign_to_sync=False)
     with env.bz.bug_ctx(bug_id) as bug:
@@ -500,7 +515,7 @@ def make_bug(summary, comment, product, component, depends):
 
 @mut('sync')
 def update_metadata(sync,  # type: DownstreamSync
-                    bugs,  # type: Dict[str, List[Tuple[str, Optional[str], TestResult, str]]]
+                    bugs,  # type: Dict[Text, List[ResultsEntryStatus]]
                     ):
     # type: (...) -> None
     newrelic.agent.record_custom_event("sync_bug_metadata", params={
@@ -512,6 +527,7 @@ def update_metadata(sync,  # type: DownstreamSync
         return
 
     metadata = Metadata.for_sync(sync, create_pr=True)
+    assert sync._lock is not None
     with metadata.as_mut(sync._lock):
         for bug_id, test_results in iteritems(bugs):
             for (test_id, subtest, results, status) in test_results:

@@ -11,27 +11,19 @@ from .results import statuses, browsers
 
 MYPY = False
 if MYPY:
-    from sync.notify.results import Result
-    from sync.notify.results import SubtestResult
-    from sync.notify.results import TestResult
-    from typing import Text
-    from typing import Union
-    from typing import Dict
-    from typing import Iterator
-    from sync.notify.results import Results
-    from typing import List
-    from typing import Optional
-    from typing import Tuple
+    from sync.notify.results import Result, Results, SubtestResult, TestResult
+    from sync.notify.results import ResultsEntry
+    from typing import List, Iterable, Mapping, Optional, Text, Tuple, Union
 
 env = Environment()
 
 
 def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
-               browser="firefox",  # type: str
-               include_status="head",  # type: str
+               browser="firefox",  # type: Text
+               include_status="head",  # type: Text
                include_other_browser=False,  # type: bool
                ):
-    # type: (...) -> Text
+    # type: (...) -> Optional[Text]
     """Construct a string containing the statuses for a results.
 
     :param result: The Result object for which to construct the string.
@@ -41,8 +33,8 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
     :param include_other_browser: Boolean indicating whether to include results from
                                   non-primary browsers.
     """
-    targets = {"head": ["head"],
-               "both": ["base", "head"]}[include_status]
+    targets = {u"head": [u"head"],
+               u"both": [u"base", u"head"]}[include_status]
 
     if all(result.is_consistent(browser, target) for target in targets):
         value = "->".join(getattr(next(itervalues(result.statuses[browser])), target)
@@ -65,7 +57,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
                 continue
             browser_status = job_results.get("GitHub")
             if not browser_status:
-                return
+                return None
             other_browser_values.append("%s: %s" % (other_browser.title(),
                                                     "->".join(
                                                         getattr(browser_status, target)
@@ -76,7 +68,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
 
 
 def summary_value(result_data):
-    # type: (Dict) -> str
+    # type: (Mapping[Text, int]) -> Text
     by_result = defaultdict(list)
     for job_name, value in iteritems(result_data):
         by_result[value].append(job_name)
@@ -89,7 +81,7 @@ def summary_value(result_data):
 
 
 def bug_str(url):
-    # type: (str) -> str
+    # type: (Text) -> Text
     """Create a bug string for a given bug url"""
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
@@ -99,10 +91,10 @@ def bug_str(url):
     return "[%s]()" % url
 
 
-def list_join(items):
-    # type: (Iterator) -> str
+def list_join(items_iter):
+    # type: (Iterable) -> Text
     """Join a list of strings using commands, with "and" before the final item."""
-    items = list(items)
+    items = list(items_iter)
     if len(items) == 0:
         return ""
     if len(items) == 1:
@@ -113,52 +105,52 @@ def list_join(items):
 
 
 def summary_message(results):
-    # type: (Results) -> str
+    # type: (Results) -> Text
     """Generate a summary message for results indicating how many tests ran"""
     summary = results.summary()
 
     job_names = {browser: results.job_names(browser) for browser in browsers}
 
     github_browsers = list_join(browser.title() for browser in browsers
-                                if "GitHub" in job_names[browser])
+                                if u"GitHub" in job_names[browser])
 
     gecko_configs = len([item for item in job_names["firefox"] if item != "GitHub"])
-    data = ["Ran %s Firefox configurations based on mozilla-central" % (gecko_configs,)]
+    data = [u"Ran %s Firefox configurations based on mozilla-central" % (gecko_configs,)]
     if github_browsers:
-        data[-1] += ", and %s on GitHub CI" % (github_browsers,)
-    data.append("")
-    data.append("Total %s tests" % summary["parent_tests"])
+        data[-1] += u", and %s on GitHub CI" % (github_browsers,)
+    data.append(u"")
+    data.append(u"Total %s tests" % summary.parent_tests)
 
-    subtests = summary["subtests"]
+    subtests = summary.subtests
     if subtests:
-        data[-1] += " and %s subtests" % subtests
-    data[-1] += "\n"
+        data[-1] += u" and %s subtests" % subtests
+    data[-1] += u"\n"
 
-    result_statuses = [status for status in statuses if status in summary]
+    result_statuses = [status for status in statuses if status in summary.job_results]
     if not result_statuses:
-        return data
+        return u"\n".join(data)
 
-    data.append("## Status Summary\n")
+    data.append(u"## Status Summary\n")
 
     max_width = len(max(result_statuses, key=len))
     for browser in browsers:
         if not job_names[browser]:
             continue
 
-        data.append("### %s" % browser.title())
-        for result in ["OK", "PASS", "CRASH", "FAIL", "PRECONDITION_FAILED", "TIMEOUT",
-                       "ERROR", "NOTRUN"]:
-            if browser in summary[result]:
-                result_data = summary[result][browser]
-                data.append("%s: %s" % (result.ljust(max_width),
-                                        summary_value(result_data)))
-        data.append("")
+        data.append(u"### %s" % browser.title())
+        for result in [u"OK", u"PASS", u"CRASH", u"FAIL", u"PRECONDITION_FAILED", u"TIMEOUT",
+                       u"ERROR", u"NOTRUN"]:
+            if browser in summary.job_results[result]:
+                result_data = summary.job_results[result][browser]
+                data.append(u"%s: %s" % (result.ljust(max_width),
+                                         summary_value(result_data)))
+        data.append(u"")
 
-    return "\n".join(data)
+    return u"\n".join(data)
 
 
 def links_message(results):
-    # type: (Results) -> str
+    # type: (Results) -> Text
     """Generate a list of relevant links for the results"""
     data = []
 
@@ -175,7 +167,7 @@ def links_message(results):
         data.insert(0, "## Links")
         data.append("")
 
-    return "\n".join(data)
+    return u"\n".join(data)
 
 
 def detail_message(results):
@@ -184,7 +176,7 @@ def detail_message(results):
     data = []
 
     for (details_type, iterator, include_bugs, include_status, include_other_browser) in [
-            ("Crashes", results.iter_crashes("firefox"), ("bugzilla",), None, False),
+            ("Crashes", results.iter_crashes("firefox"), ("bugzilla",), "head", False),
             ("Firefox-only Failures", results.iter_browser_only("firefox"),
              ("bugzilla", "github"),
              "head",
@@ -210,10 +202,10 @@ def detail_message(results):
     return data
 
 
-def detail_part(details_type,  # type: Optional[str]
-                iterator,  # type: Iterator[Tuple[str, str, Union[Result, TestResult]]]
-                include_bugs,  # type: Optional[Tuple[str, ...]]
-                include_status,  # type: Optional[str]
+def detail_part(details_type,  # type: Optional[Text]
+                iterator,  # type: Iterable[ResultsEntry]
+                include_bugs,  # type: Optional[Tuple[Text, ...]]
+                include_status,  # type: Text
                 include_other_browser,  # type: bool
                 ):
     # type: (...) -> Optional[Text]
@@ -230,22 +222,22 @@ def detail_part(details_type,  # type: Optional[str]
 
     :returns: A text string containing the message
     """
-    bug_prefixes = {"bugzilla": env.bz.bz_url,
-                    "github": "https://github.com/"}
+    bug_prefixes = {u"bugzilla": env.bz.bz_url,
+                    u"github": u"https://github.com/"}
 
     item_data = []
 
     results = list(iterator)
 
     if not results:
-        return
+        return None
 
     if details_type:
-        item_data.append("### %s" % details_type)
+        item_data.append(u"### %s" % details_type)
 
     prev_test = None
     for test, subtest, result in results:
-        msg_line = ""
+        msg_line = u""
         if prev_test != test:
             msg_line = test
             prev_test = test
@@ -253,11 +245,11 @@ def detail_part(details_type,  # type: Optional[str]
                             include_status=include_status,
                             include_other_browser=include_other_browser)
         if not subtest:
-            msg_line += ": %s" % status
+            msg_line += u": %s" % status
         else:
             if msg_line:
-                msg_line += "\n"
-            msg_line += "  %s: %s" % (subtest, status)
+                msg_line += u"\n"
+            msg_line += u"  %s: %s" % (subtest, status)
 
         if include_bugs:
             prefixes = [bug_prefixes[item] for item in include_bugs]
@@ -265,15 +257,15 @@ def detail_part(details_type,  # type: Optional[str]
             bug_links = [bug_link for bug_link in result.bug_links
                          if any(bug_link.url.startswith(prefix) for prefix in prefixes)]
             if bug_links:
-                msg_line += " linked bug%s:%s" % ("s" if len(bug_links) > 1 else "",
-                                                  ", ". join(bug_str(link.url)
-                                                             for link in bug_links))
+                msg_line += u" linked bug%s:%s" % (u"s" if len(bug_links) > 1 else u"",
+                                                   u", ". join(bug_str(link.url)
+                                                               for link in bug_links))
         item_data.append(msg_line)
-    return "\n".join(item_data) + "\n"
+    return u"\n".join(item_data) + u"\n"
 
 
 def for_results(results):
-    # type: (Results) -> Tuple[Text, None]
+    # type: (Results) -> Tuple[Text, Optional[Text]]
     """Generate a notification message for results
 
     :param results: a Results object
@@ -281,23 +273,23 @@ def for_results(results):
               if the message all fits in a bugzilla comment, or the
               length-truncated version if it doesn't."""
 
-    msg_parts = ["# CI Results\n",
+    msg_parts = [u"# CI Results\n",
                  summary_message(results),
                  links_message(results)]
     msg_parts += detail_message(results)
     msg_parts = [item for item in msg_parts if item]
-    truncated, truncated_message = truncate_message(msg_parts)
+    truncated, message = truncate_message(msg_parts)
     if truncated:
+        truncated_message = message  # type: Optional[Text]
         message = "\n".join(msg_parts)
     else:
-        message = truncated_message
         truncated_message = None
 
     return message, truncated_message
 
 
 def truncate_message(parts):
-    # type: (List[str]) -> Tuple[bool, Text]
+    # type: (Iterable[Text]) -> Tuple[bool, Text]
     """Take an iterator of message parts and return a string consisting of
     all the parts starting from the first that will fit into a
     bugzilla comment, seperated by new lines.
@@ -307,8 +299,8 @@ def truncate_message(parts):
               truncated message.
 
     """
-    suffix = "(See attachment for full changes)"
-    message = ""
+    suffix = u"(See attachment for full changes)"
+    message = u""
     truncated = False
 
     padding = len(suffix) + 1
@@ -317,7 +309,7 @@ def truncate_message(parts):
             truncated = True
             part = suffix
         if message:
-            message += "\n"
+            message += u"\n"
         message += part
         if truncated:
             break
