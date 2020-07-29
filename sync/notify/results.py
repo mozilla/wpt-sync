@@ -38,8 +38,7 @@ if MYPY:
 
     Logs = Mapping[Text, Mapping[Text, List[Any]]]  # Any is really "anything with a json method"
     ResultsEntry = Tuple[Text, Optional[Text], "Result"]
-    ResultsSummary = MutableMapping[Text,
-                                    Union[int, MutableMapping[Text, MutableMapping[Text, int]]]]
+    JobResultsSummary = MutableMapping[Text, MutableMapping[Text, MutableMapping[Text, int]]]
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -226,6 +225,15 @@ class SubtestResult(Result):
     pass
 
 
+class ResultsSummary(object):
+    def __init__(self):
+        self.parent_tests = 0
+        self.subtests = 0
+        self.job_results = defaultdict(
+            lambda: defaultdict(
+                lambda: defaultdict(int)))  # type: JobResultsSummary
+
+
 class Results(object):
     def __init__(self):
         # type: () -> None
@@ -315,23 +323,22 @@ class Results(object):
 
     def summary(self):
         # type: () -> ResultsSummary
-        summary = defaultdict(
-            lambda: defaultdict(
-                lambda: defaultdict(int)))  # type: ResultsSummary
+        summary = ResultsSummary()
         # Work out how many tests ran, etc.
 
-        summary["parent_tests"] = 0
-        summary["subtests"] = 0
+        summary.parent_tests = 0
+        summary.subtests = 0
 
         def update_for_result(result):
             # type: (Union[SubtestResult, TestResult]) -> None
             for browser, browser_result in iteritems(result.statuses):
                 for job_name, job_result in iteritems(browser_result):
-                    summary[job_result.head][browser][job_name] += 1  # type: ignore
+                    if job_result.head:
+                        summary.job_results[job_result.head][browser][job_name] += 1
 
         for test_result in itervalues(self.test_results):
-            summary["parent_tests"] += 1  # type: ignore
-            summary["subtests"] = len(test_result.subtests)
+            summary.parent_tests += 1  # type: ignore
+            summary.subtests = len(test_result.subtests)
             update_for_result(test_result)
             for subtest_result in itervalues(test_result.subtests):
                 update_for_result(subtest_result)
