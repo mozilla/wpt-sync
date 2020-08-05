@@ -83,7 +83,7 @@ class Gecko(GitSettings):
         if not data_ref.is_valid():
             from . import base
             with base.CommitBuilder(repo, "Create initial sync metadata",
-                                    ref=data_ref) as commit:
+                                    ref=data_ref.path) as commit:
                 path = "_metadata"
                 data = json.dumps({"name": "wptsync"})
                 commit.add_tree({path: data})
@@ -129,9 +129,9 @@ class Cinnabar(object):
 
 
 wrappers = {
-    "gecko": Gecko,
-    "web-platform-tests": WebPlatformTests,
-    "wpt-metadata": WptMetadata,
+    u"gecko": Gecko,
+    u"web-platform-tests": WebPlatformTests,
+    u"wpt-metadata": WptMetadata,
 }
 
 

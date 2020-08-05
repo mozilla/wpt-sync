@@ -8,11 +8,6 @@ from six.moves import map
 
 from .. import log
 from ..tasks import handle
-from typing import Any
-from typing import Dict
-from typing import Text
-from typing import Tuple
-from typing import Optional
 
 
 logger = log.get_logger(__name__)
@@ -57,7 +52,6 @@ class PhabEventListener(object):
     }
 
     def __init__(self, config):
-        # type: (Dict) -> None
         self.running = True
         self.timer_in_seconds = config['phabricator']['listener']['interval']
         self.latest = None
@@ -82,7 +76,6 @@ class PhabEventListener(object):
         feed = []
 
         def chrono_key(feed_story_tuple):
-            # type: (Tuple[Text, Dict[Text, Any]]) -> int
             return int(feed_story_tuple[1]["chronologicalKey"])
 
         # keep fetching stories from Phabricator until there are no more stories to fetch
@@ -126,7 +119,6 @@ class PhabEventListener(object):
 
     @staticmethod
     def map_event_type(event_text, event):
-        # type: (Text, Dict[Text, Any]) -> Optional[str]
         # Could use compiled regex expression instead
         for event_type, mapping in PhabEventListener.event_mapping.items():
             if event_type in event_text:
@@ -140,7 +132,6 @@ class PhabEventListener(object):
 
     @staticmethod
     def map_feed_tuple(feed_tuple):
-        # type: (Tuple[Text, Dict[Text, Any]]) -> Dict[Text, Any]
         story_phid, feed_story = feed_tuple
         feed_story.update({"storyPHID": story_phid})
         return feed_story
@@ -155,10 +146,8 @@ def run_phabricator_listener(config):
 class MockPhabricator(Phabricator):
 
     def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
         self.feed = None
         pass
 
     def update_interfaces(self):
-        # type: () -> None
         pass

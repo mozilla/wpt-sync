@@ -30,7 +30,7 @@ class ProcData(ProcessData):
 
 
 class TriageBugs(object):
-    process_name = ProcessName("proc", "bugzilla", 0, 0)
+    process_name = ProcessName("proc", "bugzilla", str(0), 0)
 
     def __init__(self, repo):
         self._lock = None
@@ -55,7 +55,7 @@ class TriageBugs(object):
             self._last_update = from_iso_str(self.data["last-update"])
         return self._last_update
 
-    @last_update.setter
+    @last_update.setter  # type: ignore
     @mut()
     def last_update(self, value):
         self.data["last-update"] = value.isoformat()

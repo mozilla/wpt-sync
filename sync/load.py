@@ -16,7 +16,7 @@ logger = log.get_logger(__name__)
 
 def get_pr_sync(git_gecko,  # type: Repo
                 git_wpt,  # type: Repo
-                pr_id,  # type: Text
+                pr_id,  # type: int
                 log=True,  # type: bool
                 ):
     # type: (...) -> Optional[SyncProcess]
@@ -36,7 +36,7 @@ def get_pr_sync(git_gecko,  # type: Repo
 
 def get_bug_sync(git_gecko,  # type: Repo
                  git_wpt,  # type: Repo
-                 bug_number,  # type: Text
+                 bug_number,  # type: int
                  statuses=None  # type: Optional[Iterable[Text]]
                  ):
     # type: (...) -> Dict[Text, Set[SyncProcess]]
@@ -44,25 +44,33 @@ def get_bug_sync(git_gecko,  # type: Repo
     from . import landing
     from . import upstream
 
-    syncs = landing.LandingSync.for_bug(git_gecko, git_wpt, bug_number,
-                                        statuses=statuses)
+    syncs = landing.LandingSync.for_bug(git_gecko,
+                                        git_wpt,
+                                        bug_number,
+                                        statuses=statuses,
+                                        flat=False)
     if not syncs:
-        syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_number,
-                                              statuses=statuses)
+        syncs = upstream.UpstreamSync.for_bug(git_gecko,
+                                              git_wpt,
+                                              bug_number,
+                                              statuses=statuses,
+                                              flat=False)
     if not syncs:
-        syncs = downstream.DownstreamSync.for_bug(git_gecko, git_wpt, bug_number,
-                                                  statuses=statuses)
+        syncs = downstream.DownstreamSync.for_bug(git_gecko,
+                                                  git_wpt,
+                                                  bug_number,
+                                                  statuses=statuses,
+                                                  flat=False)
 
-    assert isinstance(syncs, dict)
     return syncs
 
 
 def get_syncs(git_gecko,  # type: Repo
               git_wpt,  # type: Repo
               sync_type,  # type: Text
-              obj_id,  # type: Text
+              obj_id,  # type: int
               status=None,  # type: Optional[Text]
-              seq_id=None  # type: Optional[Text]
+              seq_id=None  # type: Optional[int]
               ):
     # type: (...) -> Set[SyncProcess]
     from . import downstream

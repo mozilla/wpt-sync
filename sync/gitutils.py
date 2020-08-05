@@ -13,8 +13,7 @@ from .lock import RepoLock
 MYPY = False
 if MYPY:
     from git.repo.base import Repo
-    from typing import Optional
-    from typing import Callable
+    from typing import Any, Dict, Callable, Optional, Text
 
 env = Environment()
 
@@ -23,7 +22,7 @@ logger = log.get_logger(__name__)
 
 
 def have_gecko_hg_commit(git_gecko, hg_rev):
-    # type: (Repo, str) -> bool
+    # type: (Repo, Text) -> bool
     try:
         git_gecko.cinnabar.hg2git(hg_rev)
     except ValueError:
@@ -32,12 +31,15 @@ def have_gecko_hg_commit(git_gecko, hg_rev):
 
 
 def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
-    # type: (Repo, Repo, Optional[str]) -> None
+    # type: (Repo, Repo, Optional[Text]) -> None
     if git_gecko is not None:
         if wait_gecko_commit is not None:
-            assert wait_gecko_commit is not None  # mypy
-            success = until(lambda: _update_gecko(git_gecko),
-                            lambda: have_gecko_hg_commit(git_gecko, wait_gecko_commit))
+
+            def wait_fn():
+                assert wait_gecko_commit is not None
+                return have_gecko_hg_commit(git_gecko, wait_gecko_commit)
+
+            success = until(lambda: _update_gecko(git_gecko), wait_fn)
             if not success:
                 raise RetryableError(
                     ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit))
@@ -80,6 +82,7 @@ def _update_wpt(git_wpt):
 
 
 def refs(git, prefix=None):
+    # type: (Repo, Optional[Text]) -> Dict[Text, Text]
     rv = {}
     refs = git.git.show_ref().split("\n")
     for item in refs:
@@ -91,7 +94,7 @@ def refs(git, prefix=None):
 
 
 def pr_for_commit(git_wpt, rev):
-    # type: (Repo, str) -> Optional[int]
+    # type: (Repo, Text) -> Optional[int]
     prefix = "refs/remotes/origin/pr/"
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
@@ -100,7 +103,7 @@ def pr_for_commit(git_wpt, rev):
 
 
 def gecko_repo(git_gecko, head):
-    # type: (Repo, str) -> str
+    # type: (Repo, Text) -> Optional[Text]
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
              [(name, ref) for name, ref in iteritems(env.config["gecko"]["refs"])
               if name != "central"])
@@ -108,21 +111,23 @@ def gecko_repo(git_gecko, head):
     for name, ref in repos:
         if git_gecko.is_ancestor(head, ref):
             return name
+    return None
 
 
 def status(repo):
+    # type: (Repo) -> Dict[Text, Dict[Text, Any]]
     status_entries = repo.git.status(z=True).split("\0")
     rv = {}
     for item in status_entries:
         if not item.strip():
             continue
         code = item[:2]
-        filenames = item[3:].rsplit(" -> ", 1)
+        filenames = item[3:].rsplit(u" -> ", 1)
         if len(filenames) == 2:
             filename, rename = filenames
         else:
             filename, rename = filenames[0], None
-        rv[filename] = {"code": code, "rename": rename}
+        rv[filename] = {u"code": code, u"rename": rename}
     return rv
 
 
@@ -145,7 +150,7 @@ def handle_empty_commit(worktree, e):
 
 
 def cherry_pick(worktree, commit):
-    # type: (Repo, str) -> bool
+    # type: (Repo, Text) -> bool
     try:
         worktree.git.cherry_pick(commit)
         return True

@@ -304,7 +304,7 @@ def get_task_artifacts(destination,  # type: Text
     try:
         artifacts = fetch_json(artifacts_base_url, session=session)
     except requests.HTTPError as e:
-        logger.warning(e.message)
+        logger.warning(str(e))
     artifact_urls = ["%s/%s" % (artifacts_base_url, item["name"])
                      for item in artifacts["artifacts"]
                      if any(item["name"].endswith("/" + file_name)

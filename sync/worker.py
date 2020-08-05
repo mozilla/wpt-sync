@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 import celery
-from celery.beat import crontab
+from celery.schedules import crontab
 from celery.signals import after_setup_logger
 
 
@@ -15,7 +15,7 @@ beat_schedule = {
     # Try to retrigger anything we missed once a day
     'retrigger': {
         "task": "sync.tasks.retrigger",
-        "schedule": crontab(hour=8, minute=0),
+        "schedule": crontab(hour="8", minute="0"),
     },
     # Try to cleanup once an hour
     'cleanup': {
@@ -25,7 +25,7 @@ beat_schedule = {
     # Try to update metadata once a day
     'update_bugs': {
         "task": "sync.tasks.update_bugs",
-        "schedule": crontab(hour=9, minute=0),
+        "schedule": crontab(hour="9", minute="0"),
     }
 }
 

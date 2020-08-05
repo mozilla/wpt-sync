@@ -176,8 +176,8 @@ def for_sync(sync,  # type: DownstreamSync
         components = components_for_wpt_paths(git_work, paths)
 
         components_by_path = {}
-        for component, paths in iteritems(components):
-            for path in paths:
+        for component, component_paths in iteritems(components):
+            for path in component_paths:
                 components_by_path[path] = component
 
         test_results_by_component = defaultdict(list)
@@ -220,7 +220,7 @@ def for_sync(sync,  # type: DownstreamSync
                 if sync.bug:
                     depends = [sync.bug]
                 bug_id = make_bug(summary, comment, product, component, depends)
-                sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})
+                sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})  # type: ignore
                 newrelic.agent.record_custom_event("sync_bug_filing", params={
                     "sync_bug": sync.bug,
                     "component": component
@@ -265,7 +265,7 @@ class LengthCappedStringBuilder(object):
     def get(self):
         # type: () -> Text
         """Return the complete string"""
-        return "u".join(self.data)
+        return u"".join(self.data)
 
 
 def split_id(test_id):
@@ -309,7 +309,7 @@ def get_common_prefix(test_ids  # type: Iterable[Text]
     common_prefix = split_id(test_ids_list[0])[:-1]
     seen_names = set()
     split_names = []
-    for test_id in test_ids:
+    for test_id in test_ids_list:
         split_name = split_id(test_id)
         if split_name in seen_names:
             continue
@@ -348,17 +348,17 @@ def make_summary(test_results,  # type: List[ResultsEntry]
 
     # If we can fit some of the common path prefix, add that
     split_names, common_test_prefix = get_common_prefix(item[0] for item in test_results)
-    joiner = " in "
+    joiner = u" in "
     if not summary.has_capacity(len(joiner) + len(common_test_prefix[0]) + 1):
         return summary.get()
 
     # Keep adding as much of the common path prefix as possible
     summary.append(joiner)
     for path_part in common_test_prefix:
-        if not summary.append("%s/" % path_part):
+        if not summary.append(u"%s/" % path_part):
             return summary.get()
 
-    test_names = ["/".join(item[len(common_test_prefix):]) for item in split_names]
+    test_names = [u"/".join(item[len(common_test_prefix):]) for item in split_names]
 
     # If there's a single test name add that and we're done
     if len(test_names) == 1:
@@ -371,22 +371,22 @@ def make_summary(test_results,  # type: List[ResultsEntry]
     # suffix is ", and N others]", N is at most len(test_results) so reserve that many
     # characters
     tests_remaining = len(test_names)
-    suffix_length = len(", and  others]") + len(str(tests_remaining))
+    suffix_length = len(u", and  others]") + len(str(tests_remaining))
     if summary.has_capacity(len(test_names[0]) + len(prefix) + suffix_length):
         summary.append(prefix)
         summary.append(test_names[0])
         tests_remaining -= 1
         for test_name in test_names[1:max_tests]:
             if summary.has_capacity(2 + len(test_name) + suffix_length):
-                summary.append(", %s" % test_name)
+                summary.append(u", %s" % test_name)
                 tests_remaining -= 1
         if tests_remaining > 0:
-            summary.append(", and %s others]" % tests_remaining)
+            summary.append(u", and %s others]" % tests_remaining)
         else:
-            summary.append("]")
+            summary.append(u"]")
     else:
         # If we couldn't fit any test names in try just adding the number of tests
-        summary.append(" [%s tests]" % tests_remaining)
+        summary.append(u" [%s tests]" % tests_remaining)
     return summary.get()
 
 
@@ -463,8 +463,10 @@ def bug_data_failure(sync,  # type: DownstreamSync
             (u"New Tests That Don't Pass", by_type[u"new-non-passing"], True)]:
         if not test_results:
             continue
-        detail_msg.append(detail_part(details_type, test_results, None, u"head",
-                                      include_other_browser))
+        part = detail_part(details_type, test_results, None, u"head",
+                           include_other_browser)
+        if part is not None:
+            detail_msg.append(part)
 
     if treeherder_url is not None:
         treeherder_text = u"[Gecko CI (Treeherder)](%s)" % treeherder_url
@@ -515,7 +517,7 @@ def make_bug(summary, comment, product, component, depends):
 
 @mut('sync')
 def update_metadata(sync,  # type: DownstreamSync
-                    bugs,  # type: Dict[Text, List[ResultsEntryStatus]]
+                    bugs,  # type: Dict[int, List[ResultsEntryStatus]]
                     ):
     # type: (...) -> None
     newrelic.agent.record_custom_event("sync_bug_metadata", params={

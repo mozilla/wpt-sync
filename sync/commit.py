@@ -31,21 +31,6 @@ if MYPY:
 
     MsgFilterFunc = Callable[[bytes], Tuple[bytes, Dict[Text, Text]]]
 
-# Notes on types:
-# User-defined commit data including diffs and messages is
-# not reliably in any encoding. Therefore this must be treated
-# as bytes as far as possible. For output messages may need to be
-# encoded as unicode in some possibly lossy way.
-# The exception is objects we create ourselves where we can enforce
-# a specific encoding (utf-8). These include notes.
-# Commit shas can be treated as Text since they are always valid ascii
-# Tags probably could be non-utf8 but we will assume for now that they are
-# representable as Text
-#
-# pygit2 - oid.hex is text
-#          Commit.message is Text; prefer Commit.raw_message
-# gitpython -
-
 
 env = Environment()
 logger = log.get_logger(__name__)
@@ -78,11 +63,11 @@ def try_filter(msg):
 
 
 def first_non_merge(commits):
-    # type: (List[WptCommit]) -> Optional[WptCommit]
+    # type: (List[WptCommit]) -> WptCommit
     for item in commits:
         if not item.is_merge:
             return item
-    return None
+    raise ValueError("All commits were merge commits")
 
 
 class GitNotes(object):
@@ -229,7 +214,7 @@ class Commit(object):
 
     @classmethod
     def create(cls, repo, msg, metadata, author=None, amend=False):
-        # type: (Repo, str, Optional[Any], Text, bool) -> Commit
+        # type: (Repo, bytes, Optional[Any], Optional[bytes], bool) -> Commit
         msg = Commit.make_commit_msg(msg, metadata)
         commit_kwargs = {}  # type: Dict[str, Any]
         if amend:
@@ -237,7 +222,7 @@ class Commit(object):
             commit_kwargs["no_edit"] = True
         else:
             if author is not None:
-                commit_kwargs["author"] = author.encode("utf8")
+                commit_kwargs["author"] = author
         repo.git.commit(message=msg, **commit_kwargs)
         return cls(repo, repo.head.commit.hexsha)
 
@@ -322,7 +307,7 @@ def move_commits(repo,  # type: Repo
                  amend=False,  # type: bool
                  three_way=True,  # type: bool
                  rev_name=None,  # type: Optional[Text]
-                 author=None,  # type: Text
+                 author=None,  # type: Optional[bytes]
                  exclude=None,  # type: Set[str]
                  patch_fallback=False,  # type: bool
                  ):
@@ -355,7 +340,7 @@ def _apply_patch(patch,  # type: bytes
                  dest_prefix=None,  # type: Optional[str]
                  amend=False,  # type: bool
                  three_way=True,  # type: bool
-                 author=None,  # type: Text
+                 author=None,  # type: Optional[bytes]
                  exclude=None,  # type: Optional[Set[str]]
                  patch_fallback=False,  # type: bool
                  ):
@@ -417,17 +402,17 @@ def _apply_patch(patch,  # type: bytes
                         err_msg = ("%s\n\nPatch failed (status %i):\nstdout:\n%s\nstderr:\n%s" %
                                    (err_msg,
                                     proc.returncode,
-                                    stdout,
-                                    stderr))
+                                    stdout.decode("utf8", "replace") if stdout else "",
+                                    stderr.decode("utf8", "replace") if stderr else ""))
                     else:
                         err_msg = None
-                        prefix = "+++ "
+                        prefix = b"+++ "
                         paths = []
                         for line in patch.splitlines():
                             if line.startswith(prefix):
-                                path = "%s/%s" % (
-                                    dest_prefix,
-                                    "/".join(line[len(prefix):].split("/")[strip_dirs:]))
+                                path_parts_bytes = line[len(prefix):].split(b"/")[strip_dirs:]
+                                path_parts = [item.decode("utf8") for item in path_parts_bytes]
+                                path = "%s/%s" % (dest_prefix, "/".join(path_parts))
                                 paths.append(path)
                         dest_repo.git.add(*paths)
                 if err_msg is not None:
@@ -462,15 +447,16 @@ def _apply_patch(patch,  # type: bytes
 class GeckoCommit(Commit):
     @property
     def bug(self):
-        # type: () -> Optional[Text]
+        # type: () -> Optional[int]
         bugs = commitparser.parse_bugs(self.msg.splitlines()[0])
         if len(bugs) > 1:
             logger.warning(u"Got multiple bugs for commit %s: %s" %
                            (self.canonical_rev,
-                            u", ".join(str(item.decode("ascii")) for item in bugs)))
+                            u", ".join(str(item) for item in bugs)))
         if not bugs:
             return None
-        return bugs[0].decode("ascii")
+        assert isinstance(bugs[0], int)
+        return bugs[0]
 
     def has_wpt_changes(self):
         # type: () -> bool
@@ -544,14 +530,20 @@ class GeckoCommit(Commit):
         # type: (Repo, Repo) -> Optional[UpstreamSync]
         from . import upstream
         if u"upstream-sync" in self.notes:
-            seq_id = None  # type: Optional[Text]
-            bug, seq_id = self.notes[u"upstream-sync"].split(u":", 1)
-            if seq_id == u"":
+            seq_id = None  # type: Optional[int]
+            bug_str, seq_id_str = self.notes[u"upstream-sync"].split(u":", 1)
+            if seq_id_str == u"":
                 seq_id = None
+            else:
+                seq_id = int(seq_id_str)
+            bug = int(bug_str)
             syncs = upstream.UpstreamSync.load_by_obj(git_gecko, git_wpt, bug, seq_id=seq_id)
             assert len(syncs) <= 1
             if syncs:
-                return syncs.pop()
+                sync = syncs.pop()
+                # TODO: Improve the annotations so that this is implied
+                assert isinstance(sync, upstream.UpstreamSync)
+                return sync
         return None
 
     def set_upstream_sync(self, sync):
@@ -567,7 +559,7 @@ class GeckoCommit(Commit):
 
 class WptCommit(Commit):
     def pr(self):
-        # type: () -> Optional[Text]
+        # type: () -> Optional[int]
         if u"wpt_pr" not in self.notes:
             tags = [item.rsplit(u"_", 1)[1] for item in self.tags()
                     if item.startswith(u"merge_pr_")]
@@ -575,17 +567,16 @@ class WptCommit(Commit):
                 logger.info(u"Using tagged PR for commit %s" % self.sha1)
                 pr = tags[0]
             else:
-                pr = env.gh_wpt.pr_for_commit(self.sha1)
+                pr = six.ensure_text(str(env.gh_wpt.pr_for_commit(self.sha1)))
             if not pr:
-                pr == ""
+                pr == u""
             logger.info(u"Setting PR to %s" % pr)
             self.notes[u"wpt_pr"] = pr
         pr = self.notes[u"wpt_pr"]
         try:
-            int(pr)
+            return int(pr)
         except (TypeError, ValueError):
             return None
-        return pr
 
 
 class Store(object):

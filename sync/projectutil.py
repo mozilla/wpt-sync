@@ -17,12 +17,8 @@ import six
 
 MYPY = False
 if MYPY:
-    from typing import Any
-    from typing import Dict
-    from typing import List
-    from typing import Text
-    from typing import Optional
-    from typing import Callable
+    from typing import Any, Callable, Dict, List, Optional, Text, Tuple
+
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +61,7 @@ class Command(object):
             # type: (Any, *Text, **Any) -> Text
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
-        args = (call, self)
+        args = (call, self)  # type: Tuple[Any, ...]
         if six.PY2:
             args += (self.__class__,)
         self.__dict__[name] = types.MethodType(*args)
@@ -100,13 +96,13 @@ def create_mock(name):
         _log = []
 
         def __init__(self, path):
-            # type: (Optional[str]) -> None
+            # type: (Optional[Text]) -> None
             self.name = name
             self.path = path
 
         @classmethod
         def set_data(cls, command, value):
-            # type: (str, str) -> None
+            # type: (Text, Text) -> None
             cls._data[command] = value
 
         @classmethod

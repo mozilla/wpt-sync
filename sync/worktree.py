@@ -91,6 +91,7 @@ def cleanup_repo(pygit2_repo, max_count=None):
     prunable.sort()
     maybe_prunable.sort()
     for time, process_name, worktree in (prunable + maybe_prunable):
+        assert process_name is not None
         if time < (now - timedelta(days=2)):
             logger.info("Removing worktree without recent activity %s" % worktree.path)
             delete_worktree(process_name, worktree)
@@ -126,7 +127,7 @@ def worktrees(pygit2_repo):
 
 
 def prune_worktrees(pygit2_repo):
-    # type: (Repository) -> Iterator[PyGit2Worktree]
+    # type: (Repository) -> None
     for worktree in worktrees(pygit2_repo):
         # For some reason libgit2 thinks worktrees are not prunable when their
         # working dir is gone

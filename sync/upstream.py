@@ -14,6 +14,7 @@ from mozautomation import commitparser
 from . import log
 from . import commit as sync_commit
 from .base import entry_point
+from .commit import GeckoCommit
 from .downstream import DownstreamSync
 from .errors import AbortError
 from .env import Environment
@@ -27,20 +28,12 @@ from six import iteritems, itervalues
 MYPY = False
 if MYPY:
     from git.repo.base import Repo
-    from typing import Text
-    from typing import Optional
-    from sync.commit import GeckoCommit
-    from typing import List
+    from sync.base import BranchRefObject, ProcessName
     from sync.commit import Commit
-    from typing import Tuple
-    from sync.base import ProcessName
-    from typing import Any
-    from typing import Set
-    from typing import Dict
-    from typing import Union
+    from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Text, Tuple, Union, cast
 
-    CreateSyncs = Dict[Optional[str], Union[List, "Endpoints"]]
-    UpdateSyncs = Dict[str, Tuple["UpstreamSync", GeckoCommit]]
+    CreateSyncs = Dict[Optional[int], Union[List, "Endpoints"]]
+    UpdateSyncs = Dict[int, Tuple["UpstreamSync", GeckoCommit]]
 
 
 env = Environment()
@@ -50,13 +43,14 @@ logger = log.get_logger(__name__)
 
 class BackoutCommitFilter(CommitFilter):
     def __init__(self, bug_id):
-        # type: (str) -> None
+        # type: (int) -> None
         self.bug = bug_id
-        self.seen = set()
+        self.seen = set()  # type: Set[Text]
         self._commits = {}
 
     def _filter_commit(self, commit):
-        # type: (GeckoCommit) -> bool
+        # type: (Commit) -> bool
+        assert isinstance(commit, GeckoCommit)
         if commit.metadata.get("wptsync-skip"):
             return False
         if DownstreamSync.has_metadata(commit.msg):
@@ -74,7 +68,7 @@ class BackoutCommitFilter(CommitFilter):
         return False
 
     def filter_commits(self, commits):
-        # type: (List[GeckoCommit]) -> List[GeckoCommit]
+        # type: (Iterable[Commit]) -> Sequence[Commit]
         return remove_complete_backouts(commits)
 
 
@@ -93,8 +87,8 @@ class UpstreamSync(SyncProcess):
         # type: (Repo, Repo, ProcessName) -> None
         super(UpstreamSync, self).__init__(git_gecko, git_wpt, process_name)
 
-        self._upstreamed_gecko_commits = None
-        self._upstreamed_gecko_head = None
+        self._upstreamed_gecko_commits = None  # type: Optional[List[GeckoCommit]]
+        self._upstreamed_gecko_head = None  # type: Optional[Text]
 
     @classmethod
     @constructor(lambda args: ("upstream", args['bug']))
@@ -103,11 +97,11 @@ class UpstreamSync(SyncProcess):
             git_gecko,  # type: Repo
             git_wpt,  # type: Repo
             gecko_base,  # type: Text
-            gecko_head,  # type: str
-            wpt_base="origin/master",  # type: str
-            wpt_head=None,  # type: str
-            bug=None,  # type: str
-            status="open",  # type: str
+            gecko_head,  # type: Text
+            wpt_base="origin/master",  # type: Text
+            wpt_head=None,  # type: Text
+            bug=None,  # type: Text
+            status="open",  # type: Text
             ):
         # type: (...) -> UpstreamSync
         self = super(UpstreamSync, cls).new(lock,
@@ -168,10 +162,10 @@ class UpstreamSync(SyncProcess):
 
     @classmethod
     def has_metadata(cls, message):
-        # type: (Text) -> bool
-        required_keys = ["gecko-commit",
-                         "gecko-integration-branch",
-                         "bugzilla-url"]
+        # type: (bytes) -> bool
+        required_keys = [u"gecko-commit",
+                         u"gecko-integration-branch",
+                         u"bugzilla-url"]
         metadata = sync_commit.get_metadata(message)
         return all(item in metadata for item in required_keys)
 
@@ -185,8 +179,8 @@ class UpstreamSync(SyncProcess):
 
     @property
     def bug(self):
-        # type: () -> str
-        return self.process_name.obj_id
+        # type: () -> int
+        return int(self.process_name.obj_id)
 
     @property
     def pr_status(self):
@@ -208,13 +202,13 @@ class UpstreamSync(SyncProcess):
 
     @property
     def remote_branch(self):
-        # type: () -> Optional[str]
+        # type: () -> Optional[Text]
         return self.data.get("remote-branch")
 
-    @remote_branch.setter
+    @remote_branch.setter  # type: ignore
     @mut()
     def remote_branch(self, value):
-        # type: (Optional[str]) -> None
+        # type: (Optional[Text]) -> None
         if value:
             assert not value.startswith("refs/")
         self.data["remote-branch"] = value
@@ -228,7 +222,7 @@ class UpstreamSync(SyncProcess):
             if self.branch_name in pygit2_gecko.branches:
                 upstream = pygit2_gecko.branches[self.branch_name].upstream
                 if upstream:
-                    self.remote_branch = upstream.shortname
+                    self.remote_branch = upstream.shortname  # type: ignore
 
         if not self.remote_branch:
             count = 0
@@ -237,7 +231,7 @@ class UpstreamSync(SyncProcess):
             while path in refs:
                 count += 1
                 path = "%s-%s" % (initial_path, count)
-            self.remote_branch = path[len("refs/remotes/origin/"):]
+            self.remote_branch = path[len("refs/remotes/origin/"):]  # type: ignore
         return self.remote_branch
 
     @property
@@ -257,8 +251,6 @@ class UpstreamSync(SyncProcess):
     @mut()
     def update_wpt_commits(self):
         # type: () -> bool
-        matching_commits = []
-
         if len(self.gecko_commits) == 0:
             return False
 
@@ -267,8 +259,8 @@ class UpstreamSync(SyncProcess):
         # the last commit that was previously upstreamed then all earlier ones must
         # also match.
         upstreamed_commits = {item.sha1 for item in self.upstreamed_gecko_commits}
-        matching_commits = self.gecko_commits[:]
-        for gecko_commit in reversed(self.gecko_commits):
+        matching_commits = list(self.gecko_commits[:])
+        for gecko_commit in reversed(list(self.gecko_commits)):
             if gecko_commit.sha1 in upstreamed_commits:
                 break
             matching_commits.pop()
@@ -277,9 +269,9 @@ class UpstreamSync(SyncProcess):
             return False
 
         if len(matching_commits) == 0:
-            self.wpt_commits.head = self.wpt_commits.base
+            self.wpt_commits.head = self.wpt_commits.base  # type: ignore
         elif len(matching_commits) < len(self.upstreamed_gecko_commits):
-            self.wpt_commits.head = self.wpt_commits[len(matching_commits) - 1]
+            self.wpt_commits.head = self.wpt_commits[len(matching_commits) - 1]  # type: ignore
 
         # Ensure the worktree is clean
         wpt_work = self.wpt_worktree.get()
@@ -308,7 +300,7 @@ class UpstreamSync(SyncProcess):
 
     @property
     def repository(self):
-        # type: () -> str
+        # type: () -> Text
         # Need to check central before landing repos
         head = self.gecko_commits.head.sha1
         repo = gecko_repo(self.git_gecko, head)
@@ -321,8 +313,8 @@ class UpstreamSync(SyncProcess):
         # type: (GeckoCommit) -> Tuple[Optional[Commit], bool]
         git_work = self.wpt_worktree.get()
 
-        metadata = {"gecko-commit": gecko_commit.canonical_rev,
-                    "gecko-integration-branch": self.repository}
+        metadata = {u"gecko-commit": gecko_commit.canonical_rev,
+                    u"gecko-integration-branch": self.repository}
 
         if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
             # If there's already a patch file here then don't try to create a new one
@@ -334,7 +326,7 @@ class UpstreamSync(SyncProcess):
                                        src_prefix=env.config["gecko"]["path"]["wpt"])
         assert not git_work.is_dirty()
         if wpt_commit:
-            self.wpt_commits.head = wpt_commit
+            self.wpt_commits.head = wpt_commit  # type: ignore
 
         return wpt_commit, True
 
@@ -352,15 +344,15 @@ class UpstreamSync(SyncProcess):
 
         commit_summary = self.wpt_commits[0].commit.summary
 
-        body = self.wpt_commits[0].msg.split("\n", 1)
-        body = body[1] if len(body) != 1 else ""
+        msg = self.wpt_commits[0].msg.split(b"\n", 1)
+        body = msg[1].decode("utf8", "replace") if len(msg) != 1 else ""
 
         pr_id = env.gh_wpt.create_pull(
             title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "", commit_summary),
             body=body.strip(),
             base="master",
             head=self.remote_branch)
-        self.pr = pr_id
+        self.pr = pr_id  # type: ignore
         # TODO: add label to bug
         env.bz.comment(self.bug,
                        "Created web-platform-tests PR %s for changes under "
@@ -411,7 +403,8 @@ class UpstreamSync(SyncProcess):
                     else:
                         # It's unclear what to do in this case, so mark the sync for manual
                         # fixup
-                        self.error = "Upstream PR merged, but additional commits added after merge"
+                        self.error = (u"Upstream PR merged, "   # type: ignore
+                                      "but additional commits added after merge")
                     return
 
         if not len(self.gecko_commits):
@@ -450,7 +443,7 @@ class UpstreamSync(SyncProcess):
         logger.info("Checking if sync for bug %s can land" % self.bug)
         if not self.status == "open":
             logger.info("Sync is %s" % self.status)
-            return
+            return False
         if not self.gecko_landed():
             logger.info("Commits are not yet landed in gecko")
             return False
@@ -466,7 +459,7 @@ class UpstreamSync(SyncProcess):
             logger.info("PR already merged")
             self.merge_sha = merge_sha
             self.finish("wpt-merged")
-            return
+            return False
 
         logger.info("Commit are landable; trying to land %s" % self.pr)
 
@@ -492,7 +485,7 @@ class UpstreamSync(SyncProcess):
                         e.data.get("message", "Unknown GitHub Error")))
             except Exception as e:
                 msg = ("Merging PR %s failed.\nMessage: %s" %
-                       (env.gh_wpt.pr_url(self.pr), e.message))
+                       (env.gh_wpt.pr_url(self.pr), e))
             else:
                 self.merge_sha = merge_sha
                 self.finish("wpt-merged")
@@ -503,7 +496,7 @@ class UpstreamSync(SyncProcess):
 
     @mut()
     def finish(self, status="complete"):
-        # type: (str) -> None
+        # type: (Text) -> None
         super(UpstreamSync, self).finish(status)
         if status in ("wpt-merged", "complete") and self.remote_branch:
             # Delete the remote branch after a merge
@@ -512,25 +505,25 @@ class UpstreamSync(SyncProcess):
             except git.GitCommandError:
                 pass
             else:
-                self.remote_branch = None
+                self.remote_branch = None  # type: ignore
 
     @property
     def pr_head(self):
-        # type: () -> Text
+        # type: () -> Optional[Text]
         """
         Retrieves the head of the PR ref: origin/pr/{pr_id}
         :return: The SHA of the head commit.
         """
         if not self.pr:
             logger.error("No PR ID found for %s" % self.process_name)
-            return
+            return None
 
         pr_ref = 'origin/pr/{}'.format(self.pr)
 
         if pr_ref not in self.git_wpt.refs:
             # PR ref doesn't seem to exist
             logger.error("No ref found for %s" % pr_ref)
-            return
+            return None
 
         ref = self.git_wpt.refs[pr_ref]
         return ref.commit.hexsha
@@ -538,12 +531,12 @@ class UpstreamSync(SyncProcess):
     @property
     def pr_commits(self):
         # type: () -> CommitRange
-        pr_head = self.pr_head
-        if not pr_head:
+        pr_head_sha = self.pr_head
+        if not pr_head_sha:
             raise ValueError("Can't get PR commits as the ref head could not be found for %s" %
                              self.process_name)
-        else:
-            pr_head = sync_commit.WptCommit(self.git_wpt, pr_head)
+
+        pr_head = sync_commit.WptCommit(self.git_wpt, pr_head_sha)
 
         merge_base = []
 
@@ -579,22 +572,28 @@ class UpstreamSync(SyncProcess):
 
         # Create a CommitRange object and return it
         base = sync_commit.WptCommit(self.git_wpt, merge_base)
-        head_ref = AttrDict({'commit': pr_head})
+        head_ref_dict = AttrDict({'commit': pr_head})
+        if MYPY:
+            # This is a terrible hack.
+            head_ref = cast(BranchRefObject, head_ref_dict)
+        else:
+            head_ref = head_ref_dict
         return CommitRange(self.git_wpt, base, head_ref, sync_commit.WptCommit, CommitFilter())
 
 
 def commit_message_filter(msg):
-    # type: (Text) -> Tuple[Text, Dict[str, Text]]
+    # type: (bytes) -> Tuple[bytes, Dict[Text, Text]]
     metadata = {}
     m = commitparser.BUG_RE.match(msg)
     if m:
         bug_str, bug_number = m.groups()[:2]
         if msg.startswith(bug_str):
-            prefix = re.compile(r"^%s[^\w\d\[\(]*" % bug_str)
-            msg = prefix.sub("", msg)
-        metadata["bugzilla-url"] = env.bz.bugzilla_url(bug_number)
+            prefix = re.compile(br"^%s[^\w\d\[\(]*" % bug_str)
+            msg = prefix.sub(b"", msg)
+        metadata[u"bugzilla-url"] = env.bz.bugzilla_url(int(bug_number))
 
-    reviewers = ", ".join(commitparser.parse_reviewers(msg))
+    reviewers = u", ".join(item.decode("utf8", "replace")
+                           for item in commitparser.parse_reviewers(msg))
     if reviewers:
         metadata["gecko-reviewers"] = reviewers
     msg = commitparser.replace_reviewers(msg, "")
@@ -602,9 +601,8 @@ def commit_message_filter(msg):
     description = msg.splitlines()
     if description:
         summary = description.pop(0)
-        summary = summary.rstrip("!#$%&(*+,-/:;<=>@[\\^_`{|~").rstrip()
-        description = "\n".join(description)
-        msg = summary + ("\n" + description if description else "")
+        summary = summary.rstrip(b"!#$%&(*+,-/:;<=>@[\\^_`{|~").rstrip()
+        msg = summary + (b"\n" + b"\n".join(description) if description else b"")
 
     return msg, metadata
 
@@ -612,7 +610,7 @@ def commit_message_filter(msg):
 def wpt_commits(git_gecko, first_commit, head_commit):
     # type: (Repo, GeckoCommit, GeckoCommit) -> List[GeckoCommit]
     # List of syncs that have changed, so we can update them all as appropriate at the end
-    revish = "%s..%s" % (first_commit.sha1, head_commit.sha1)
+    revish = u"%s..%s" % (first_commit.sha1, head_commit.sha1)
     logger.info("Getting commits in range %s" % revish)
     commits = [sync_commit.GeckoCommit(git_gecko, item.hexsha) for item in
                git_gecko.iter_commits(revish,
@@ -635,14 +633,15 @@ def filter_commits(commits):
 
 
 def remove_complete_backouts(commits):
-    # type: (List[GeckoCommit]) -> List[GeckoCommit]
+    # type: (Iterable[Commit]) -> Sequence[Commit]
     """Given a list of commits, remove any commits for which a backout exists
     in the list"""
-    commits_remaining = set()
+    commits_remaining = set()  # type: Set[Text]
     for commit in commits:
+        assert isinstance(commit, GeckoCommit)
         if commit.is_backout:
-            backed_out, _ = commit.wpt_commits_backed_out()
-            backed_out = {item.sha1 for item in backed_out}
+            backed_out_commits, _ = commit.wpt_commits_backed_out()
+            backed_out = {item.sha1 for item in backed_out_commits}
             if backed_out.issubset(commits_remaining):
                 commits_remaining -= backed_out
                 continue
@@ -654,20 +653,20 @@ def remove_complete_backouts(commits):
 class Endpoints(object):
     def __init__(self, first):
         # type: (GeckoCommit) -> None
-        self._first = first
-        self._second = None
+        self._first = first  # type: GeckoCommit
+        self._second = None  # type: Optional[GeckoCommit]
 
     @property
     def base(self):
-        # type: () -> Text
-        return self._first.commit.parents[0].hexsha
+        # type: () -> GeckoCommit
+        return GeckoCommit(self._first.repo, self._first.commit.parents[0])
 
     @property
     def head(self):
-        # type: () -> str
+        # type: () -> GeckoCommit
         if self._second is not None:
-            return self._second.sha1
-        return self._first.sha1
+            return self._second
+        return self._first
 
     @head.setter
     def head(self, value):
@@ -682,27 +681,35 @@ def updates_for_backout(git_gecko,  # type: Repo
                         git_wpt,  # type: Repo
                         commit,  # type: GeckoCommit
                         ):
-    # type: (...) -> Tuple[Dict, Dict[str, Tuple[UpstreamSync, GeckoCommit]]]
+    # type: (...) -> Tuple[CreateSyncs, UpdateSyncs]
     backed_out_commits, bugs = commit.wpt_commits_backed_out()
     backed_out_commit_shas = {item.sha1 for item in backed_out_commits}
 
-    create_syncs = {None: []}
-    update_syncs = {}
+    create_syncs = {None: []}  # type: CreateSyncs
+    update_syncs = {}  # type: UpdateSyncs
 
     for backed_out_commit in backed_out_commits:
-        syncs = UpstreamSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug,
-                                     statuses={"open", "incomplete"}, flat=True)
-        if len(syncs) not in (0, 1):
-            raise ValueError("Lookup of upstream syncs for bug %s returned syncs: %r" %
-                             (len(syncs), syncs))
+        syncs = []  # type: List[SyncProcess]
+        backed_out_bug = backed_out_commit.bug
+        if backed_out_bug:
+            syncs = UpstreamSync.for_bug(git_gecko,
+                                         git_wpt,
+                                         backed_out_bug,
+                                         statuses={u"open", u"incomplete"},
+                                         flat=True)
+            if len(syncs) not in (0, 1):
+                raise ValueError("Lookup of upstream syncs for bug %s returned syncs: %r" %
+                                 (len(syncs), syncs))
         if syncs:
             sync = syncs.pop()
+            assert isinstance(sync, UpstreamSync)
             if commit in sync.gecko_commits:
                 # This commit was already processed
                 backed_out_commit_shas = set()
                 return {}, {}
             if backed_out_commit in sync.upstreamed_gecko_commits:
                 backed_out_commit_shas.remove(backed_out_commit.sha1)
+                assert sync.bug is not None
                 update_syncs[sync.bug] = (sync, commit)
 
     if backed_out_commit_shas:
@@ -712,13 +719,19 @@ def updates_for_backout(git_gecko,  # type: Repo
         # Need to create a bug for this backout
         backout_bug = None
         for bug in bugs:
-            open_bug_syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug,
-                                                  statuses={"open", "incomplete"})
+            open_bug_syncs = UpstreamSync.for_bug(git_gecko,
+                                                  git_wpt,
+                                                  bug,
+                                                  statuses={"open", "incomplete"},
+                                                  flat=False)
             if bug not in update_syncs and not open_bug_syncs:
                 backout_bug = bug
                 break
         if backout_bug is None:
-            create_syncs[None].append(Endpoints(commit))
+            # TODO: Turn create_syncs into a class
+            new_no_bug = create_syncs[None]
+            assert isinstance(new_no_bug, list)
+            new_no_bug.append(Endpoints(commit))
         else:
             create_syncs[backout_bug] = Endpoints(commit)
     return create_syncs, update_syncs
@@ -731,23 +744,24 @@ def updated_syncs_for_push(git_gecko,  # type: Repo
                            ):
     # type: (...) -> Optional[Tuple[CreateSyncs, UpdateSyncs]]
     # TODO: Check syncs with pushes that no longer exist on autoland
-    commits = wpt_commits(git_gecko, first_commit, head_commit)
-    if not commits:
+    all_commits = wpt_commits(git_gecko, first_commit, head_commit)
+    if not all_commits:
         logger.info("No new commits affecting wpt found")
-        return
+        return None
     else:
-        logger.info("Got %i commits since the last sync point" % len(commits))
+        logger.info("Got %i commits since the last sync point" % len(all_commits))
 
-    commits = remove_complete_backouts(commits)
+    commits = remove_complete_backouts(all_commits)
 
     if not commits:
         logger.info("No commits remain after removing backout pairs")
-        return
+        return None
 
-    create_syncs = {None: []}
-    update_syncs = {}
+    create_syncs = {None: []}  # type: CreateSyncs
+    update_syncs = {}  # type: UpdateSyncs
 
     for commit in commits:
+        assert isinstance(commit, GeckoCommit)
         if commit.upstream_sync(git_gecko, git_wpt) is not None:
             # This commit was already processed e.g. by a manual invocation, so skip
             continue
@@ -759,18 +773,20 @@ def updated_syncs_for_push(git_gecko,  # type: Repo
             continue
         else:
             bug = commit.bug
+            if bug is None:
+                continue
+            sync = None  # type: Optional[SyncProcess]
             if bug in update_syncs:
                 sync, _ = update_syncs[bug]
             else:
-                statuses = ["open", "incomplete"]
+                statuses = [u"open", u"incomplete"]
                 syncs = UpstreamSync.for_bug(git_gecko, git_wpt, bug, statuses=statuses,
                                              flat=True)
-                sync = None
                 if len(syncs) not in (0, 1):
                     logger.warning("Lookup of upstream syncs for bug %s returned syncs: %r" %
                                    (len(syncs), syncs))
                     # Try to pick the most recent sync
-                    for status in ["open", "incomplete"]:
+                    for status in statuses:
                         status_syncs = [s for s in syncs if s.status == status]
                         if status_syncs:
                             status_syncs.sort(key=lambda x: int(x.process_name.obj_id))
@@ -780,15 +796,20 @@ def updated_syncs_for_push(git_gecko,  # type: Repo
                     sync = syncs[0]
 
             if sync:
-                if isinstance(sync, UpstreamSync) and commit not in sync.gecko_commits:
+                assert isinstance(sync, UpstreamSync)
+                if commit not in sync.gecko_commits:
                     update_syncs[bug] = (sync, commit)
                 elif sync.pr is None:
-                    update_syncs[bug] = (sync, sync.gecko_commits.head)
+                    head = sync.gecko_commits.head
+                    assert isinstance(head, GeckoCommit)
+                    update_syncs[bug] = (sync, head)
             else:
                 if bug is None:
                     create_syncs[None].append(Endpoints(commit))
                 elif bug in create_syncs:
-                    create_syncs[bug].head = commit
+                    bug_endpoints = create_syncs[bug]
+                    assert isinstance(bug_endpoints, Endpoints)
+                    bug_endpoints.head = commit
                 else:
                     create_syncs[bug] = Endpoints(commit)
 
@@ -798,13 +819,15 @@ def updated_syncs_for_push(git_gecko,  # type: Repo
 def create_syncs(lock,  # type: SyncLock
                  git_gecko,  # type: Repo
                  git_wpt,  # type: Repo
-                 create_endpoints,  # type: Dict[Optional[str], Union[List, Endpoints]]
+                 create_endpoints,  # type: Dict[Optional[int], Union[List, Endpoints]]
                  ):
     # type: (...) -> List[UpstreamSync]
     rv = []
     for bug, endpoints in iteritems(create_endpoints):
         if bug is not None:
+            assert isinstance(endpoints, Endpoints)
             endpoints = [endpoints]
+        assert isinstance(endpoints, list)
         for endpoint in endpoints:
             if bug is None:
                 # TODO: Loading the commits doesn't work in this case, because we depend on the bug
@@ -819,8 +842,8 @@ def create_syncs(lock,  # type: SyncLock
                                     git_gecko,
                                     git_wpt,
                                     bug=bug,
-                                    gecko_base=endpoint.base,
-                                    gecko_head=endpoint.head,
+                                    gecko_base=endpoint.base.sha1,
+                                    gecko_head=endpoint.head.sha1,
                                     wpt_base="origin/master",
                                     wpt_head="origin/master")
             rv.append(sync)
@@ -828,7 +851,7 @@ def create_syncs(lock,  # type: SyncLock
 
 
 def update_sync_heads(lock,  # type: SyncLock
-                      syncs_by_bug,  # type: Dict[str, Tuple[UpstreamSync, GeckoCommit]]
+                      syncs_by_bug,  # type: Dict[int, Tuple[UpstreamSync, GeckoCommit]]
                       ):
     # type: (...) -> List[UpstreamSync]
     rv = []
@@ -838,9 +861,10 @@ def update_sync_heads(lock,  # type: SyncLock
             raise ValueError("Tried to modify a closed sync for bug %s with commit %s" %
                              (bug, commit.canonical_rev))
         with sync.as_mut(lock):
-            sync.gecko_commits.head = commit
-            for commit in sync.gecko_commits:
-                commit.set_upstream_sync(sync)
+            sync.gecko_commits.head = commit  # type: ignore
+            for gecko_commit in sync.gecko_commits:
+                assert isinstance(gecko_commit, GeckoCommit)
+                gecko_commit.set_upstream_sync(sync)
         rv.append(sync)
     return rv
 
@@ -856,12 +880,12 @@ def update_modified_sync(git_gecko, git_wpt, sync):
         # the meantime. So we carefully avoid touching the wpt side until something
         # relands and we have a chance to reopen the PR
         logger.info("Sync has no commits, so marking as incomplete")
-        sync.status = "incomplete"
+        sync.status = "incomplete"  # type: ignore
         if not sync.pr:
             logger.info("Sync was already fully applied upstream, not creating a PR")
             return
     else:
-        sync.status = "open"
+        sync.status = "open"  # type: ignore
         try:
             sync.update_wpt_commits()
         except AbortError:
@@ -897,8 +921,8 @@ def update_modified_sync(git_gecko, git_wpt, sync):
 def update_sync_prs(lock,  # type: SyncLock
                     git_gecko,  # type: Repo
                     git_wpt,  # type: Repo
-                    create_endpoints,  # type: Dict[Optional[str], Union[List, Endpoints]]
-                    update_syncs,  # type: Dict[str, Tuple[UpstreamSync, GeckoCommit]]
+                    create_endpoints,  # type: Dict[Optional[int], Union[List, Endpoints]]
+                    update_syncs,  # type: Dict[int, Tuple[UpstreamSync, GeckoCommit]]
                     raise_on_error=False,  # type: bool
                     ):
     # type: (...) -> Tuple[Set[UpstreamSync], Set]
@@ -913,14 +937,14 @@ def update_sync_prs(lock,  # type: SyncLock
             try:
                 update_modified_sync(git_gecko, git_wpt, sync)
             except Exception as e:
-                sync.error = e
+                sync.error = e  # type: ignore
                 if raise_on_error:
                     raise
                 traceback.print_exc()
                 logger.error(e)
                 failed_syncs.add((sync, e))
             else:
-                sync.error = None
+                sync.error = None  # type: ignore
                 pushed_syncs.add(sync)
 
     return pushed_syncs, failed_syncs
@@ -970,16 +994,18 @@ def gecko_push(git_gecko,  # type: Repo
                raise_on_error=False,  # type: bool
                base_rev=None,  # type: Optional[Any]
                ):
-    # type: (...) -> Tuple[Set[UpstreamSync], Set[UpstreamSync], Set]
+    # type: (...) -> Optional[Tuple[Set[UpstreamSync], Set[UpstreamSync], Set]]
     rev = git_gecko.cinnabar.hg2git(hg_rev)
     last_sync_point, prev_commit = UpstreamSync.prev_gecko_commit(git_gecko,
                                                                   repository_name)
 
+    assert last_sync_point.commit is not None
     if base_rev is None and git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
         logger.info("Last sync point moved past commit")
-        return
+        return None
 
     with SyncLock("upstream", None) as lock:
+        assert isinstance(lock, SyncLock)
         updated = updated_syncs_for_push(git_gecko,
                                          git_wpt,
                                          prev_commit,
@@ -999,12 +1025,16 @@ def gecko_push(git_gecko,  # type: Repo
 
         landable_syncs = {item for item in UpstreamSync.load_by_status(git_gecko, git_wpt, "open")
                           if item.error is None}
-        landed_syncs = try_land_syncs(lock, landable_syncs)
+        if MYPY:
+            landable = cast(Set[UpstreamSync], landable_syncs)
+        else:
+            landable = landable_syncs
+        landed_syncs = try_land_syncs(lock, landable)
 
         # TODO
         if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
             with last_sync_point.as_mut(lock):
-                last_sync_point.commit = rev
+                last_sync_point.commit = rev  # type: ignore
 
     return pushed_syncs, landed_syncs, failed_syncs
 
@@ -1116,6 +1146,7 @@ def update_pr(git_gecko,  # type: Repo
             env.bz.comment(sync.bug, "Upstream PR was closed without merging")
             sync.pr_status = "closed"
         else:
+            assert merge_sha is not None
             sync.merge_sha = merge_sha
             if not sync.wpt_commits and base_sha:
                 sync.set_wpt_base(base_sha)

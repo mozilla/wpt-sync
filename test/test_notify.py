@@ -5,9 +5,10 @@ from sync.wptmeta import MetaLink
 def test_results_wptfyi(env, pr_19900_github):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_github)
-    assert results_data.summary() == {
-        "parent_tests": 1,
-        "subtests": 1,
+    summary = results_data.summary()
+    assert summary.parent_tests == 1
+    assert summary.subtests == 1
+    assert summary.job_results == {
         "OK": {"chrome": {"GitHub": 1},
                "safari": {"GitHub": 1}},
         "FAIL": {"chrome": {"GitHub": 1},
@@ -80,9 +81,10 @@ FAIL  : 1
 def test_results_gecko(env, pr_19900_gecko_ci):
     results_data = results.Results()
     results_data.add_jobs_from_log_files(*pr_19900_gecko_ci)
-    results_data.summary() == {
-        "subtests": 1,
-        "parent_tests": 1,
+    summary = results_data.summary()
+    assert summary.subtests == 1
+    assert summary.parent_tests == 1
+    assert summary.job_results == {
         "NOTRUN": {
             "firefox": {
                 "Gecko-windows10-64-qr-debug": 1,

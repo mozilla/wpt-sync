@@ -1,6 +1,6 @@
 MYPY = False
 if MYPY:
-    from typing import Dict, Optional
+    from typing import Any, Dict, Optional, Text
     from sync.bug import Bugzilla
     from sync.gh import GitHub
 
@@ -12,7 +12,7 @@ _gh_wpt = None  # type: Optional[GitHub]
 class Environment(object):
     @property
     def config(self):
-        # type: () -> Dict
+        # type: () -> Dict[Text, Any]
         assert _config is not None
         return _config
 
