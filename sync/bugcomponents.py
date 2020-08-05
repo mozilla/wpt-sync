@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import io
 import re
 import os
 from ast import literal_eval
@@ -12,13 +13,8 @@ from .env import Environment
 from .projectutil import Mach
 MYPY = False
 if MYPY:
-    from typing import Text
-    from typing import Dict
-    from typing import Set
+    from typing import Any, Dict, List, Mapping, Set, Text, Tuple, Union
     from git.repo.base import Repo
-    from typing import Union
-    from typing import List
-    from typing import Tuple
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -28,7 +24,7 @@ re_cache = {}
 
 
 def match(path, pattern):
-    # type: (str, str) -> bool
+    # type: (Text, Text) -> bool
     '''
     Return whether the given path matches the given pattern.
     An asterisk can be used to match any string, including the null string, in
@@ -55,11 +51,14 @@ def match(path, pattern):
 
 
 def remove_obsolete(path, moves=None):
-    # type: (str, Dict[str, str]) -> Text
-    from lib2to3 import pygram, pytree, patcomp
+    # type: (Text, Dict[Text, Text]) -> Text
+    from lib2to3 import (pygram,  # type: ignore
+                         pytree,
+                         patcomp)
     from lib2to3.pgen2 import driver
 
-    files_pattern = "with_stmt< 'with' power< 'Files' trailer< '(' arg=any any* ')' > any* > any* >"
+    files_pattern = (u"with_stmt< 'with' power< 'Files' "
+                     "trailer< '(' arg=any any* ')' > any* > any* >")
     base_dir = os.path.dirname(path) or "."
     d = driver.Driver(pygram.python_grammar,
                       convert=pytree.convert)
@@ -71,7 +70,7 @@ def remove_obsolete(path, moves=None):
     node_patterns = {}
 
     for node in tree.children:
-        match_values = {}
+        match_values = {}  # type: Dict[Any, Any]
         if pat.match(node, match_values):
             path_pat = literal_eval(match_values['arg'].value)
             unmatched_patterns.add(path_pat)
@@ -81,8 +80,8 @@ def remove_obsolete(path, moves=None):
         for filename in files:
             path = os.path.relpath(os.path.join(base_path, filename),
                                    base_dir)
-            assert ".." not in path
-            if path[:2] == "./":
+            assert u".." not in path
+            if path[:2] == u"./":
                 path = path[2:]
             for pattern in unmatched_patterns.copy():
                 if match(path, pattern):
@@ -104,7 +103,7 @@ def remove_obsolete(path, moves=None):
 
 
 def compute_moves(moves, unmatched_patterns):
-    # type: (Dict[str, str], Set[str]) -> Dict[str, str]
+    # type: (Dict[Text, Text], Set[Text]) -> Dict[Text, Text]
     updated_patterns = {}
     dest_paths = defaultdict(list)
     for pattern in unmatched_patterns:
@@ -136,14 +135,14 @@ def compute_moves(moves, unmatched_patterns):
 
 
 def components_for_wpt_paths(git_gecko, wpt_paths):
-    # type: (Repo, Union[Set[Text], Set[str]]) -> Dict
+    # type: (Repo, Union[Set[Text], Set[str]]) -> Mapping[Text, List[Text]]
     path_prefix = env.config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in wpt_paths]
 
     mach = Mach(git_gecko.working_dir)
     output = mach.file_info("bugzilla-component", *paths)
 
-    components = defaultdict(list)
+    components = defaultdict(list)  # type: Mapping[Text, List[Text]]
     current = None
     for line in output.split("\n"):
         if line.startswith(" "):
@@ -159,39 +158,40 @@ def components_for_wpt_paths(git_gecko, wpt_paths):
 
 
 def get(git_gecko,  # type: Repo
-        files_changed,  # type: Union[Set[Text], Set[str]]
-        default,  # type: Tuple[str, str]
+        files_changed,  # type: Union[Set[Text], Set[Text]]
+        default,  # type: Tuple[Text, Text]
         ):
-    # type: (...) -> Union[List[str], Tuple[str, str]]
+    # type: (...) -> Tuple[Text, Text]
     if not files_changed:
         return default
 
-    components = components_for_wpt_paths(git_gecko, files_changed)
-    if not components:
+    components_dict = components_for_wpt_paths(git_gecko, files_changed)
+    if not components_dict:
         return default
 
-    components = sorted(list(components.items()), key=lambda x: -len(x[1]))
+    components = sorted(list(components_dict.items()), key=lambda x: -len(x[1]))
     component = components[0][0]
-    if component == "UNKNOWN" and len(components) > 1:
+    if component == u"UNKNOWN" and len(components) > 1:
         component = components[1][0]
 
-    if component == "UNKNOWN":
+    if component == u"UNKNOWN":
         return default
 
-    return component.split(" :: ")
+    product, component = component.split(u" :: ", 1)
+    return product, component
 
 
-def mozbuild_path(worktree):
-    # type: (Repo) -> str
-    return os.path.join(worktree.working_dir,
+def mozbuild_path(repo_work):
+    # type: (Repo) -> Text
+    return os.path.join(repo_work.working_dir,
                         env.config["gecko"]["path"]["wpt"],
                         os.pardir,
                         "moz.build")
 
 
-def update(worktree, renames):
+def update(repo_work, renames):
     # type: (Repo, Dict[Text, Text]) -> None
-    mozbuild_file_path = mozbuild_path(worktree)
+    mozbuild_file_path = mozbuild_path(repo_work)
     tests_base = os.path.split(env.config["gecko"]["path"]["wpt"])[1]
 
     def tests_rel_path(path):
@@ -204,7 +204,7 @@ def update(worktree, renames):
     if os.path.exists(mozbuild_file_path):
         new_data = remove_obsolete(mozbuild_file_path,
                                    moves=mozbuild_rel_renames)
-        with open(mozbuild_file_path, "w") as f:
+        with io.open(mozbuild_file_path, "w", encoding="utf8") as f:
             f.write(new_data)
     else:
         logger.warning("Can't find moz.build file to update")

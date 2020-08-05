@@ -25,7 +25,16 @@ if MYPY:
     from sync.landing import LandingSync
     from sync.lock import SyncLock
     from sync.sync import SyncPointName
-    from typing import Any, DefaultDict, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
+    from typing import (Any,
+                        DefaultDict,
+                        Dict,
+                        Iterator,
+                        List,
+                        Optional,
+                        Set,
+                        Text,
+                        Tuple,
+                        Union)
 
     ProcessNameIndexData = DefaultDict[Text, DefaultDict[Text, DefaultDict[Text, Set]]]
     ProcessNameKey = Tuple[Text, Text, Text, Text]
@@ -201,6 +210,7 @@ class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
 
         target = self._data
         for key in [obj_type, subtype, obj_id]:
+            assert isinstance(key, six.string_types)
             if key is None:
                 break
             target = target[key]  # type: ignore
@@ -213,7 +223,7 @@ class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
             if isinstance(item, set):
                 rv |= item
             else:
-                stack.extend(itervalues(item))
+                stack.extend(itervalues(item))  # type: ignore
 
         return rv
 
@@ -324,7 +334,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
         for process_name in existing:
             if (process_name.seq_id is not None and
                 int(process_name.seq_id) > last_id):
-                last_id = int(process_name.seq_id)
+                last_id = process_name.seq_id
         seq_id = last_id + 1
         return cls(obj_type, subtype, obj_id, six.ensure_text(str(seq_id)))
 
@@ -438,7 +448,7 @@ class BranchRefObject(VcsRefObject):
 class CommitBuilder(object):
     def __init__(self,
                  repo,  # type: Repo
-                 message,  # type: Union[Text, bytes]
+                 message,  # type: Text
                  ref=None,  # type: Optional[Text]
                  commit_cls=sync_commit.Commit,  # type: type
                  initial_empty=False  # type: bool
@@ -531,7 +541,7 @@ class CommitBuilder(object):
             sha1 = self.pygit2_repo.create_commit(self.ref,
                                                   self.pygit2_repo.default_signature,
                                                   self.pygit2_repo.default_signature,
-                                                  self.message,
+                                                  self.message.encode("utf8"),
                                                   tree_id,
                                                   self.parents)
         self.lock.__exit__(*args, **kwargs)
@@ -627,7 +637,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
         else:
             raise ValueError("%s already exists at path %s" % (cls.__name__, path))
         with CommitBuilder(repo, message, ref=ref.path) as commit:
-            commit.add_tree({path: json.dumps(data)})
+            commit.add_tree({path: json.dumps(data).encode("utf8")})
         ProcessNameIndex(repo).insert(process_name)
         return cls(repo, process_name)
 
@@ -642,14 +652,19 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
         return process_name.path()
 
     @classmethod
-    def load_by_obj(cls, repo, subtype, obj_id, seq_id=None):
-        # type: (Repo, Text, Text, Optional[Any]) -> Set[ProcessData]
+    def load_by_obj(cls,
+                    repo,  # type: Repo
+                    subtype,  # type: Text
+                    obj_id,  # type: int
+                    seq_id=None  # Type: Optional[int]
+                    ):
+        # type: (...) -> Set[ProcessData]
         process_names = ProcessNameIndex(repo).get(cls.obj_type,
                                                    subtype,
-                                                   obj_id)
+                                                   str(obj_id))
         if seq_id is not None:
             process_names = {item for item in process_names
-                             if item.seq_id == int(seq_id)}
+                             if item.seq_id == seq_id}
         return {cls(repo, process_name) for process_name in process_names}
 
     @classmethod
@@ -669,7 +684,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
             commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         else:
             commit_builder.message += message
-        tree = {self.path: json.dumps(data)}
+        tree = {self.path: json.dumps(data).encode("utf8")}
         with commit_builder as commit:
             commit.add_tree(tree)
         return commit.get()
@@ -734,12 +749,14 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
 
 class FrozenDict(Mapping):
-    def __init__(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
-        self._data = dict(*args, **kwargs)
+    def __init__(self, **kwargs):
+        # type: (**Any) -> None
+        self._data = {}
+        for key, value in iteritems(kwargs):
+            self._data[six.ensure_text(key)] = value
 
     def __getitem__(self, key):
-        # type: (str) -> Any
+        # type: (Text) -> Any
         return self._data[key]
 
     def __contains__(self, key):
@@ -749,11 +766,12 @@ class FrozenDict(Mapping):
     def copy(self, **kwargs):
         # type: (**Any) -> FrozenDict
         new_data = self._data.copy()
-        new_data.update(kwargs)
+        for key, value in iteritems(kwargs):
+            new_data[six.ensure_text(key)] = value
         return self.__class__(**new_data)
 
     def __iter__(self):
-        #  type: () -> Iterator[str]
+        #  type: () -> Iterator[Text]
         for item in self._data:
             yield item
 
@@ -762,7 +780,7 @@ class FrozenDict(Mapping):
         return len(self._data)
 
     def as_dict(self):
-        # type: () -> Dict[str, Any]
+        # type: () -> Dict[Text, Any]
         return self._data.copy()
 
 

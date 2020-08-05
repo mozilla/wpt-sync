@@ -486,6 +486,9 @@ def add_gecko_data(sync, results):
     assert sync._lock is not None
     with try_push.as_mut(sync._lock):
         try_tasks = complete_try_push.tasks()
+        if try_tasks is None:
+            logger.error("Trypush didn't have a taskgroup id")
+            return False
         try:
             complete_try_push.download_logs(try_tasks.wpt_tasks, first_only=True)
         except RetryableError:

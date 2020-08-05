@@ -1,49 +1,43 @@
 from __future__ import absolute_import
+import abc
 import json
 from collections import defaultdict
 
 import git
+import six
 from six import iteritems, itervalues
 
-from . import env
 from . import log
 from .base import ProcessName, CommitBuilder, iter_tree, iter_process_names
+from .env import Environment
 from .repos import pygit2_get
 
 MYPY = False
 if MYPY:
-    from typing import Callable
-    from git.repo.base import Repo
-    from test_index import TestIndex
-    from typing import Union
-    from typing import Tuple
-    from sync.downstream import DownstreamSync
-    from sync.landing import LandingSync
-    from sync.upstream import UpstreamSync
-    from typing import Text
-    from typing import Any
-    from typing import Set
-    from typing import Optional
+    from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
     from pygit2 import Blob
-    from typing import List
+    from git.repo.base import Repo
+    from sync.sync import SyncProcess
     from pygit2.repository import Repository
-    from typing import Iterator
+    ChangeEntry = Tuple[Text, Text, Text]
+    IndexKey = Tuple[Text, ...]
+    IndexValue = Union[Text, ProcessName]
 
 
 logger = log.get_logger(__name__)
-env = env.Environment()
+env = Environment()
 
 
-class Index(object):
-    name = None
-    key_fields = ()
+class Index(six.with_metaclass(abc.ABCMeta, object)):
+    name = None  # type: Text
+    key_fields = None  # type: Tuple[Text, ...]
     unique = False
-    value_cls = tuple
+    value_cls = tuple  # type: type
 
     # Overridden in subclasses using the constructor
     # This provides a kind of borg pattern where all instances of
     # the class have the same changes data
-    changes = None
+    changes = None  # type: Dict[Any, Any]
 
     def __init__(self, repo):
         # type: (Repo) -> None
@@ -54,7 +48,7 @@ class Index(object):
 
     def reset(self):
         # type: () -> None
-        constructors = [list]
+        constructors = [list]  # type: List[Callable[[], Any]]
         for _ in self.key_fields[:-1]:
             def fn():
                 # type: () -> Callable
@@ -66,13 +60,13 @@ class Index(object):
 
     @classmethod
     def create(cls, repo):
-        # type: (Repo) -> TestIndex
+        # type: (Repo) -> Index
         logger.info("Creating index %s" % cls.name)
         data = {"name": cls.name,
                 "fields": list(cls.key_fields),
                 "unique": cls.unique}
         meta_path = "index/%s/_metadata" % cls.name
-        tree = {meta_path: json.dumps(data, indent=0)}
+        tree = {meta_path: json.dumps(data, indent=0).encode("utf8")}
         with CommitBuilder(repo,
                            message="Create index %s" % cls.name,
                            ref=env.config["sync"]["ref"]) as commit:
@@ -81,12 +75,12 @@ class Index(object):
 
     @classmethod
     def get_root_path(cls):
-        # type: () -> str
-        return "index/%s" % cls.name
+        # type: () -> Text
+        return u"index/%s" % cls.name
 
     @classmethod
     def get_or_create(cls, repo):
-        # type: (Repo) -> Union[TaskGroupIndex, TryCommitIndex]
+        # type: (Repo) -> Index
         ref_name = env.config["sync"]["ref"]
         ref = git.Reference(repo, ref_name)
         try:
@@ -96,9 +90,12 @@ class Index(object):
         return cls(repo)
 
     def get(self, key):
-        # type: (Tuple[str, ...]) -> Any
+        # type: (IndexKey) -> Any
         if len(key) > len(self.key_fields):
             raise ValueError
+
+        assert all(isinstance(key_part, six.string_types) for key_part in key)
+
         items = self._read(key)
         if self.unique and len(key) == len(self.key_fields) and len(items) > 1:
             raise ValueError("Got multiple results for unique index")
@@ -112,11 +109,11 @@ class Index(object):
         return rv
 
     def _read(self,
-              key,  # type: Union[Tuple[str, ...], Tuple[str, Text], Tuple[str, str, Text, str]]
+              key,  # type: IndexKey
               include_local=True,  # type: bool
               ):
-        # type: (...) -> Union[Set[Text], Set[str]]
-        path = "%s/%s" % (self.get_root_path(), "/".join(key))
+        # type: (...) -> Set[Text]
+        path = u"%s/%s" % (self.get_root_path(), "/".join(key))
         data = set()
         for obj in iter_blobs(self.pygit2_repo, path):
             data |= self._load_obj(obj)
@@ -125,7 +122,7 @@ class Index(object):
         return data
 
     def _read_changes(self, key):
-        # type: (Optional[Tuple[str, ...]]) -> Any
+        # type: (Optional[IndexKey]) -> Dict[IndexKey, List[ChangeEntry]]
         target = self.changes
         if target is None:
             return {}
@@ -134,7 +131,7 @@ class Index(object):
                 target = target[part]
         else:
             key = ()
-        changes = {}
+        changes = {}  # type: Dict[IndexKey, List[ChangeEntry]]
         stack = [(key, target)]
         while stack:
             key, items = stack.pop()
@@ -146,7 +143,7 @@ class Index(object):
         return changes
 
     def _update_changes(self,
-                        key,  # type: Union[Tuple[str, ...], Tuple[str, str, Text, str]]
+                        key,  # type: IndexKey
                         data,  # type: Set[Text]
                         ):
         # type: (...) -> None
@@ -165,26 +162,31 @@ class Index(object):
             return set(rv)
         return set([rv])
 
-    def save(self, commit_builder=None, message=None, overwrite=False):
-        # type: (Optional[CommitBuilder], Optional[str], bool) -> None
+    def save(self,
+             commit_builder=None,
+             message=None,
+             overwrite=False):
+        # type: (Optional[CommitBuilder], Optional[Text], bool) -> None
         changes = self._read_changes(None)
         if not changes:
             return
 
+        if message is None:
+            message = u"Update index %s\n" % self.name
+
+            for key_changes in itervalues(changes):
+                for _, _, msg in key_changes:
+                    message += u"  %s\n" % msg
+
         if commit_builder is None:
+            # TODO: @overload could help here
+            assert message is not None
             commit_builder = CommitBuilder(self.repo,
                                            message,
                                            ref=env.config["sync"]["ref"],
                                            initial_empty=overwrite)
         else:
             assert commit_builder.initial_empty == overwrite
-
-        if message is None:
-            message = "Update index %s\n" % self.name
-
-            for key_changes in itervalues(changes):
-                for _, _, msg in key_changes:
-                    message += "  %s\n" % msg
             commit_builder.message += message
 
         with commit_builder as commit:
@@ -193,43 +195,49 @@ class Index(object):
         self.reset()
 
     def insert(self,
-               key,  # type: Union[Tuple[str, ...], Tuple[str, Text], Tuple[str, str, Text, str]]
-               value,  # type: Union[str, ProcessName]
+               key,  # type: IndexKey
+               value,  # type: IndexValue
                ):
-        # type: (...) -> Any
+        # type: (...) -> Index
         if len(key) != len(self.key_fields):
             raise ValueError
+
+        assert all(isinstance(item, six.string_types) for item in key)
 
         value = self.dump_value(value)
         msg = "Insert key %s value %s" % (key, value)
         target = self.changes
         for part in key:
             target = target[part]
+        assert isinstance(target, list)
         target.append((None, value, msg))
         return self
 
     def delete(self,
-               key,  # type: Union[Tuple[Text, Text, Text, str], Tuple[str, ...], Tuple[str, Text]]
-               value,  # type: Union[str, ProcessName]
+               key,  # type: IndexKey
+               value,  # type: IndexValue
                ):
-        # type: (...) -> Any
+        # type: (...) -> Index
         if len(key) != len(self.key_fields):
             raise ValueError
+
+        assert all(isinstance(item, six.string_types) for item in key)
 
         value = self.dump_value(value)
         msg = "Delete key %s value %s" % (key, value)
         target = self.changes
         for part in key:
             target = target[part]
+        assert isinstance(target, list)
         target.append((value, None, msg))
         return self
 
     def move(self,
-             old_key,  # type: Optional[Any]
-             new_key,  # type: Union[Tuple[str, Text], Tuple[str]]
-             value,  # type: ProcessName
+             old_key,  # type: Optional[IndexKey]
+             new_key,  # type: IndexKey
+             value,  # type: IndexValue
              ):
-        # type: (...) -> Union[BugIdIndex, PrIdIndex]
+        # type: (...) -> Index
         assert old_key != new_key
 
         if old_key is not None:
@@ -240,8 +248,8 @@ class Index(object):
 
     def _update_key(self,
                     commit,  # type: CommitBuilder
-                    key,  # type: Tuple[str, ...]
-                    key_changes,  # type: List[Tuple[Optional[str], Optional[str], Optional[str]]]
+                    key,  # type: IndexKey
+                    key_changes,  # type: List[ChangeEntry]
                     ):
         # type: (...) -> None
         existing = self._read(key, False)
@@ -271,24 +279,27 @@ class Index(object):
 
         index_value = list(sorted(new))
 
-        commit.add_tree({path: json.dumps(index_value, indent=0)})
+        commit.add_tree({path: json.dumps(index_value, indent=0).encode("utf8")})
 
     def dump_value(self, value):
-        # type: (Union[str, ProcessName]) -> str
-        return str(value)
+        # type: (IndexValue) -> Text
+        if isinstance(value, ProcessName):
+            return value.path()
+        return six.ensure_text(value)
 
     def load_value(self, value):
-        # type: (Text) -> ProcessName
+        # type: (Text) -> IndexValue
         return self.value_cls(*(value.split("/")))
 
     def build(self, *args, **kwargs):
-        # type: (*List[Tuple[Tuple[str, str], str]], **Any) -> None
+        # type: (*Any, **Any) -> None
         # Delete all entries in existing keys
         for key in self.keys():
             assert len(key) == len(self.key_fields)
             target = self.changes
             for part in key:
                 target = target[part]
+            assert isinstance(target, list)
             target.append((None, None, "Clear key %s" % (key,)))
         entries, errors = self.build_entries(*args, **kwargs)
         for key, value in entries:
@@ -302,10 +313,11 @@ class Index(object):
 
     @classmethod
     def make_key(cls, value):
-        return (value,)
+        # type: (Any) -> IndexKey
+        return (six.ensure_text(value),)
 
     def keys(self):
-        # type: () -> Set[Tuple[str, str]]
+        # type: () -> Set[IndexKey]
         return set(key for key, _ in
                    iter_tree(self.pygit2_repo, root_path=self.get_root_path())
                    if not key[-1] == "_metadata")
@@ -313,14 +325,16 @@ class Index(object):
 
 class TaskGroupIndex(Index):
     name = "taskgroup"
-    key_fields = ("taskgroup-id-0", "taskgroup-id-1", "taskgroup-id-2")
+    key_fields = (u"taskgroup-id-0", u"taskgroup-id-1", u"taskgroup-id-2")
     unique = True
     value_cls = ProcessName
 
     @classmethod
     def make_key(cls, value):
-        # type: (str) -> Tuple[str, str, str]
-        return (value[:2], value[2:4], value[4:])
+        # type: (Text) -> IndexKey
+        return (six.ensure_text(value[:2]),
+                six.ensure_text(value[2:4]),
+                six.ensure_text(value[4:]))
 
     def build_entries(self, *args, **kwargs):
         from . import trypush
@@ -334,14 +348,17 @@ class TaskGroupIndex(Index):
 
 class TryCommitIndex(Index):
     name = "try-commit"
-    key_fields = ("commit-0", "commit-1", "commit-2", "commit-3")
+    key_fields = (u"commit-0", u"commit-1", u"commit-2", u"commit-3")
     unique = True
     value_cls = ProcessName
 
     @classmethod
     def make_key(cls, value):
-        # type: (str) -> Tuple[str, str, str, str]
-        return (value[:2], value[2:4], value[4:6], value[6:])
+        # type: (Text) -> IndexKey
+        return (six.ensure_text(value[:2]),
+                six.ensure_text(value[2:4]),
+                six.ensure_text(value[4:6]),
+                six.ensure_text(value[6:]))
 
     def build_entries(self, *args, **kwargs):
         entries = []
@@ -355,19 +372,19 @@ class TryCommitIndex(Index):
 
 class SyncIndex(Index):
     name = "sync-id-status"
-    key_fields = ("objtype", "subtype", "status", "obj_id")
+    key_fields = (u"objtype", u"subtype", u"status", u"obj_id")
     unique = False
     value_cls = ProcessName
 
     @classmethod
     def make_key(cls,
-                 sync,  # type: Union[DownstreamSync, LandingSync, UpstreamSync]
+                 sync,  # type: SyncProcess
                  ):
-        # type: (...) -> Tuple[Text, Text, Text, str]
-        return (sync.process_name.obj_type,
-                sync.process_name.subtype,
-                sync.status,
-                str(sync.process_name.obj_id))
+        # type: (...) -> IndexKey
+        return (six.ensure_text(sync.process_name.obj_type),
+                six.ensure_text(sync.process_name.subtype),
+                six.ensure_text(sync.status),
+                six.ensure_text(str(sync.process_name.obj_id)))
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -404,8 +421,8 @@ class PrIdIndex(Index):
 
     @classmethod
     def make_key(cls, sync):
-        # type: (Union[DownstreamSync, UpstreamSync]) -> Tuple[str]
-        return (str(sync.pr),)
+        # type: (SyncProcess) -> IndexKey
+        return (six.ensure_text(str(sync.pr)),)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -440,10 +457,10 @@ class BugIdIndex(Index):
 
     @classmethod
     def make_key(cls,
-                 sync,  # type: Union[DownstreamSync, LandingSync, UpstreamSync]
+                 sync,  # type: SyncProcess
                  ):
-        # type: (...) -> Tuple[str, Text]
-        return (str(sync.bug), sync.status)
+        # type: (...) -> IndexKey
+        return (six.ensure_text(str(sync.bug)), six.ensure_text(sync.status))
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -474,7 +491,7 @@ class BugIdIndex(Index):
 
 
 def iter_blobs(repo, path):
-    # type: (Repository, Text) -> Iterator[Union[Iterator, Iterator[Blob]]]
+    # type: (Repository, Text) -> Iterator[Blob]
     """Iterate over all blobs under a path
 
     :param repo: pygit2 repo

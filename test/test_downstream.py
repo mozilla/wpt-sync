@@ -293,15 +293,15 @@ def test_message_filter():
     sync.configure_mock(bug=1234, pr=7)
     msg, _ = downstream.DownstreamSync.message_filter.__func__(
         sync,
-        """Upstream summary
+        b"""Upstream summary
 
 Upstream message
 
 Cq-Include-Trybots: luci.chromium.try:android_optional_gpu_tests_rel;"""
-        "luci.chromium.try:mac_optional_gpu_tests_rel;"
-        "master.tryserver.chromium.linux:linux_mojo;"
-        "master.tryserver.chromium.mac:ios-simulator-cronet;"
-        "master.tryserver.chromium.mac:ios-simulator-full-configs")
+        b"luci.chromium.try:mac_optional_gpu_tests_rel;"
+        b"master.tryserver.chromium.linux:linux_mojo;"
+        b"master.tryserver.chromium.mac:ios-simulator-cronet;"
+        b"master.tryserver.chromium.mac:ios-simulator-full-configs")
 
     assert msg == (u"""Bug 1234 [wpt PR 7] - Upstream summary, a=testonly
 
@@ -313,7 +313,7 @@ Cq-Include-Trybots: luci.chromium.try\u200B:android_optional_gpu_tests_rel;"""
                    u"luci.chromium.try\u200B:mac_optional_gpu_tests_rel;"
                    u"master.tryserver.chromium.linux:linux_mojo;"
                    u"master.tryserver.chromium.mac:ios-simulator-cronet;"
-                   u"master.tryserver.chromium.mac:ios-simulator-full-configs")
+                   u"master.tryserver.chromium.mac:ios-simulator-full-configs").encode("utf8")
 
 
 def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):

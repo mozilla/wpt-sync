@@ -14,7 +14,7 @@ from .lock import mut, MutGuard
 
 MYPY = False
 if MYPY:
-    from typing import Iterable, Iterator, Optional, Text, Tuple, Union
+    from typing import Iterable, Iterator, Optional, Text, Tuple
     from git.repo.base import Repo
     from sync.downstream import DownstreamSync
     from sync.base import ProcessName
@@ -184,7 +184,7 @@ class Metadata(object):
             logger.error("Updating metdata failed")
             raise
         self.pygit2_repo.references.delete(ref_name)
-        self.metadata.writer = NullWriter
+        self.metadata.writer = NullWriter()
 
     def get_remote_ref(self):
         # type: () -> Text

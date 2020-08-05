@@ -13,11 +13,22 @@ from .errors import AbortError
 
 from six import iteritems
 
+
+MYPY = False
+if MYPY:
+    from typing import Any, Dict, Iterable, List, Optional, Text, Tuple, Type
+    from git import Commit
+    from github import PullRequest
+    from sync.sync import SyncProcess
+    from sync.trypush import TryPush
+    from git import Repo
+
 env = Environment()
 logger = log.get_logger(__name__)
 
 
 def handle_sync(task, body):
+    # type: (Text, Dict[Text, Any]) -> None
     from .tasks import get_handlers, setup
 
     handlers = get_handlers()
@@ -34,12 +45,14 @@ def handle_sync(task, body):
 
 
 def construct_event(name, payload, **kwargs):
-    event = {"event": name, "payload": payload}
+    # type: (Text, Dict[Text, Any], **Any) -> Dict[Text, Any]
+    event = {u"event": name, u"payload": payload}
     event.update(**kwargs)
     return event
 
 
 def schedule_pr_task(action, pr, repo_update=True):
+    # type: (Text, PullRequest, bool) -> None
     event = construct_event("pull_request",
                             {"action": action, "number": pr.number, "pull_request": pr.raw_data},
                             _wptsync={"repo_update": repo_update})
@@ -49,6 +62,7 @@ def schedule_pr_task(action, pr, repo_update=True):
 
 
 def schedule_check_run_task(commit, name, check_run, repo_update=True):
+    # type: (Commit, Text, Dict[Text, Any], bool) -> None
     check_run_data = check_run.copy()
     del check_run_data["required"]
     check_run_data["name"] = name
@@ -63,13 +77,15 @@ def schedule_check_run_task(commit, name, check_run, repo_update=True):
 
 
 def update_for_status(pr, repo_update=True):
-    for name, check_run in iteritems(env.gh.get_check_runs(pr.id)):
+    # type: (PullRequest, bool) -> None
+    for name, check_run in iteritems(env.gh_wpt.get_check_runs(pr.id)):
         if check_run["required"]:
             schedule_check_run_task(pr.head.sha, name, check_run)
             return
 
 
 def update_for_action(pr, action, repo_update=True):
+    # type: (PullRequest, Text, bool) -> None
     event = construct_event("pull_request",
                             {"action": action,
                              "number": pr.number,
@@ -81,6 +97,7 @@ def update_for_action(pr, action, repo_update=True):
 
 
 def convert_rev(git_gecko, rev):
+    # type: (Repo, Text) -> Tuple[Text, Text]
     try:
         git_rev = git_gecko.cinnabar.hg2git(rev)
         hg_rev = rev
@@ -95,12 +112,12 @@ def convert_rev(git_gecko, rev):
 
 
 def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
+    # type: (Repo, Repo, Text, Optional[Text], Optional[List[Text]]) -> None
     git_rev, hg_rev = convert_rev(git_gecko, rev)
 
+    hg_rev_base = None  # type: Optional[Text]
     if base_rev is not None:
         _, hg_rev_base = convert_rev(git_gecko, base_rev)
-    else:
-        hg_rev_base = None
 
     if git_gecko.is_ancestor(git_rev,
                              env.config["gecko"]["refs"]["central"]):
@@ -109,7 +126,7 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
                                env.config["gecko"]["refs"]["autoland"]):
         routing_key = "integration/autoland"
 
-    kwargs = {"_wptsync": {}}
+    kwargs = {"_wptsync": {}}  # type: Dict[Text, Any]
 
     if hg_rev_base is not None:
         kwargs["_wptsync"]["base_rev"] = hg_rev_base
@@ -126,6 +143,7 @@ def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
 
 
 def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
+    # type: (Repo, Repo, PullRequest, bool, bool) -> None
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
     if sync and sync.status == "complete":
@@ -146,6 +164,7 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
                                                           pr.body)
             if upstream_sync is not None:
                 with upstream_sync.as_mut(lock):
+                    assert isinstance(lock, SyncLock)
                     upstream.update_pr(git_gecko,
                                        git_wpt,
                                        upstream_sync,
@@ -158,6 +177,7 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
             update_for_status(pr, repo_update=repo_update)
     elif isinstance(sync, downstream.DownstreamSync):
         with SyncLock.for_process(sync.process_name) as lock:
+            assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
                 if force_rebase:
                     sync.gecko_rebase(sync.gecko_integration_branch())
@@ -193,6 +213,7 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
 
     elif isinstance(sync, upstream.UpstreamSync):
         with SyncLock.for_process(sync.process_name) as lock:
+            assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
                 merge_sha = pr.merge_commit_sha if pr.merged else None
                 upstream.update_pr(git_gecko, git_wpt, sync, pr.state, merge_sha)
@@ -202,16 +223,12 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
                         # This sync already landed, so it should be finished
                         sync.finish()
                     else:
-                        if sync.status == "complete":
-                            # We bypass the setter here because we have some cases where the
-                            # status must go from complete to wpt-merged which is otherwise
-                            # forbidden
-                            sync.process_name.status = "wpt-merged"
-                        else:
-                            sync.status = "wpt-merged"
+                        if sync.status != "complete":
+                            sync.status = "wpt-merged"  # type: ignore
 
 
 def update_bug(git_gecko, git_wpt, bug):
+    # type: (Repo, Repo, int) -> None
     syncs = get_bug_sync(git_gecko, git_wpt, bug)
     if not syncs:
         raise ValueError("No sync for bug %s" % bug)
@@ -221,6 +238,7 @@ def update_bug(git_gecko, git_wpt, bug):
         if not syncs_for_status:
             continue
         with SyncLock("upstream", None) as lock:
+            assert isinstance(lock, SyncLock)
             for sync in syncs_for_status:
                 if isinstance(sync, upstream.UpstreamSync):
                     with sync.as_mut(lock):
@@ -230,6 +248,7 @@ def update_bug(git_gecko, git_wpt, bug):
 
 
 def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
+    # type: (Repo, Repo, List[Type[SyncProcess]], Optional[List[Text]]) -> None
     if statuses is None:
         statuses = ["*"]
     update_repositories(git_gecko, git_wpt)
@@ -249,27 +268,32 @@ def update_from_github(git_gecko, git_wpt, sync_classes, statuses=None):
 
 
 def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
+    # type: (Repo, Repo, Optional[TryPush]) -> None
     if try_push is None:
         try_pushes = trypush.TryPush.load_all(git_gecko)
     else:
         try_pushes = [try_push]
 
-    for try_push in try_pushes:
-        if not try_push.taskgroup_id:
-            logger.info("Setting taskgroup id for try push %s" % try_push)
-            if try_push.try_rev is None:
-                logger.warning("Try push %s has no associated revision" % try_push.process_name)
+    # Make this invalid so it's obvious if we try to use it below
+    try_push = None
+
+    for try_push_item in try_pushes:
+        if not try_push_item.taskgroup_id:
+            logger.info("Setting taskgroup id for try push %s" % try_push_item)
+            if try_push_item.try_rev is None:
+                logger.warning("Try push %s has no associated revision" %
+                               try_push_item.process_name)
                 continue
-            taskgroup_id, state, runs = tc.get_taskgroup_id("try", try_push.try_rev)
+            taskgroup_id, state, runs = tc.get_taskgroup_id("try", try_push_item.try_rev)
             logger.info("Got taskgroup id %s" % taskgroup_id)
-            if state in ("completed", "failed", "exception"):
-                msg = {"status": {"taskId": taskgroup_id,
-                                  "taskGroupId": taskgroup_id,
-                                  "state": state,
-                                  "runs": runs},
-                       "task": {"tags": {"kind": "decision-task"}},
-                       "runId": len(runs) - 1,
-                       "version": 1}
+            if state in (u"completed", u"failed", u"exception"):
+                msg = {u"status": {u"taskId": taskgroup_id,
+                                   u"taskGroupId": taskgroup_id,
+                                   u"state": state,
+                                   u"runs": runs},
+                       u"task": {u"tags": {u"kind": u"decision-task"}},
+                       u"runId": len(runs) - 1,
+                       u"version": 1}
                 handle_sync("decision-task", msg)
             else:
                 logger.warning("Not setting taskgroup id because decision task is in state %s" %
@@ -277,14 +301,23 @@ def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
 
 
 def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
+    # type: (Repo, Repo, Optional[int], Optional[SyncProcess]) -> None
     logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
 
+    syncs = []  # type: Iterable[SyncProcess]
     if not sync:
         if pr_id is not None:
-            syncs = [downstream.DownstreamSync.load_by_obj(git_gecko, git_wpt, pr_id)]
+            pr_syncs = downstream.DownstreamSync.load_by_obj(git_gecko, git_wpt, pr_id)
+            if not pr_syncs:
+                logger.error("No sync for pr_id %s" % pr_id)
+                return
+            assert len(pr_syncs) == 1
+            syncs = [pr_syncs.pop()]
         else:
-            syncs = ({landing.current_landing(git_gecko, git_wpt)} |
-                     downstream.DownstreamSync.load_by_status(git_gecko, git_wpt, "open"))
+            current_landing = landing.current(git_gecko, git_wpt)
+            syncs = downstream.DownstreamSync.load_by_status(git_gecko, git_wpt, "open")
+            if current_landing is not None:
+                syncs.add(current_landing)
     else:
         syncs = [sync]
 
@@ -298,6 +331,7 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
 
 
 def retrigger(git_gecko, git_wpt, unlandable_prs):
+    # type: (Repo, Repo, List[Tuple[int, List[Any], Text]]) -> List[int]
     from .sync import LandableStatus
 
     retriggerable_prs = [(pr_id, commits, status)
@@ -317,10 +351,14 @@ def retrigger(git_gecko, git_wpt, unlandable_prs):
 
 
 def do_retrigger(git_gecko, git_wpt, pr_data):
+    # type: (Repo, Repo, Tuple[int, List[Any], Text]) -> Optional[int]
     pr_id, commits, status = pr_data
     try:
         logger.info("Retriggering %s (status %s)" % (pr_id, status))
-        pr = env.gh_wpt.get_pull(int(pr_id))
+        pr = env.gh_wpt.get_pull(pr_id)
+        if pr is None:
+            return pr_id
         update_pr(git_gecko, git_wpt, pr, repo_update=False)
     except Exception:
         return pr_id
+    return None

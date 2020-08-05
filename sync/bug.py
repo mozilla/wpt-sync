@@ -62,7 +62,7 @@ def get_sync_data(whiteboard):
 
 
 def set_sync_data(whiteboard, subtype, status):
-    # type: (Text, Optional[Text], Optional[str]) -> Text
+    # type: (Text, Optional[Text], Optional[Text]) -> Text
     if subtype is None:
         raise ValueError
 
@@ -101,7 +101,7 @@ class Bugzilla(object):
         return BugContext(self, bug_id)
 
     def bugzilla_url(self, bug_id):
-        # type: (Text) -> Text
+        # type: (int) -> Text
         return "%s/show_bug.cgi?id=%s" % (self.bz_url, bug_id)
 
     def id_from_url(self, url, bz_url=None):
@@ -525,7 +525,7 @@ class MockBugContext(BugContext):
     def __exit__(self, *args, **kwargs):
         # type: (*Any, **Any) -> None
         for item in self.changes:
-            self.bugzilla._log("%s\n" % item)
+            self.bugzilla._log("%s\n" % item)  # type: ignore
 
     def __setitem__(self, name, value):
         # type: (Text, Text) -> None

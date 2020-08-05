@@ -1,8 +1,10 @@
 from __future__ import absolute_import
+import abc
 import inspect
 import os
 
 import filelock
+import six
 
 from . import log
 from .env import Environment
@@ -10,14 +12,8 @@ from .env import Environment
 MYPY = False
 if MYPY:
     from git.repo.base import Repo
-    from typing import Any
-    from typing import Optional
-    from sync.base import BranchRefObject
-    from sync.sync import SyncData
-    from typing import Union
     from sync.base import ProcessName
-    from typing import Text
-    from typing import List
+    from typing import Any, List, MutableMapping, Optional, Set, Text, Tuple
 
 env = Environment()
 
@@ -119,8 +115,8 @@ class LockError(Exception):
     pass
 
 
-class Lock(object):
-    locks = {}
+class Lock(six.with_metaclass(abc.ABCMeta, object)):
+    locks = {}  # type: MutableMapping[Text, Lock]
 
     def __init__(self, *args):
         # type: (*Any) -> None
@@ -128,7 +124,7 @@ class Lock(object):
         self.lock = filelock.FileLock(self.path)
 
     def __enter__(self):
-        # type: () -> Union[RepoLock, SyncLock]
+        # type: () -> Lock
         if self.path in self.locks:
             # If this is already locked by the current process
             # then locking again is a no-op
@@ -145,9 +141,11 @@ class Lock(object):
         self.lock.release()
 
     @staticmethod
+    @abc.abstractmethod
     def lock_path(*args):
+        # type: (*Any) -> Text
         """Return a path to the file representing the current lock"""
-        raise NotImplementedError
+        pass
 
 
 class RepoLock(Lock):
@@ -156,8 +154,10 @@ class RepoLock(Lock):
         super(RepoLock, self).__init__(repo)
 
     @staticmethod
-    def lock_path(repo):
-        # type: (Repo) -> str
+    def lock_path(*args):
+        # type: (*Any) -> Text
+        # This is annoying but otherwise mypy complains
+        repo, = args
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
@@ -165,15 +165,15 @@ class RepoLock(Lock):
 
 
 class ProcessLock(Lock):
-    obj_types = None
-    lock_type = None
-    lock_per_type = set()
-    lock_per_obj = set()
+    obj_types = None  # type: Tuple[Text, ...]
+    lock_type = None  # type: Text
+    lock_per_type = set()  # type: Set[Text]
+    lock_per_obj = set()  # type: Set[Text]
 
-    locks = {}
+    locks = {}  # type: MutableMapping[Text, Lock]
 
     def __init__(self, sync_type, obj_id):
-        # type: (Text, Optional[str]) -> None
+        # type: (Text, Optional[Text]) -> None
         assert sync_type in self.lock_per_obj | self.lock_per_type
 
         if sync_type in self.lock_per_type:
@@ -187,7 +187,7 @@ class ProcessLock(Lock):
 
     @classmethod
     def for_process(cls, process_name):
-        # type: (ProcessName) -> SyncLock
+        # type: (ProcessName) -> ProcessLock
         """Get the SyncLock for the provided ProcessName."""
         # This is sort of an antipattern because it requires the class to know about consumers.
         # But it also enforces some invariants to ensure that things have the right kind of
@@ -198,7 +198,7 @@ class ProcessLock(Lock):
         return cls(sync_type, obj_id)
 
     def check(self, sync_type, obj_id):
-        # type: (Text, Text) -> None
+        # type: (Text, Optional[Text]) -> None
         """Check that the current lock is valid for the provided sync_type and obj_id"""
         if sync_type in self.lock_per_type:
             obj_id = None
@@ -214,8 +214,9 @@ class ProcessLock(Lock):
                               self.lock.is_locked))
 
     @staticmethod
-    def lock_path(obj_type, sync_type, obj_id):
-        # type: (str, Text, Optional[str]) -> Text
+    def lock_path(*args):
+        # type: (*Any) -> Text
+        obj_type, sync_type, obj_id = args
         if obj_id is None:
             filename = "%s_%s.lock" % (obj_type, sync_type)
         else:
@@ -229,19 +230,19 @@ class ProcessLock(Lock):
 class SyncLock(ProcessLock):
     obj_types = ("sync", "try")
     lock_type = "sync"
-    lock_per_type = {"landing", "upstream"}
-    lock_per_obj = {"downstream"}
+    lock_per_type = {"landing", "upstream"}  # type: Set[Text]
+    lock_per_obj = {"downstream"}  # type: Set[Text]
 
-    locks = {}
+    locks = {}  # type: MutableMapping[Text, Lock]
 
 
 class ProcLock(ProcessLock):
     obj_types = ("proc",)
     lock_type = "proc"
-    lock_per_type = {"bugzilla"}
-    lock_per_obj = set()
+    lock_per_type = {"bugzilla"}  # type: Set[Text]
+    lock_per_obj = set()  # type: Set[Text]
 
-    locks = {}
+    locks = {}  # type: MutableMapping[Text, Lock]
 
 
 class MutGuard(object):
@@ -260,9 +261,9 @@ class MutGuard(object):
         self.instance = instance
         self.lock = lock
         self.props = props or []
-        self.owned_guards = []
+        self.owned_guards = []  # type: List[Any]
         lock.check(*instance.lock_key)
-        self.took_lock = None
+        self.took_lock = None  # type: Optional[bool]
 
     def __enter__(self):
         # type: () -> Any
@@ -314,7 +315,7 @@ class mut(object):
 
     def __call__(self, f):
         def inner(*args, **kwargs):
-            # type: (*Any, **Any) -> Optional[Repo]
+            # type: (*Any, **Any) -> Any
             arg_values = inspect.getcallargs(f, *args, **kwargs)
 
             for arg in self.args:
@@ -343,7 +344,7 @@ class constructor(object):
 
     def __call__(self, f):
         def inner(cls, lock, *args, **kwargs):
-            # type: (Any, SyncLock, *Any, **Any) -> Union[BranchRefObject, SyncData]
+            # type: (Any, SyncLock, *Any, **Any) -> Any
             if lock is None:
                 raise ValueError("Tried to access constructor %s without locking")
 

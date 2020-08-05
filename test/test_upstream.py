@@ -21,7 +21,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
     sync = syncs["open"].pop()
-    assert sync.bug == "1234"
+    assert sync.bug == 1234
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
@@ -57,7 +57,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
     sync = syncs["open"].pop()
-    assert sync.bug == "1234"
+    assert sync.bug == 1234
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
@@ -71,7 +71,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     assert syncs.keys() == ["incomplete"]
     assert len(syncs["incomplete"]) == 1
     sync = syncs["incomplete"].pop()
-    assert sync.bug == "1234"
+    assert sync.bug == 1234
     assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 1
     assert len(sync.upstreamed_gecko_commits) == 1
@@ -121,7 +121,7 @@ def test_create_pr_backout_reland(git_gecko, git_wpt, upstream_gecko_commit,
     assert len(syncs["open"]) == 1
     sync = syncs["open"].pop()
     assert sync.process_name.seq_id == 0
-    assert sync.bug == "1234"
+    assert sync.bug == 1234
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
     assert len(sync.upstreamed_gecko_commits) == 1
@@ -158,7 +158,7 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
     assert syncs.keys() == ["open"]
     assert len(syncs["open"]) == 1
     sync = syncs["open"].pop()
-    assert sync.bug == "1234"
+    assert sync.bug == 1234
     assert len(sync.gecko_commits) == 2
     assert len(sync.wpt_commits) == 2
     assert sync.status == "open"
@@ -294,7 +294,7 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     sync = pushed.pop()
     assert syncs == {"open": {sync}}
-    assert sync.bug == "1234"
+    assert sync.bug == 1234
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 2
     assert len(sync.wpt_commits) == 1

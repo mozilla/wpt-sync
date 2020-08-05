@@ -8,7 +8,7 @@ from six.moves.configparser import RawConfigParser
 
 MYPY = False
 if MYPY:
-    from typing import Dict
+    from typing import Any, Dict, Text
 
 _config = None
 
@@ -40,6 +40,7 @@ def get_root():
 
 
 def load():
+    # type: () -> Dict[Text, Any]
     global _config
     if _config is None:
         root, _ = get_root()
@@ -57,7 +58,7 @@ def load_files(ini_sync, ini_credentials):
     root, repo_root = get_root()
 
     def nested():
-        # type: () -> Dict
+        # type: () -> Dict[Text, Any]
         return defaultdict(nested)
 
     config = nested()

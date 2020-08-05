@@ -63,15 +63,15 @@ def test_msg_failure():
     results_obj = fx_only_failure()
 
     class Sync(object):
-        pr = "1234"
-        bug = "100000"
+        pr = 1234
+        bug = 100000
 
     output = bugs.bug_data_failure(Sync(),
                                    [("/test/test.html",
                                      None,
                                      results_obj.test_results["/test/test.html"])],
                                    "https://treeherder.mozilla.org/#/jobs?repo=try&revision=1234",
-                                   "12345")
+                                   12345)
     assert output == (
         'New wpt failures in /test/test.html',
         """Syncing wpt [PR 1234](https://github.com/web-platform-tests/wpt/pull/1234)\

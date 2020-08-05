@@ -154,7 +154,7 @@ def test_landable_skipped(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
 
     wpt_head, landable_commits = landing.landable_commits(git_gecko, git_wpt, prev_wpt_head.hexsha)
     assert len(landable_commits) == 1
-    assert landable_commits[0][0] == str(pr.number)
+    assert landable_commits[0][0] == pr.number
     assert landable_commits[0][1] == downstream_sync
 
 

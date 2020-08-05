@@ -117,7 +117,7 @@ def handle(self, task, body):
 def land(self, config):
     git_gecko, git_wpt = setup()
     try:
-        handlers.LandingHandler(config)(git_gecko, git_wpt)
+        handlers.LandingHandler(config)(git_gecko, git_wpt, {})
     except RetryableError as e:
         self.retry(exc=e.wrapped)
 
@@ -127,7 +127,7 @@ def land(self, config):
 @settings.configure
 def cleanup(config):
     git_gecko, git_wpt = setup()
-    handlers.CleanupHandler(config)(git_gecko, git_wpt)
+    handlers.CleanupHandler(config)(git_gecko, git_wpt, {})
 
 
 @worker.task
@@ -135,7 +135,7 @@ def cleanup(config):
 @settings.configure
 def retrigger(config):
     git_gecko, git_wpt = setup()
-    handlers.RetriggerHandler(config)(git_gecko, git_wpt)
+    handlers.RetriggerHandler(config)(git_gecko, git_wpt, {})
 
 
 @worker.task
@@ -143,4 +143,4 @@ def retrigger(config):
 @settings.configure
 def update_bugs(config):
     git_gecko, git_wpt = setup()
-    handlers.BugUpdateHandler(config)(git_gecko, git_wpt)
+    handlers.BugUpdateHandler(config)(git_gecko, git_wpt, {})

@@ -19,8 +19,7 @@ from .notify import bugupdate
 MYPY = False
 if MYPY:
     from git.repo.base import Repo
-    from typing import Any
-    from typing import Dict
+    from typing import Any, Dict, Text
 
 env = Environment()
 
@@ -32,11 +31,12 @@ class Handler(object):
         self.config = config
 
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         raise NotImplementedError
 
 
 def handle_pr(git_gecko, git_wpt, event):
-    # type: (Repo, Repo, Dict[str, Any]) -> None
+    # type: (Repo, Repo, Dict[Text, Any]) -> None
     newrelic.agent.set_transaction_name("handle_pr")
     pr_id = event["number"]
     newrelic.agent.add_custom_parameter("pr", pr_id)
@@ -66,6 +66,7 @@ def handle_pr(git_gecko, git_wpt, event):
                      if event["pull_request"]["merged"] else None)
         merged_by = (event["pull_request"]["merged_by"]["login"] if merge_sha else None)
         with SyncLock.for_process(sync.process_name) as lock:
+            assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
                 update_func(git_gecko,
                             git_wpt,
@@ -77,6 +78,7 @@ def handle_pr(git_gecko, git_wpt, event):
 
 
 def handle_check_run(git_gecko, git_wpt, event):
+    # type: (Repo, Repo, Dict[Text, Any]) -> None
     newrelic.agent.set_transaction_name("handle_check_run")
     if event["action"] != "completed":
         return
@@ -95,15 +97,20 @@ def handle_check_run(git_gecko, git_wpt, event):
     # First check if the PR is head of any pull request
     pr_id = pr_for_commit(git_wpt, check_run["head_sha"])
 
+    if pr_id is None:
+        logger.info("Commit %s is not part of a PR" % pr_id)
+        return
+
     repo_update = event.get("_wptsync", {}).get("repo_update", True)
     if repo_update:
-        update_repositories(None, git_wpt, False)
+        update_repositories(None, git_wpt)
 
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
     if not isinstance(sync, upstream.UpstreamSync):
         return
 
     with SyncLock.for_process(sync.process_name) as lock:
+        assert isinstance(lock, SyncLock)
         with sync.as_mut(lock):
             upstream.commit_check_changed(git_gecko,
                                           git_wpt,
@@ -111,6 +118,7 @@ def handle_check_run(git_gecko, git_wpt, event):
 
 
 def handle_push(git_gecko, git_wpt, event):
+    # type: (Repo, Repo, Dict[Text, Any]) -> None
     newrelic.agent.set_transaction_name("handle_push")
     update_repositories(None, git_wpt)
     landing.wpt_push(git_gecko, git_wpt, [item["id"] for item in event["commits"]])
@@ -124,6 +132,7 @@ class GitHubHandler(Handler):
     }
 
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("GitHubHandler")
         handler = self.dispatch_event[body["event"]]
         newrelic.agent.add_custom_parameter("event", body["event"])
@@ -135,6 +144,7 @@ class GitHubHandler(Handler):
 
 class PushHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("PushHandler")
         repo = body["_meta"]["routing_key"]
         if "/" in repo:
@@ -175,6 +185,7 @@ class DecisionTaskHandler(Handler):
     complete_states = frozenset(["completed", "failed", "exception"])
 
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("DecisionTaskHandler")
         task_id = body["status"]["taskId"]
         taskgroup_id = body["status"]["taskGroupId"]
@@ -197,13 +208,16 @@ class DecisionTaskHandler(Handler):
             return
 
         task = tc.get_task(task_id)
+        if task is None:
+            raise ValueError("Failed to get task for task_id %s" % task_id)
+
         sha1 = task.get("payload", {}).get("env", {}).get("GECKO_HEAD_REV")
 
         if sha1 is None:
             raise ValueError("Failed to get commit sha1 from task message")
 
         if state == "exception":
-            run_id = body.get("runId")
+            run_id = body["runId"]
             runs = body.get("status", {}).get("runs", [])
             if 0 <= run_id < len(runs):
                 reason = runs[run_id].get("reasonResolved")
@@ -224,6 +238,7 @@ class DecisionTaskHandler(Handler):
             raise RetryableError("Got a wptsync task with no corresponding try push")
 
         with SyncLock.for_process(try_push.process_name) as lock:
+            assert isinstance(lock, SyncLock)
             with try_push.as_mut(lock):
                 # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
                 # But the retriggered decision task itself is still in the original taskgroup
@@ -257,6 +272,7 @@ class TryTaskHandler(Handler):
     """Handler for the task associated with a try push task completing."""
 
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("TryTaskHandler")
         taskgroup_id = body["status"]["taskGroupId"]
         newrelic.agent.add_custom_parameter("tc_taskgroup", taskgroup_id)
@@ -279,6 +295,7 @@ class TryTaskHandler(Handler):
         # usually takes 24hr
         if try_push.taskgroup_id is None:
             with SyncLock.for_process(try_push.process_name) as lock:
+                assert isinstance(lock, SyncLock)
                 with try_push.as_mut(lock):
                     try_push.taskgroup_id = taskgroup_id
         tasks = try_push.tasks()
@@ -288,6 +305,7 @@ class TryTaskHandler(Handler):
 
 class TaskGroupHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("TaskGroupHandler")
         taskgroup_id = tc.normalize_task_id(body["taskGroupId"])
 
@@ -303,6 +321,7 @@ class TaskGroupHandler(Handler):
 
 
 def taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push):
+    # type: (Repo, Repo, Text, trypush.TryPush) -> None
     sync = try_push.sync(git_gecko, git_wpt)
     if not sync:
         newrelic.agent.record_custom_event("taskgroup_sync_missing", params={
@@ -312,13 +331,14 @@ def taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push):
         return
 
     with SyncLock.for_process(sync.process_name) as lock:
+        assert isinstance(lock, SyncLock)
         with sync.as_mut(lock), try_push.as_mut(lock):
             # We sometimes see the taskgroup ID being None. If it isn't set but found via its
             # taskgroup ID, it is safe to set it here.
             if try_push.taskgroup_id is None:
                 logger.info("Try push for taskgroup %s does not have its ID set, setting now" %
                             taskgroup_id)
-                try_push.taskgroup_id = taskgroup_id
+                try_push.taskgroup_id = taskgroup_id  # type: ignore
                 newrelic.agent.record_custom_event("taskgroup_id_missing", params={
                     "taskgroup-id": taskgroup_id,
                     "try_push": try_push,
@@ -341,13 +361,15 @@ def taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push):
 
 
 class LandingHandler(Handler):
-    def __call__(self, git_gecko, git_wpt):
+    def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("LandingHandler")
-        return landing.update_landing(git_gecko, git_wpt)
+        landing.update_landing(git_gecko, git_wpt)
 
 
 class CleanupHandler(Handler):
-    def __call__(self, git_gecko, git_wpt):
+    def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("CleanupHandler")
         logger.info("Running cleanup")
         worktree.cleanup(git_gecko, git_wpt)
@@ -355,7 +377,8 @@ class CleanupHandler(Handler):
 
 
 class RetriggerHandler(Handler):
-    def __call__(self, git_gecko, git_wpt):
+    def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("RetriggerHandler")
         logger.info("Running retrigger")
         update_repositories(git_gecko, git_wpt)
@@ -367,12 +390,14 @@ class RetriggerHandler(Handler):
 
 class PhabricatorHandler(Handler):
     def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("PhabricatorHandler")
         logger.info('Got phab event, doing nothing: %s' % body)
 
 
 class BugUpdateHandler(Handler):
-    def __call__(self, git_gecko, git_wpt):
+    def __call__(self, git_gecko, git_wpt, body):
+        # type: (Repo, Repo, Dict[Text, Any]) -> None
         newrelic.agent.set_transaction_name("BugUpdateHandler")
         logger.info("Running bug update")
         bugupdate.update_triage_bugs(git_gecko)

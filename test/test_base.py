@@ -49,4 +49,5 @@ def test_processname_idx_type(git_gecko, local_gecko_commit):
     idx.insert(process_name)
 
     assert idx.get("sync", "upstream", "1234") == {process_name}
-    assert idx.get("sync", "upstream", 1234) == {process_name}
+    with pytest.raises(AssertionError):
+        assert idx.get("sync", "upstream", 1234)

@@ -346,7 +346,9 @@ class GitHub(object):
                 raise ValueError("Invalid status %s" % status)
 
         if started_at is not None:
-            started_at_text = started_at.isoformat()
+            started_at_text = started_at.isoformat()  # type: Optional[Text]
+        else:
+            started_at_text = None
 
         if status == "completed" and conclusion is None:
             raise ValueError("Got a completed status but no conclusion")
@@ -446,6 +448,10 @@ class MockGitHub(GitHub):
         data = six.ensure_text(data)
         self.output.write(data)
         self.output.write(u"\n")
+
+    @property
+    def repo(self):
+        raise NotImplementedError
 
     def get_pull(self, id):
         # type: (int) -> Any
@@ -585,6 +591,25 @@ class MockGitHub(GitHub):
         for number in self.prs:
             if minimum_id and number >= minimum_id:
                 yield self.get_pull(number)
+
+    def set_status(self,
+                   pr_id,  # type: int
+                   status,  # type: Text
+                   target_url,  # type: Optional[Text]
+                   description,  # type: Optional[Text]
+                   context  # type: Text
+                   ):
+        pr = self.get_pull(pr_id)
+        head_commit = pr._commits[-1]
+        kwargs = {
+            "status": status,
+            "context": context,
+        }
+        if target_url is not None:
+            kwargs["target_url"] = target_url
+        if description is not None:
+            kwargs["description"] = description
+        head_commit._statuses.append(AttrDict(**kwargs))
 
     def set_check(self,
                   name,  # type: Text
