@@ -35,7 +35,7 @@ if MYPY:
 env = Environment()
 logger = log.get_logger(__name__)
 
-METADATA_RE = re.compile(br"\s*([^:]*): (.*)")
+METADATA_RE = re.compile(br"([^:]+): (.*)")
 
 
 def get_metadata(text):
@@ -44,7 +44,7 @@ def get_metadata(text):
     data = {}
     for line in text.splitlines():
         if line:
-            m = METADATA_RE.match(line)
+            m = METADATA_RE.match(line.strip())
             if m:
                 key, value = m.groups()
                 data[key.decode("utf8")] = value.decode("utf8")
@@ -412,7 +412,7 @@ def _apply_patch(patch,  # type: bytes
                             if line.startswith(prefix):
                                 path_parts_bytes = line[len(prefix):].split(b"/")[strip_dirs:]
                                 path_parts = [item.decode("utf8") for item in path_parts_bytes]
-                                path = "%s/%s" % (dest_prefix, "/".join(path_parts))
+                                path = os.path.join(dest_prefix, *path_parts)
                                 paths.append(path)
                         dest_repo.git.add(*paths)
                 if err_msg is not None:
