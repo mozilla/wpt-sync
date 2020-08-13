@@ -93,5 +93,3 @@ jobs:
         - bandit -r sync -ll
   allow_failures:
   - env: docker-wptsync-test-py3
-  - env: docker-wptsync-mypy-py2
-  - env: docker-wptsync-mypy-py3
