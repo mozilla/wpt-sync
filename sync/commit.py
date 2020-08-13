@@ -412,7 +412,10 @@ def _apply_patch(patch,  # type: bytes
                             if line.startswith(prefix):
                                 path_parts_bytes = line[len(prefix):].split(b"/")[strip_dirs:]
                                 path_parts = [item.decode("utf8") for item in path_parts_bytes]
-                                path = os.path.join(dest_prefix, *path_parts)
+                                if dest_prefix:
+                                    path = os.path.join(dest_prefix, *path_parts)
+                                else:
+                                    path = os.path.join(*path_parts)
                                 paths.append(path)
                         dest_repo.git.add(*paths)
                 if err_msg is not None:
