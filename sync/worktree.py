@@ -220,12 +220,16 @@ class Worktree(object):
                                                          os.path.abspath(self.path),
                                                          self.pygit2_repo.lookup_reference(
                                                              "refs/heads/%s" % self.process_name))
+                wrapper = wrapper_get(self.repo)
+                assert wrapper is not None
+                wrapper.after_worktree_create(self.path)
             else:
                 worktree = self.pygit2_repo.lookup_worktree(self.worktree_name)
 
             assert os.path.exists(self.path)
             assert worktree.path == self.path
             self._worktree = git.Repo(self.path)
+
         # TODO: In general the worktree should be on the right branch, but it would
         # be good to check. In the specific case of landing, we move the wpt worktree
         # around various commits, so it isn't necessarily on the correct branch
@@ -249,3 +253,6 @@ class Worktree(object):
                 return
         assert worktree.path == self.path
         delete_worktree(self.process_name, worktree)
+        wrapper = wrapper_get(self.repo)
+        assert wrapper is not None
+        wrapper.after_worktree_delete(self.path)

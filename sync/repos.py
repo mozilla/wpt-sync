@@ -1,10 +1,11 @@
 from __future__ import absolute_import
 import abc
+import git
 import json
 import os
-import shutil
-import git
 import pygit2
+import subprocess
+import shutil
 import six
 from six import iteritems
 
@@ -72,6 +73,14 @@ class GitSettings(six.with_metaclass(abc.ABCMeta, object)):
         shutil.copyfile(file, os.path.normpath(os.path.join(r.git_dir, "config")))
         logger.debug("Config from {} copied to {}".format(file, os.path.join(r.git_dir, "config")))
 
+    def after_worktree_create(self, path):
+        # type: (Text) -> None
+        pass
+
+    def after_worktree_delete(self, path):
+        # type: (Text) -> None
+        pass
+
 
 class Gecko(GitSettings):
     name = "gecko"
@@ -90,6 +99,32 @@ class Gecko(GitSettings):
         from . import index
         for idx in index.indicies:
             idx.get_or_create(repo)
+
+    @staticmethod
+    def get_state_path(config, path):
+        # type: (Dict[Text, Any], Text) -> Text
+        return os.path.join(config["root"],
+                            config["paths"]["state"],
+                            os.path.relpath(path, config["root"]))
+
+    def after_worktree_create(self, path):
+        # type: (Text) -> None
+        from sync.projectutil import Mach
+        state_path = self.get_state_path(self.config, path)
+        if not os.path.exists(state_path):
+            os.makedirs(state_path)
+            mach = Mach(path)
+            try:
+                mach.create_mach_environment()
+            except subprocess.CalledProcessError:
+                # This can happen if the base revision is too old
+                logger.warning("Failed to run create-mach-environment")
+
+    def after_worktree_delete(self, path):
+        # type: (Text) -> None
+        state_path = self.get_state_path(self.config, path)
+        if os.path.exists(state_path):
+            shutil.rmtree(state_path)
 
 
 class WebPlatformTests(GitSettings):

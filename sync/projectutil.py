@@ -4,21 +4,25 @@
 
 """Utility functions for performing various Git functionality."""
 
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import
 
 import logging
 import os
-import shutil
 import subprocess
 import types
 
 import newrelic
 import six
 
+from sync import repos
+from sync.env import Environment
+
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, List, Optional, Text, Tuple
 
+
+env = Environment()
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,7 @@ class Command(object):
         self.logger = logger
 
     def get(self, *subcommand, **opts):
+        # type: (*Text, **Any) -> bytes
         """ Run the specified subcommand with `command` and return the result.
 
         eg. r = mach.get('test-info', 'path/to/test')
@@ -47,9 +52,9 @@ class Command(object):
             return subprocess.check_output(command, cwd=self.path, **opts)
         except subprocess.CalledProcessError as e:
             newrelic.agent.record_exception(params={
-                "command": self.name,
-                "exit_code": e.returncode,
-                "command_output": e.output})
+                u"command": self.name,
+                u"exit_code": e.returncode,
+                u"command_output": e.output})
             raise e
 
     def __getattr__(self, name):
@@ -70,19 +75,19 @@ class Command(object):
 
 class Mach(Command):
     def __init__(self, path):
-        self.wpt_cache = os.path.join(os.path.expanduser("~"),
-                                      ".mozbuild",
-                                      "cache",
-                                      "wpt")
         Command.__init__(self, "mach", path)
 
     def get(self, *subcommand, **opts):
-        try:
-            rv = super(Mach, self).get(*subcommand, **opts)
-        finally:
-            if os.path.exists(self.wpt_cache):
-                shutil.rmtree(self.wpt_cache)
-        return rv
+        # type: (*Text, **Any) -> bytes
+        state_path = repos.Gecko.get_state_path(env.config, self.path)
+
+        if "env" in opts:
+            cmd_env = opts["env"]
+        else:
+            cmd_env = os.environ.copy()
+        cmd_env["MOZBUILD_STATE_PATH"] = state_path
+        opts["env"] = cmd_env
+        return super(Mach, self).get(*subcommand, **opts)
 
 
 class WPT(Command):
@@ -111,16 +116,16 @@ def create_mock(name):
             return cls._log
 
         def get(self, *args, **kwargs):
-            # type: (*Text, **Any) -> Text
-            data = self._data.get(args[0], "")
+            # type: (*Text, **Any) -> bytes
+            data = self._data.get(args[0], b"")
             if callable(data):
                 data = data(*args[1:], **kwargs)
 
-            self._log.append({"command": self.name,
-                              "cwd": self.path,
-                              "args": args,
-                              "kwargs": kwargs,
-                              "rv": data})
+            self._log.append({u"command": self.name,
+                              u"cwd": self.path,
+                              u"args": args,
+                              u"kwargs": kwargs,
+                              u"rv": data})
 
             return data
 
