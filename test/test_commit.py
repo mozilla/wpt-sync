@@ -5,8 +5,8 @@ from sync import commit as sync_commit
 
 
 def test_wpt_empty(git_gecko, local_gecko_commit):
-    commit = local_gecko_commit(meta_changes={"test/test1.html.ini": "example change"},
-                                other_changes={"example": "example change"})
+    commit = local_gecko_commit(meta_changes={"test/test1.html.ini": b"example change"},
+                                other_changes={"example": b"example change"})
     gecko_commit = sync_commit.GeckoCommit(git_gecko, commit)
     assert not gecko_commit.is_empty()
     assert not gecko_commit.has_wpt_changes()
@@ -36,12 +36,12 @@ def test_move_utf16(git_gecko, git_wpt_upstream, git_wpt, wpt_worktree, local_ge
 
 
 @pytest.mark.parametrize("msg,expected",
-                         [("Example", {}),
-                          ("wpt-pr: 123", {"wpt-pr": "123"}),
-                          ("Example\n\nwpt-pr: 123\nabc: def", {"wpt-pr": "123",
-                                                                "abc": "def"}),
-                          ("Foo\n wpt-pr: 123\n\nBar\nwpt-data: foo", {"wpt-pr": "123",
-                                                                       "wpt-data": "foo"}),
-                          ("wpt-pr: 123\nwpt-pr: 234", {"wpt-pr": "234"})])
+                         [(b"Example", {}),
+                          (b"wpt-pr: 123", {"wpt-pr": "123"}),
+                          (b"Example\n\nwpt-pr: 123\nabc: def", {"wpt-pr": "123",
+                                                                 "abc": "def"}),
+                          (b"Foo\n wpt-pr: 123\n\nBar\nwpt-data: foo", {"wpt-pr": "123",
+                                                                        "wpt-data": "foo"}),
+                          (b"wpt-pr: 123\nwpt-pr: 234", {"wpt-pr": "234"})])
 def test_metadata(msg, expected):
     assert sync_commit.get_metadata(msg) == expected

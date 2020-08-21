@@ -17,7 +17,16 @@ import requests_mock
 import six
 from six import iteritems
 
-from sync import repos, settings, bugcomponents, base, downstream, landing, trypush, tree, tc
+from sync import (commit,
+                  repos,
+                  settings,
+                  bugcomponents,
+                  base,
+                  downstream,
+                  landing,
+                  trypush,
+                  tree,
+                  tc)
 from sync.env import Environment, set_env, clear_env
 from sync.gh import AttrDict
 from sync.lock import SyncLock
@@ -29,6 +38,7 @@ def create_file_data(file_data, repo_workdir, repo_prefix=None):
     add_paths = []
     del_paths = []
     for repo_path, contents in iteritems(file_data):
+        assert contents is None or isinstance(contents, bytes)
         if repo_prefix is not None:
             repo_path = os.path.join(repo_prefix, repo_path)
         if contents is None:
@@ -149,7 +159,7 @@ links:
 def sample_gecko_metadata(env):
     # Only added in tests that require it
     return {os.path.join(env.config["gecko"]["path"]["meta"], "example/test.html.ini"):
-            """
+            b"""
 [test.html]
   [Failing test]
     expected: FAIL
@@ -169,7 +179,6 @@ username=test""")
     def __getattr__(self, name):
         def call(self, *args):
             cmd = ["hg", name] + list(args)
-            print("%s, cwd=%s" % (" ".join(cmd), self.working_tree))
             return subprocess.check_output(cmd, cwd=self.working_tree)
         call.__name__ = name
         args = (call, self)
@@ -198,7 +207,7 @@ def hg_gecko_upstream(env, initial_gecko_content, initial_wpt_content, git_wpt_u
     local_rev = hg_gecko.log("-l1", "--template={node}")
     upstream_rev = git_wpt_upstream.commit("HEAD")
 
-    content = b"local: %s\nupstream: %s\n" % (local_rev, upstream_rev.hexsha)
+    content = b"local: %s\nupstream: %s\n" % (local_rev, upstream_rev.hexsha.encode("ascii"))
 
     wpt_paths, _ = create_file_data(initial_wpt_content, repo_dir,
                                     env.config["gecko"]["path"]["wpt"])
@@ -303,7 +312,7 @@ def git_wpt_metadata(env, git_wpt_metadata_upstream):
 
 @pytest.fixture
 def upstream_wpt_commit(env, git_wpt_upstream, pull_request):
-    def inner(message="Example change", file_data=None):
+    def inner(message=b"Example change", file_data=None):
         commit = git_commit(git_wpt_upstream, message, file_data)
         return commit
     return inner
@@ -317,15 +326,15 @@ def hg_commit(hg, message, bookmarks):
     for bookmark in bookmarks:
         hg.bookmark(bookmark)
     assert b"+" not in hg.identify("--id")
-    return rev
+    return rev.decode("ascii")
 
 
 @pytest.fixture
 def upstream_gecko_commit(env, hg_gecko_upstream):
     def inner(test_changes=None, meta_changes=None, other_changes=None,
-              bug="1234", message="Example changes", bookmarks="mozilla/autoland"):
+              bug=1234, message="Example changes", bookmarks="mozilla/autoland"):
         changes = gecko_changes(env, test_changes, meta_changes, other_changes)
-        message = "Bug %s - %s" % (bug, message)
+        message = b"Bug %d - %s" % (bug, message)
 
         file_data, _ = create_file_data(changes, hg_gecko_upstream.working_tree)
         for path in file_data:
@@ -338,17 +347,17 @@ def upstream_gecko_commit(env, hg_gecko_upstream):
 @pytest.fixture
 def upstream_gecko_backout(env, hg_gecko_upstream):
     def inner(revs, bugs, message=None, bookmarks="mozilla/autoland"):
-        if isinstance(revs, (six.binary_type, six.text_type)):
+        if isinstance(revs, six.text_type):
             revs = [revs]
-        if isinstance(bugs, (six.binary_type, six.text_type)):
+        if isinstance(bugs, int):
             bugs = [bugs] * len(revs)
         assert len(bugs) == len(revs)
-        msg = ["Backed out %i changesets (bug %s) for test, r=backout" % (len(revs), bugs[0]), ""]
+        msg = [b"Backed out %i changesets (bug %d) for test, r=backout" % (len(revs), bugs[0]), b""]
         for rev, bug in zip(revs, bugs):
             hg_gecko_upstream.backout("--no-commit", rev)
-            msg.append("Backed out changeset %s (Bug %s)" % (rev[:12], bug))
+            msg.append(b"Backed out changeset %s (Bug %d)" % (rev[:12].encode("ascii"), bug))
         if message is None:
-            message = "\n".join(msg)
+            message = b"\n".join(msg)
         return hg_commit(hg_gecko_upstream, message, bookmarks)
     return inner
 
@@ -383,9 +392,9 @@ def wpt_worktree(env, git_wpt):
 @pytest.fixture
 def local_gecko_commit(env, gecko_worktree):
     def inner(test_changes=None, meta_changes=None, other_changes=None,
-              bug="1234", message="Example changes"):
+              bug=1234, message=b"Example changes"):
         changes = gecko_changes(env, test_changes, meta_changes, other_changes)
-        message = "Bug %s - %s" % (bug, message)
+        message = b"Bug %d - %s" % (bug, message)
 
         return git_commit(gecko_worktree, message, changes)
     return inner
@@ -400,9 +409,9 @@ def pull_request_fn(env, git_wpt_upstream):
 
         branch = pr_branch_fn()
         git_wpt_upstream.branches[branch].checkout()
-        for commit in git_wpt_upstream.iter_commits("master..%s" % branch):
-            gh_commits.append(AttrDict(**{"sha": commit.hexsha,
-                                          "message": commit.message,
+        for commit_obj in git_wpt_upstream.iter_commits("master..%s" % branch):
+            gh_commits.append(AttrDict(**{"sha": commit_obj.hexsha,
+                                          "message": commit_obj.message,
                                           "_statuses": [],
                                           "_checks": []}))
 
@@ -629,8 +638,8 @@ def mock_tasks():
 @pytest.fixture
 def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
              hg_gecko_try, mock_mach):
-    pr = pull_request([("Test commit", {"README": "example_change",
-                                        "LICENSE": "Some change"})])
+    pr = pull_request([(b"Test commit", {"README": b"example_change",
+                                         "LICENSE": b"Some change"})])
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -659,7 +668,7 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
 def landing_with_try_push(env, git_gecko, git_wpt, git_wpt_upstream,
                           upstream_wpt_commit, MockTryCls, mock_mach):
     base_commit = git_wpt_upstream.head.commit
-    new_commit = upstream_wpt_commit("First change", {"README": "Example change\n"})
+    new_commit = upstream_wpt_commit(b"First change", {"README": b"Example change\n"})
     git_wpt.remotes.origin.fetch()
     with SyncLock("landing", None) as lock:
         landing_sync = landing.LandingSync.new(lock,
@@ -707,7 +716,7 @@ def tc_response():
             self._file = None
 
         def __enter__(self):
-            self._file = open(self.path)
+            self._file = open(self.path, "rb")
             return self._file
 
         def __exit__(self, *args):
