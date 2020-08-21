@@ -390,7 +390,7 @@ def _apply_patch(patch,  # type: bytes
                  patch_fallback=False,  # type: bool
                  ):
     # type: (...) -> Optional[Commit]
-    assert type(patch) == str
+    assert isinstance(patch, six.binary_type)
 
     if skip_empty and (not patch or patch.isspace() or
                        not any(line.startswith(b"diff ") for line in patch.splitlines())):
