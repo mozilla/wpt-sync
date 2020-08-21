@@ -586,9 +586,9 @@ def commit_message_filter(msg):
     metadata = {}
     m = commitparser.BUG_RE.match(msg)
     if m:
-        bug_str, bug_number = m.groups()[:2]
-        if msg.startswith(bug_str):
-            prefix = re.compile(br"^%s[^\w\d\[\(]*" % bug_str)
+        bug_bytes, bug_number = m.groups()[:2]
+        if msg.startswith(bug_bytes):
+            prefix = re.compile(br"^%s[^\w\d\[\(]*" % bug_bytes)
             msg = prefix.sub(b"", msg)
         metadata[u"bugzilla-url"] = env.bz.bugzilla_url(int(bug_number))
 
