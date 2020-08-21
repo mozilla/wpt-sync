@@ -38,11 +38,11 @@ logger = log.get_logger(__name__)
 METADATA_RE = re.compile(br"([^:]+): (.*)")
 
 
-def get_metadata(text):
+def get_metadata(msg):
     # type: (bytes) -> Dict[Text, Text]
     # Since this is data we add, we can be sure it's UTF-8 encoded
     data = {}
-    for line in text.splitlines():
+    for line in msg.splitlines():
         if line:
             m = METADATA_RE.match(line.strip())
             if m:
