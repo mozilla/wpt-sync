@@ -58,6 +58,8 @@ clean_pid() {
     fi
 }
 
+$PIP install --no-deps -e /app/wpt-sync
+
 if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
     eval "$(ssh-agent -s)"
     # Install ssh keys
@@ -71,8 +73,6 @@ if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
         wptsync repo-config wpt-metadata ${WPTSYNC_WPT_METADATA_CONFIG:-/app/config/wpt-metadata_config}
     fi
 fi
-
-$PIP install --no-deps -e /app/wpt-sync
 
 env
 
