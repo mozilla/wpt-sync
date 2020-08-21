@@ -238,7 +238,7 @@ class Commit(object):
         # type: () -> bytes
         author = self.pygit2_commit.author
         name = author.raw_name
-        email = author.raw_email if author.email else "unknown"
+        email = author.raw_email if author.email else b"unknown"
         return b"%s <%s>" % (name, email)
 
     @property
