@@ -65,14 +65,14 @@ class SyncPoint(object):
         self._items[key] = value
 
     def load(self, fp):
-        with open(fp) as f:
+        with open(fp, "rb") as f:
             self.loads(f)
 
     def loads(self, data):
-        # type: (Text) -> None
-        for line in data.split("\n"):
+        # type: (bytes) -> None
+        for line in data.split(b"\n"):
             if line:
-                key, value = line.split(": ", 1)
+                key, value = [item.decode("utf8") for item in line.split(b": ", 1)]
                 self._items[key] = value
 
     def dump(self, fp):
