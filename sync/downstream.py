@@ -1013,7 +1013,7 @@ class DownstreamSync(SyncProcess):
             if len(revert_shas) == 0:
                 return set()
             # Just use the first match for now
-            sha = revert_shas[0]
+            sha = revert_shas[0].decode("ascii")
             try:
                 self.git_wpt.rev_parse(sha)
             except (ValueError, git.BadName):
