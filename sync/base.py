@@ -588,6 +588,16 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
         # type: () -> str
         return six.ensure_str("<%s %s>" % (self.__class__.__name__, self.process_name))
 
+    def __hash__(self):
+        # type: () -> int
+        return hash(self.process_name)
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if type(self) != type(other):
+            return False
+        return self.repo == other.repo and self.process_name == other.process_name
+
     def as_mut(self, lock):
         # type: (SyncLock) -> MutGuard
         return MutGuard(lock, self)

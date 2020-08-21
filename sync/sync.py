@@ -572,15 +572,6 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         # type: () -> Text
         return u"\n".join(self._output_data())
 
-    def __eq__(self, other):
-        # type: (Any) -> bool
-        if not hasattr(other, "process_name"):
-            return False
-        for attr in ["obj_type", "subtype", "obj_id", "seq_id"]:
-            if getattr(self.process_name, attr) != getattr(other.process_name, attr):
-                return False
-        return True
-
     def __ne__(self, other):
         # type: (Any) -> bool
         return not self == other

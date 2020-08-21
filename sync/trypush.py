@@ -319,11 +319,6 @@ class TryPush(base.ProcessData):
         # type: () -> Text
         return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % self.try_rev
 
-    def __eq__(self, other):
-        if not other.__class__ == self.__class__:
-            return False
-        return other.process_name == self.process_name
-
     @property
     def created(self):
         # type: () -> Optional[Any]
