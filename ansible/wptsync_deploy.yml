@@ -18,7 +18,7 @@
   gather_facts: no
   tasks:
   - name: docker build
-    command: "docker build -t {{ _image_name }} --file docker/Dockerfile.dev ."
+    command: "docker build -t {{ _image_name }} --file docker/Dockerfile.dev --build-arg PYTHON_BINARY={{ _python_binary | mandatory }} --build-arg PIP_BINARY={{ _pip_binary | mandatory }} ."
     args:
       chdir: "{{ _repo_root | mandatory }}"
   - name: docker save and compress
