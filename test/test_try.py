@@ -23,7 +23,7 @@ def test_try_task_states(mock_tasks, try_push):
                 retriggered_states = tasks.retriggered_wpt_states()
                 assert tasks.success_rate() == float(10) / len(tasks)
                 # baz is not retriggered, only occurs once
-                assert retriggered_states.keys() == ["foo", "bar"]
+                assert list(retriggered_states.keys()) == ["foo", "bar"]
 
 
 def test_try_task_states_all_success(mock_tasks, try_push):

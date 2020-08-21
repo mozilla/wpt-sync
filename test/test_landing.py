@@ -14,7 +14,7 @@ from six.moves import xrange
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
-    pr = pull_request([("Test commit", {"README": "example_change"})])
+    pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
     git_wpt_upstream.head.commit = head_rev
     git_wpt.remotes.origin.fetch()
@@ -25,8 +25,8 @@ def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
 def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                   hg_gecko_try, mock_mach):
-    pr = pull_request([("Test commit", {"README": "example_change",
-                                        "LICENSE": "Some change"})])
+    pr = pull_request([(b"Test commit", {"README": b"example_change",
+                                         "LICENSE": b"Some change"})])
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -54,8 +54,8 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                                    ".git"))
             with open(os.path.join(worktree.working_dir,
                                    env.config["gecko"]["path"]["wpt"],
-                                   "LICENSE")) as f:
-                assert f.read() == "Initial license\n"
+                                   "LICENSE"), "rb") as f:
+                assert f.read() == b"Initial license\n"
 
     try_push = sync.latest_try_push
     assert try_push is None
@@ -75,7 +75,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
 
 def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                      hg_gecko_try, mock_mach, mock_tasks):
-    pr = pull_request([("Test commit", {"README": "example_change"})])
+    pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -121,7 +121,8 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
-    assert new_head.tree["testing/web-platform/tests/README"].data_stream.read() == "example_change"
+    assert (new_head.tree["testing/web-platform/tests/README"].data_stream.read() ==
+            b"example_change")
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["upstream"] == head_rev
     # Update central to contain the landing
@@ -136,7 +137,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
 def test_landable_skipped(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                           mock_mach):
     prev_wpt_head = git_wpt_upstream.head.commit
-    pr = pull_request([("Test commit", {"README": "example_change"})])
+    pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -250,9 +251,9 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     trypush.Mach = mock_mach
 
     # Add first gecko change
-    test_changes = {"change1": "CHANGE1\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug="1111",
-                                message="Add change1 file")
+    test_changes = {"change1": b"CHANGE1\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1111,
+                                message=b"Add change1 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
@@ -274,9 +275,9 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
             sync_1.finish()
 
     # Add second gecko change
-    test_changes = {"change2": "CHANGE2\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug="1112",
-                                message="Add change2 file")
+    test_changes = {"change2": b"CHANGE2\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1112,
+                                message=b"Add change2 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
@@ -293,7 +294,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     git_wpt_upstream.git.merge(remote_branch, ff_only=True)
 
     # Add an upstream commit that has metadata
-    pr = pull_request([("Upstream change 1", {"upstream1": "UPSTREAM1\n"})])
+    pr = pull_request([(b"Upstream change 1", {"upstream1": b"UPSTREAM1\n"})])
     head_rev = pr._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     downstream_sync = set_pr_status(pr.number, "success")
@@ -307,7 +308,7 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     landing_rev = git_wpt_upstream.git.rev_parse("HEAD")
 
     # Add an upstream commit that doesn't have metadata
-    pr = pull_request([("Upstream change 2", {"upstream2": "UPSTREAM2\n"})])
+    pr = pull_request([(b"Upstream change 2", {"upstream2": b"UPSTREAM2\n"})])
     head_rev = pr._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     downstream_sync = set_pr_status(pr.number, "success")
@@ -315,9 +316,9 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     git_wpt_upstream.git.reset(hard=True)
 
     # Add third gecko change
-    test_changes = {"change3": "CHANGE3\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug="1113",
-                                message="Add change3 file")
+    test_changes = {"change3": b"CHANGE3\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1113,
+                                message=b"Add change3 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
@@ -340,11 +341,12 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                     landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
-    gecko_root = hg_gecko_upstream.root().strip()
+    gecko_root = hg_gecko_upstream.root().strip().decode("utf8")
     assert (hg_gecko_upstream
             .log("-l1", "--template={desc|firstline}")
             .strip()
-            .endswith("[wpt-sync] Update web-platform-tests to %s, a=testonly" % landing_rev))
+            .endswith(b"[wpt-sync] Update web-platform-tests to %s, a=testonly" %
+                      landing_rev.encode("utf8")))
     for file in ["change1", "change2", "change3", "upstream1"]:
         path = os.path.join(gecko_root,
                             env.config["gecko"]["path"]["wpt"],
@@ -365,7 +367,7 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
 
     trypush.Mach = mock_mach
 
-    pr = pull_request([("Test commit", {"example/test1.html": "example_change"})])
+    pr = pull_request([(b"Test commit", {"example/test1.html": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
@@ -377,7 +379,7 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
             git_work = downstream_sync.gecko_worktree.get()
 
             changes = gecko_changes(env, meta_changes={"example/test1.html":
-                                                       "[test1.html]\n  expected: FAIL"})
+                                                       b"[test1.html]\n  expected: FAIL"})
             file_data, _ = create_file_data(changes, git_work.working_dir)
             downstream_sync.ensure_metadata_commit()
             git_work.index.add(file_data)
@@ -404,14 +406,14 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
 def create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
                                   upstream_gecko_commit):
     # Create gecko bug and upstream it
-    bug = "1234"
-    test_changes = {"README": "Change README\n"}
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
     upstream_gecko_commit(test_changes=test_changes, bug=bug,
-                          message="Change README")
+                          message=b"Change README")
 
-    test_changes = {"CONFIG": "Change CONFIG\n"}
+    test_changes = {"CONFIG": b"Change CONFIG\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
-                                message="Change CONFIG")
+                                message=b"Change CONFIG")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
@@ -434,7 +436,7 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     trypush.Mach = mock_mach
 
     # Create an unrelated PR that didn't come from Gecko
-    pr0 = pull_request([("Non Gecko PR", {"SOMEFILE": "Made changes"})])
+    pr0 = pull_request([(b"Non Gecko PR", {"SOMEFILE": b"Made changes"})])
     unrelated_rev = pr0._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr0)
     downstream_sync = set_pr_status(pr0.number, 'success')
@@ -467,7 +469,7 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     # Update landing, the Non Gecko PR should be applied but not the Gecko one we upstreamed
     def mock_create(repo, msg, metadata, author=None, amend=False):
         # This commit should not be making it this far, should've been dropped earlier
-        assert 'Bug 1234 [wpt PR 2] - [Gecko Bug 1234]' not in msg
+        assert b'Bug 1234 [wpt PR 2] - [Gecko Bug 1234]' not in msg
         return DEFAULT
 
     m = Mock(side_effect=mock_create, wraps=sync_commit.Commit.create)
@@ -498,7 +500,9 @@ def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstr
             sync.push_commits()
 
     git_wpt_upstream.branches['gecko/1234'].checkout()
-    extra_commit = git_commit(git_wpt_upstream, "Fixed pr before merge", {"EXTRA": "This fixes it"})
+    extra_commit = git_commit(git_wpt_upstream,
+                              b"Fixed pr before merge",
+                              {"EXTRA": b"This fixes it"})
     git_wpt_upstream.branches.master.checkout()
     assert str(git_wpt_upstream.active_branch) == "master"
     git_wpt_upstream.git.merge('gecko/1234')  # TODO avoid hardcoding?

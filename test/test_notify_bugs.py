@@ -154,7 +154,7 @@ def test_crash(env):
 def test_update_metadata(env, git_gecko, git_wpt, pull_request, git_wpt_metadata, mock_mach):
     results_obj = fx_only_failure()
 
-    pr = pull_request([("Test commit", {"README": "Example change\n"})],
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
                       "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
@@ -175,7 +175,7 @@ def test_update_metadata(env, git_gecko, git_wpt, pull_request, git_wpt_metadata
                 assert mock_github.create_pull.called
                 head = mock_github.method_calls[0].args[-1]
 
-    bugs_filed = bug_data.keys()
+    bugs_filed = list(bug_data.keys())
     assert len(bugs_filed) == 1
     bug = bugs_filed[0]
 
@@ -262,7 +262,7 @@ def test_already_filed(env):
     results_obj = fx_only_failure()
     sync = Mock()
     sync.lock_key = ("downstream", None)
-    sync.notify_bugs = FrozenDict(**{"failure :: Testing :: web-platform-tests": "1234"})
+    sync.notify_bugs = FrozenDict(**{"failure :: Testing :: web-platform-tests": 1234})
 
     env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
     with patch("sync.notify.bugs.components_for_wpt_paths",
@@ -273,6 +273,6 @@ def test_already_filed(env):
             bug_data = bugs.for_sync(sync, results_obj)
 
     assert len(bug_data) == 1
-    assert list(bug_data.keys()) == ["1234"]
+    assert list(bug_data.keys()) == [1234]
     assert ("Creating a bug in component Testing :: web-platform-tests"
             not in env.bz.output.getvalue())

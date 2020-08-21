@@ -7,10 +7,10 @@ from sync.lock import SyncLock
 
 def test_delete(env, git_gecko, git_wpt, upstream_gecko_commit):
     # Do some stuff to create an example sync
-    bug = "1234"
-    test_changes = {"README": "Change README\n"}
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
-                                message="Change README")
+                                message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     _, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
