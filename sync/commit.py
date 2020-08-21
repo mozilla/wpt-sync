@@ -544,7 +544,7 @@ class GeckoCommit(Commit):
             nodes, bugs = nodes_bugs
             # Assuming that all commits are listed.
             for node in nodes:
-                git_sha = self.repo.cinnabar.hg2git(node)
+                git_sha = self.repo.cinnabar.hg2git(node.decode("ascii"))
                 commits.append(GeckoCommit(self.repo, git_sha))
 
         return commits, set(bugs)
