@@ -863,10 +863,11 @@ class DownstreamSync(SyncProcess):
             summary = parts[0]
             body = b""
 
-        new_msg = b"Bug %s [wpt PR %s] - %s, a=testonly\n\nSKIP_BMO_CHECK\n%s" % (self.bug,
-                                                                                  self.pr,
-                                                                                  summary,
-                                                                                  body)
+        new_msg = b"Bug %s [wpt PR %s] - %s, a=testonly\n\nSKIP_BMO_CHECK\n%s" % (
+            str(self.bug).encode("utf8"),
+            str(self.pr).encode("utf8"),
+            summary,
+            body)
         return new_msg, {}
 
     @mut()
