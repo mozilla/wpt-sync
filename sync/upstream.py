@@ -1082,7 +1082,7 @@ def commit_check_changed(git_gecko, git_wpt, sync):
 
     # Record the overall status and commit so we only notify once per commit
     this_pr_check = {"state": check_status.value,
-                     "sha": itervalues(checks).next()["head_sha"]}
+                     "sha": next(itervalues(checks))["head_sha"]}
     last_pr_check = sync.last_pr_check
     sync.last_pr_check = this_pr_check
 
