@@ -19,7 +19,7 @@ elif [[ $command == "run" ]]; then
     --env WPTSYNC_CREDS={{ wptsync_credentials | mandatory }} \
     --env WPTSYNC_GH_SSH_KEY={{ wptsync_github_key | mandatory }} \
     --env WPTSYNC_HGMO_SSH_KEY={{ wptsync_hgmo_key | mandatory }} \
-    --mount type=bind,source={{ wptsync_repo_path | mandatory }},target={{ target_wptsync_repo | mandatory }} \
+    --mount type=bind,source={{ wptsync_repo_path | mandatory }}/sync,target={{ target_wptsync_repo | mandatory }}/sync \
     --mount type=bind,source={{ mount_config | mandatory}},target={{ target_config | mandatory }} \
     --mount type=bind,source={{ mount_repos | mandatory }},target={{ target_repos | mandatory }} \
     --mount type=bind,source={{ mount_workspace | mandatory }},target={{ target_workspace | mandatory }} \
