@@ -45,6 +45,7 @@ RUN set -eux; \
     else \
         apt-get install -y \
            python2.7 \
+           python3 \
            python-pip; \
         $PIP install --upgrade pip; \
         $PIP install --user requests; \
