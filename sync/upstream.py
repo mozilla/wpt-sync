@@ -164,7 +164,6 @@ class UpstreamSync(SyncProcess):
     def has_metadata(cls, message):
         # type: (bytes) -> bool
         required_keys = [u"gecko-commit",
-                         u"gecko-integration-branch",
                          u"bugzilla-url"]
         metadata = sync_commit.get_metadata(message)
         return all(item in metadata for item in required_keys)
@@ -313,8 +312,7 @@ class UpstreamSync(SyncProcess):
         # type: (GeckoCommit) -> Tuple[Optional[Commit], bool]
         git_work = self.wpt_worktree.get()
 
-        metadata = {u"gecko-commit": gecko_commit.canonical_rev,
-                    u"gecko-integration-branch": self.repository}
+        metadata = {u"gecko-commit": gecko_commit.canonical_rev}
 
         if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
             # If there's already a patch file here then don't try to create a new one
