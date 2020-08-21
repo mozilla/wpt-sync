@@ -121,12 +121,11 @@ class GitNotes(object):
     def _read(self):
         # type: () -> Dict[Text, Text]
         try:
-            text = self.pygit2_repo.lookup_note(self.commit.sha1).message
+            note_sha = self.pygit2_repo.lookup_note(self.commit.sha1).id
+            note_data = self.pygit2_repo[note_sha].data
         except KeyError:
             return {}
-        data = get_metadata(text)
-
-        return data
+        return get_metadata(note_data)
 
     def __getitem__(self, key):
         # type: (Text) -> Text
@@ -140,7 +139,7 @@ class GitNotes(object):
         # type: (Text, Text) -> None
         self._data[key] = value
         data = u"\n".join(u"%s: %s" % item for item in iteritems(self._data))
-        self.pygit2_repo.create_note(data.encode("utf8"),
+        self.pygit2_repo.create_note(data,
                                      self.pygit2_repo.default_signature,
                                      self.pygit2_repo.default_signature,
                                      self.commit.sha1,
