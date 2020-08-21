@@ -22,6 +22,7 @@ from .load import get_syncs
 from .lock import constructor, mut
 from .errors import AbortError, RetryableError
 from .projectutil import Mach
+from .tc import TaskGroupView
 
 MYPY = False
 if MYPY:
@@ -29,7 +30,6 @@ if MYPY:
     from sync.downstream import DownstreamSync
     from sync.landing import LandingSync
     from sync.lock import SyncLock
-    from sync.tc import TaskGroupView
     from git.repo.base import Repo
     from sync.tc import TaskGroup
 
