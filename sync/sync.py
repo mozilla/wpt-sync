@@ -732,7 +732,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                 message = value
                 stack = None
             else:
-                message = value.message
+                message = six.ensure_text(str(value))
                 stack = traceback.format_exc()
             error = {
                 "message": encode(message),
