@@ -546,16 +546,16 @@ Automatic update from web-platform-tests\n%s
                 logger.error("Failed trying to use mergetool to resolve conflicts")
                 raise
 
-        metadata_commit = worktree.head.commit
-        if metadata_commit.message.startswith(b"Bug None"):
+        metadata_commit = sync_commit.GeckoCommit(worktree, worktree.head.commit)
+        if metadata_commit.msg.startswith(b"Bug None"):
             # If the metadata commit didn't get a valid bug number for some reason,
             # we want to replace the placeholder bug number with the
             # either the sync or landing bug number, otherwise the push will be
             # rejected
             bug_number = sync.bug or self.bug
-            new_message = "Bug %s%s" % (bug_number,
-                                        metadata_commit.message[len("Bug None"):])
-            worktree.git.commit(message=new_message, amend=True)
+            new_message = b"Bug %s%s" % (str(bug_number).encode("utf8"),
+                                         metadata_commit.msg[len(b"Bug None"):])
+            sync_commit.create_commit(worktree, new_message, amend=True)
 
     @mut()
     def apply_prs(self, prev_wpt_head, landable_commits):
@@ -646,10 +646,15 @@ Automatic update from web-platform-tests\n%s
 
 MANUAL PUSH: wpt sync bot
                 """ %
-                (self.bug, self.wpt_commits.head.sha1.encode("utf8")), metadata)
-            git_work.git.commit(message=msg, allow_empty=True)
+                (str(self.bug).encode("utf8"), self.wpt_commits.head.sha1.encode("utf8")),
+                metadata)
+            sync_commit.create_commit(git_work, msg, allow_empty=True)
         else:
-            git_work.git.commit(allow_empty=True, amend=True, no_edit=True)
+            sync_commit.create_commit(git_work,
+                                      self.landing_commit.msg,
+                                      allow_empty=True,
+                                      amend=True,
+                                      no_edit=True)
         rv = self.gecko_commits[-1]
         assert isinstance(rv, GeckoCommit)
         return rv
