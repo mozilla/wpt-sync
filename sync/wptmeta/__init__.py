@@ -59,7 +59,7 @@ def parse_test(test_id):
     dir_name, test_file = id_parts.path.rsplit("/", 1)
     if dir_name[0] == "/":
         dir_name = dir_name[1:]
-    test_name = urllib.parse.urlunsplit((None, None, test_file, id_parts.query,  # type: ignore
+    test_name = urllib.parse.urlunsplit(("", "", test_file, id_parts.query,
                                          id_parts.fragment))
     return dir_name, test_name
 
