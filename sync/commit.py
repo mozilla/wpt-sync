@@ -165,17 +165,22 @@ class Commit(object):
             assert isinstance(commit, Commit)
             sha1 = commit.sha1
         elif isinstance(commit, (six.binary_type, six.text_type)):
-            commit = self.pygit2_repo.revparse_single(commit)
-            sha1 = str(commit.id)
+            if isinstance(commit, six.binary_type):
+                commit_text = commit.decode("ascii")  # type: Text
+            else:
+                commit_text = commit
+            commit_obj = self.pygit2_repo.revparse_single(commit_text)
+            sha1 = str(commit_obj.id)
         elif hasattr(commit, "id"):
             assert isinstance(commit, PyGit2Commit)
             sha1 = commit.id
             _pygit2_commit = commit
         else:
             raise ValueError("Unrecognised commit %r" % commit)
+        sha1 = six.ensure_text(sha1)
         if sha1 not in self.pygit2_repo:
             raise ValueError("Commit with SHA1 %s not found" % sha1)
-        self.sha1 = sha1.encode("ascii")  # type: Text
+        self.sha1 = sha1  # type: Text
         self._commit = _commit
         self._pygit2_commit = _pygit2_commit
         self._notes = None  # type: Optional[GitNotes]
