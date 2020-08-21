@@ -44,13 +44,15 @@ def create_file_data(file_data, repo_workdir, repo_prefix=None):
     return add_paths, del_paths
 
 
-def git_commit(git, message="Example change", file_data=None):
+def git_commit(git, message=b"Example change", file_data=None):
+    assert isinstance(message, bytes)
     add_paths, del_paths = create_file_data(file_data, git.working_dir)
     if add_paths:
-        git.index.add(add_paths)
+        git.git.add(add_paths)
     if del_paths:
-        git.index.remove(del_paths, working_tree=True)
-    return git.index.commit(message)
+        git.git.rm(del_paths)
+    commit.create_commit(git, message)
+    return git.head.commit
 
 
 def gecko_changes(env, test_changes=None, meta_changes=None, other_changes=None):

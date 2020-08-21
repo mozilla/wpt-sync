@@ -70,6 +70,47 @@ def first_non_merge(commits):
     raise ValueError("All commits were merge commits")
 
 
+def create_commit(repo, msg, **kwargs):
+    # type: (Repo, bytes, **Any) -> None
+    """Commit the current index in repo, with msg as the message and additional kwargs
+    from kwargs
+
+    gitpython converts all arguments to strings in a way that doesn't allow
+    passing bytestrings in as arguments. But it's important to allow providing
+    a message that doesn't have a known encoding since we can't pre-validate that. So
+    this re-implements the internals of repo.git.execute to avoid the string conversion"""
+
+    exec_kwargs = {k: v for k, v in kwargs.items() if k in git.cmd.execute_kwargs}
+    opts_kwargs = {k: v for k, v in kwargs.items() if k not in git.cmd.execute_kwargs}
+
+    cmd = [repo.git.GIT_PYTHON_GIT_EXECUTABLE]
+    cmd.extend(repo.git._persistent_git_options)
+    cmd.append(b"commit")
+    cmd.append(b"--message=%s" % msg)
+    for name, value in iteritems(opts_kwargs):
+        name = git.cmd.dashify(name).encode("utf8")
+        if isinstance(value, six.string_types):
+            value = value.encode("utf8")
+
+        if isinstance(name, six.string_types):
+            name_bytes = name.encode("utf8")
+        else:
+            name_bytes = name
+
+        assert value is None or isinstance(value, (bool, bytes))
+
+        if value is True:
+            dashes = b"-" if len(name) == 1 else b"--"
+            cmd.append(b"%s%s" % (dashes, name_bytes))
+        elif isinstance(value, bytes):
+            if len(name) == 1:
+                cmd.append(b"-%s" % name_bytes)
+                cmd.append(value)
+            else:
+                cmd.append(b"--%s=%s" % (name_bytes, value))
+    repo.git.execute(cmd, **exec_kwargs)
+
+
 class GitNotes(object):
     def __init__(self, commit):
         # type: (Commit) -> None
@@ -223,7 +264,7 @@ class Commit(object):
         else:
             if author is not None:
                 commit_kwargs["author"] = author
-        repo.git.commit(message=msg, **commit_kwargs)
+        create_commit(repo, msg, **commit_kwargs)
         return cls(repo, repo.head.commit.hexsha)
 
     @staticmethod

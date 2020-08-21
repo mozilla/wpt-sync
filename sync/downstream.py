@@ -536,8 +536,10 @@ class DownstreamSync(SyncProcess):
             }
             msg = sync_commit.Commit.make_commit_msg(
                 b"Bug %s [wpt PR %s] - Update wpt metadata, a=testonly" %
-                (self.bug, self.pr), metadata)
-            git_work.git.commit(message=msg, allow_empty=True)
+                (str(self.bug).encode("utf8") if self.bug is not None else b"None",
+                 str(self.pr).encode("utf8") if self.pr is not None else b"None"),
+                metadata)
+            sync_commit.create_commit(git_work, msg, allow_empty=True)
         commit = git_work.commit("HEAD")
         return sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
 
