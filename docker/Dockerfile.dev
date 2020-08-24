@@ -125,7 +125,7 @@ RUN mkdir -p /app/workspace \
 
 RUN sudo chown -R rabbitmq:rabbitmq /app/workspace/logs/rabbitmq
 
-COPY ./config/ssh_config ./config/known_hosts /app/.ssh/
+COPY ./config/ssh/config ./config/ssh/known_hosts /app/.ssh/
 RUN sudo chown -R app:app /app/.ssh/
 
 # Install git-cinnabar
