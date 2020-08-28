@@ -34,7 +34,9 @@ RUN set -eux; \
         locales \
         sudo \
         wget \
-        # Required by cinnabar even for Py3
+        # Ensure /usr/bin/python exists
+        python \
+        # Required by cinnabar, mach, wpt, even for Py3
         python2.7 \
         # Required by mach even for Py2
         python3 \
