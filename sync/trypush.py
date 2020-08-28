@@ -175,7 +175,7 @@ class TryFuzzyCommit(TryCommit):
             query_args.extend([u"-q", query])
         logger.info("Pushing to try with fuzzy query: %s" % " ".join(query_args))
 
-        can_push_routes = "--route " in mach.try_("fuzzy", "--help")
+        can_push_routes = b"--route " in mach.try_("fuzzy", "--help")
 
         args = [u"fuzzy"] + query_args
         if self.rebuild:
