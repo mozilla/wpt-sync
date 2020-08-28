@@ -10,11 +10,11 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
                       "Test PR")
 
-    mock_mach.set_data("file-info", """Testing :: web-platform-tests
+    mock_mach.set_data("file-info", b"""Testing :: web-platform-tests
   testing/web-platform/tests/README
 """)
 
-    mock_wpt.set_data("files-changed", "README\n")
+    mock_wpt.set_data("files-changed", b"README\n")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
