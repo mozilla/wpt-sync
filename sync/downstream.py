@@ -888,7 +888,8 @@ class DownstreamSync(SyncProcess):
                 logger.error("Calling wpt tests-affected failed")
                 return tests_by_type
             if output:
-                for item in output.strip().split("\n"):
+                for item_bytes in output.strip().split(b"\n"):
+                    item = item_bytes.decode("utf8", "replace")
                     path, test_type = item.strip().split("\t")
                     tests_by_type[test_type].append(path)
             self.data["affected-tests"] = tests_by_type
