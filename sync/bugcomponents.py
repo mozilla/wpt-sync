@@ -144,15 +144,15 @@ def components_for_wpt_paths(git_gecko, wpt_paths):
 
     components = defaultdict(list)  # type: Mapping[Text, List[Text]]
     current = None
-    for line in output.split("\n"):
-        if line.startswith(" "):
+    for line in output.split(b"\n"):
+        if line.startswith(b" "):
             assert current is not None
-            path = line.strip()
+            path = line.strip().decode("utf8", "replace")
             assert path.startswith(path_prefix)
             wpt_path = os.path.relpath(path, path_prefix)
             components[current].append(wpt_path)
         else:
-            current = line.strip()
+            current = line.strip().decode("utf8")
 
     return components
 
