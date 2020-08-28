@@ -210,7 +210,7 @@ class TryFuzzyCommit(TryCommit):
 
         try:
             output = mach.try_(*args, stderr=subprocess.STDOUT)
-            return 0, output
+            return 0, output.decode("utf8", "replace")
         except subprocess.CalledProcessError as e:
             return e.returncode, e.output
 
