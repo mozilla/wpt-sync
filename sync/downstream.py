@@ -502,7 +502,7 @@ class DownstreamSync(SyncProcess):
     def files_changed(self):
         # type: () -> Set[Text]
         # TODO: Would be nice to do this from mach with a gecko worktree
-        return set(self.wpt.files_changed().split(u"\n"))
+        return set(self.wpt.files_changed().decode("utf8", "replace").split(u"\n"))
 
     @property
     def metadata_commit(self):
