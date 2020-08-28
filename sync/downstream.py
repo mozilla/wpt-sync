@@ -920,7 +920,7 @@ class DownstreamSync(SyncProcess):
         args = []
 
         if stability:
-            help_text = mach.wpt_update("--help")
+            help_text = mach.wpt_update("--help").decode("utf8")
             if "--stability " in help_text:
                 args.extend(["--stability", "wpt-sync Bug %s" % self.bug])
             else:
@@ -929,11 +929,11 @@ class DownstreamSync(SyncProcess):
 
         logger.debug("Updating metadata")
         output = mach.wpt_update(*args)
-        prefix = "disabled:"
+        prefix = b"disabled:"
         disabled = []
-        for line in output.split("\n"):
+        for line in output.split(b"\n"):
             if line.startswith(prefix):
-                disabled.append(line[len(prefix):].strip())
+                disabled.append(line[len(prefix):].decode("utf8", "replace").strip())
 
         if gecko_work.is_dirty(untracked_files=True, path=meta_path):
             self.ensure_metadata_commit()
