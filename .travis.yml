@@ -91,5 +91,3 @@ jobs:
       script:
         - pip install bandit
         - bandit -r sync -ll
-  allow_failures:
-  - env: docker-wptsync-test-py3
