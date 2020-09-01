@@ -40,8 +40,8 @@ ANSIBLE_CONFIG="ansible/ansible.cfg" ansible-playbook -i ansible/hosts -f 20 \
     --extra-vars _repo_root=$(pwd) \
     --extra-vars _image_name=$img \
     --extra-vars _tempdir=$(pwd)/ansible_workspace \
-    --extra-vars _python_binary=python \
-    --extra-vars _pip_binary=pip \
+    --extra-vars _python_binary=python3 \
+    --extra-vars _pip_binary=pip3 \
 
 echo Creating tag $tag. Remember to push it.
 git tag -a $tag -m "$msg"
