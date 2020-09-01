@@ -12,13 +12,13 @@ jobs:
       language: python
       python: "2.7.14"
       install:
-        - ./bin/run_docker_dev.sh build --test
+        - ./bin/run_docker_dev.sh build --py3 --test
         - sudo chown -R 10001 .
       script:
-        - ./bin/run_docker_dev.sh test --no-pytest
+        - ./bin/run_docker_dev.sh test --py3 --no-pytest
 
     # Job 2: Unit Tests in Docker env
-    - env: docker-wptsync-test
+    - env: docker-wptsync-test-py2
       # Upgrade to newer docker version
       addons:
         apt:
@@ -87,7 +87,7 @@ jobs:
     - env: static-analysis
       sudo: false
       language: python
-      python: "2.7.14"
+      python: "3.6"
       script:
         - pip install bandit
         - bandit -r sync -ll
