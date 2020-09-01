@@ -19,6 +19,7 @@ from . import gitutils
 from . import log
 from . import tree
 from . import load
+from . import repos
 from . import trypush
 from . import upstream
 from .base import entry_point
@@ -534,7 +535,10 @@ Automatic update from web-platform-tests\n%s
                         logger.info("Adding %s which was added somewhere" % head_path)
                         worktree.git.add(head_path)
                 logger.info("Running mergetool")
-                worktree.git.mergetool(tool="metamerge")
+                worktree.git.mergetool(tool="metamerge",
+                                       env={"MOZBUILD_STATE_PATH":
+                                            repos.Gecko.get_state_path(env.config,
+                                                                       worktree.working_dir)})
                 worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
                 worktree.git.clean(f=True)
                 success = True
