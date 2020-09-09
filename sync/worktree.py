@@ -29,11 +29,11 @@ def cleanup(git_gecko, git_wpt):
     # type: (Repo, Repo) -> None
     for repo in [git_gecko, git_wpt]:
         pygit2_repo = pygit2_get(repo)
-        cleanup_repo(pygit2_repo, get_max_worktree_count(repo))
+        cleanup_repo(repo, pygit2_repo, get_max_worktree_count(repo))
 
 
-def cleanup_repo(pygit2_repo, max_count=None):
-    # type: (Repository, Optional[int]) -> None
+def cleanup_repo(repo, pygit2_repo, max_count=None):
+    # type: (Repo, Repository, Optional[int]) -> None
     # TODO: Always cleanup repos where the sync is finished
     prune_worktrees(pygit2_repo)
     unprunable = []
@@ -94,18 +94,18 @@ def cleanup_repo(pygit2_repo, max_count=None):
         assert process_name is not None
         if time < (now - timedelta(days=2)):
             logger.info("Removing worktree without recent activity %s" % worktree.path)
-            delete_worktree(process_name, worktree)
+            delete_worktree(repo, process_name, worktree)
             delete_count -= 1
         elif delete_count > 0:
             logger.info("Removing LRU worktree %s" % worktree.path)
-            delete_worktree(process_name, worktree)
+            delete_worktree(repo, process_name, worktree)
             delete_count -= 1
         else:
             break
 
 
-def delete_worktree(process_name, worktree):
-    # type: (ProcessName, PyGit2Worktree) -> None
+def delete_worktree(repo, process_name, worktree):
+    # type: (Repo, ProcessName, PyGit2Worktree) -> None
     assert worktree.path.startswith(os.path.join(env.config["root"],
                                                  env.config["paths"]["worktrees"]))
     with SyncLock.for_process(process_name):
@@ -118,6 +118,10 @@ def delete_worktree(process_name, worktree):
         else:
             logger.info("Removed worktree %s" % (worktree.path,))
         worktree.prune(True)
+
+        wrapper = wrapper_get(repo)
+        assert wrapper is not None
+        wrapper.after_worktree_delete(worktree.path)
 
 
 def worktrees(pygit2_repo):
@@ -200,7 +204,7 @@ class Worktree(object):
             count = len(all_worktrees)
             max_count = get_max_worktree_count(self.repo)
             if max_count and count >= max_count:
-                cleanup_repo(self.pygit2_repo, max_count - 1)
+                cleanup_repo(self.repo, self.pygit2_repo, max_count - 1)
 
             path_exists = os.path.exists(self.path)
 
@@ -252,7 +256,4 @@ class Worktree(object):
                 # No worktree found
                 return
         assert worktree.path == self.path
-        delete_worktree(self.process_name, worktree)
-        wrapper = wrapper_get(self.repo)
-        assert wrapper is not None
-        wrapper.after_worktree_delete(self.path)
+        delete_worktree(self.repo, self.process_name, worktree)
