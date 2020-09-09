@@ -81,6 +81,17 @@ class Mach(Command):
         # type: (*Text, **Any) -> bytes
         state_path = repos.Gecko.get_state_path(env.config, self.path)
 
+        # Ensure that the mach environment actually exists; although we usually create
+        # it when the workdir is created that's not reliable if we rebase across the
+        # requirement to have an environment, for example
+        if (subcommand[0] != "create-mach-environment" and
+            not os.path.exists(os.path.join(state_path, "_virtualenvs"))):
+            try:
+                self.create_mach_environment()
+            except subprocess.CalledProcessError:
+                # This can happen if the base revision is too old
+                logger.warning("Failed to run create-mach-environment")
+
         if "env" in opts:
             cmd_env = opts["env"]
         else:
