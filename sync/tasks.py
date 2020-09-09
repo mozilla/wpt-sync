@@ -15,7 +15,6 @@ from . import repos
 from . import settings
 from .errors import RetryableError
 from .worker import worker
-import six
 
 
 logger = log.get_logger(__name__)
@@ -47,9 +46,8 @@ def with_lock(f):
             # run before this task completes. That means that manual commands
             # will always  win over celery tasks, which we want
             time.sleep(0.1)
-        except Exception as e:
-            logger.error(str(six.text_type(e).encode("utf8")))
-            logger.error("".join(traceback.format_exc(e)))
+        except Exception:
+            logger.error("".join(traceback.format_exc()))
             raise
     inner.__name__ = f.__name__
     inner.__doc__ = f.__doc__
