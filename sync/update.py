@@ -330,8 +330,8 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
                 pass
 
 
-def retrigger(git_gecko, git_wpt, unlandable_prs, rebase=rebase):
-    # type: (Repo, Repo, List[Tuple[int, List[Any], Text]]) -> List[int]
+def retrigger(git_gecko, git_wpt, unlandable_prs, rebase=False):
+    # type: (Repo, Repo, List[Tuple[int, List[Any], Text]], bool) -> List[int]
     from .sync import LandableStatus
 
     retriggerable_prs = [(pr_id, commits, status)
@@ -351,7 +351,7 @@ def retrigger(git_gecko, git_wpt, unlandable_prs, rebase=rebase):
 
 
 def do_retrigger(git_gecko, git_wpt, pr_data, rebase=False):
-    # type: (Repo, Repo, Tuple[int, List[Any], Text]) -> Optional[int]
+    # type: (Repo, Repo, Tuple[int, List[Any], Text], bool) -> Optional[int]
     pr_id, commits, status = pr_data
     try:
         logger.info("Retriggering %s (status %s)" % (pr_id, status))

@@ -195,7 +195,8 @@ def get_parser():
     parser_retrigger.add_argument("--no-downstream", action="store_false", default=True,
                                   dest="downstream", help="Don't retrigger downstream syncs")
     parser_retrigger.add_argument("--rebase", default=False, action="store_true",
-                                  help="Force downstream syncs to be rebased onto the integration branch")
+                                  help="Force downstream syncs to be rebased onto the "
+                                  "integration branch")
     parser_retrigger.set_defaults(func=do_retrigger)
 
     parser_try_push_add = subparsers.add_parser("add-try",
@@ -719,8 +720,8 @@ def do_landable(git_gecko,
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 assert sync is not None
                 if sync.error:
-                    msg = sync.error["message"] or ""
-                    msg = "%s (%s)" % (msg, msg.split("\n")[0])
+                    err_msg = sync.error["message"] or ""
+                    msg = "%s (%s)" % (msg, err_msg.splitlines()[0])
             print("%s: %s" % (pr, msg))
 
         print("%i PRs are unlandable:" % count)
@@ -733,7 +734,7 @@ def do_landable(git_gecko,
 
 
 def do_retrigger(git_gecko, git_wpt, upstream=False, downstream=False, rebase=False, **kwargs):
-    # type: (Repo, Repo, bool, bool, **Any) -> None
+    # type: (Repo, Repo, bool, bool, bool, **Any) -> None
     from . import errors
     from . import update
     from . import upstream as upstream_sync
