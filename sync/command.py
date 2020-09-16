@@ -179,6 +179,8 @@ def get_parser():
     parser_landable.add_argument("--prev-wpt-head", help="First commit to use as the base")
     parser_landable.add_argument("--quiet", action="store_false", dest="include_all", default=True,
                                  help="Only print the first PR with an error")
+    parser_landable.add_argument("--blocked", action="store_true", dest="blocked", default=False,
+                                 help="Only print unlandable PRs that are blocking")
     parser_landable.add_argument("--retrigger", action="store_true", default=False,
                                  help="Try to update all unlanded PRs that aren't Ready "
                                  "(requires --all)")
@@ -655,6 +657,7 @@ def do_landable(git_gecko,
                 include_incomplete=False,  # type: bool
                 include_all=True,  # type: bool
                 retrigger=False,  # type: bool
+                blocked=True,  # type: bool
                 **kwargs  # type: Any
                 ):
     # type: (...) -> None
@@ -689,6 +692,10 @@ def do_landable(git_gecko,
         count = 0
         for pr, _, status in unlandable:
             count += 1
+            if blocked and status in (LandableStatus.ready,
+                                      LandableStatus.upstream,
+                                      LandableStatus.skip):
+                continue
             msg = status.reason_str()
             if status == LandableStatus.missing_try_results:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
