@@ -330,7 +330,7 @@ def update_tasks(git_gecko, git_wpt, pr_id=None, sync=None):
                 pass
 
 
-def retrigger(git_gecko, git_wpt, unlandable_prs):
+def retrigger(git_gecko, git_wpt, unlandable_prs, rebase=rebase):
     # type: (Repo, Repo, List[Tuple[int, List[Any], Text]]) -> List[int]
     from .sync import LandableStatus
 
@@ -343,14 +343,14 @@ def retrigger(git_gecko, git_wpt, unlandable_prs):
 
     errors = []
     for pr_data in retriggerable_prs:
-        error = do_retrigger(git_gecko, git_wpt, pr_data)
+        error = do_retrigger(git_gecko, git_wpt, pr_data, rebase=rebase)
         if error:
             errors.append(error)
 
     return errors
 
 
-def do_retrigger(git_gecko, git_wpt, pr_data):
+def do_retrigger(git_gecko, git_wpt, pr_data, rebase=False):
     # type: (Repo, Repo, Tuple[int, List[Any], Text]) -> Optional[int]
     pr_id, commits, status = pr_data
     try:
@@ -358,7 +358,7 @@ def do_retrigger(git_gecko, git_wpt, pr_data):
         pr = env.gh_wpt.get_pull(pr_id)
         if pr is None:
             return pr_id
-        update_pr(git_gecko, git_wpt, pr, repo_update=False)
+        update_pr(git_gecko, git_wpt, pr, repo_update=False, force_rebase=rebase)
     except Exception:
         return pr_id
     return None

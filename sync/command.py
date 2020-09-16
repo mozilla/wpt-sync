@@ -194,6 +194,8 @@ def get_parser():
                                   dest="upstream", help="Don't retrigger upstream syncs")
     parser_retrigger.add_argument("--no-downstream", action="store_false", default=True,
                                   dest="downstream", help="Don't retrigger downstream syncs")
+    parser_retrigger.add_argument("--rebase", default=False, action="store_true",
+                                  help="Force downstream syncs to be rebased onto the integration branch")
     parser_retrigger.set_defaults(func=do_retrigger)
 
     parser_try_push_add = subparsers.add_parser("add-try",
@@ -730,7 +732,7 @@ def do_landable(git_gecko,
                     str(item) for item in errors))
 
 
-def do_retrigger(git_gecko, git_wpt, upstream=False, downstream=False, **kwargs):
+def do_retrigger(git_gecko, git_wpt, upstream=False, downstream=False, rebase=False, **kwargs):
     # type: (Repo, Repo, bool, bool, **Any) -> None
     from . import errors
     from . import update
@@ -762,7 +764,7 @@ def do_retrigger(git_gecko, git_wpt, upstream=False, downstream=False, **kwargs)
             prev_wpt_head = current_landing.wpt_commits.head.sha1
         unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
 
-        pr_errors = update.retrigger(git_gecko, git_wpt, unlandable)
+        pr_errors = update.retrigger(git_gecko, git_wpt, unlandable, rebase=rebase)
         if pr_errors:
             print("The following PRs have errors:\n%s" % "\n".join(six.ensure_text(str(item))
                                                                    for item in pr_errors))
