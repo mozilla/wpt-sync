@@ -177,8 +177,8 @@ def get_parser():
                                             help="Display commits from upstream "
                                             "that are able to land")
     parser_landable.add_argument("--prev-wpt-head", help="First commit to use as the base")
-    parser_landable.add_argument("--all", action="store_true", dest="include_all", default=False,
-                                 help="Print the status of all unlandable PRs")
+    parser_landable.add_argument("--quiet", action="store_false", dest="include_all", default=True,
+                                 help="Only print the first PR with an error")
     parser_landable.add_argument("--retrigger", action="store_true", default=False,
                                  help="Try to update all unlanded PRs that aren't Ready "
                                  "(requires --all)")
@@ -653,7 +653,7 @@ def do_landable(git_gecko,
                 git_wpt,
                 prev_wpt_head=None,  # type: Optional[Text]
                 include_incomplete=False,  # type: bool
-                include_all=False,  # type: bool
+                include_all=True,  # type: bool
                 retrigger=False,  # type: bool
                 **kwargs  # type: Any
                 ):
