@@ -101,9 +101,9 @@ def handle(self, task, body):
             handlers[task](git_gecko, git_wpt, body)
         except RetryableError as e:
             self.retry(exc=e.wrapped)
-        except Exception as e:
+        except Exception:
             logger.error(body)
-            logger.error("".join(traceback.format_exc(e)))
+            logger.error("".join(traceback.format_exc()))
             raise
     else:
         logger.error("No handler for %s" % task)
