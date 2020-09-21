@@ -45,6 +45,8 @@ if MYPY:
     from sync.trypush import TryPush, TryPushTasks
     from sync.upstream import UpstreamSync
 
+    LandableCommits = List[Tuple[int, Union[DownstreamSync, UpstreamSync], List[WptCommit]]]
+
 env = Environment()
 
 logger = log.get_logger(__name__)
@@ -563,7 +565,7 @@ Automatic update from web-platform-tests\n%s
 
     @mut()
     def apply_prs(self, prev_wpt_head, landable_commits):
-        # type: (Text, Any) -> None
+        # type: (Text, LandableCommits) -> None
         """Main entry point to setting the commits for landing.
 
         For each upstream PR we want to create a separate commit in the
@@ -912,18 +914,23 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
     return commits_by_pr
 
 
-def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_incomplete=False):
-    # type: (Repo, Repo, Text, Optional[Text], bool) -> Optional[Tuple[Text, Any]]
+def landable_commits(git_gecko,  # type: Repo
+                     git_wpt,  # type: Repo
+                     prev_wpt_head,  # type:Text
+                     wpt_head=None,  # type: Optional[Text]
+                     include_incomplete=False  # type: bool
+                     ):
+    # type: (...) -> Optional[Tuple[Text, LandableCommits]]
     """Get the list of commits that are able to land.
 
     :param prev_wpt_head: The sha1 of the previous wpt commit landed to gecko.
     :param wpt_head: The sha1 of the latest possible commit to land to gecko,
-                     or None to use the head of the master branch"
+                     or None to use the head of the master branch
     :param include_incomplete: By default we don't attempt to land anything that
                                hasn't completed a metadata update. This flag disables
                                that and just lands everything up to the specified commit."""
     if wpt_head is None:
-        wpt_head = "origin/master"
+        wpt_head = u"origin/master"
     pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head)
     landable_commits = []
     for pr, commits in pr_commits:
@@ -977,6 +984,7 @@ def landable_commits(git_gecko, git_wpt, prev_wpt_head, wpt_head=None, include_i
                 last = True
             if last:
                 break
+        assert isinstance(sync, (upstream.UpstreamSync, downstream.DownstreamSync))
         landable_commits.append((pr, sync, commits))
 
     if not landable_commits:
