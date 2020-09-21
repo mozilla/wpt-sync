@@ -71,7 +71,7 @@ def first_non_merge(commits):
 
 
 def create_commit(repo, msg, **kwargs):
-    # type: (Repo, bytes, **Any) -> None
+    # type: (Repo, bytes, **Any) -> GitPythonCommit
     """Commit the current index in repo, with msg as the message and additional kwargs
     from kwargs
 
@@ -80,6 +80,7 @@ def create_commit(repo, msg, **kwargs):
     a message that doesn't have a known encoding since we can't pre-validate that. So
     this re-implements the internals of repo.git.execute to avoid the string conversion"""
 
+    prev_head = repo.head.commit
     exec_kwargs = {k: v for k, v in kwargs.items() if k in git.cmd.execute_kwargs}
     opts_kwargs = {k: v for k, v in kwargs.items() if k not in git.cmd.execute_kwargs}
 
@@ -109,6 +110,10 @@ def create_commit(repo, msg, **kwargs):
             else:
                 cmd.append(b"--%s=%s" % (name_bytes, value))
     repo.git.execute(cmd, **exec_kwargs)
+
+    head = repo.head.commit
+    assert prev_head != head
+    return head
 
 
 class GitNotes(object):
@@ -268,8 +273,8 @@ class Commit(object):
         else:
             if author is not None:
                 commit_kwargs["author"] = author
-        create_commit(repo, msg, **commit_kwargs)
-        return cls(repo, repo.head.commit.hexsha)
+        commit = create_commit(repo, msg, **commit_kwargs)
+        return cls(repo, commit.hexsha)
 
     @staticmethod
     def make_commit_msg(msg, metadata):
