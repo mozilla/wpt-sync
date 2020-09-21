@@ -34,7 +34,7 @@ from .sync import LandableStatus, SyncProcess
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, IO, List, Optional, Text, Tuple, Union
+    from typing import Any, Dict, IO, List, Optional, Text, Tuple, Union, cast
 
     from git.repo.base import Repo
 
@@ -581,15 +581,25 @@ Automatic update from web-platform-tests\n%s
 
         last_pr = None
         has_metadata = False
+        have_prs = set()
+        # Find the last gecko commit containing a PR
         if len(self.gecko_commits):
-            for commit in reversed(list(self.gecko_commits)):
+            head_commit = self.gecko_commits.head
+            if MYPY:
+                head = cast(GeckoCommit, head_commit)
+            else:
+                head = head_commit
+            if head.is_landing:
+                return
+
+            for commit in list(self.gecko_commits):
                 assert isinstance(commit, GeckoCommit)
-                if commit.is_landing:
-                    return
                 if commit.metadata.get("wpt-pr") is not None:
-                    last_pr = commit.metadata["wpt-pr"]
+                    last_pr = int(commit.metadata["wpt-pr"])
                     has_metadata = commit.metadata.get("wpt-type") == "metadata"
-                    break
+                    have_prs.add(last_pr)
+
+        pr_count_applied = len(have_prs)
 
         gecko_commits_landed = set()
 
@@ -608,11 +618,29 @@ Automatic update from web-platform-tests\n%s
                 unapplied_commits.append((i, (pr, sync, commits, False)))
             else:
                 prev_wpt_head = commits[-1].sha1
+                try:
+                    have_prs.remove(pr)
+                except KeyError:
+                    raise AbortError("Expected an existing gecko commit for PR %s, but not found"
+                                     % (pr,))
                 if pr == last_pr:
                     last_applied_seen = True
                     if not has_metadata:
                         unapplied_commits.append((i, (pr, sync, commits, True)))
             update_gecko_landed(sync, commits)
+
+        if have_prs:
+            raise AbortError("Found unexpected gecko commit for PRs %s"
+                             % (", ".join(str(item) for item in have_prs),))
+
+        if pr_count_applied + len(unapplied_commits) != len(landable_commits):
+            pr_count_unapplied = len(unapplied_commits)
+            raise AbortError("PR counts don't match; got %d applied, %d unapplied "
+                             "(total %s), expected total %d" %
+                             (pr_count_applied,
+                              pr_count_unapplied,
+                              pr_count_unapplied + pr_count_applied,
+                              len(landable_commits)))
 
         for i, (pr, sync, commits, meta_only) in unapplied_commits:
             logger.info("Applying PR %i of %i" % (i + 1, len(landable_commits)))
