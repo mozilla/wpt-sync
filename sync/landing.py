@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 import io
 import os
-import re
 import shutil
 from collections import defaultdict
 
@@ -907,14 +906,11 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
 
     commits_by_pr = []  # type: List[Tuple[Optional[int], List[WptCommit]]]
     index_by_pr = {}  # type: Dict[int, int]
-    legacy_sync_re = re.compile(br"Merge pull request \#\d+ from w3c/sync_[0-9a-fA-F]+")
 
     for commit in git_wpt.iter_commits(revish,
                                        reverse=True,
                                        first_parent=True):
         commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
-        if legacy_sync_re.match(commit.msg):
-            continue
         pr = commit.pr()
         extra_commits = []
         if pr not in index_by_pr:
