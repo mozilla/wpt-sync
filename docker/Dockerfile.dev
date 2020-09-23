@@ -33,6 +33,7 @@ RUN set -eux; \
         less \
         locales \
         sudo \
+        vim \
         wget \
         # Ensure /usr/bin/python exists
         python \
