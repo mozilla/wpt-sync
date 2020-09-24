@@ -579,7 +579,7 @@ class TryPushTasks(object):
     def validate(self):
         err = None
         if not len(self.wpt_tasks):
-            err = ("No wpt tests found. Check decision task {}" %
+            err = ("No wpt tests found. Check decision task %s" %
                    self.wpt_tasks.taskgroup.taskgroup_id)
         else:
             exception_tasks = self.wpt_tasks.filter(tc.is_status_fn(tc.EXCEPTION))
