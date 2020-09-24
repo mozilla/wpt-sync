@@ -721,7 +721,8 @@ def do_landable(git_gecko,
                 assert sync is not None
                 if sync.error:
                     err_msg = sync.error["message"] or ""
-                    msg = "%s (%s)" % (msg, err_msg.splitlines()[0])
+                    err_msg = err_msg.splitlines()[0] if err_msg else err_msg
+                    msg = "%s (%s)" % (msg, err_msg)
             print("%s: %s" % (pr, msg))
 
         print("%i PRs are unlandable:" % count)
