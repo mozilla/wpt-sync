@@ -5,6 +5,7 @@ import os
 from ast import literal_eval
 from collections import defaultdict
 
+import newrelic
 import six
 from six import iteritems
 
@@ -78,9 +79,17 @@ def remove_obsolete(path, moves=None):
 
     for base_path, _, files in os.walk(base_dir):
         for filename in files:
-            path = os.path.relpath(os.path.join(base_path, filename),
-                                   base_dir)
-            assert u".." not in path
+            full_path = os.path.join(base_path, filename)
+            path = os.path.relpath(full_path, base_dir)
+            try:
+                assert ".." not in path, "Path %s is outside %s" % (full_path,
+                                                                    base_dir)
+            except AssertionError:
+                newrelic.agent.record_exception(params={
+                    "path": full_path
+                })
+                continue
+
             if path[:2] == u"./":
                 path = path[2:]
             for pattern in unmatched_patterns.copy():
