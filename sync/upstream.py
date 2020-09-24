@@ -119,19 +119,26 @@ class UpstreamSync(SyncProcess):
         return self
 
     @classmethod
-    def from_pr(cls, lock, git_gecko, git_wpt, pr_id, body):
+    def from_pr(cls,
+                lock,  # type: SyncLock
+                git_gecko,  # type: Repo
+                git_wpt,  # type: Repo
+                pr_id,  # type: int
+                body  # type: Text
+                ):
+        # type: (...) -> Optional[UpstreamSync]
         gecko_commits = []
         bug = None
         integration_branch = None
 
-        if not cls.has_metadata(body):
+        if not cls.has_metadata(body.encode("utf8", "replace")):
             return None
 
         commits = env.gh_wpt.get_commits(pr_id)
 
         for gh_commit in commits:
             commit = sync_commit.WptCommit(git_wpt, gh_commit.sha)
-            if cls.has_metadata(commit.message):
+            if cls.has_metadata(commit.msg):
                 gecko_commits.append(git_gecko.cinnabar.hg2git(commit.metadata["gecko-commit"]))
                 commit_bug = env.bz.id_from_url(commit.metadata["bugzilla-url"])
                 if bug is not None and commit_bug != bug:
