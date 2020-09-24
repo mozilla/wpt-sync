@@ -1,0 +1,37 @@
+{
+  "status": {
+    "workerType": "decision",
+    "taskGroupId": "DwAqOASuSxiNP1ChX8iwkw",
+    "runs": [
+      {
+        "scheduled": "2020-03-09T13:34:02.348Z",
+        "reasonCreated": "scheduled",
+        "taken\nUntil": "2020-03-09T13:54:16.522Z",
+        "started": "2020-03-09T13:34:16.540Z",
+        "workerId": "i-0fe01fd37331ac5bf",
+        "reasonResolved": "completed",
+        "workerGroup": "aws",
+        "state": "completed",
+        "runId": 0,
+        "resolved": "\n2020-03-09T13:36:18.355Z"
+      }
+    ],
+    "expires": "2020-04-06T13:34:01.774Z",
+    "retriesLeft": 5,
+    "state": "completed",
+    "schedulerId": "gecko-level-1",
+    "deadline": "2020-03-10T13:34:01.774Z",
+    "taskId": "DwAqOASuSxiNP1ChX8i\nwkw",
+    "provisionerId": "gecko-1"
+  },
+  "task": {
+    "tags": {
+      "createdForUser": "wptsync@mozilla.com",
+      "kind": "decision-task"
+    }
+  },
+  "workerId": "i-0fe01fd37331ac5bf",
+  "workerGroup": "aws",
+  "version": 1,
+  "runId": 0
+}

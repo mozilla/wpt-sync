@@ -244,13 +244,17 @@ class DecisionTaskFilter(Filter):
     name = "decision-task"
 
     def accept(self, body):
-        tags = body.get("task", {}).get("tags", {})
-        return (tags.get("kind") == "decision-task" and
-                tags.get("createdForUser") == "wptsync@mozilla.com")
+        return is_decision_task(body)
 
 
 class TryTaskFilter(Filter):
     name = "try-task"
 
     def accept(self, body):
-        return True
+        return not is_decision_task(body)
+
+
+def is_decision_task(body):
+    tags = body.get("task", {}).get("tags", {})
+    return (tags.get("kind") == "decision-task" and
+            tags.get("createdForUser") == "wptsync@mozilla.com")

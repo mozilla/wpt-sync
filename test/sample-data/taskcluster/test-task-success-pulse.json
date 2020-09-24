@@ -1,0 +1,41 @@
+{
+  "status": {
+    "taskId": "CtDM1BbHRoup0547JB-Lxw",
+    "provisionerId": "gecko-t",
+    "workerType": "t-linux-xlarge-source",
+    "schedulerId": "gecko-level-1",
+    "taskGroupId": "XVU\nSwAt0Tha5apuF29H9ZQ",
+    "deadline": "2020-09-24T21:41:19.383Z",
+    "expires": "2020-10-21T21:41:19.383Z",
+    "retriesLeft": 5,
+    "state": "completed",
+    "runs": [
+      {
+        "runId": 0,
+        "state": "completed",
+        "reasonCreated": "schedul\ned",
+        "reasonResolved": "completed",
+        "workerGroup": "us-west-1",
+        "workerId": "i-03511e7cb6d7e6112",
+        "takenUntil": "2020-09-23T22:01:39.040Z",
+        "scheduled": "2020-09-23T21:41:38.984Z",
+        "started": "2020-09-23T21:41\n:39.045Z",
+        "resolved": "2020-09-23T21:42:47.262Z"
+      }
+    ]
+  },
+  "runId": 0,
+  "task": {
+    "tags": {
+      "os": "linux",
+      "kind": "source-test",
+      "label": "source-test-mozlint-file-whitespace",
+      "retrigger": "true",
+      "createdForUser": "wptsync@mozilla.com",
+      "worker-implementation": "docker-worker"
+    }
+  },
+  "workerGroup": "us-west-1",
+  "workerId": "i-03511e7cb6d7e6112",
+  "version": 1
+}
