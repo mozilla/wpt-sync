@@ -157,6 +157,7 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
         # If this looks like something that came from gecko, create
         # a corresponding sync
         with SyncLock("upstream", None) as lock:
+            assert isinstance(lock, SyncLock)
             upstream_sync = upstream.UpstreamSync.from_pr(lock,
                                                           git_gecko,
                                                           git_wpt,
