@@ -1,4 +1,6 @@
 from __future__ import absolute_import
+import sys
+
 import git
 import newrelic
 
@@ -140,6 +142,7 @@ class Metadata(object):
         message = "Gecko sync update"
         retry = 0
         MAX_RETRY = 5
+        err = None
         while retry < MAX_RETRY:
             newrelic.agent.record_custom_event("metadata_update", params={})
 
@@ -160,30 +163,26 @@ class Metadata(object):
                 remote_ref = self.get_remote_ref()
                 try:
                     self.repo.remotes.origin.push("%s:refs/heads/%s" % (ref_name, remote_ref))
-                except git.GitCommandError as e:
-                    changes = self.repo.remotes.origin.fetch()
-                    err = "Pushing update to remote failed:\n%s" % e
-                    if not changes:
-                        logger.error(err)
-                        raise
+                except git.GitCommandError:
+                    err = sys.exc_info()
                 else:
                     if self.create_pr:
-                        newrelic.agent.record_custom_event("metadata_update_create_pr", params={
-                            "branch": self.branch
-                        })
                         self.github.create_pull(message,
                                                 "Update from bug %s" % self.process_name.obj_id,
                                                 self.branch,
                                                 remote_ref)
+                    err = None
                     break
                 retry += 1
             else:
                 break
 
-        if retry == MAX_RETRY:
-            logger.error("Updating metdata failed")
-            raise
-        self.pygit2_repo.references.delete(ref_name)
+        if err:
+            newrelic.agent.record_exception(*err, params={
+                "ref_name": ref_name
+            })
+        else:
+            self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter()
 
     def get_remote_ref(self):
