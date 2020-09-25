@@ -142,7 +142,8 @@ test(() => assert_true(true), "Passing test");
 test(() => assert_true(false), "Failing test");
 </script>
 """,
-            "LICENSE": b"Initial license\n"}
+            "LICENSE": b"Initial license\n",
+            "resources/testdriver_vendor.js": b"Initial testdriver_vendor\n"}
 
 
 @pytest.fixture

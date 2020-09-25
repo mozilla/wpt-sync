@@ -263,8 +263,15 @@ class Commit(object):
         return len(self.pygit2_commit.parent_ids) > 1
 
     @classmethod
-    def create(cls, repo, msg, metadata, author=None, amend=False):
-        # type: (Repo, bytes, Optional[Any], Optional[bytes], bool) -> Commit
+    def create(cls,
+               repo,  # type: Repo
+               msg,  # type: bytes
+               metadata,  # type: Optional[Dict[Text, Text]]
+               author=None,  # type: Optional[bytes]
+               amend=False,  # type: bool
+               allow_empty=False  # type: bool
+               ):
+        # type: (...) -> Commit
         msg = Commit.make_commit_msg(msg, metadata)
         commit_kwargs = {}  # type: Dict[str, Any]
         if amend:
@@ -273,6 +280,8 @@ class Commit(object):
         else:
             if author is not None:
                 commit_kwargs["author"] = author
+        if allow_empty:
+            commit_kwargs["allow_empty"] = True
         commit = create_commit(repo, msg, **commit_kwargs)
         return cls(repo, commit.hexsha)
 
@@ -323,13 +332,14 @@ class Commit(object):
              three_way=True,  # type: bool
              exclude=None,  # type: Optional[Any]
              patch_fallback=False,  # type: bool
+             allow_empty=False,  # type: bool
              ):
         # type: (...) -> Optional[Commit]
 
         return _apply_patch(self.show(src_prefix), self.msg, self.canonical_rev, dest_repo,
                             skip_empty, msg_filter, metadata, src_prefix, dest_prefix, amend,
                             three_way, author=self.author, exclude=exclude,
-                            patch_fallback=patch_fallback)
+                            patch_fallback=patch_fallback, allow_empty=allow_empty)
 
     def show(self, src_prefix=None, **kwargs):
         # type: (Optional[str], **Any) -> bytes
@@ -360,6 +370,7 @@ def move_commits(repo,  # type: Repo
                  author=None,  # type: Optional[bytes]
                  exclude=None,  # type: Set[str]
                  patch_fallback=False,  # type: bool
+                 allow_empty=False,  # type: bool
                  ):
     # type: (...) -> Optional[Commit]
     if rev_name is None:
@@ -376,7 +387,7 @@ def move_commits(repo,  # type: Repo
 
     return _apply_patch(patch, message, rev_name, dest_repo, skip_empty, msg_filter, metadata,
                         src_prefix, dest_prefix, amend, three_way, author=author, exclude=exclude,
-                        patch_fallback=patch_fallback)
+                        patch_fallback=patch_fallback, allow_empty=allow_empty)
 
 
 def _apply_patch(patch,  # type: bytes
@@ -393,6 +404,7 @@ def _apply_patch(patch,  # type: bytes
                  author=None,  # type: Optional[bytes]
                  exclude=None,  # type: Optional[Set[str]]
                  patch_fallback=False,  # type: bool
+                 allow_empty=False,  # type: bool
                  ):
     # type: (...) -> Optional[Commit]
     assert isinstance(patch, six.binary_type)
@@ -483,7 +495,8 @@ def _apply_patch(patch,  # type: bytes
                     logger.info(e)
             try:
                 logger.info("Creating commit")
-                return Commit.create(dest_repo, msg, None, amend=amend, author=author)
+                return Commit.create(dest_repo, msg, None, amend=amend, author=author,
+                                     allow_empty=allow_empty)
             except git.GitCommandError as e:
                 if amend and e.status == 1 and "--allow-empty" in e.stdout:
                     logger.warning("Amending commit made it empty, resetting")
