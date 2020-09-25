@@ -26,7 +26,7 @@ def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                   hg_gecko_try, mock_mach):
     pr = pull_request([(b"Test commit", {"README": b"example_change",
-                                         "LICENSE": b"Some change"})])
+                                         "resources/testdriver_vendor.js": b"Some change"})])
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -54,8 +54,8 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
                                                    ".git"))
             with open(os.path.join(worktree.working_dir,
                                    env.config["gecko"]["path"]["wpt"],
-                                   "LICENSE"), "rb") as f:
-                assert f.read() == b"Initial license\n"
+                                   "resources/testdriver_vendor.js"), "rb") as f:
+                assert f.read() == b"Initial testdriver_vendor\n"
 
     try_push = sync.latest_try_push
     assert try_push is None
@@ -361,6 +361,41 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     assert sync_point["upstream"] == landing_rev
 
 
+def test_landing_pr_on_central(env, git_gecko, git_wpt, git_wpt_upstream, pull_request,
+                               set_pr_status, upstream_gecko_commit, mock_mach):
+    # Ensure we handle the case where a PR already identical changes on central
+
+    trypush.Mach = mock_mach
+
+    test_changes = {"example/test.html": b"Change test\n"}
+    more_changes = {"LICENSE": b"Change license\n"}
+
+    for changes in [test_changes, more_changes]:
+        pr = pull_request([(b"Test commit", changes)])
+        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+        downstream_sync = set_pr_status(pr.number, "success")
+        head_rev = pr._commits[0]["sha"]
+        git_wpt_upstream.head.commit = head_rev
+        git_wpt.remotes.origin.fetch()
+        landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+        with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+            with downstream_sync.as_mut(downstream_lock):
+                downstream_sync.data["force-metadata-ready"] = True
+
+    # Repeat the changes in m-c
+    upstream_gecko_commit(test_changes=test_changes, bug=1234,
+                          message=b"Change README")
+
+    tree.is_open = lambda x: True
+    sync = landing.update_landing(git_gecko, git_wpt)
+
+    assert len(sync.wpt_commits) == 2
+    assert len(sync.gecko_commits) == 3
+    assert sync.gecko_commits[0].is_empty()
+    assert sync.gecko_commits[-1].is_landing
+
+
 def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
                           hg_gecko_try, mock_mach):
     from conftest import create_file_data, gecko_changes
@@ -467,7 +502,7 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
 
     # Update landing, the Non Gecko PR should be applied but not the Gecko one we upstreamed
-    def mock_create(repo, msg, metadata, author=None, amend=False):
+    def mock_create(repo, msg, metadata, author=None, amend=False, allow_empty=False):
         # This commit should not be making it this far, should've been dropped earlier
         assert b'Bug 1234 [wpt PR 2] - [Gecko Bug 1234]' not in msg
         return DEFAULT

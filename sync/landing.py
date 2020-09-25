@@ -366,9 +366,10 @@ Automatic update from web-platform-tests\n%s
         git_work_gecko.git.checkout_index(*(os.path.join(env.config["gecko"]["path"]["wpt"], item)
                                             for item in keep_paths), force=True, quiet=True)
 
+        allow_empty = False
         if not git_work_gecko.is_dirty(untracked_files=True):
             logger.info("PR %s didn't add any changes" % pr.number)
-            return None
+            allow_empty = True
 
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
@@ -378,7 +379,9 @@ Automatic update from web-platform-tests\n%s
         commit = git_work_gecko.index.commit(message=message,
                                              author=git.Actor._from_string(author))
         logger.debug("Gecko files changed: \n%s" % "\n".join(list(commit.stats.files.keys())))
-        gecko_commit = sync_commit.GeckoCommit(self.git_gecko, commit.hexsha)
+        gecko_commit = sync_commit.GeckoCommit(self.git_gecko,
+                                               commit.hexsha,
+                                               allow_empty=allow_empty)
 
         return gecko_commit
 
@@ -419,7 +422,8 @@ Automatic update from web-platform-tests\n%s
                                         metadata=metadata,
                                         rev_name="pr-%s" % pr.number,
                                         author=first_non_merge(wpt_commits).author,
-                                        exclude={"LICENSE", "resources/testdriver_vendor.js"})
+                                        exclude={"resources/testdriver_vendor.js"},
+                                        allow_empty=True)
 
     @mut()
     def reapply_local_commits(self, gecko_commits_landed):
@@ -611,6 +615,7 @@ Automatic update from web-platform-tests\n%s
                         gecko_commits_landed.add(gecko_commit)
 
         unapplied_commits = []
+        pr_count_upstream_empty = 0
         last_applied_seen = last_pr is None
         for i, (pr, sync, commits) in enumerate(landable_commits):
             if last_applied_seen:
@@ -620,8 +625,12 @@ Automatic update from web-platform-tests\n%s
                 try:
                     have_prs.remove(pr)
                 except KeyError:
-                    raise AbortError("Expected an existing gecko commit for PR %s, but not found"
-                                     % (pr,))
+                    if isinstance(sync, downstream.DownstreamSync):
+                        # This could be wrong if the changes already landed in gecko for some reason
+                        raise AbortError("Expected an existing gecko commit for PR %s, "
+                                         "but not found" % (pr,))
+                    pr_count_upstream_empty += 1
+                    continue
                 if pr == last_pr:
                     last_applied_seen = True
                     if not has_metadata:
@@ -632,13 +641,20 @@ Automatic update from web-platform-tests\n%s
             raise AbortError("Found unexpected gecko commit for PRs %s"
                              % (", ".join(str(item) for item in have_prs),))
 
-        if pr_count_applied + len(unapplied_commits) != len(landable_commits):
-            pr_count_unapplied = len(unapplied_commits)
-            raise AbortError("PR counts don't match; got %d applied, %d unapplied "
+        pr_count_unapplied = len(unapplied_commits)
+        if pr_count_applied and not has_metadata:
+            # If we have seen the commit but not the metadata it will both be in
+            # have_prs and unapplied_commits, so avoid double counting
+            pr_count_unapplied -= 1
+
+        if (pr_count_applied + pr_count_upstream_empty + pr_count_unapplied !=
+            len(landable_commits)):
+            raise AbortError("PR counts don't match; got %d applied, %d unapplied %d upstream"
                              "(total %s), expected total %d" %
                              (pr_count_applied,
                               pr_count_unapplied,
-                              pr_count_unapplied + pr_count_applied,
+                              pr_count_upstream_empty,
+                              pr_count_unapplied + pr_count_applied + pr_count_upstream_empty,
                               len(landable_commits)))
 
         for i, (pr, sync, commits, meta_only) in unapplied_commits:
