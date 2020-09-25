@@ -82,8 +82,9 @@ def remove_obsolete(path, moves=None):
             full_path = os.path.join(base_path, filename)
             path = os.path.relpath(full_path, base_dir)
             try:
-                assert ".." not in path, "Path %s is outside %s" % (full_path,
-                                                                    base_dir)
+                assert (u"../" not in path and
+                        not path.endswith(u"/..")), "Path %s is outside %s" % (full_path,
+                                                                               base_dir)
             except AssertionError:
                 newrelic.agent.record_exception(params={
                     "path": full_path
