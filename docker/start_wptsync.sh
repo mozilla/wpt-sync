@@ -58,7 +58,7 @@ clean_pid() {
     fi
 }
 
-$PIP install --no-deps -e /app/wpt-sync
+pip3 install --no-deps -e /app/wpt-sync
 
 if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
     eval "$(ssh-agent -s)"

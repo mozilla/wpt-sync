@@ -8,19 +8,10 @@ set -eo pipefail
 command=$1
 shift
 
+DEFAULT_TAG=wptsync_dev_py3;
 if [[ "$1" == "--py3" ]]; then
-    PYTHON3=true;
-    echo "Using Python 3"
+    # Old argument for backwards compat
     shift
-else
-    PYTHON3=false;
-    echo "Using Python 2"
-fi
-
-if $PYTHON3; then
-    DEFAULT_TAG=wptsync_dev_py3;
-else
-    DEFAULT_TAG=wptsync_dev;
 fi
 
 DOCKER_TAG=${DOCKER_TAG:-$DEFAULT_TAG}
@@ -30,11 +21,6 @@ if [[ $command == "build" ]]; then
         TEST=1
     else
         TEST=0
-    fi
-    if $PYTHON3; then
-        ARGS="--build-arg PYTHON_BINARY=python3 --build-arg PIP_BINARY=pip3"
-    else
-        ARGS="--build-arg PYTHON_BINARY=python2 --build-arg PIP_BINARY=pip2"
     fi
     if [[ $TEST == 0 && ! -d $(pwd)/config/dev/ssh ]]; then
         echo "Creating development credentials for Github";
@@ -62,7 +48,7 @@ if [[ $command == "build" ]]; then
         git init
         cd -
     fi
-    docker build -t ${DOCKER_TAG} --file docker/Dockerfile.dev $ARGS .
+    docker build -t ${DOCKER_TAG} --file docker/Dockerfile.dev .
     echo "you may need to run:
 sudo chown -R 10001:10001 config/dev workspace repos
 sudo chown -R 10002:10002 workspace/logs/rabbitmq"
