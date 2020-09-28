@@ -1,24 +1,18 @@
 FROM ubuntu:18.04
 
-ARG PYTHON_BINARY
-ARG PIP_BINARY
-
-ENV PYTHON=${PYTHON_BINARY} \
-    PIP=${PIP_BINARY} \
-    PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
+ENV PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
     RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq \
     # Mach requires that this is set
     SHELL=/bin/bash \
     WPTSYNC_ROOT=/app/workspace \
     WPTSYNC_REPO_ROOT=/app/repos/
 
-RUN echo "Using Python ${PYTHON} and pip ${PIP}"; \
-        groupadd --gid 10001 app && \
-        useradd --uid 10001 --gid 10001 --home /app --create-home app && \
-        groupadd --gid 10002 rabbitmq && \
-        useradd --uid 10002 --gid 10002 rabbitmq --home /home/rabbitmq --create-home && \
-        # Disable ipv6 in gpg to avoid signing failures
-        mkdir ~/.gnupg && echo "disable-ipv6" >> ~/.gnupg/dirmngr.conf
+RUN groupadd --gid 10001 app && \
+    useradd --uid 10001 --gid 10001 --home /app --create-home app && \
+    groupadd --gid 10002 rabbitmq && \
+    useradd --uid 10002 --gid 10002 rabbitmq --home /home/rabbitmq --create-home && \
+    # Disable ipv6 in gpg to avoid signing failures
+    mkdir ~/.gnupg && echo "disable-ipv6" >> ~/.gnupg/dirmngr.conf
 
 # install/update pip, git and erlang/rabbitmq dependencies
 RUN set -eux; \
@@ -39,21 +33,12 @@ RUN set -eux; \
         python \
         # Required by cinnabar, mach, wpt, even for Py3
         python2.7 \
-        # Required by mach even for Py2
         python3 \
         python3-distutils; \
-    if [ "$PYTHON" = "python3" ]; then \
         apt-get install -y \
            python3-pip; \
-        $PIP install --upgrade pip; \
-        $PIP install --user requests; \
-    else \
-        apt-get install -y \
-           python-pip; \
-        $PIP install --upgrade pip; \
-        $PIP install --user requests; \
-    fi;
-
+        pip3 install --upgrade pip; \
+        pip3 install --user requests;
 
 RUN set -eux; \
     count=0; \
@@ -152,11 +137,10 @@ RUN set -eux; \
     git config --global user.name moz-wptsync-bot; \
     git config --global user.email wptsync@mozilla.com; \
     # Install the wptsync app in development
-    $PIP install -r /app/wpt-sync/requirements/prod.txt --no-deps --require-hashes \
-    && $PIP install -r /app/wpt-sync/requirements/dev.txt --no-deps \
-    && $PIP install -r /app/wpt-sync/requirements/mozautomation.txt --no-deps; \
-    if [ "$PYTHON" = "python2" ]; then $PIP install -r /app/wpt-sync/requirements/dev-py2.txt --no-deps; fi; \
-    if [ "$PYTHON" = "python3" ]; then $PIP install -r /app/wpt-sync/requirements/dev-py3.txt --no-deps; fi;
+    pip3 install -r /app/wpt-sync/requirements/prod.txt --no-deps --require-hashes \
+    && pip3 install -r /app/wpt-sync/requirements/dev.txt --no-deps \
+    && pip3 install -r /app/wpt-sync/requirements/mozautomation.txt --no-deps \
+    && pip3 install -r /app/wpt-sync/requirements/dev-py3.txt --no-deps
 
 # /app/wpt-sync: bind mount to src dir (only on dev) or dir with wheels?
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs
