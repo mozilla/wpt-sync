@@ -1,7 +1,7 @@
 dist: trusty
 language: python
 python:
-  - "2.7.14"
+  - "3.6"
 
 jobs:
   include:
@@ -10,15 +10,15 @@ jobs:
     - env: python2-linters
       sudo: false
       language: python
-      python: "2.7.14"
+      python: "3.6"
       install:
-        - ./bin/run_docker_dev.sh build --py3 --test
+        - ./bin/run_docker_dev.sh build --test
         - sudo chown -R 10001 .
       script:
-        - ./bin/run_docker_dev.sh test --py3 --no-pytest
+        - ./bin/run_docker_dev.sh test --no-pytest
 
-    # Job 2: Unit Tests in Docker env
-    - env: docker-wptsync-test-py2
+    # Job 2: Unit Tests in Python 3 Docker env
+    - env: docker-wptsync-test-py3
       # Upgrade to newer docker version
       addons:
         apt:
@@ -33,40 +33,7 @@ jobs:
       script:
         - ./bin/run_docker_dev.sh test --no-flake8
 
-    # Job 3: Unit Tests in Python 3 Docker env
-    - env: docker-wptsync-test-py3
-      # Upgrade to newer docker version
-      addons:
-        apt:
-          packages:
-            - docker-ce
-      sudo: required
-      services:
-        - docker
-      install:
-        - ./bin/run_docker_dev.sh build --py3 --test
-        - sudo chown -R 10001 .
-      script:
-        - ./bin/run_docker_dev.sh test --py3 --no-flake8
-
-    # Job 4: mypy in Python 3 Docker env
-    - env: docker-wptsync-mypy-py2
-      # Upgrade to newer docker version
-      addons:
-        apt:
-          packages:
-            - docker-ce
-      sudo: required
-      services:
-        - docker
-      install:
-        # Note that mypy always requires py3
-        - ./bin/run_docker_dev.sh build --py3 --test
-        - sudo chown -R 10001 .
-      script:
-        - ./bin/run_docker_dev.sh test --py3 --no-flake8 --no-pytest --mypy-2
-
-    # Job 5: mypy in Python 3 Docker env
+    # Job 3: mypy in Python 3 Docker env
     - env: docker-wptsync-mypy-py3
       # Upgrade to newer docker version
       addons:
@@ -77,11 +44,10 @@ jobs:
       services:
         - docker
       install:
-        # Note that mypy always requires py3
-        - ./bin/run_docker_dev.sh build --py3 --test
+        - ./bin/run_docker_dev.sh build --test
         - sudo chown -R 10001 .
       script:
-        - ./bin/run_docker_dev.sh test --py3 --no-flake8 --no-pytest --mypy-3
+        - ./bin/run_docker_dev.sh test --no-flake8 --no-pytest --mypy-3
 
     # Job 4: Static Analysis
     - env: static-analysis
