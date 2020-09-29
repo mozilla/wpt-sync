@@ -99,8 +99,9 @@ typing_extensions==3.7.4.3 \
     --hash=sha256:dafc7639cde7f1b6e1acc0f457842a83e722ccca8eef5270af2d74792619a89f \
     --hash=sha256:7cb407020f00f7bfc3cb3e7881628838e69d8f3fcab2f64742a5e76b2f841918 \
     --hash=sha256:99d4073b617d30288f569d3f13d2bd7548c3a7e4c8de87db09a9d29bb3a4a60c
-zipp==1.2.0 \
-    --hash=sha256:e0d9e63797e483a30d27e09fffd308c59a700d365ec34e93cc100844168bf921  # pyup: <3.0
+zipp==3.2.0 \
+    --hash=sha256:43f4fa8d8bb313e65d8323a3952ef8756bf40f9a5c3ea7334be23ee4ec8278b6 \
+    --hash=sha256:b52f22895f4cfce194bc8172f3819ee8de7540aa6d873535a8668b730b8b411f  # pyup: <3.0
 phabricator==0.7.0 \
     --hash=sha256:7b0417ff6682f898019d40b0ff5fc41bc213440c416ce4ad21ff2743e0e9bb2b
 typed_ast==1.4.1\
