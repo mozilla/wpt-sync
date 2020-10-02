@@ -848,7 +848,7 @@ class DownstreamSync(SyncProcess):
             # merged and if so what the merge commit was, although in that
             # case we would still not know the commit prior to merge, which
             # is what we need
-            if commit.pr() == str(self.pr):
+            if commit.pr() == self.pr:
                 break
             commits.append(commit)
         return commits
