@@ -28,6 +28,10 @@ max_comment_length = 65535
 if "REOPENED" not in bugsy.bug.VALID_STATUS:
     bugsy.bug.VALID_STATUS.append("REOPENED")
 
+# Trying to send this field makes bug creation fail
+if "cc_detail" in bugsy.bug.ARRAY_TYPES:
+    bugsy.bug.ARRAY_TYPES.remove("cc_detail")
+
 
 def bz_url_from_api_url(api_url):
     if api_url is None:
