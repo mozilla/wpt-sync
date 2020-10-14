@@ -384,7 +384,7 @@ class BugContext(object):
                        flags=None  # type: Optional[List[Text]]
                        ):
         body = {
-            "data": base64.encodestring(data),
+            "data": base64.encodestring(data).decode("ascii"),
             "file_name": file_name,
             "summary": summary,
             "content_type": content_type
