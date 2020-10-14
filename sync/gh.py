@@ -16,7 +16,10 @@ from .env import Environment
 MYPY = False
 if MYPY:
     from datetime import datetime
-    from github import Branch, Commit, PullRequest, Repository
+    from github.Branch import Branch
+    from github.Commit import Commit
+    from github.PullRequest import PullRequest
+    from github.Repository import Repository
     from typing import Any, Dict, List, Optional, Text, Tuple, Union
 
 logger = log.get_logger(__name__)
@@ -76,7 +79,7 @@ class GitHub(object):
         self.gh = github.Github(token)
         self.repo_name = urllib.parse.urlsplit(url).path.lstrip("/")
         self.pr_cache = {}  # type: Dict[int, PullRequest]
-        self._repo = None
+        self._repo = None  # type: Optional[Repository]
 
     def pr_url(self, pr_id):
         # type: (int) -> str
@@ -94,6 +97,7 @@ class GitHub(object):
         # type: () -> Repository
         if self._repo is None:
             self._repo = self.gh.get_repo(self.repo_name)
+        assert self._repo is not None
         return self._repo
 
     def get_pull(self, id):
@@ -214,7 +218,7 @@ class GitHub(object):
         if branch is None:
             # TODO: Maybe raise an exception here
             return []
-        return branch._rawData["protection"]["required_status_checks"]["contexts"]
+        return branch.get_required_status_checks().contexts
 
     def get_check_runs(self, pr_id):
         # type: (int) -> Dict[Text, Dict[Text, Any]]
@@ -305,13 +309,8 @@ class GitHub(object):
     def merge_pull(self, pr_id):
         # type: (int) -> Text
         pr = self.get_pull(pr_id)
-        post_parameters = {"merge_method": "rebase"}
-        headers, data = pr._requester.requestJsonAndCheck(
-            "PUT",
-            pr.url + "/merge",
-            input=post_parameters
-        )
-        return data["sha"]
+        merge_status = pr.merge(merge_method="rebase")
+        return merge_status.sha
 
     def pr_for_commit(self, sha):
         # type: (Text) -> Optional[int]
@@ -330,7 +329,7 @@ class GitHub(object):
 
     def get_commits(self, pr_id):
         # type: (int) -> List[Commit]
-        return list(self.get_pull(pr_id).commits)
+        return list(self.get_pull(pr_id).get_commits())
 
     def cleanup_pr_body(self, text):
         # type: (Text) -> Text
@@ -429,7 +428,7 @@ class GitHub(object):
         if check_id is not None:
             req_url += ("/%s" % check_id)
 
-        headers, data = self.repo._requester.requestJsonAndCheck(
+        headers, data = self.repo._requester.requestJsonAndCheck(  # type: ignore
             req_method,
             req_url,
             input=req_data,

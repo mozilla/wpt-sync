@@ -18,7 +18,7 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, Iterable, List, Optional, Text, Tuple, Type
     from git import Commit
-    from github import PullRequest
+    from github.PullRequest import PullRequest
     from sync.sync import SyncProcess
     from sync.trypush import TryPush
     from git import Repo
