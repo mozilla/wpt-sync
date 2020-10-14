@@ -78,9 +78,9 @@ def schedule_check_run_task(commit, name, check_run, repo_update=True):
 
 def update_for_status(pr, repo_update=True):
     # type: (PullRequest, bool) -> None
-    for name, check_run in iteritems(env.gh_wpt.get_check_runs(pr.id)):
+    for name, check_run in iteritems(env.gh_wpt.get_check_runs(pr.number)):
         if check_run["required"]:
-            schedule_check_run_task(pr.head.sha, name, check_run)
+            schedule_check_run_task(pr.head, name, check_run)
             return
 
 
