@@ -379,9 +379,9 @@ class GitHub(object):
             completed_at_text = completed_at.isoformat()
 
         if output is not None:
-            if not "title"in output:
+            if "title" not in output:
                 raise ValueError("Output requires a title")
-            if not "summary"in output:
+            if "summary" not in output:
                 raise ValueError("Output requires a summary")
 
         req_data = {
