@@ -69,7 +69,7 @@ def schedule_check_run_task(commit, name, check_run, repo_update=True):
     check_run_data["head_sha"] = commit.sha
     event = construct_event("check_run",
                             {"action": "completed",
-                             "check_run": check_run},
+                             "check_run": check_run_data},
                             _wptsync={"repo_update": repo_update})
     logger.info("Status changed for commit %s" % commit.sha)
     args = ("github", event)
