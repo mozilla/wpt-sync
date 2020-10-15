@@ -110,11 +110,11 @@ def iter_tree(pygit2_repo,  # type: Repository
     else:
         rev_obj = pygit2_repo[rev.id]
 
-    root_obj = pygit2_repo[rev_obj.tree.id]
+    assert isinstance(rev_obj, pygit2.Commit)
+    root_obj = rev_obj.tree
 
     if root_path:
-        tree_entry = root_obj[root_path]
-        root_tree = pygit2_repo[tree_entry.id]
+        root_tree = root_obj[root_path]
     else:
         root_tree = root_obj
 
@@ -123,10 +123,11 @@ def iter_tree(pygit2_repo,  # type: Repository
 
     while stack:
         path, tree = stack.pop()
+        assert isinstance(tree, pygit2.Tree)
         for item in tree:
             item_path = u"%s/%s" % (path, item.name)
-            if item.type == "tree":
-                stack.append((item_path, pygit2_repo[item.id]))
+            if isinstance(item, pygit2.Tree):
+                stack.append((item_path, item))
             else:
                 name = tuple(item for item in item_path[len(root_path):].split(u"/")
                              if item)
@@ -139,14 +140,13 @@ def iter_process_names(pygit2_repo,  # type: Repository
     # type: (...) -> Iterator[ProcessName]
     """Iterator over all ProcessName objects"""
     ref = pygit2_repo.references[env.config["sync"]["ref"]]
-    root = pygit2_repo[ref.peel().tree.id]
+    root = ref.peel().tree
     stack = []
     for root_path in kind:
         try:
-            tree_entry = root[root_path]
+            tree = root[root_path]
         except KeyError:
             continue
-        tree = pygit2_repo[tree_entry.id]
 
         stack.append((root_path, tree))
 
@@ -154,8 +154,8 @@ def iter_process_names(pygit2_repo,  # type: Repository
         path, tree = stack.pop()
         for item in tree:
             item_path = "%s/%s" % (path, item.name)
-            if item.type == "tree":
-                stack.append((item_path, pygit2_repo[item.id]))
+            if isinstance(item, pygit2.Tree):
+                stack.append((item_path, item))
             else:
                 process_name = ProcessName.from_path(item_path)
                 if process_name is not None:

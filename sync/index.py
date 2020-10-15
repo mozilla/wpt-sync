@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 
 import git
+import pygit2
 import six
 from six import iteritems, itervalues
 
@@ -15,7 +16,6 @@ from .repos import pygit2_get
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
-    from pygit2 import Blob
     from git.repo.base import Repo
     from sync.sync import SyncProcess
     from pygit2.repository import Repository
@@ -156,7 +156,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
                     data.add(new_value)
 
     def _load_obj(self, obj):
-        # type: (Blob) -> Set[Text]
+        # type: (pygit2.Blob) -> Set[Text]
         rv = json.loads(obj.data)
         if isinstance(rv, list):
             return set(rv)
@@ -491,31 +491,31 @@ class BugIdIndex(Index):
 
 
 def iter_blobs(repo, path):
-    # type: (Repository, Text) -> Iterator[Blob]
+    # type: (Repository, Text) -> Iterator[pygit2.Blob]
     """Iterate over all blobs under a path
 
     :param repo: pygit2 repo
     :param path: path to use as the root, or None for the root path
     """
     ref = repo.references[env.config["sync"]["ref"]]
-    root = repo[ref.peel().tree.id]
+    root = ref.peel().tree
     if path is not None:
         if path not in root:
             return
         root_entry = root[path]
-        root = repo[root_entry.id]
-        if root_entry.type == "blob":
-            yield root
+        if isinstance(root_entry, pygit2.Blob):
+            yield root_entry
             return
 
-    stack = [root]
+    stack = [root_entry]
     while stack:
         tree = stack.pop()
+        assert isinstance(tree, pygit2.Tree)
         for item in tree:
-            if item.type == "blob":
-                yield repo[item.id]
+            if isinstance(item, pygit2.Blob):
+                yield item
             else:
-                stack.append(repo[item.id])
+                stack.append(item)
 
 
 indicies = {item for item in globals().values()
