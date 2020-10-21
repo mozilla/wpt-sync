@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import os
 import subprocess
 import time
 
@@ -64,9 +65,16 @@ def until(func, cond, max_tries=5):
 
 
 def _fetch(git_gecko, remote):
-    cmd = ["git", "--git-dir", git_gecko.git_dir, "fetch", remote]
+    from datetime import datetime
+    logfile = "/app/workspace/logs/strace-%s.log" % datetime.now().isoformat()
+    cmd = ["strace", "-o", logfile, "-f", "-s", "200", "git", "--git-dir", git_gecko.git_dir,
+           "fetch", remote]
     logger.info(" ".join(cmd))
     subprocess.check_call(cmd)
+    try:
+        os.unlink(logfile)
+    except Exception:
+        pass
 
 
 def _update_gecko(git_gecko):
