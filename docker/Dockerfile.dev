@@ -27,7 +27,6 @@ RUN set -eux; \
         less \
         locales \
         sudo \
-        strace \
         vim \
         wget \
         # Ensure /usr/bin/python exists
