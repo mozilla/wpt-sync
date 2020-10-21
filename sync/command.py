@@ -1129,4 +1129,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # new relic sets PYTHONPATH in order to import the sitecustomize module it uses at startup
+    # But if we get to here that already ran, so delete it. This prevents it being inherited
+    # into subprocesses (e.g. git cinnabar) that aren't compatible with it.
+    del os.environ["PYTHONPATH"]
     main()
