@@ -287,8 +287,8 @@ class BugContext(object):
         self._comments = None
         self.comment = None  # type: Optional[Dict[Text, Any]]
         self.attachments = []  # type: List[Dict[Text, Any]]
-        self.depends = {}  # type: Dict[Text, List[int]]
-        self.blocks = {}  # type: Dict[Text, List[int]]
+        self.depends = {"add": [], "remove": []}  # type: Dict[Text, List[int]]
+        self.blocks = {"add": [], "remove": []}  # type: Dict[Text, List[int]]
         self.dirty = set()  # type: Set[Text]
 
         return self
@@ -307,9 +307,15 @@ class BugContext(object):
                                                    method='POST', json=attachment)
 
             if "depends" in self.dirty:
-                self.bug._bug["depends_on"] = self.depends
+                self.bug.depends_on.extend(self.depends["add"])
+                for item in self.depends["remove"]:
+                    if item in self.bug.depends_on:
+                        self.bug.depends_on.remove(item)
             if "blocks" in self.dirty:
-                self.bug._bug["blocks"] = self.blocks
+                self.bug.blocks.extend(self.blocks["add"])
+                for item in self.blocks["remove"]:
+                    if item in self.bug.blocks:
+                        self.bug.blocks.remove(item)
             if self.dirty:
                 self.bugzilla.bugzilla.put(self.bug)
 
@@ -405,29 +411,21 @@ class BugContext(object):
 
     def add_depends(self, bug_id):
         # type: (int) -> None
-        if "add" not in self.depends:
-            self.depends["add"] = []
         self.depends["add"].append(bug_id)
         self.dirty.add("depends")
 
     def remove_depends(self, bug_id):
         # type: (int) -> None
-        if "remove" not in self.depends:
-            self.depends["remove"] = []
         self.depends["remove"].append(bug_id)
         self.dirty.add("depends")
 
     def add_blocks(self, bug_id):
         # type: (int) -> None
-        if "add" not in self.blocks:
-            self.blocks["add"] = []
         self.blocks["add"].append(bug_id)
         self.dirty.add("blocks")
 
     def remove_blocks(self, bug_id):
         # type: (int) -> None
-        if "remove" not in self.blocks:
-            self.blocks["remove"] = []
         self.blocks["remove"].append(bug_id)
         self.dirty.add("blocks")
 

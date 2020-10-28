@@ -119,7 +119,7 @@ RUN sudo chown -R app:app /app/.ssh/
 # Install git-cinnabar
 RUN cd /app/third_party/git-cinnabar \
     && git clone https://github.com/glandium/git-cinnabar.git . \
-    && git checkout origin/release \
+    && git checkout origin/master \
     && git cinnabar download
 
 # Install fzf for mach try fuzzy

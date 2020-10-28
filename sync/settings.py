@@ -75,6 +75,12 @@ def load_files(ini_sync, ini_credentials):
 
 
 def configure(f):
+    # new relic sets PYTHONPATH in order to import the sitecustomize module it uses at startup
+    # But if we get to here that already ran, so delete it. This prevents it being inherited
+    # into subprocesses (e.g. git cinnabar) that aren't compatible with it.
+    if "PYTHONPATH" in os.environ:
+        del os.environ["PYTHONPATH"]
+
     config = load()
 
     def inner(*args, **kwargs):

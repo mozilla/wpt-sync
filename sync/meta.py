@@ -3,6 +3,7 @@ import sys
 
 import git
 import newrelic
+import pygit2
 
 from . import gh
 from . import log
@@ -49,7 +50,7 @@ class GitReader(wptmeta.Reader):
 
     def walk(self, rel_path):
         for path, obj in iter_tree(self.pygit2_repo, rel_path, rev=self.rev):
-            if obj.type == "blob" and obj.name == "META.yml":
+            if isinstance(obj, pygit2.Blob) and obj.name == "META.yml":
                 yield "/".join(path[:-1])
 
 

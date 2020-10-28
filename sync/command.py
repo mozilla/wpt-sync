@@ -1005,12 +1005,12 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
         if "/syncs/" in ref.name:
             ref_obj = ref.peel().id
-            data = json.loads(repo[ref.peel().tree["data"].id].data)
+            data = json.loads(ref.peel().tree["data"].data)
             if data.get("status") != status:
                 with base.CommitBuilder(rev_repo_map[repo], "Add status", ref=ref.name) as commit:
                     now_ref_obj = ref.peel().id
                     if ref_obj != now_ref_obj:
-                        data = json.loads(repo[ref.peel().tree["data"].id].data)
+                        data = json.loads(ref.peel().tree["data"].data)
                     data["status"] = status
                     commit.add_tree({"data": json.dumps(data)})
                     print("Making commit")

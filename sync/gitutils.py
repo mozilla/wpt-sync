@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import subprocess
 import time
 
 import git
@@ -62,16 +63,22 @@ def until(func, cond, max_tries=5):
     return True
 
 
+def _fetch(git_gecko, remote):
+    cmd = ["git", "--git-dir", git_gecko.git_dir, "fetch", remote]
+    logger.info(" ".join(cmd))
+    subprocess.check_call(cmd)
+
+
 def _update_gecko(git_gecko):
     # type: (Repo) -> None
     with RepoLock(git_gecko):
         logger.info("Fetching mozilla-unified")
         # Not using the built in fetch() function since that tries to parse the output
         # and sometimes fails
-        git_gecko.git.fetch("mozilla")
+        _fetch(git_gecko, "mozilla")
         if "autoland" in [item.name for item in git_gecko.remotes]:
             logger.info("Fetching autoland")
-            git_gecko.git.fetch("autoland")
+            _fetch(git_gecko, "autoland")
 
 
 def _update_wpt(git_wpt):
