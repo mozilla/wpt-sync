@@ -218,7 +218,10 @@ class GitHub(object):
         if branch is None:
             # TODO: Maybe raise an exception here
             return []
-        return branch.get_required_status_checks().contexts
+        return (branch.raw_data
+                .get("protection", {})
+                .get("required_status_checks", {})
+                .get("contexts", []))
 
     def get_check_runs(self, pr_id):
         # type: (int) -> Dict[Text, Dict[Text, Any]]
