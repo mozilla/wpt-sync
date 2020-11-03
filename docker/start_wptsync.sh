@@ -102,18 +102,20 @@ elif [ "$1" == "--worker" ]; then
                        --detach \
                        --schedule=${WPTSYNC_ROOT}/celerybeat-schedule \
                        --pidfile=${CELERYBEAT_PID_FILE} \
-                       --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log --loglevel=DEBUG
+                       --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log \
+                       --loglevel=DEBUG
 
     echo "Starting celery worker"
 
     newrelic-admin run-program \
                    celery \
                      --app sync.worker \
-                     multi \
-                       start ${CELERY_WORKER} \
+                     worker \
+                       --detach \
                        --concurrency=1 \
                        --pidfile=${CELERY_PID_FILE} \
-                       --logfile=${CELERY_LOG_FILE} --loglevel=DEBUG
+                       --logfile=${CELERY_LOG_FILE} \
+                       --loglevel=DEBUG
 
     # ./bin/run_docker_dev.sh run --worker --phab
     if [ "$2" == "--phab" ]; then
