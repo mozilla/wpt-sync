@@ -458,14 +458,17 @@ class UpstreamSync(SyncProcess):
             logger.info("No upstream PR created")
             return False
 
-        self.set_landed_status()
-
         merge_sha = env.gh_wpt.merge_sha(self.pr)
         if merge_sha:
             logger.info("PR already merged")
             self.merge_sha = merge_sha
             self.finish("wpt-merged")
             return False
+
+        try:
+            self.set_landed_status()
+        except Exception:
+            logger.warning("Failed setting status on PR for bug %s" % self.bug)
 
         logger.info("Commit are landable; trying to land %s" % self.pr)
 
