@@ -135,5 +135,5 @@ sudo chown -R 10001 <path>
 
 You may not need to do this at all on mac.
 
-__Note__ that replacing the default entrypoint means that you're nolonger running the `start_wptsync.sh` script at container start-up and therefore some
+__Note__ that replacing the default entry point means that you're no longer running the `start_wptsync.sh` script at container start-up and therefore some
 configuration may be missing or incomplete. For example, the Dockerfile (build-time) doesn't set up any credentials; instead, credentials are only set up in the container at run-time with the above-mentioned script.
