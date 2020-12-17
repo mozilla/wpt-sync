@@ -4,8 +4,9 @@ atomicwrites==1.4.0 \
 attrs==20.3.0 \
     --hash=sha256:31b2eced602aa8423c2aea9c76a724617ed67cf9513173fd3a4f03e3a929c7e6 \
     --hash=sha256:832aa3cde19744e49938b91fea06d69ecb9e649c93ba974535d08ad92164f700
-celery_stubs==0.1.1 \
-    --hash=sha256:d47ddd7e22af1d3a9e32eb4ad22516b02a81020ef4bfcba1aa83a44b0bb8dd94
+celery_stubs==0.1.2 \
+    --hash=sha256:20b0523a99a5ac31d7e8cfcb68afe0b673c750c3eba081bc79aa516144191211 \
+    --hash=sha256:f85fb1aa11427e5f8e93e104bb4af46a3fac8e6939ea7eecfb6b84a4e5913644
 configparser==5.0.1 \
     --hash=sha256:08e8a59ef1817ac4ed810bb8e17d049566dd6e024e7566f6285c756db2bb4ff8 \
     --hash=sha256:005c3b102c96f4be9b8f40dafbd4997db003d07d1caa19f37808be8031475f2a
