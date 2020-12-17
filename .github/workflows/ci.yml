@@ -1,0 +1,46 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  python2-linters:
+    name: Linters in Python 2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build containers
+        run: ./bin/run_docker_dev.sh build --test
+      - name: Run
+        run: ./bin/run_docker_dev.sh test --no-pytest
+  python3-tests:
+    name: Unit Tests in Python 3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build containers
+        run: ./bin/run_docker_dev.sh build --test
+      - name: Run
+        run: ./bin/run_docker_dev.sh test --no-flake8
+  python3-mypy:
+    name: mypy in Python 3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build containers
+        run: ./bin/run_docker_dev.sh build --test
+      - name: Run
+        run: ./bin/run_docker_dev.sh test --no-flake8 --no-pytest --mypy-3
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+      - name: Run
+        run:  pip install bandit && bandit -r sync -ll

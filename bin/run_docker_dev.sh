@@ -53,7 +53,7 @@ if [[ $command == "build" ]]; then
 sudo chown -R 10001:10001 config/dev workspace repos
 sudo chown -R 10002:10002 workspace/logs/rabbitmq"
 elif [[ $command == "test" ]]; then
-    exec docker run -it \
+    exec docker run \
          --env WPTSYNC_CONFIG=/app/config/test/sync.ini \
          --env WPTSYNC_CREDS=/app/config/test/credentials.ini \
          --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
