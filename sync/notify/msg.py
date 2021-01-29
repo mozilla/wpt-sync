@@ -52,7 +52,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
 
     if include_other_browser:
         other_browser_values = []
-        for other_browser, job_results in iteritems(result.statuses):
+        for other_browser, job_results in sorted(result.statuses.items()):
             if other_browser == browser:
                 continue
             browser_status = job_results.get("GitHub")
