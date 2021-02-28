@@ -102,7 +102,7 @@ def iter_tree(pygit2_repo,  # type: Repository
               rev=None,  # type: Optional[PyGit2Commit]
               ):
     # type: (...) -> Iterator[Tuple[Tuple[Text, ...], TreeEntry]]
-    """Iterator over all paths ins a tree"""
+    """Iterator over all paths in a tree"""
     if rev is None:
         ref_name = env.config["sync"]["ref"]
         ref = pygit2_repo.references[ref_name]
