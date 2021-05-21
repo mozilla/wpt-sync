@@ -40,40 +40,31 @@ RUN set -eux; \
         pip3 install --upgrade pip; \
         pip3 install --user requests;
 
+## Add apt repositories maintained by Team RabbitMQ
+COPY ./docker/rabbitmq.list /etc/apt/sources.list.d/rabbitmq.list
+COPY ./docker/rabbitmq-server.gpg /app/rabbitmq-server.gpg
 RUN set -eux; \
-    count=0; \
-    until sudo apt-key adv --keyserver "hkps.pool.sks-keyservers.net" --recv-keys "0x6B73A36E6026DFCA"; \
-    do \
-        count=$((count+1)); sleep 5; \
-        if [ $count -gt 2 ]; then \
-            echo "Failed to perform apt-key, FAILING"; \
-	    exit 1; \
-        fi; \
-	echo "apt-key adv Failed, trying again ($count/3)"; \
-    done; \
-    wget -O - "https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc" | \
-        sudo apt-key add - \
-        ; \
-    sudo echo "deb https://dl.bintray.com/rabbitmq-erlang/debian bionic erlang-21.x" >> \
-        /etc/apt/sources.list.d/bintray.rabbitmq.list; \
-    sudo echo "deb https://dl.bintray.com/rabbitmq/debian bionic main" >> \
-        /etc/apt/sources.list.d/bintray.rabbitmq.list; \
+    ## Team RabbitMQ's main signing key
+    sudo apt-key adv --keyserver "hkps://keys.openpgp.org" --recv-keys "0x0A9AF2115F4687BD29803A206B73A36E6026DFCA"; \
+    ## Launchpad PPA that provides modern Erlang releases
+    sudo apt-key adv --keyserver "keyserver.ubuntu.com" --recv-keys "F77F1EDA57EBB1CC"; \
+    ## PackageCloud RabbitMQ repository
+    sudo apt-key add /app/rabbitmq-server.gpg; \
+    rm /app/rabbitmq-server.gpg; \
+
+    sudo cat /etc/apt/sources.list.d/rabbitmq.list; \
+
+    ## Update package indices
     sudo apt-get update -y; \
-    sudo apt-get install -y \
-        libssl-dev \
-        erlang-asn1 \
-        erlang-crypto \
-        erlang-eldap \
-        erlang-inets \
-        erlang-mnesia \
-        erlang-nox \
-        erlang-os-mon \
-        erlang-public-key \
-        erlang-ssl \
-        erlang-xmerl \
-        erlang-base-hipe \
-        erlang-crypto \
-        rabbitmq-server;
+
+    ## Install Erlang packages
+    sudo apt-get install -y erlang-base \
+       erlang-asn1 erlang-crypto erlang-eldap erlang-ftp erlang-inets \
+       erlang-mnesia erlang-os-mon erlang-parsetools erlang-public-key \
+       erlang-runtime-tools erlang-snmp erlang-ssl \
+       erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl; \
+
+    sudo apt-get install rabbitmq-server -y --fix-missing;
 
 # install tini for process management so we can use its -g option
 ENV TINI_VERSION v0.17.0
