@@ -114,7 +114,7 @@ class DownstreamSync(SyncProcess):
                ""
                "Details from upstream follow.",
                "",
-               "%s wrote:" % author.decode("utf8"),
+               "%s wrote:" % author.decode("utf8", "ignore"),
                ">  %s" % pr_title,
                ">  "]
         msg.extend((">  %s" % line for line in pr_msg.split("\n")))
