@@ -105,7 +105,7 @@ class DownstreamSync(SyncProcess):
         # type: (Repo, int, Text, Text) -> Text
         pr_msg = env.gh_wpt.cleanup_pr_body(pr_body)
         # TODO: Ensure we have the right set of commits before geting here
-        author = self.wpt_commits[0].author if self.wpt_commits else ""
+        author = self.wpt_commits[0].author if self.wpt_commits else b""
 
         msg = ["Sync web-platform-tests PR %s into mozilla-central"
                " (this bug is closed when the sync is complete)." % pr_id,
@@ -114,7 +114,7 @@ class DownstreamSync(SyncProcess):
                ""
                "Details from upstream follow.",
                "",
-               "%s wrote:" % author,
+               "%s wrote:" % author.decode("utf8", "ignore"),
                ">  %s" % pr_title,
                ">  "]
         msg.extend((">  %s" % line for line in pr_msg.split("\n")))
