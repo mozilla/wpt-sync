@@ -33,12 +33,16 @@ RUN set -eux; \
         python \
         # Required by cinnabar, mach, wpt, even for Py3
         python2.7 \
-        python3 \
+        python3.7 \
         python3-distutils \
+        python3.7-distutils \
+        python3.7-dev \
         python-pip \
         python3-pip; \
-        pip3 install --upgrade pip; \
-        pip3 install --user requests;
+        # Set Python 3.7 as the default
+        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 1; \
+        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 2;
+
 
 ## Add apt repositories maintained by Team RabbitMQ
 COPY ./docker/rabbitmq.list /etc/apt/sources.list.d/rabbitmq.list
@@ -89,6 +93,9 @@ COPY ./docker/get_ini.py /app/get_ini.py
 RUN chmod +x /app/get_ini.py /app/start_wptsync.sh
 
 USER app
+
+RUN python3 -m pip install --upgrade pip; \
+    python3 -m pip install --user requests;
 
 # Set up files and config
 RUN mkdir -p /app/workspace \
