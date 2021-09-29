@@ -89,14 +89,9 @@ def create_commit(repo, msg, **kwargs):
     cmd.append(b"commit")
     cmd.append(b"--message=%s" % msg)
     for name, value in iteritems(opts_kwargs):
-        name = git.cmd.dashify(name).encode("utf8")
+        name_bytes = git.cmd.dashify(name).encode("utf8")
         if isinstance(value, six.string_types):
             value = value.encode("utf8")
-
-        if isinstance(name, six.string_types):
-            name_bytes = name.encode("utf8")
-        else:
-            name_bytes = name
 
         assert value is None or isinstance(value, (bool, bytes))
 
