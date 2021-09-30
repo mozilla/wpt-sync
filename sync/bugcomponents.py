@@ -193,7 +193,9 @@ def get(git_gecko,  # type: Repo
 
 def mozbuild_path(repo_work):
     # type: (Repo) -> Text
-    return os.path.join(repo_work.working_dir,
+    working_dir = repo_work.working_dir
+    assert working_dir is not None
+    return os.path.join(working_dir,
                         env.config["gecko"]["path"]["wpt"],
                         os.pardir,
                         "moz.build")

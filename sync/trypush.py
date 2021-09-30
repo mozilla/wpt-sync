@@ -85,7 +85,9 @@ class TryCommit(object):
         # Spidermonkey jobs that take > 3 hours
         logger.info("Removing spidermonkey jobs")
         tc_config = "taskcluster/ci/config.yml"
-        path = os.path.join(self.worktree.working_dir, tc_config)
+        working_dir = self.worktree.working_dir
+        assert working_dir is not None
+        path = os.path.join(working_dir, tc_config)
         if os.path.exists(path):
             with open(path) as f:
                 data = yaml.safe_load(f)
@@ -160,11 +162,15 @@ class TryFuzzyCommit(TryCommit):
     def _push(self):
         # type: () -> Tuple[int, Text]
         self.worktree.git.reset("--hard")
-        mach = Mach(self.worktree.working_dir)
+
+        working_dir = self.worktree.working_dir
+        assert working_dir is not None
+
+        mach = Mach(working_dir)
         # Gross hack to create a objdir until we figure out why this is failing
         # from here but not from the shell
         try:
-            if not os.path.exists(os.path.join(self.worktree.working_dir,
+            if not os.path.exists(os.path.join(working_dir,
                                                "obj-x86_64-pc-linux-gnu")):
                 mach.python("-c", "")
         except OSError:
@@ -198,7 +204,7 @@ class TryFuzzyCommit(TryCommit):
             for values in itervalues(self.tests_by_type):
                 for item in values:
                     if (item not in all_paths and
-                        os.path.exists(os.path.join(self.worktree.working_dir,
+                        os.path.exists(os.path.join(working_dir,
                                                     item))):
                         paths.append(item)
                     all_paths.add(item)
