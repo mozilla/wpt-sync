@@ -32,6 +32,7 @@ if MYPY:
                         Union,
                         cast)
     from git.repo.base import Repo
+    from os import PathLike
     from sync.commit import Commit
     from sync.trypush import TryPush
     from sync.lock import SyncLock
@@ -60,11 +61,11 @@ class CommitFilter(object):
         self._commits = {}  # type: Dict[Text, bool]
 
     def path_filter(self):
-        # type: () -> Optional[Any]
+        # type: () -> Sequence[PathLike]
         """Path filter for the commit range,
-        returning a list of paths that match or None to
-        match all paths."""
-        return None
+        returning a list of paths that match. An empty list
+        matches all paths."""
+        return []
 
     def filter_commit(self, commit):
         # type: (Commit) -> bool
@@ -892,7 +893,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
     @mut()
     def wpt_rebase(self, ref):
         # type: (Text) -> None
-        assert ref in self.git_wpt.refs
+        assert ref in self.git_wpt.references
         git_worktree = self.wpt_worktree.get()
         git_worktree.git.rebase(ref)
         self.set_wpt_base(ref)

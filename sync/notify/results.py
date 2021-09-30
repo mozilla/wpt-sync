@@ -400,6 +400,8 @@ def get_central_tasks(git_gecko, sync):
                              env.config["gecko"]["refs"]["central"])[0])
 
     hg_push_sha = get_push_changeset(merge_base_commit)
+    if hg_push_sha is None:
+        return None
     try:
         git_push_sha = git_gecko.cinnabar.hg2git(hg_push_sha)
     except ValueError:

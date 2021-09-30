@@ -165,7 +165,7 @@ class Worktree(object):
         # type: (Repo, ProcessName) -> None
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
-        self._worktree = None
+        self._worktree = None  # type: Optional[Repo]
         self.process_name = process_name
         self.worktree_name = "-".join(str(item) for item in self.process_name.as_tuple())
         self.path = os.path.join(env.config["root"],
@@ -237,6 +237,7 @@ class Worktree(object):
         # TODO: In general the worktree should be on the right branch, but it would
         # be good to check. In the specific case of landing, we move the wpt worktree
         # around various commits, so it isn't necessarily on the correct branch
+        assert self._worktree is not None
         return self._worktree
 
     @mut()

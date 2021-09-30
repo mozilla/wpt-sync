@@ -308,10 +308,10 @@ class UpstreamSync(SyncProcess):
     def repository(self):
         # type: () -> Text
         # Need to check central before landing repos
-        head = self.gecko_commits.head.sha1
-        repo = gecko_repo(self.git_gecko, head)
+        head = self.gecko_commits.head
+        repo = gecko_repo(self.git_gecko, head.commit)
         if repo is None:
-            raise ValueError("Commit %s not part of any repository" % head)
+            raise ValueError("Commit %s not part of any repository" % head.sha1)
         return repo
 
     @mut()
@@ -348,12 +348,15 @@ class UpstreamSync(SyncProcess):
             time.sleep(1)
 
         commit_summary = self.wpt_commits[0].commit.summary
+        if isinstance(commit_summary, bytes):
+            commit_summary = commit_summary.decode("utf8", "ignore")
 
         msg = self.wpt_commits[0].msg.split(b"\n", 1)
         body = msg[1].decode("utf8", "replace") if len(msg) != 1 else ""
 
         pr_id = env.gh_wpt.create_pull(
-            title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "", commit_summary),
+            title="[Gecko%s] %s" % (" Bug %s" % self.bug if self.bug else "",
+                                    commit_summary),
             body=body.strip(),
             base="master",
             head=self.remote_branch)
@@ -529,12 +532,12 @@ class UpstreamSync(SyncProcess):
 
         pr_ref = 'origin/pr/{}'.format(self.pr)
 
-        if pr_ref not in self.git_wpt.refs:
+        if pr_ref not in self.git_wpt.references:
             # PR ref doesn't seem to exist
             logger.error("No ref found for %s" % pr_ref)
             return None
 
-        ref = self.git_wpt.refs[pr_ref]
+        ref = self.git_wpt.references[pr_ref]
         return ref.commit.hexsha
 
     @property
@@ -547,7 +550,7 @@ class UpstreamSync(SyncProcess):
 
         pr_head = sync_commit.WptCommit(self.git_wpt, pr_head_sha)
 
-        merge_base = []
+        merge_bases = []
 
         # Check if the PR Head is reachable from origin/master
         origin_master_sha = self.git_wpt.refs['origin/master'].commit.hexsha
@@ -556,7 +559,7 @@ class UpstreamSync(SyncProcess):
         # If not reachable, then it either hasn't landed yet, it was a Squash + Merge,
         # or a Rebase and merge.
         if not pr_head_reachable:
-            merge_base = self.git_wpt.merge_base(origin_master_sha, pr_head.sha1)
+            merge_bases = self.git_wpt.merge_base(origin_master_sha, pr_head.sha1)
         else:
             if not self.merge_sha:
                 raise ValueError('The merge SHA for %s could not be found in the UpstreamSync' %
@@ -567,17 +570,17 @@ class UpstreamSync(SyncProcess):
             parents = list(merge_commit.commit.parents)
             if len(parents) == 2 and pr_head in parents:
                 other_parent = parents[0] if parents[1] == pr_head.commit else parents[1]
-                merge_base = self.git_wpt.merge_base(pr_head.sha1, other_parent)
+                merge_bases = self.git_wpt.merge_base(pr_head.sha1, other_parent)
 
             # Not a merge commit, so just use the base we have stored
             else:
-                merge_base = [self.wpt_commits.base.commit]
+                merge_bases = [self.wpt_commits.base.commit]
 
         # Check that we found the merge base
-        if len(merge_base) == 0:
+        if len(merge_bases) == 0:
             raise ValueError("Problem determining merge base for %s" % self.process_name)
         else:
-            merge_base = merge_base[0]
+            merge_base = merge_bases[0]
 
         # Create a CommitRange object and return it
         base = sync_commit.WptCommit(self.git_wpt, merge_base)

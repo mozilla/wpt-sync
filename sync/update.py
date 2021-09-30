@@ -16,12 +16,11 @@ from six import iteritems
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, Iterable, List, Optional, Text, Tuple, Type
-    from git import Commit
+    from git import Repo
     from github.PullRequest import PullRequest
     from sync.sync import SyncProcess
     from sync.trypush import TryPush
-    from git import Repo
+    from typing import Any, Dict, Iterable, List, Optional, Text, Tuple, Type
 
 env = Environment()
 logger = log.get_logger(__name__)
@@ -61,17 +60,17 @@ def schedule_pr_task(action, pr, repo_update=True):
     handle_sync(*args)
 
 
-def schedule_check_run_task(commit, name, check_run, repo_update=True):
-    # type: (Commit, Text, Dict[Text, Any], bool) -> None
+def schedule_check_run_task(head_sha, name, check_run, repo_update=True):
+    # type: (Text, Text, Dict[Text, Any], bool) -> None
     check_run_data = check_run.copy()
     del check_run_data["required"]
     check_run_data["name"] = name
-    check_run_data["head_sha"] = commit.sha
+    check_run_data["head_sha"] = head_sha
     event = construct_event("check_run",
                             {"action": "completed",
                              "check_run": check_run_data},
                             _wptsync={"repo_update": repo_update})
-    logger.info("Status changed for commit %s" % commit.sha)
+    logger.info("Status changed for commit %s" % head_sha)
     args = ("github", event)
     handle_sync(*args)
 
@@ -80,7 +79,7 @@ def update_for_status(pr, repo_update=True):
     # type: (PullRequest, bool) -> None
     for name, check_run in iteritems(env.gh_wpt.get_check_runs(pr.number)):
         if check_run["required"]:
-            schedule_check_run_task(pr.head, name, check_run)
+            schedule_check_run_task(pr.head.sha, name, check_run)
             return
 
 
