@@ -13,6 +13,7 @@ from .lock import RepoLock
 
 MYPY = False
 if MYPY:
+    from git.objects.commit import Commit
     from git.repo.base import Repo
     from typing import Any, Dict, Callable, Optional, Text
 
@@ -120,7 +121,7 @@ def gecko_repo(git_gecko, head):
               if name != "central"])
 
     for name, ref in repos:
-        if git_gecko.is_ancestor(head, ref):
+        if git_gecko.is_ancestor(head, git_gecko.rev_parse(ref)):
             return name
     return None
 
