@@ -421,6 +421,10 @@ def _apply_patch(patch,  # type: bytes
 
     msg = Commit.make_commit_msg(msg, metadata)
 
+    working_dir = dest_repo.working_dir
+
+    assert working_dir is not None
+
     with Store(dest_repo, rev_name + u".message", msg) as message_path:
         strip_dirs = len(src_prefix.split("/")) + 1 if src_prefix else 1
         with Store(dest_repo, rev_name + ".diff", patch) as patch_path:
@@ -483,7 +487,7 @@ def _apply_patch(patch,  # type: bytes
                                  if dest_prefix else exclude_path
                                  for exclude_path in exclude]
                 exclude_paths = [item for item in exclude_paths
-                                 if os.path.exists(os.path.join(dest_repo.working_dir, item))]
+                                 if os.path.exists(os.path.join(working_dir, item))]
                 try:
                     dest_repo.git.checkout("HEAD", *exclude_paths)
                 except git.GitCommandError as e:
@@ -645,7 +649,9 @@ class Store(object):
 
     def __init__(self, repo, name, data):
         # type: (Repo, Text, bytes) -> None
-        self.path = os.path.join(repo.working_dir, name)
+        working_dir = repo.working_dir
+        assert working_dir is not None
+        self.path = os.path.join(working_dir, name)
         self.data = data  # type: Optional[bytes]
         assert isinstance(data, bytes)
 

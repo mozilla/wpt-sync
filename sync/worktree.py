@@ -168,9 +168,11 @@ class Worktree(object):
         self._worktree = None  # type: Optional[Repo]
         self.process_name = process_name
         self.worktree_name = "-".join(str(item) for item in self.process_name.as_tuple())
+        working_dir = repo.working_dir
+        assert working_dir is not None
         self.path = os.path.join(env.config["root"],
                                  env.config["paths"]["worktrees"],
-                                 os.path.basename(repo.working_dir),
+                                 os.path.basename(working_dir),
                                  process_name.subtype,
                                  process_name.obj_id)
         self._lock = None
