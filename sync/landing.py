@@ -177,7 +177,9 @@ class LandingSync(SyncProcess):
                 # and M is the average depth of the commit in the gecko tree
                 # If we need a faster implementation one approach would be to store all the
                 # commits not on the integration branch and check if this commit is in that set
-                return self.git_gecko.is_ancestor(commit.sha1, self.gecko_integration_branch())
+                return self.git_gecko.is_ancestor(commit,
+                                                  self.git_gecko.rev_parse(
+                                                      self.gecko_integration_branch()))
 
             # All the commits from unlanded upstream syncs that are reachable from the
             # integration branch
@@ -1128,13 +1130,16 @@ def update_landing(git_gecko,  # type: Repo
                 raise AbortError("Existing landing head commit %s doesn't match"
                                  "supplied wpt head %s" % (landing.wpt_commits.head.sha1,
                                                            new_wpt_head))
-            head = landing.gecko_commits.head.sha1
-            if git_gecko.is_ancestor(head, env.config["gecko"]["refs"]["central"]):
+            head = landing.gecko_commits.head
+            if git_gecko.is_ancestor(head.commit,
+                                     git_gecko.rev_parse(
+                                         env.config["gecko"]["refs"]["central"])):
                 logger.info("Landing reached central")
                 with landing.as_mut(lock):
                     landing.finish()
                 return None
-            elif git_gecko.is_ancestor(head, landing.gecko_integration_branch()):
+            elif git_gecko.is_ancestor(head.commit,
+                                       git_gecko.rev_parse(landing.gecko_integration_branch())):
                 logger.info("Landing is on inbound but not yet on central")
                 return None
 
@@ -1401,12 +1406,12 @@ def gecko_push(git_gecko,  # type: Repo
     last_sync_point, base_commit = LandingSync.prev_gecko_commit(git_gecko,
                                                                  repository_name)
 
-    if base_rev is None and git_gecko.is_ancestor(rev, base_commit.sha1):
+    if base_rev is None and git_gecko.is_ancestor(rev, base_commit.commit):
         logger.info("Last sync point moved past commit")
         return
 
     landed_central = repository_name == "mozilla-central"
-    revish = "%s..%s" % (base_commit.sha1, rev)
+    revish = "%s..%s" % (base_commit.sha1, rev.hexsha)
 
     landing_sync = current(git_gecko, git_wpt)
     for commit in git_gecko.iter_commits(revish,
@@ -1472,8 +1477,8 @@ def gecko_push(git_gecko,  # type: Repo
         assert isinstance(lock, SyncLock)
         with last_sync_point.as_mut(lock):
             assert last_sync_point.commit is not None
-            if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
-                last_sync_point.commit = rev  # type: ignore
+            if not git_gecko.is_ancestor(rev, last_sync_point.commit.commit):
+                last_sync_point.commit = rev.hexsha  # type: ignore
 
     if landing_sync and landing_sync.status == "complete":
         start_next_landing()

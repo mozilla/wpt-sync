@@ -296,7 +296,8 @@ class UpstreamSync(SyncProcess):
         # type: () -> bool
         if not len(self.gecko_commits):
             return False
-        landed = [self.git_gecko.is_ancestor(commit.sha1, env.config["gecko"]["refs"]["central"])
+        central_commit = self.git_gecko.rev_parse(env.config["gecko"]["refs"]["central"])
+        landed = [self.git_gecko.is_ancestor(commit.commit, central_commit)
                   for commit in self.gecko_commits]
         if not all(item == landed[0] for item in landed):
             logger.warning("Got some commits landed and some not for upstream sync %s" %
@@ -553,8 +554,9 @@ class UpstreamSync(SyncProcess):
         merge_bases = []
 
         # Check if the PR Head is reachable from origin/master
-        origin_master_sha = self.git_wpt.refs['origin/master'].commit.hexsha
-        pr_head_reachable = self.git_wpt.is_ancestor(pr_head.sha1, 'origin/master')
+        origin_master_sha = self.git_wpt.references['origin/master'].commit.hexsha
+        pr_head_reachable = self.git_wpt.is_ancestor(pr_head.commit,
+                                                     self.git_wpt.rev_parse('origin/master'))
 
         # If not reachable, then it either hasn't landed yet, it was a Squash + Merge,
         # or a Rebase and merge.
@@ -1007,12 +1009,12 @@ def gecko_push(git_gecko,  # type: Repo
                base_rev=None,  # type: Optional[Any]
                ):
     # type: (...) -> Optional[Tuple[Set[UpstreamSync], Set[UpstreamSync], Set]]
-    rev = git_gecko.cinnabar.hg2git(hg_rev)
+    rev = git_gecko.rev_parse(git_gecko.cinnabar.hg2git(hg_rev))
     last_sync_point, prev_commit = UpstreamSync.prev_gecko_commit(git_gecko,
                                                                   repository_name)
 
     assert last_sync_point.commit is not None
-    if base_rev is None and git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+    if base_rev is None and git_gecko.is_ancestor(rev, last_sync_point.commit.commit):
         logger.info("Last sync point moved past commit")
         return None
 
@@ -1044,9 +1046,9 @@ def gecko_push(git_gecko,  # type: Repo
         landed_syncs = try_land_syncs(lock, landable)
 
         # TODO
-        if not git_gecko.is_ancestor(rev, last_sync_point.commit.sha1):
+        if not git_gecko.is_ancestor(rev, last_sync_point.commit.commit):
             with last_sync_point.as_mut(lock):
-                last_sync_point.commit = rev  # type: ignore
+                last_sync_point.commit = rev.hexsha  # type: ignore
 
     return pushed_syncs, landed_syncs, failed_syncs
 

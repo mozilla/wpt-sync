@@ -113,15 +113,16 @@ def convert_rev(git_gecko, rev):
 def update_push(git_gecko, git_wpt, rev, base_rev=None, processes=None):
     # type: (Repo, Repo, Text, Optional[Text], Optional[List[Text]]) -> None
     git_rev, hg_rev = convert_rev(git_gecko, rev)
+    git_rev_commit = git_gecko.rev_parse(git_rev)
 
     hg_rev_base = None  # type: Optional[Text]
     if base_rev is not None:
         _, hg_rev_base = convert_rev(git_gecko, base_rev)
 
-    if git_gecko.is_ancestor(git_rev,
-                             env.config["gecko"]["refs"]["central"]):
+    if git_gecko.is_ancestor(git_rev_commit,
+                             git_gecko.rev_parse(env.config["gecko"]["refs"]["central"])):
         routing_key = "mozilla-central"
-    elif git_gecko.is_ancestor(git_rev,
+    elif git_gecko.is_ancestor(git_rev_commit,
                                env.config["gecko"]["refs"]["autoland"]):
         routing_key = "integration/autoland"
 
@@ -219,7 +220,8 @@ def update_pr(git_gecko, git_wpt, pr, force_rebase=False, repo_update=True):
                 upstream.update_pr(git_gecko, git_wpt, sync, pr.state, merge_sha)
                 sync.try_land_pr()
                 if merge_sha:
-                    if git_wpt.is_ancestor(merge_sha, sync_point["upstream"]):
+                    if git_wpt.is_ancestor(git_wpt.rev_parse(merge_sha),
+                                           git_wpt.rev_parse(sync_point["upstream"])):
                         # This sync already landed, so it should be finished
                         sync.finish()
                     else:

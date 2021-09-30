@@ -404,8 +404,9 @@ class DownstreamSync(SyncProcess):
         if not self.wpt_commits.head or self.wpt_commits.head.sha1 != self.pr_head.sha1:
             self.wpt_commits.head = self.pr_head  # type: ignore
 
-        if len(self.wpt_commits) == 0 and self.git_wpt.is_ancestor(self.wpt_commits.head.sha1,
-                                                                   "origin/master"):
+        if (len(self.wpt_commits) == 0 and
+            self.git_wpt.is_ancestor(self.wpt_commits.head.commit,
+                                     self.git_wpt.rev_parse("origin/master"))):
             # The commits landed on master so we need to change the commit
             # range to not use origin/master as a base
             base_commit = None
