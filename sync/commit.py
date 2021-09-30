@@ -13,7 +13,7 @@ from pygit2 import Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
-from .repos import pygit2_get
+from .repos import cinnabar, cinnabar_map, pygit2_get
 
 MYPY = False
 if MYPY:
@@ -152,6 +152,7 @@ class Commit(object):
         # type: (Repo, Union[str, Commit, GitPythonCommit, PyGit2Commit, Oid]) -> None
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
+        self.cinnabar = cinnabar_map.get(repo)
         _commit = None
         _pygit2_commit = None
         if hasattr(commit, "hexsha"):
@@ -224,8 +225,8 @@ class Commit(object):
     @property
     def canonical_rev(self):
         # type: () -> Text
-        if hasattr(self.repo, "cinnabar"):
-            return self.repo.cinnabar.git2hg(self.sha1)
+        if self.cinnabar:
+            return self.cinnabar.git2hg(self.sha1)
         return self.sha1
 
     @property
@@ -561,7 +562,7 @@ class GeckoCommit(Commit):
             nodes, bugs = nodes_bugs
             # Assuming that all commits are listed.
             for node in nodes:
-                git_sha = self.repo.cinnabar.hg2git(node.decode("ascii"))
+                git_sha = cinnabar(self.repo).hg2git(node.decode("ascii"))
                 commits.append(GeckoCommit(self.repo, git_sha))
 
         return commits, set(bugs)

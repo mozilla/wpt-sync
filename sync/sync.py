@@ -15,6 +15,7 @@ from .commit import GeckoCommit, WptCommit
 from .env import Environment
 from .errors import AbortError
 from .lock import MutGuard, mut, constructor
+from .repos import cinnabar
 from .worktree import Worktree
 
 MYPY = False
@@ -521,7 +522,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
             assert isinstance(prev_commit, GeckoCommit)
         else:
             prev_commit = GeckoCommit(git_gecko,
-                                      git_gecko.cinnabar.hg2git(base_rev))
+                                      cinnabar(git_gecko).hg2git(base_rev))
         return last_sync_point, prev_commit
 
     @classmethod

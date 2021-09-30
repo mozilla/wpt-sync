@@ -9,6 +9,7 @@ from sync import commit as sync_commit
 from sync.errors import AbortError
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
+from sync.repos import cinnabar
 from conftest import git_commit
 from six.moves import xrange
 
@@ -129,7 +130,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
     with patch("sync.landing.start_next_landing") as start_next_landing:
         landing.gecko_push(git_gecko, git_wpt, "mozilla-central",
-                           git_gecko.cinnabar.git2hg(new_head))
+                           cinnabar(git_gecko).git2hg(new_head))
         assert start_next_landing.call_count == 1
     assert sync.status == "complete"
 

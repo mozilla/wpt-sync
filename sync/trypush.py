@@ -22,6 +22,7 @@ from .index import TaskGroupIndex, TryCommitIndex
 from .load import get_syncs
 from .lock import constructor, mut
 from .projectutil import Mach
+from .repos import cinnabar
 from .tc import TaskGroupView
 
 MYPY = False
@@ -122,7 +123,7 @@ class TryCommit(object):
             # This happens in tests and isn't a problem, but would be in real code,
             # so that's not ideal
             try:
-                try_rev = self.git_gecko.cinnabar.git2hg(self.worktree.head.commit.hexsha)
+                try_rev = cinnabar(self.git_gecko).git2hg(self.worktree.head.commit.hexsha)
             except ValueError:
                 return None
         else:

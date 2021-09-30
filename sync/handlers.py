@@ -15,6 +15,7 @@ from .gitutils import pr_for_commit, update_repositories, gecko_repo
 from .load import get_pr_sync
 from .lock import SyncLock
 from .notify import bugupdate
+from .repos import cinnabar
 
 MYPY = False
 if MYPY:
@@ -166,11 +167,11 @@ class PushHandler(Handler):
 
         update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
         try:
-            git_rev = git_gecko.cinnabar.hg2git(rev)
+            git_rev = cinnabar(git_gecko).hg2git(rev)
         except ValueError:
             pass
         else:
-            if gecko_repo(git_gecko, git_rev) is None:
+            if gecko_repo(git_gecko, git_gecko.rev_parse(git_rev)) is None:
                 logger.info("Skipping commit as it isn't in a branch we track")
                 return
         if processes is None or "upstream" in processes:

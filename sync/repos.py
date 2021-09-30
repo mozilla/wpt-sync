@@ -24,6 +24,7 @@ logger = log.get_logger(__name__)
 
 wrapper_map = {}
 pygit2_map = {}
+cinnabar_map = {}
 
 
 class GitSettings(six.with_metaclass(abc.ABCMeta, object)):
@@ -55,7 +56,7 @@ class GitSettings(six.with_metaclass(abc.ABCMeta, object)):
         logger.debug("Existing repo found at " + self.root)
 
         if self.cinnabar:
-            repo.cinnabar = Cinnabar(repo)
+            cinnabar_map[repo] = Cinnabar(repo)
 
         self.setup(repo)
 
@@ -181,3 +182,8 @@ def pygit2_get(repo):
 def wrapper_get(repo):
     # type: (Repo) -> Optional[GitSettings]
     return wrapper_map.get(repo)
+
+
+def cinnabar(repo):
+    # type: (Repo) -> Cinnabar
+    return cinnabar_map[repo]

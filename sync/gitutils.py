@@ -10,6 +10,7 @@ from . import log
 from .env import Environment
 from .errors import RetryableError
 from .lock import RepoLock
+from .repos import cinnabar
 
 MYPY = False
 if MYPY:
@@ -26,7 +27,7 @@ logger = log.get_logger(__name__)
 def have_gecko_hg_commit(git_gecko, hg_rev):
     # type: (Repo, Text) -> bool
     try:
-        git_gecko.cinnabar.hg2git(hg_rev)
+        cinnabar(git_gecko).hg2git(hg_rev)
     except ValueError:
         return False
     return True

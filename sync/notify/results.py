@@ -13,6 +13,7 @@ from .. import commit as sync_commit
 from ..env import Environment
 from ..errors import RetryableError
 from ..meta import Metadata
+from ..repos import cinnabar
 from .. import wptfyi
 
 MYPY = False
@@ -403,7 +404,7 @@ def get_central_tasks(git_gecko, sync):
     if hg_push_sha is None:
         return None
     try:
-        git_push_sha = git_gecko.cinnabar.hg2git(hg_push_sha)
+        git_push_sha = cinnabar(git_gecko).hg2git(hg_push_sha)
     except ValueError:
         newrelic.agent.record_exception()
         return None

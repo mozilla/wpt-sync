@@ -10,6 +10,7 @@ from .load import get_bug_sync, get_pr_sync
 from .lock import SyncLock
 from .gitutils import update_repositories
 from .errors import AbortError
+from .repos import cinnabar
 
 from six import iteritems
 
@@ -98,12 +99,12 @@ def update_for_action(pr, action, repo_update=True):
 def convert_rev(git_gecko, rev):
     # type: (Repo, Text) -> Tuple[Text, Text]
     try:
-        git_rev = git_gecko.cinnabar.hg2git(rev)
+        git_rev = cinnabar(git_gecko).hg2git(rev)
         hg_rev = rev
     except ValueError:
         # This was probably a git rev
         try:
-            hg_rev = git_gecko.cinnabar.git2hg(rev)
+            hg_rev = cinnabar(git_gecko).git2hg(rev)
         except ValueError:
             raise ValueError("%s is not a valid git or hg rev" % (rev,))
         git_rev = rev
