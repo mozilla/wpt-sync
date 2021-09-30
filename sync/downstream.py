@@ -842,16 +842,16 @@ class DownstreamSync(SyncProcess):
         for commit in self.git_wpt.iter_commits("%s..%s" % (base, head),
                                                 reverse=True,
                                                 paths=list(changed)):
-            commit = sync_commit.WptCommit(self.git_wpt, commit)
+            wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
             # Check for same-pr rather than same-commit because we always
             # use the commits on the PR branch, not the merged commits.
             # The other option is to use the GH API to decide if the PR
             # merged and if so what the merge commit was, although in that
             # case we would still not know the commit prior to merge, which
             # is what we need
-            if commit.pr() == self.pr:
+            if wpt_commit.pr() == self.pr:
                 break
-            commits.append(commit)
+            commits.append(wpt_commit)
         return commits
 
     def message_filter(self, msg):

@@ -32,7 +32,7 @@ def have_gecko_hg_commit(git_gecko, hg_rev):
 
 
 def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
-    # type: (Repo, Repo, Optional[Text]) -> None
+    # type: (Optional[Repo], Optional[Repo], Optional[Text]) -> None
     if git_gecko is not None:
         if wait_gecko_commit is not None:
 
@@ -40,7 +40,11 @@ def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
                 assert wait_gecko_commit is not None
                 return have_gecko_hg_commit(git_gecko, wait_gecko_commit)
 
-            success = until(lambda: _update_gecko(git_gecko), wait_fn)
+            def _update():
+                assert git_gecko is not None
+                return _update_gecko(git_gecko)
+
+            success = until(_update, wait_fn)
             if not success:
                 raise RetryableError(
                     ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit))
@@ -110,7 +114,7 @@ def pr_for_commit(git_wpt, rev):
 
 
 def gecko_repo(git_gecko, head):
-    # type: (Repo, Text) -> Optional[Text]
+    # type: (Repo, Commit) -> Optional[Text]
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
              [(name, ref) for name, ref in iteritems(env.config["gecko"]["refs"])
               if name != "central"])

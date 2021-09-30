@@ -304,7 +304,7 @@ Automatic update from web-platform-tests\n%s
             else:
                 # Check if we rebased locally without pushing the rebase;
                 # this is a thing we used to do to check the PR would merge
-                ref_log = sync.git_wpt.refs[sync.branch_name].log()
+                ref_log = sync.git_wpt.references[sync.branch_name].log()
                 commit_is_local = any(entry.newhexsha == pr_head for entry in ref_log)
             if commit_is_local:
                 logger.info("Upstream sync doesn't introduce any gecko changes")
@@ -921,18 +921,18 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
     revish = "%s..%s" % (prev_wpt_head, wpt_head)
 
     commits_by_pr = []  # type: List[Tuple[Optional[int], List[WptCommit]]]
-    index_by_pr = {}  # type: Dict[int, int]
+    index_by_pr = {}  # type: Dict[Optional[int], int]
 
     for commit in git_wpt.iter_commits(revish,
                                        reverse=True,
                                        first_parent=True):
-        commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
-        pr = commit.pr()
+        wpt_commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
+        pr = wpt_commit.pr()
         extra_commits = []
         if pr not in index_by_pr:
             pr_data = (pr, [])  # type: Tuple[Optional[int], List[WptCommit]]
             # If we have a merge commit, also get the commits merged in
-            if len(commit.commit.parents) > 1:
+            if len(commit.parents) > 1:
                 merged_revish = "%s..%s" % (commit.commit.parents[0].hexsha, commit.sha1)
                 for merged_commit in git_wpt.iter_commits(merged_revish,
                                                           reverse=True):
@@ -946,7 +946,7 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
             assert pr_data[0] == pr
             index_by_pr = {key: (value if value < idx else value - 1)
                            for key, value in iteritems(index_by_pr)}
-        for c in extra_commits + [commit]:
+        for c in extra_commits + [wpt_commit]:
             pr_data[1].append(c)
         commits_by_pr.append(pr_data)
         index_by_pr[pr] = len(commits_by_pr) - 1
@@ -1411,15 +1411,19 @@ def gecko_push(git_gecko,  # type: Repo
     landing_sync = current(git_gecko, git_wpt)
     for commit in git_gecko.iter_commits(revish,
                                          reverse=True):
-        commit = sync_commit.GeckoCommit(git_gecko, commit.hexsha)
-        logger.debug("Processing commit %s" % commit.sha1)
-        if landed_central and commit.is_landing:
-            logger.info("Found wptsync landing in commit %s" % commit.sha1)
-            if commit.bug is None:
+        gecko_commit = sync_commit.GeckoCommit(git_gecko, commit.hexsha)
+        logger.debug("Processing commit %s" % gecko_commit.sha1)
+        if landed_central and gecko_commit.is_landing:
+            logger.info("Found wptsync landing in commit %s" % gecko_commit.sha1)
+            if gecko_commit.bug is None:
                 logger.error("Commit %s looked link a landing, but had no bug" %
-                             commit.sha1)
+                             gecko_commit.sha1)
                 continue
-            syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug, statuses=None, flat=True)
+            syncs = LandingSync.for_bug(git_gecko,
+                                        git_wpt,
+                                        gecko_commit.bug,
+                                        statuses=None,
+                                        flat=True)
             if syncs:
                 sync = syncs[0]
                 logger.info("Found sync %s" % sync.process_name)
@@ -1429,13 +1433,16 @@ def gecko_push(git_gecko,  # type: Repo
                         sync.finish()
             else:
                 logger.error("Failed to find sync for commit")
-        elif commit.is_backout:
-            backed_out, _ = commit.landing_commits_backed_out()
+        elif gecko_commit.is_backout:
+            backed_out, _ = gecko_commit.landing_commits_backed_out()
             if backed_out:
-                logger.info("Commit %s backs out wpt sync landings" % commit.sha1)
+                logger.info("Commit %s backs out wpt sync landings" % gecko_commit.sha1)
             for backed_out_commit in backed_out:
-                syncs = LandingSync.for_bug(git_gecko, git_wpt, backed_out_commit.bug,
-                                            statuses=None, flat=True)
+                bug = backed_out_commit.bug
+                syncs = []
+                if bug is not None:
+                    syncs = LandingSync.for_bug(git_gecko, git_wpt, bug,
+                                                statuses=None, flat=True)
                 if syncs:
                     # TODO: should really check if commit is actually part of the sync if there's >1
                     # TODO: reopen landing? But that affects the invariant that there is only one
@@ -1447,9 +1454,12 @@ def gecko_push(git_gecko,  # type: Repo
                             sync.error = "Landing was backed out"  # type: ignore
                 else:
                     logger.error("Failed to find sync for commit")
-        elif commit.is_downstream:
-            syncs = LandingSync.for_bug(git_gecko, git_wpt, commit.bug,
-                                        statuses=None, flat=True)
+        elif gecko_commit.is_downstream:
+            syncs = []
+            bug = gecko_commit.bug
+            if bug is not None:
+                syncs = LandingSync.for_bug(git_gecko, git_wpt, bug,
+                                            statuses=None, flat=True)
             for sync in syncs:
                 sync = syncs[0]
                 with SyncLock("landing", None) as lock:

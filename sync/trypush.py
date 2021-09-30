@@ -17,10 +17,10 @@ from . import log
 from . import tc
 from . import tree
 from .env import Environment
+from .errors import AbortError, RetryableError
 from .index import TaskGroupIndex, TryCommitIndex
 from .load import get_syncs
 from .lock import constructor, mut
-from .errors import AbortError, RetryableError
 from .projectutil import Mach
 from .tc import TaskGroupView
 
@@ -58,7 +58,7 @@ class TryCommit(object):
         self.hacks = hacks
         self.try_rev = None
         self.extra_args = kwargs
-        self.reset = None
+        self.reset = None  # type: Optional[Text]
 
     def __enter__(self):
         # type: () -> TryCommit

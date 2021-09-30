@@ -415,7 +415,7 @@ class VcsRefObject(six.with_metaclass(IdentityMap, object)):
 
     @property
     def ref(self):
-        # type: () -> Reference
+        # type: () -> Optional[Reference]
         if self.path in self.pygit2_repo.references:
             return git.Reference(self.repo, self.path)
         return None
