@@ -66,9 +66,9 @@ cffi==1.14.6 \
 click==8.0.1 \
     --hash=sha256:fba402a4a47334742d782209a7c79bc448911afe1149d07bdabdf480b3e2f4b6 \
     --hash=sha256:8c04c11192119b1ef78ea049e0a6f0463e4c48ef00a30160c704337586f3ad7a
-click-didyoumean==0.2.0 \
-    --hash=sha256:4a49fefdddaed47fe316d259e8255a2d0e9e1189aa6dde9f13ec524163860a30 \
-    --hash=sha256:00136c217f7fb2ab2999c272cfbd0c14cd2d6c7a643318a954357e2fc3ea7beb
+click-didyoumean==0.3.0 \
+    --hash=sha256:a0713dc7a1de3f06bc0df5a9567ad19ead2d3d5689b434768a6145bff77c0667 \
+    --hash=sha256:f184f0d851d96b6d29297354ed981b7dd71df7ff500d82fa6d11f0856bee8035
 click-plugins==1.1.1 \
     --hash=sha256:5d262006d3222f5057fd81e1623d4443e41dcda5dc815c06b442aa3c02889fc8
 click_repl==0.2.0 \
