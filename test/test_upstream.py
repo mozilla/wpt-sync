@@ -1,6 +1,7 @@
 from sync import commit as sync_commit, upstream
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
+from sync.repos import cinnabar
 from conftest import git_commit
 
 
@@ -25,7 +26,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
-    assert sync.gecko_commits.head.sha1 == git_gecko.cinnabar.hg2git(rev)
+    assert sync.gecko_commits.head.sha1 == cinnabar(git_gecko).hg2git(rev)
 
     wpt_commit = sync.wpt_commits[0]
 
@@ -75,7 +76,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit,
     assert len(sync.wpt_commits) == 1
     assert len(sync.upstreamed_gecko_commits) == 1
     assert sync.status == "incomplete"
-    backout_commit = sync_commit.GeckoCommit(git_gecko, git_gecko.cinnabar.hg2git(rev))
+    backout_commit = sync_commit.GeckoCommit(git_gecko, cinnabar(git_gecko).hg2git(rev))
     assert backout_commit.upstream_sync(git_gecko, git_wpt) == sync
 
 
@@ -297,7 +298,7 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 2
     assert len(sync.wpt_commits) == 1
-    assert sync.gecko_commits.head.sha1 == git_gecko.cinnabar.hg2git(gecko_rev_2)
+    assert sync.gecko_commits.head.sha1 == cinnabar(git_gecko).hg2git(gecko_rev_2)
 
     wpt_commit = sync.wpt_commits[0]
 
@@ -414,7 +415,7 @@ def test_upstream_reprocess_commits(git_gecko, git_wpt, upstream_gecko_commit,
     upstream.gecko_push(git_gecko, git_wpt, "autoland", backout_rev, raise_on_error=True)
 
     sync_point = git_gecko.refs["sync/upstream/autoland"]
-    sync_point.commit = (sync_commit.GeckoCommit(git_gecko, git_gecko.cinnabar.hg2git(rev))
+    sync_point.commit = (sync_commit.GeckoCommit(git_gecko, cinnabar(git_gecko).hg2git(rev))
                          .commit.parents[0])
 
     pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "autoland", backout_rev,

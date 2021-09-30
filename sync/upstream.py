@@ -22,7 +22,7 @@ from .gitutils import update_repositories, gecko_repo
 from .gh import AttrDict
 from .lock import SyncLock, constructor, mut
 from .sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
-from .repos import pygit2_get
+from .repos import cinnabar, pygit2_get
 from six import iteritems, itervalues
 
 MYPY = False
@@ -139,7 +139,7 @@ class UpstreamSync(SyncProcess):
         for gh_commit in commits:
             commit = sync_commit.WptCommit(git_wpt, gh_commit.sha)
             if cls.has_metadata(commit.msg):
-                gecko_commits.append(git_gecko.cinnabar.hg2git(commit.metadata["gecko-commit"]))
+                gecko_commits.append(cinnabar(git_gecko).hg2git(commit.metadata["gecko-commit"]))
                 commit_bug = env.bz.id_from_url(commit.metadata["bugzilla-url"])
                 if bug is not None and commit_bug != bug:
                     logger.error("Got multiple bug numbers in URL from commits")
@@ -247,7 +247,7 @@ class UpstreamSync(SyncProcess):
             self._upstreamed_gecko_head != self.wpt_commits.head.sha1):
             self._upstreamed_gecko_commits = [
                 sync_commit.GeckoCommit(self.git_gecko,
-                                        self.git_gecko.cinnabar.hg2git(
+                                        cinnabar(self.git_gecko).hg2git(
                                             wpt_commit.metadata["gecko-commit"]))
                 for wpt_commit in self.wpt_commits
                 if "gecko-commit" in wpt_commit.metadata]
@@ -1009,7 +1009,7 @@ def gecko_push(git_gecko,  # type: Repo
                base_rev=None,  # type: Optional[Any]
                ):
     # type: (...) -> Optional[Tuple[Set[UpstreamSync], Set[UpstreamSync], Set]]
-    rev = git_gecko.rev_parse(git_gecko.cinnabar.hg2git(hg_rev))
+    rev = git_gecko.rev_parse(cinnabar(git_gecko).hg2git(hg_rev))
     last_sync_point, prev_commit = UpstreamSync.prev_gecko_commit(git_gecko,
                                                                   repository_name)
 

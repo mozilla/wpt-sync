@@ -28,7 +28,7 @@ from .gitutils import update_repositories
 from .lock import SyncLock, constructor, mut
 from .errors import AbortError, RetryableError
 from .projectutil import Mach
-from .repos import pygit2_get
+from .repos import cinnabar, pygit2_get
 from .sync import LandableStatus, SyncProcess
 
 MYPY = False
@@ -207,7 +207,7 @@ class LandingSync(SyncProcess):
                 wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
                 gecko_commit = wpt_commit.metadata.get("gecko-commit")
                 if gecko_commit:
-                    git_sha = self.git_gecko.cinnabar.hg2git(gecko_commit)
+                    git_sha = cinnabar(self.git_gecko).hg2git(gecko_commit)
                     commit = sync_commit.GeckoCommit(self.git_gecko, git_sha)
                     bug_number = bug.bug_number_from_url(commit.metadata.get("bugzilla-url"))
                     if on_integration_branch(commit):
@@ -1402,7 +1402,7 @@ def gecko_push(git_gecko,  # type: Repo
                base_rev=None,  # type: Optional[Any]
                ):
     # type: (...) -> None
-    rev = git_gecko.cinnabar.hg2git(hg_rev)
+    rev = git_gecko.rev_parse(cinnabar(git_gecko).hg2git(hg_rev))
     last_sync_point, base_commit = LandingSync.prev_gecko_commit(git_gecko,
                                                                  repository_name)
 
