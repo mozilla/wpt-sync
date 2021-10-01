@@ -115,7 +115,8 @@ elif [ "$1" == "--worker" ]; then
                        --concurrency=1 \
                        --pidfile=${CELERY_PID_FILE} \
                        --logfile=${CELERY_LOG_FILE} \
-                       --loglevel=DEBUG
+                       --loglevel=DEBUG \
+                       -P prefork
 
     # ./bin/run_docker_dev.sh run --worker --phab
     if [ "$2" == "--phab" ]; then
