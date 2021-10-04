@@ -335,7 +335,9 @@ class GitHub(object):
         return list(self.get_pull(pr_id).get_commits())
 
     def cleanup_pr_body(self, text):
-        # type: (Text) -> Text
+        # type: (Optional[Text]) -> Optional[Text]
+        if text is None:
+            return None
         r = re.compile(re.escape("<!-- Reviewable:start -->") + ".*" +
                        re.escape("<!-- Reviewable:end -->"), re.DOTALL)
         return r.sub("", text)

@@ -124,14 +124,14 @@ class UpstreamSync(SyncProcess):
                 git_gecko,  # type: Repo
                 git_wpt,  # type: Repo
                 pr_id,  # type: int
-                body  # type: Text
+                body  # type: Optional[Text]
                 ):
         # type: (...) -> Optional[UpstreamSync]
         gecko_commits = []
         bug = None
         integration_branch = None
 
-        if not cls.has_metadata(body.encode("utf8", "replace")):
+        if body is None or not cls.has_metadata(body.encode("utf8", "replace")):
             return None
 
         commits = env.gh_wpt.get_commits(pr_id)
