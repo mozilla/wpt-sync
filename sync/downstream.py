@@ -102,7 +102,7 @@ class DownstreamSync(SyncProcess):
         return sync
 
     def make_bug_comment(self, git_wpt, pr_id, pr_title, pr_body):
-        # type: (Repo, int, Text, Text) -> Text
+        # type: (Repo, int, Text, Optional[Text]) -> Text
         pr_msg = env.gh_wpt.cleanup_pr_body(pr_body)
         # TODO: Ensure we have the right set of commits before geting here
         author = self.wpt_commits[0].author if self.wpt_commits else b""
@@ -115,9 +115,10 @@ class DownstreamSync(SyncProcess):
                "Details from upstream follow.",
                "",
                "%s wrote:" % author.decode("utf8", "ignore"),
-               ">  %s" % pr_title,
-               ">  "]
-        msg.extend((">  %s" % line for line in pr_msg.split("\n")))
+               ">  %s" % pr_title]
+        if pr_msg:
+            msg.append(">  ")
+            msg.extend(">  %s" % line for line in pr_msg.split("\n"))
         return "\n".join(msg)
 
     @classmethod
@@ -380,7 +381,7 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def create_bug(self, git_wpt, pr_id, pr_title, pr_body):
-        # type: (Repo, int, str, str) -> None
+        # type: (Repo, int, str, Optional[str]) -> None
         if self.bug is not None:
             return
         comment = self.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
