@@ -4,34 +4,31 @@ if MYPY:
     from sync.bug import Bugzilla
     from sync.gh import GitHub
 
-_config = None  # type: Optional[Dict]
-_bz = None  # type: Optional[Bugzilla]
-_gh_wpt = None  # type: Optional[GitHub]
+_config: Optional[Dict] = None
+_bz: Optional[Bugzilla] = None
+_gh_wpt: Optional[GitHub] = None
 
 
 class Environment:
     @property
-    def config(self):
-        # type: () -> Dict[Text, Any]
+    def config(self) -> Dict[Text, Any]:
         assert _config is not None
         return _config
 
     @property
-    def bz(self):
-        # type: () -> Bugzilla
+    def bz(self) -> Bugzilla:
         assert _bz is not None
         return _bz
 
     @property
-    def gh_wpt(self):
-        # type: () -> GitHub
+    def gh_wpt(self) -> GitHub:
         assert _gh_wpt is not None
         return _gh_wpt
 
 
-def set_env(config,  # type: Dict
-            bz,  # type: Bugzilla
-            gh_wpt  # type: GitHub
+def set_env(config: Dict,
+            bz: Bugzilla,
+            gh_wpt: GitHub
             ):
     global _config
     global _bz

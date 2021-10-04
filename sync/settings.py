@@ -37,8 +37,7 @@ def get_root():
     return root, repo_root
 
 
-def load():
-    # type: () -> Dict[Text, Any]
+def load() -> Dict[Text, Any]:
     global _config
     if _config is None:
         root, _ = get_root()
@@ -55,8 +54,7 @@ def load():
 def load_files(ini_sync, ini_credentials):
     root, repo_root = get_root()
 
-    def nested():
-        # type: () -> Dict[Text, Any]
+    def nested() -> Dict[Text, Any]:
         return defaultdict(nested)
 
     config = nested()

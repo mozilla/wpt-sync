@@ -20,8 +20,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def have_gecko_hg_commit(git_gecko, hg_rev):
-    # type: (Repo, Text) -> bool
+def have_gecko_hg_commit(git_gecko: Repo, hg_rev: Text) -> bool:
     try:
         git_gecko.cinnabar.hg2git(hg_rev)
     except ValueError:
@@ -29,8 +28,7 @@ def have_gecko_hg_commit(git_gecko, hg_rev):
     return True
 
 
-def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
-    # type: (Repo, Repo, Optional[Text]) -> None
+def update_repositories(git_gecko: Repo, git_wpt: Repo, wait_gecko_commit: Optional[Text] = None) -> None:
     if git_gecko is not None:
         if wait_gecko_commit is not None:
 
@@ -49,8 +47,7 @@ def update_repositories(git_gecko, git_wpt, wait_gecko_commit=None):
         _update_wpt(git_wpt)
 
 
-def until(func, cond, max_tries=5):
-    # type: (Callable, Callable, int) -> bool
+def until(func: Callable, cond: Callable, max_tries: int = 5) -> bool:
     for i in range(max_tries):
         func()
         if cond():
@@ -67,8 +64,7 @@ def _fetch(git_gecko, remote):
     subprocess.check_call(cmd)
 
 
-def _update_gecko(git_gecko):
-    # type: (Repo) -> None
+def _update_gecko(git_gecko: Repo) -> None:
     with RepoLock(git_gecko):
         logger.info("Fetching mozilla-unified")
         # Not using the built in fetch() function since that tries to parse the output
@@ -79,15 +75,13 @@ def _update_gecko(git_gecko):
             _fetch(git_gecko, "autoland")
 
 
-def _update_wpt(git_wpt):
-    # type: (Repo) -> None
+def _update_wpt(git_wpt: Repo) -> None:
     with RepoLock(git_wpt):
         logger.info("Fetching web-platform-tests")
         git_wpt.git.fetch("origin")
 
 
-def refs(git, prefix=None):
-    # type: (Repo, Optional[Text]) -> Dict[Text, Text]
+def refs(git: Repo, prefix: Optional[Text] = None) -> Dict[Text, Text]:
     rv = {}
     refs = git.git.show_ref().split("\n")
     for item in refs:
@@ -98,8 +92,7 @@ def refs(git, prefix=None):
     return rv
 
 
-def pr_for_commit(git_wpt, rev):
-    # type: (Repo, Text) -> Optional[int]
+def pr_for_commit(git_wpt: Repo, rev: Text) -> Optional[int]:
     prefix = "refs/remotes/origin/pr/"
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
@@ -107,8 +100,7 @@ def pr_for_commit(git_wpt, rev):
     return None
 
 
-def gecko_repo(git_gecko, head):
-    # type: (Repo, Text) -> Optional[Text]
+def gecko_repo(git_gecko: Repo, head: Text) -> Optional[Text]:
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
              [(name, ref) for name, ref in env.config["gecko"]["refs"].items()
               if name != "central"])
@@ -119,8 +111,7 @@ def gecko_repo(git_gecko, head):
     return None
 
 
-def status(repo):
-    # type: (Repo) -> Dict[Text, Dict[Text, Any]]
+def status(repo: Repo) -> Dict[Text, Dict[Text, Any]]:
     status_entries = repo.git.status(z=True).split("\0")
     rv = {}
     for item in status_entries:
@@ -154,8 +145,7 @@ def handle_empty_commit(worktree, e):
     return False
 
 
-def cherry_pick(worktree, commit):
-    # type: (Repo, Text) -> bool
+def cherry_pick(worktree: Repo, commit: Text) -> bool:
     try:
         worktree.git.cherry_pick(commit)
         return True

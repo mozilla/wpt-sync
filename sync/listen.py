@@ -120,8 +120,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
     return Listener(conn, [item[1] for item in exchanges], queues, logger)
 
 
-def run_pulse_listener(config):
-    # type: (Dict[Text, Any]) -> None
+def run_pulse_listener(config: Dict[Text, Any]) -> None:
     """
     Configures Pulse connection and triggers events from Pulse messages.
 
@@ -178,7 +177,7 @@ def run_pulse_listener(config):
 
 
 class Filter(metaclass=abc.ABCMeta):
-    name = None  # type: Text
+    name: Text = None
     task = tasks.handle
 
     def __init__(self, config, logger):
@@ -191,8 +190,7 @@ class Filter(metaclass=abc.ABCMeta):
             self.logger.debug(json.dumps(body))
             self.task.apply_async((self.name, body))
 
-    def accept(self, body):
-        # type: (Dict[Text, Any]) -> bool
+    def accept(self, body: Dict[Text, Any]) -> bool:
         raise NotImplementedError
 
 

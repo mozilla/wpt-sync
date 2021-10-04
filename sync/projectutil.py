@@ -38,8 +38,7 @@ class Command:
         self.path = path
         self.logger = logger
 
-    def get(self, *subcommand, **opts):
-        # type: (*Text, **Any) -> bytes
+    def get(self, *subcommand: Text, **opts: Any) -> bytes:
         """ Run the specified subcommand with `command` and return the result.
 
         eg. r = mach.get('test-info', 'path/to/test')
@@ -56,16 +55,14 @@ class Command:
                 "command_output": e.output})
             raise e
 
-    def __getattr__(self, name):
-        # type: (str) -> Callable
+    def __getattr__(self, name: str) -> Callable:
         if name.endswith("_"):
             name = name[:-1]
 
-        def call(self, *args, **kwargs):
-            # type: (Any, *Text, **Any) -> Text
+        def call(self: Any, *args: Text, **kwargs: Any) -> Text:
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
-        args = (call, self)  # type: Tuple[Any, ...]
+        args: Tuple[Any, ...] = (call, self)
         if six.PY2:
             args += (self.__class__,)
         self.__dict__[name] = types.MethodType(*args)
@@ -76,8 +73,7 @@ class Mach(Command):
     def __init__(self, path):
         Command.__init__(self, "mach", path)
 
-    def get(self, *subcommand, **opts):
-        # type: (*Text, **Any) -> bytes
+    def get(self, *subcommand: Text, **opts: Any) -> bytes:
         state_path = repos.Gecko.get_state_path(env.config, self.path)
 
         # Ensure that the mach environment actually exists; although we usually create
@@ -110,23 +106,19 @@ def create_mock(name):
         _data = {}
         _log = []
 
-        def __init__(self, path):
-            # type: (Optional[Text]) -> None
+        def __init__(self, path: Optional[Text]) -> None:
             self.name = name
             self.path = path
 
         @classmethod
-        def set_data(cls, command, value):
-            # type: (Text, Text) -> None
+        def set_data(cls, command: Text, value: Text) -> None:
             cls._data[command] = value
 
         @classmethod
-        def get_log(cls):
-            # type: () -> List[Dict[Text, Any]]
+        def get_log(cls) -> List[Dict[Text, Any]]:
             return cls._log
 
-        def get(self, *args, **kwargs):
-            # type: (*Text, **Any) -> bytes
+        def get(self, *args: Text, **kwargs: Any) -> bytes:
             data = self._data.get(args[0], b"")
             if callable(data):
                 data = data(*args[1:], **kwargs)

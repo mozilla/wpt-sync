@@ -235,8 +235,7 @@ def get_parser():
     return parser
 
 
-def sync_from_path(git_gecko, git_wpt):
-    # type: (Repo, Repo) -> Optional[SyncProcess]
+def sync_from_path(git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
     from . import base
     git_work = git.Repo(os.curdir)
     branch = git_work.active_branch.name
@@ -245,7 +244,7 @@ def sync_from_path(git_gecko, git_wpt):
         return None
     if parts[1] == "downstream":
         from . import downstream
-        cls = downstream.DownstreamSync  # type: Type[SyncProcess]
+        cls: Type[SyncProcess] = downstream.DownstreamSync
     elif parts[1] == "upstream":
         from . import upstream
         cls = upstream.UpstreamSync
@@ -260,12 +259,11 @@ def sync_from_path(git_gecko, git_wpt):
     return cls(git_gecko, git_wpt, process_name)
 
 
-def do_list(git_gecko, git_wpt, sync_type, error=False, **kwargs):
-    # type: (Repo, Repo, Text, bool, **Any) -> None
+def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: Text, error: bool = False, **kwargs: Any) -> None:
     from . import downstream
     from . import landing
     from . import upstream
-    syncs = []  # type: List[SyncProcess]
+    syncs: List[SyncProcess] = []
 
     def filter_sync(sync):
         if error:
@@ -303,24 +301,22 @@ def do_list(git_gecko, git_wpt, sync_type, error=False, **kwargs):
                error_msg))
 
 
-def do_detail(git_gecko, git_wpt, sync_type, obj_id, **kwargs):
-    # type: (Repo, Repo, Text, int, **Any) -> None
+def do_detail(git_gecko: Repo, git_wpt: Repo, sync_type: Text, obj_id: int, **kwargs: Any) -> None:
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
         print(sync.output())
 
 
-def do_landing(git_gecko,  # type: Repo
-               git_wpt,  # type: Repo
-               wpt_head=None,  # type: Optional[Text]
-               prev_wpt_head=None,  # type: Optional[Text]
-               include_incomplete=False,  # type: bool
-               accept_failures=False,  # type: bool
-               retry=False,  # type: bool
-               push=True,  # type: bool
-               **kwargs  # type: Any
-               ):
-    # type: (...) -> None
+def do_landing(git_gecko: Repo,
+               git_wpt: Repo,
+               wpt_head: Optional[Text] = None,
+               prev_wpt_head: Optional[Text] = None,
+               include_incomplete: bool = False,
+               accept_failures: bool = False,
+               retry: bool = False,
+               push: bool = True,
+               **kwargs: Any
+               ) -> None:
     from . import errors
     from . import landing
     from . import update
@@ -370,17 +366,16 @@ def do_landing(git_gecko,  # type: Repo
         update_landing()
 
 
-def do_update(git_gecko,  # type: Repo
-              git_wpt,  # type: Repo
-              sync_type=None,  # type: Optional[List[Text]]
-              status=None,  # type: Optional[List[Text]]
-              **kwargs  # type: Any
-              ):
-    # type: (...) -> None
+def do_update(git_gecko: Repo,
+              git_wpt: Repo,
+              sync_type: Optional[List[Text]] = None,
+              status: Optional[List[Text]] = None,
+              **kwargs: Any
+              ) -> None:
     from . import downstream
     from . import update
     from . import upstream
-    sync_classes = []  # type: List[type]
+    sync_classes: List[type] = []
     if not sync_type:
         sync_type = ["upstream", "downstream"]
     for key in sync_type:
@@ -389,15 +384,13 @@ def do_update(git_gecko,  # type: Repo
     update.update_from_github(git_gecko, git_wpt, sync_classes, status)
 
 
-def do_update_tasks(git_gecko, git_wpt, pr_id, **kwargs):
-    # type: (Repo, Repo, int, **Any) -> None
+def do_update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int, **kwargs: Any) -> None:
     from . import update
     update.update_taskgroup_ids(git_gecko, git_wpt)
     update.update_tasks(git_gecko, git_wpt, pr_id)
 
 
-def do_pr(git_gecko, git_wpt, pr_ids, rebase=False, **kwargs):
-    # type: (Repo, Repo, List[int], bool, **Any) -> None
+def do_pr(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], rebase: bool = False, **kwargs: Any) -> None:
     from . import update
     if not pr_ids:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -417,8 +410,7 @@ def do_pr(git_gecko, git_wpt, pr_ids, rebase=False, **kwargs):
         update.update_pr(git_gecko, git_wpt, pr, rebase)
 
 
-def do_bug(git_gecko, git_wpt, bug, **kwargs):
-    # type: (Repo, Repo, int, **Any) -> None
+def do_bug(git_gecko: Repo, git_wpt: Repo, bug: int, **kwargs: Any) -> None:
     from . import update
     if bug is None:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -432,14 +424,13 @@ def do_bug(git_gecko, git_wpt, bug, **kwargs):
     update.update_bug(git_gecko, git_wpt, bug)
 
 
-def do_push(git_gecko,  # type: Repo
-            git_wpt,  # type: Repo
-            rev=None,  # type: Optional[Text]
-            base_rev=None,  # type: Optional[Text]
-            processes=None,  # type: Optional[List[Text]]
-            **kwargs  # type: Any
-            ):
-    # type: (...) -> None
+def do_push(git_gecko: Repo,
+            git_wpt: Repo,
+            rev: Optional[Text] = None,
+            base_rev: Optional[Text] = None,
+            processes: Optional[List[Text]] = None,
+            **kwargs: Any
+            ) -> None:
     from . import update
     if rev is None:
         rev = git_gecko.commit(env.config["gecko"]["refs"]["mozilla-inbound"]).hexsha
@@ -447,17 +438,16 @@ def do_push(git_gecko,  # type: Repo
     update.update_push(git_gecko, git_wpt, rev, base_rev=base_rev, processes=processes)
 
 
-def do_delete(git_gecko,  # type: Repo
-              git_wpt,  # type: Repo
-              sync_type,  # type: Text
-              obj_ids,  # type: List[int]
-              try_push=False,  # type: bool
-              delete_all=False,  # type: bool
-              seq_id=None,  # type: Optional[int]
-              **kwargs):
-    # type: (...) -> None
+def do_delete(git_gecko: Repo,
+              git_wpt: Repo,
+              sync_type: Text,
+              obj_ids: List[int],
+              try_push: bool = False,
+              delete_all: bool = False,
+              seq_id: Optional[int] = None,
+              **kwargs) -> None:
     from . import trypush
-    objs = []  # type: Iterable[Any]
+    objs: Iterable[Any] = []
     for obj_id in obj_ids:
         logger.info(f"{sync_type} {obj_id}")
         if try_push:
@@ -476,14 +466,13 @@ def do_delete(git_gecko,  # type: Repo
                     obj.delete()
 
 
-def do_worktree(git_gecko,  # type: Repo
-                git_wpt,  # type: Repo
-                sync_type,  # type: Text
-                obj_id,  # type: int
-                worktree_type,  # type: Text
-                **kwargs  # type: Any
-                ):
-    # type: (...) -> None
+def do_worktree(git_gecko: Repo,
+                git_wpt: Repo,
+                sync_type: Text,
+                obj_id: int,
+                worktree_type: Text,
+                **kwargs: Any
+                ) -> None:
     attr_name = worktree_type + "_worktree"
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
@@ -493,40 +482,36 @@ def do_worktree(git_gecko,  # type: Repo
                 getattr(sync, attr_name).get()
 
 
-def do_start_listener(git_gecko, git_wpt, **kwargs):
-    # type: (Repo, Repo, **Any) -> None
+def do_start_listener(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     listen.run_pulse_listener(env.config)
 
 
-def do_start_phab_listener(git_gecko, git_wpt, **kwargs):
-    # type: (Repo, Repo, **Any) -> None
+def do_start_phab_listener(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     phablisten.run_phabricator_listener(env.config)
 
 
-def do_configure_repos(git_gecko, git_wpt, repo, config_file, **kwargs):
-    # type: (Repo, Repo, Text, Text, **Any) -> None
+def do_configure_repos(git_gecko: Repo, git_wpt: Repo, repo: Text, config_file: Text, **kwargs: Any) -> None:
     from . import repos
     r = repos.wrappers[repo](env.config)
     with RepoLock(r.repo()):
         r.configure(os.path.abspath(os.path.normpath(config_file)))
 
 
-def do_status(git_gecko,  # type: Repo
-              git_wpt,  # type: Repo
-              obj_type,  # type: Text
-              sync_type,  # type: Text
-              obj_id,  # type: int
-              new_status,  # type: Text
-              seq_id=None,  # type: Optional[int]
-              old_status=None,  # type: Optional[int]
-              **kwargs  # type: Any
-              ):
-    # type: (...) -> None
+def do_status(git_gecko: Repo,
+              git_wpt: Repo,
+              obj_type: Text,
+              sync_type: Text,
+              obj_id: int,
+              new_status: Text,
+              seq_id: Optional[int] = None,
+              old_status: Optional[int] = None,
+              **kwargs: Any
+              ) -> None:
     from . import upstream
     from . import downstream
     from . import landing
     from . import trypush
-    objs = []  # type: Iterable[Union[TryPush, SyncProcess]]
+    objs: Iterable[Union[TryPush, SyncProcess]] = []
     if obj_type == "try":
         try_pushes = trypush.TryPush.load_by_obj(git_gecko,
                                                  sync_type,
@@ -538,7 +523,7 @@ def do_status(git_gecko,  # type: Repo
             objs = try_pushes
     else:
         if sync_type == "upstream":
-            cls = upstream.UpstreamSync  # type: Type[SyncProcess]
+            cls: Type[SyncProcess] = upstream.UpstreamSync
         if sync_type == "downstream":
             cls = downstream.DownstreamSync
         if sync_type == "landing":
@@ -562,8 +547,7 @@ def do_status(git_gecko,  # type: Repo
                 obj.status = new_status  # type: ignore
 
 
-def do_test(**kwargs):
-    # type: (**Any) -> None
+def do_test(**kwargs: Any) -> None:
     if kwargs.pop("flake8", True):
         logger.info("Running flake8")
         cmd = ["flake8"]
@@ -590,14 +574,12 @@ def do_test(**kwargs):
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
-def do_cleanup(git_gecko, git_wpt, **kwargs):
-    # type: (Repo, Repo, **Any) -> None
+def do_cleanup(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     from .tasks import cleanup
     cleanup()
 
 
-def do_skip(git_gecko, git_wpt, pr_ids, **kwargs):
-    # type: (Repo, Repo, List[int], **Any) -> None
+def do_skip(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], **kwargs: Any) -> None:
     from . import downstream
     if not pr_ids:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -622,8 +604,7 @@ def do_skip(git_gecko, git_wpt, pr_ids, **kwargs):
                 sync.skip = True  # type: ignore
 
 
-def do_notify(git_gecko, git_wpt, pr_ids, force=False, **kwargs):
-    # type: (Repo, Repo, List[int], bool, **Any) -> None
+def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], force: bool = False, **kwargs: Any) -> None:
     from . import downstream
     if not pr_ids:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -654,14 +635,13 @@ def do_notify(git_gecko, git_wpt, pr_ids, force=False, **kwargs):
 
 def do_landable(git_gecko,
                 git_wpt,
-                prev_wpt_head=None,  # type: Optional[Text]
-                include_incomplete=False,  # type: bool
-                include_all=True,  # type: bool
-                retrigger=False,  # type: bool
-                blocked=True,  # type: bool
-                **kwargs  # type: Any
-                ):
-    # type: (...) -> None
+                prev_wpt_head: Optional[Text] = None,
+                include_incomplete: bool = False,
+                include_all: bool = True,
+                retrigger: bool = False,
+                blocked: bool = True,
+                **kwargs: Any
+                ) -> None:
     from . import update
     from .sync import LandableStatus
     from .downstream import DownstreamAction, DownstreamSync
@@ -732,8 +712,7 @@ def do_landable(git_gecko,
                     str(item) for item in errors))
 
 
-def do_retrigger(git_gecko, git_wpt, upstream=False, downstream=False, rebase=False, **kwargs):
-    # type: (Repo, Repo, bool, bool, bool, **Any) -> None
+def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstream: bool = False, rebase: bool = False, **kwargs: Any) -> None:
     from . import errors
     from . import update
     from . import upstream as upstream_sync
@@ -770,16 +749,15 @@ def do_retrigger(git_gecko, git_wpt, upstream=False, downstream=False, rebase=Fa
                                                                    for item in pr_errors))
 
 
-def do_try_push_add(git_gecko,  # type: Repo
-                    git_wpt,  # type: Repo
-                    try_rev,  # type: Text
-                    stability=False,  # type: bool
-                    sync_type=None,  # type: Optional[Text]
-                    sync_id=None,  # type: Optional[int]
-                    rebuild_count=None,  # type: Optional[int]
-                    **kwargs  # type: Any
-                    ):
-    # type: (...) -> None
+def do_try_push_add(git_gecko: Repo,
+                    git_wpt: Repo,
+                    try_rev: Text,
+                    stability: bool = False,
+                    sync_type: Optional[Text] = None,
+                    sync_id: Optional[int] = None,
+                    rebuild_count: Optional[int] = None,
+                    **kwargs: Any
+                    ) -> None:
     from . import downstream
     from . import landing
     from . import trypush
@@ -840,13 +818,12 @@ def do_try_push_add(git_gecko,  # type: Repo
     print("Now run an update for the sync")
 
 
-def do_download_logs(git_gecko,  # type: Repo
-                     git_wpt,  # type: Repo
-                     log_path,  # type: Text
-                     taskgroup_id,  # type: Text
-                     **kwargs  # type: Any
-                     ):
-    # type: (...) -> None
+def do_download_logs(git_gecko: Repo,
+                     git_wpt: Repo,
+                     log_path: Text,
+                     taskgroup_id: Text,
+                     **kwargs: Any
+                     ) -> None:
     from . import tc
     from . import trypush
     import tempfile
@@ -864,14 +841,12 @@ def do_download_logs(git_gecko,  # type: Repo
                                       ["wptreport.json"])
 
 
-def do_bugupdate(git_gecko, git_wpt, **kwargs):
-    # type: (Repo, Repo, **Any) -> None
+def do_bugupdate(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     from . import handlers
     handlers.BugUpdateHandler(env.config)(git_gecko, git_wpt, {})
 
 
-def do_build_index(git_gecko, git_wpt, index_name, **kwargs):
-    # type: (Repo, Repo, Text, **Any) -> None
+def do_build_index(git_gecko: Repo, git_wpt: Repo, index_name: Text, **kwargs: Any) -> None:
     from . import index
     if not index_name:
         index_names = None
@@ -1072,8 +1047,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         git2_repo.references.delete(ref_name)
 
 
-def set_config(opts):
-    # type: (List[Text]) -> None
+def set_config(opts: List[Text]) -> None:
     for opt in opts:
         keys, value = opt.split("=", 1)
         key_parts = keys.split(".")
@@ -1085,8 +1059,7 @@ def set_config(opts):
         target[keys[-1]] = value
 
 
-def main():
-    # type: () -> None
+def main() -> None:
     parser = get_parser()
     args = parser.parse_args()
 

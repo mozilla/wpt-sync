@@ -28,29 +28,26 @@ env = Environment()
 
 
 class Index(metaclass=abc.ABCMeta):
-    name = None  # type: Text
-    key_fields = None  # type: Tuple[Text, ...]
+    name: Text = None
+    key_fields: Tuple[Text, ...] = None
     unique = False
-    value_cls = tuple  # type: type
+    value_cls: type = tuple
 
     # Overridden in subclasses using the constructor
     # This provides a kind of borg pattern where all instances of
     # the class have the same changes data
-    changes = None  # type: Dict[Any, Any]
+    changes: Dict[Any, Any] = None
 
-    def __init__(self, repo):
-        # type: (Repo) -> None
+    def __init__(self, repo: Repo) -> None:
         if self.__class__.changes is None:
             self.reset()
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
 
-    def reset(self):
-        # type: () -> None
-        constructors = [list]  # type: List[Callable[[], Any]]
+    def reset(self) -> None:
+        constructors: List[Callable[[], Any]] = [list]
         for _ in self.key_fields[:-1]:
-            def fn():
-                # type: () -> Callable
+            def fn() -> Callable:
                 idx = len(constructors) - 1
                 constructors.append(lambda: defaultdict(constructors[idx]))
                 return constructors[-1]
@@ -58,8 +55,7 @@ class Index(metaclass=abc.ABCMeta):
         self.__class__.changes = defaultdict(constructors[-1])
 
     @classmethod
-    def create(cls, repo):
-        # type: (Repo) -> Index
+    def create(cls, repo: Repo) -> Index:
         logger.info("Creating index %s" % cls.name)
         data = {"name": cls.name,
                 "fields": list(cls.key_fields),
@@ -73,13 +69,11 @@ class Index(metaclass=abc.ABCMeta):
         return cls(repo)
 
     @classmethod
-    def get_root_path(cls):
-        # type: () -> Text
+    def get_root_path(cls) -> Text:
         return "index/%s" % cls.name
 
     @classmethod
-    def get_or_create(cls, repo):
-        # type: (Repo) -> Index
+    def get_or_create(cls, repo: Repo) -> Index:
         ref_name = env.config["sync"]["ref"]
         ref = git.Reference(repo, ref_name)
         try:
@@ -88,8 +82,7 @@ class Index(metaclass=abc.ABCMeta):
             return cls.create(repo)
         return cls(repo)
 
-    def get(self, key):
-        # type: (IndexKey) -> Any
+    def get(self, key: IndexKey) -> Any:
         if len(key) > len(self.key_fields):
             raise ValueError
 
@@ -108,10 +101,9 @@ class Index(metaclass=abc.ABCMeta):
         return rv
 
     def _read(self,
-              key,  # type: IndexKey
-              include_local=True,  # type: bool
-              ):
-        # type: (...) -> Set[Text]
+              key: IndexKey,
+              include_local: bool = True,
+              ) -> Set[Text]:
         path = "{}/{}".format(self.get_root_path(), "/".join(key))
         data = set()
         for obj in iter_blobs(self.pygit2_repo, path):
@@ -120,8 +112,7 @@ class Index(metaclass=abc.ABCMeta):
             self._update_changes(key, data)
         return data
 
-    def _read_changes(self, key):
-        # type: (Optional[IndexKey]) -> Dict[IndexKey, List[ChangeEntry]]
+    def _read_changes(self, key: Optional[IndexKey]) -> Dict[IndexKey, List[ChangeEntry]]:
         target = self.changes
         if target is None:
             return {}
@@ -130,7 +121,7 @@ class Index(metaclass=abc.ABCMeta):
                 target = target[part]
         else:
             key = ()
-        changes = {}  # type: Dict[IndexKey, List[ChangeEntry]]
+        changes: Dict[IndexKey, List[ChangeEntry]] = {}
         stack = [(key, target)]
         while stack:
             key, items = stack.pop()
@@ -142,10 +133,9 @@ class Index(metaclass=abc.ABCMeta):
         return changes
 
     def _update_changes(self,
-                        key,  # type: IndexKey
-                        data,  # type: Set[Text]
-                        ):
-        # type: (...) -> None
+                        key: IndexKey,
+                        data: Set[Text],
+                        ) -> None:
         changes = self._read_changes(key)
         for key_changes in changes.values():
             for old_value, new_value, _ in key_changes:
@@ -154,18 +144,16 @@ class Index(metaclass=abc.ABCMeta):
                 elif new_value is not None:
                     data.add(new_value)
 
-    def _load_obj(self, obj):
-        # type: (pygit2.Blob) -> Set[Text]
+    def _load_obj(self, obj: pygit2.Blob) -> Set[Text]:
         rv = json.loads(obj.data)
         if isinstance(rv, list):
             return set(rv)
         return {rv}
 
     def save(self,
-             commit_builder=None,
-             message=None,
-             overwrite=False):
-        # type: (Optional[CommitBuilder], Optional[Text], bool) -> None
+             commit_builder: Optional[CommitBuilder] = None,
+             message: Optional[Text] = None,
+             overwrite: bool = False) -> None:
         changes = self._read_changes(None)
         if not changes:
             return
@@ -194,10 +182,9 @@ class Index(metaclass=abc.ABCMeta):
         self.reset()
 
     def insert(self,
-               key,  # type: IndexKey
-               value,  # type: IndexValue
-               ):
-        # type: (...) -> Index
+               key: IndexKey,
+               value: IndexValue,
+               ) -> Index:
         if len(key) != len(self.key_fields):
             raise ValueError
 
@@ -213,10 +200,9 @@ class Index(metaclass=abc.ABCMeta):
         return self
 
     def delete(self,
-               key,  # type: IndexKey
-               value,  # type: IndexValue
-               ):
-        # type: (...) -> Index
+               key: IndexKey,
+               value: IndexValue,
+               ) -> Index:
         if len(key) != len(self.key_fields):
             raise ValueError
 
@@ -232,11 +218,10 @@ class Index(metaclass=abc.ABCMeta):
         return self
 
     def move(self,
-             old_key,  # type: Optional[IndexKey]
-             new_key,  # type: IndexKey
-             value,  # type: IndexValue
-             ):
-        # type: (...) -> Index
+             old_key: Optional[IndexKey],
+             new_key: IndexKey,
+             value: IndexValue,
+             ) -> Index:
         assert old_key != new_key
 
         if old_key is not None:
@@ -246,11 +231,10 @@ class Index(metaclass=abc.ABCMeta):
         return self
 
     def _update_key(self,
-                    commit,  # type: CommitBuilder
-                    key,  # type: IndexKey
-                    key_changes,  # type: List[ChangeEntry]
-                    ):
-        # type: (...) -> None
+                    commit: CommitBuilder,
+                    key: IndexKey,
+                    key_changes: List[ChangeEntry],
+                    ) -> None:
         existing = self._read(key, False)
         new = existing.copy()
 
@@ -280,18 +264,15 @@ class Index(metaclass=abc.ABCMeta):
 
         commit.add_tree({path: json.dumps(index_value, indent=0).encode("utf8")})
 
-    def dump_value(self, value):
-        # type: (IndexValue) -> Text
+    def dump_value(self, value: IndexValue) -> Text:
         if isinstance(value, ProcessName):
             return value.path()
         return six.ensure_text(value)
 
-    def load_value(self, value):
-        # type: (Text) -> IndexValue
+    def load_value(self, value: Text) -> IndexValue:
         return self.value_cls(*(value.split("/")))
 
-    def build(self, *args, **kwargs):
-        # type: (*Any, **Any) -> None
+    def build(self, *args: Any, **kwargs: Any) -> None:
         # Delete all entries in existing keys
         for key in self.keys():
             assert len(key) == len(self.key_fields)
@@ -311,12 +292,10 @@ class Index(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @classmethod
-    def make_key(cls, value):
-        # type: (Any) -> IndexKey
+    def make_key(cls, value: Any) -> IndexKey:
         return (six.ensure_text(value),)
 
-    def keys(self):
-        # type: () -> Set[IndexKey]
+    def keys(self) -> Set[IndexKey]:
         return {key for key, _ in
                    iter_tree(self.pygit2_repo, root_path=self.get_root_path())
                    if not key[-1] == "_metadata"}
@@ -329,8 +308,7 @@ class TaskGroupIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls, value):
-        # type: (Text) -> IndexKey
+    def make_key(cls, value: Text) -> IndexKey:
         return (six.ensure_text(value[:2]),
                 six.ensure_text(value[2:4]),
                 six.ensure_text(value[4:]))
@@ -352,8 +330,7 @@ class TryCommitIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls, value):
-        # type: (Text) -> IndexKey
+    def make_key(cls, value: Text) -> IndexKey:
         return (six.ensure_text(value[:2]),
                 six.ensure_text(value[2:4]),
                 six.ensure_text(value[4:6]),
@@ -377,9 +354,8 @@ class SyncIndex(Index):
 
     @classmethod
     def make_key(cls,
-                 sync,  # type: SyncProcess
-                 ):
-        # type: (...) -> IndexKey
+                 sync: SyncProcess,
+                 ) -> IndexKey:
         return (six.ensure_text(sync.process_name.obj_type),
                 six.ensure_text(sync.process_name.subtype),
                 six.ensure_text(sync.status),
@@ -419,8 +395,7 @@ class PrIdIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls, sync):
-        # type: (SyncProcess) -> IndexKey
+    def make_key(cls, sync: SyncProcess) -> IndexKey:
         return (six.ensure_text(str(sync.pr)),)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
@@ -456,9 +431,8 @@ class BugIdIndex(Index):
 
     @classmethod
     def make_key(cls,
-                 sync,  # type: SyncProcess
-                 ):
-        # type: (...) -> IndexKey
+                 sync: SyncProcess,
+                 ) -> IndexKey:
         return (six.ensure_text(str(sync.bug)), six.ensure_text(sync.status))
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
@@ -489,8 +463,7 @@ class BugIdIndex(Index):
         return entries, errors
 
 
-def iter_blobs(repo, path):
-    # type: (Repository, Text) -> Iterator[pygit2.Blob]
+def iter_blobs(repo: Repository, path: Text) -> Iterator[pygit2.Blob]:
     """Iterate over all blobs under a path
 
     :param repo: pygit2 repo
