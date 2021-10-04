@@ -1,5 +1,5 @@
 import pytest
-from mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock
 
 from sync import commit as sync_commit
 
@@ -21,7 +21,7 @@ def test_empty(git_gecko, gecko_worktree):
 
 
 def test_move_utf16(git_gecko, git_wpt_upstream, git_wpt, wpt_worktree, local_gecko_commit):
-    commit = local_gecko_commit(other_changes={"test_file": u"\U0001F60A".encode("utf16")})
+    commit = local_gecko_commit(other_changes={"test_file": "\U0001F60A".encode("utf16")})
     gecko_commit = sync_commit.GeckoCommit(git_gecko, commit)
 
     git_wpt.remotes.origin.fetch()
@@ -32,7 +32,7 @@ def test_move_utf16(git_gecko, git_wpt_upstream, git_wpt, wpt_worktree, local_ge
         wpt_commit = gecko_commit.move(git_wpt)
 
     assert git_wpt.git.show("%s:test_file" % wpt_commit.sha1,
-                            stdout_as_string=False).decode("utf16") == u"\U0001F60A"
+                            stdout_as_string=False).decode("utf16") == "\U0001F60A"
 
 
 @pytest.mark.parametrize("msg,expected",

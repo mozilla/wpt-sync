@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 import requests
 import shutil
@@ -21,7 +20,7 @@ import six
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
-    Task = Dict[Text, Dict[Text, Any]]
+    Task = Dict[str, Dict[str, Any]]
 
 
 TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
@@ -43,7 +42,7 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 
-class TaskclusterClient(object):
+class TaskclusterClient:
     def __init__(self):
         self._queue = None
 
@@ -139,7 +138,7 @@ def result_from_run(run):
     return "unknown"
 
 
-class TaskGroup(object):
+class TaskGroup:
     def __init__(self, taskgroup_id, tasks=None):
         # type: (Text, Optional[Any]) -> None
         self.taskgroup_id = taskgroup_id
@@ -182,7 +181,7 @@ class TaskGroup(object):
         return TaskGroupView(self, filter_fn)
 
 
-class TaskGroupView(object):
+class TaskGroupView:
     def __init__(self, taskgroup, filter_fn):
         # type: (TaskGroup, Optional[Callable[[Task], bool]]) -> None
         self.taskgroup = taskgroup
@@ -199,8 +198,7 @@ class TaskGroupView(object):
 
     def __iter__(self):
         # type: () -> Iterator[Task]
-        for item in self.tasks:
-            yield item
+        yield from self.tasks
 
     @property
     def tasks(self):
@@ -305,7 +303,7 @@ def get_task_artifacts(destination,  # type: Text
         artifacts = fetch_json(artifacts_base_url, session=session)
     except requests.HTTPError as e:
         logger.warning(str(e))
-    artifact_urls = ["%s/%s" % (artifacts_base_url, item["name"])
+    artifact_urls = ["{}/{}".format(artifacts_base_url, item["name"])
                      for item in artifacts["artifacts"]
                      if any(item["name"].endswith("/" + file_name)
                             for file_name in file_names)]
@@ -320,14 +318,14 @@ def get_task_artifacts(destination,  # type: Text
         }
         log_name = "{task}_{file_name}".format(**params)
         success = False
-        logger.debug("Trying to download {}".format(url))
+        logger.debug(f"Trying to download {url}")
         log_path = os.path.abspath(os.path.join(destination, log_name))
         if not os.path.exists(log_path):
             success = download(url, log_path, retry, session=session)
         else:
             success = True
         if not success:
-            logger.warning("Failed to download log from {}".format(url))
+            logger.warning(f"Failed to download log from {url}")
         run["_log_paths"][params["file_name"]] = log_path
 
 
@@ -406,7 +404,7 @@ def is_status(statuses,  # type: Union[Set[Text], Text]
 
 def is_status_fn(statuses):
     # type: (Union[Set[Text], Text]) -> Callable
-    if isinstance(statuses, (str, six.text_type)):
+    if isinstance(statuses, (str, str)):
         statuses = {statuses}
     return lambda x: is_status(statuses, x)
 
@@ -424,13 +422,13 @@ def lookup_index(index_name):
 
     if task_id:
         return task_id
-    logger.warning("Task not found from index: %s\n%s" % (index_name, idx.get("message", "")))
+    logger.warning("Task not found from index: {}\n{}".format(index_name, idx.get("message", "")))
     return task_id
 
 
 def lookup_treeherder(project, revision):
     # type: (Text, Text) -> Optional[Text]
-    push_data = fetch_json(TREEHERDER_BASE + "api/project/%s/push/" % (project,),
+    push_data = fetch_json(TREEHERDER_BASE + f"api/project/{project}/push/",
                            params={"revision": revision})
 
     pushes = push_data.get("results", [])
@@ -457,7 +455,7 @@ def get_task(task_id):
     task = r.json()
     if task.get("taskGroupId"):
         return task
-    logger.warning("Task %s not found: %s" % (task_id, task.get("message", "")))
+    logger.warning("Task {} not found: {}".format(task_id, task.get("message", "")))
     return None
 
 
@@ -465,12 +463,12 @@ def get_task_status(task_id):
     # type: (Text) -> Optional[Dict[Text, Any]]
     if task_id is None:
         return
-    status_url = "%stask/%s/status" % (QUEUE_BASE, task_id)
+    status_url = f"{QUEUE_BASE}task/{task_id}/status"
     r = requests.get(status_url)
     status = r.json()
     if status.get("status"):
         return status["status"]
-    logger.warning("Task %s not found: %s" % (task_id, status.get("message", "")))
+    logger.warning("Task {} not found: {}".format(task_id, status.get("message", "")))
     return None
 
 
@@ -521,7 +519,7 @@ def fetch_json(url,  # type: Text
 
 def get_taskgroup_id(project, revision):
     # type: (Text, Text) -> Tuple[Text, Text, List[Dict[Text, Any]]]
-    idx = "gecko.v2.%s.revision.%s.firefox.decision" % (project, revision)
+    idx = f"gecko.v2.{project}.revision.{revision}.firefox.decision"
     try:
         task_id = lookup_index(idx)
     except requests.HTTPError:

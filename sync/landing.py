@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import io
 import os
 import shutil
@@ -51,7 +50,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-class SyncPoint(object):
+class SyncPoint:
     def __init__(self, data=None):
         # type: (Optional[Any]) -> None
         self._items = {}  # type: Dict[Text, Text]
@@ -74,7 +73,7 @@ class SyncPoint(object):
         # type: (bytes) -> None
         for line in data.split(b"\n"):
             if line:
-                key, value = [item.decode("utf8") for item in line.split(b": ", 1)]
+                key, value = (item.decode("utf8") for item in line.split(b": ", 1))
                 self._items[key] = value
 
     def dump(self, fp):
@@ -83,7 +82,7 @@ class SyncPoint(object):
 
     def dumps(self):
         # type: () -> Text
-        return "\n".join("%s: %s" % (key, value) for key, value in iteritems(self._items))
+        return "\n".join(f"{key}: {value}" for key, value in self._items.items())
 
 
 @enum.unique
@@ -111,7 +110,7 @@ class LandingSync(SyncProcess):
 
     def __init__(self, git_gecko, git_wpt, process_name):
         # type: (Repo, Repo, ProcessName) -> None
-        super(LandingSync, self).__init__(git_gecko, git_wpt, process_name)
+        super().__init__(git_gecko, git_wpt, process_name)
         self._unlanded_gecko_commits = None
 
     @classmethod
@@ -139,7 +138,7 @@ class LandingSync(SyncProcess):
                              "web-platform-tests",
                              whiteboard="[wptsync landing]")
 
-        return super(LandingSync, cls).new(lock,
+        return super().new(lock,
                                            git_gecko,
                                            git_wpt,
                                            gecko_base,
@@ -410,7 +409,7 @@ Automatic update from web-platform-tests\n%s
             head.metadata.get("wpt-pr") == six.ensure_text(str(pr.number))):
             return None
 
-        revish = "%s..%s" % (base, wpt_commits[-1].sha1)
+        revish = f"{base}..{wpt_commits[-1].sha1}"
         logger.info("Moving wpt commits %s" % revish)
 
         return sync_commit.move_commits(self.git_wpt,
@@ -458,7 +457,7 @@ Automatic update from web-platform-tests\n%s
                                          [commit.canonical_rev for commit in commits[:i + 1]])
                     metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
                     return msg, metadata
-                logger.info("Reapplying %s - %s" % (commit.sha1, commit.msg))
+                logger.info(f"Reapplying {commit.sha1} - {commit.msg}")
                 # Passing in a src_prefix here means that we only generate a patch for the
                 # part of the commit that affects wpt, but then we need to undo it by adding
                 # the same dest prefix
@@ -472,7 +471,7 @@ Automatic update from web-platform-tests\n%s
                     break
 
         except AbortError as e:
-            err_msg = ("Landing wpt failed because reapplying commits failed:\n%s" % (e.message,))
+            err_msg = (f"Landing wpt failed because reapplying commits failed:\n{e.message}")
             env.bz.comment(self.bug, err_msg)
             raise AbortError(err_msg)
 
@@ -497,11 +496,11 @@ Automatic update from web-platform-tests\n%s
             logger.info("Cherry-pick failed, trying again with only test-related changes")
             # Try to reset all metadata files that aren't related to an affected test.
             affected_metadata = {os.path.join(env.config["gecko"]["path"]["meta"], item) + ".ini"
-                                 for items in itervalues(sync.affected_tests_readonly)
+                                 for items in sync.affected_tests_readonly.values()
                                  for item in items}
             checkout = []
             status = gitutils.status(worktree)
-            for head_path, data in iteritems(status):
+            for head_path, data in status.items():
                 if data["code"] not in {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}:
                     # Only try to reset merge conflicts
                     continue
@@ -530,7 +529,7 @@ Automatic update from web-platform-tests\n%s
             try:
                 logger.info("Cherry-pick had merge conflicts trying to automatically resolve")
                 status = gitutils.status(worktree)
-                for head_path, data in iteritems(status):
+                for head_path, data in status.items():
                     if data["code"] in {"DD", "UD", "DU"}:
                         # Deleted by remote or local
                         # Could do better here and have the mergetool handle this case
@@ -687,8 +686,8 @@ Automatic update from web-platform-tests\n%s
         git_work = self.gecko_worktree.get()
         if not self.landing_commit:
             metadata = {
-                u"wpt-type": u"landing",
-                u"wpt-head": self.wpt_commits.head.sha1
+                "wpt-type": "landing",
+                "wpt-head": self.wpt_commits.head.sha1
             }
             msg = sync_commit.Commit.make_commit_msg(
                 b"""Bug %s - [wpt-sync] Update web-platform-tests to %s, a=testonly
@@ -760,7 +759,7 @@ MANUAL PUSH: wpt sync bot
             return
         sync_point["upstream"] = new_sha1
         gecko_work = self.gecko_worktree.get()
-        with io.open(os.path.join(gecko_work.working_dir,
+        with open(os.path.join(gecko_work.working_dir,
                                   env.config["gecko"]["path"]["meta"],
                                   "mozilla-sync"), "wb") as f:
             sync_point.dump(f)
@@ -866,7 +865,7 @@ def push(landing):
         try:
             logger.info("Pushing landing")
             landing.git_gecko.remotes.mozilla.push(
-                "%s:%s" % (landing.branch_name,
+                "{}:{}".format(landing.branch_name,
                            landing.gecko_integration_branch().split("/", 1)[1]))
         except git.GitCommandError as e:
             changes = landing.git_gecko.remotes.mozilla.fetch()
@@ -918,7 +917,7 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
                                wpt_head="origin/master",  # type: Text
                                ):
     # type: (...) -> List[Tuple[Optional[int], List[WptCommit]]]
-    revish = "%s..%s" % (prev_wpt_head, wpt_head)
+    revish = f"{prev_wpt_head}..{wpt_head}"
 
     commits_by_pr = []  # type: List[Tuple[Optional[int], List[WptCommit]]]
     index_by_pr = {}  # type: Dict[int, int]
@@ -933,7 +932,7 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
             pr_data = (pr, [])  # type: Tuple[Optional[int], List[WptCommit]]
             # If we have a merge commit, also get the commits merged in
             if len(commit.commit.parents) > 1:
-                merged_revish = "%s..%s" % (commit.commit.parents[0].hexsha, commit.sha1)
+                merged_revish = f"{commit.commit.parents[0].hexsha}..{commit.sha1}"
                 for merged_commit in git_wpt.iter_commits(merged_revish,
                                                           reverse=True):
                     if merged_commit.hexsha != commit.sha1:
@@ -945,7 +944,7 @@ def unlanded_wpt_commits_by_pr(git_gecko,  # type: Repo
             pr_data = commits_by_pr.pop(idx)
             assert pr_data[0] == pr
             index_by_pr = {key: (value if value < idx else value - 1)
-                           for key, value in iteritems(index_by_pr)}
+                           for key, value in index_by_pr.items()}
         for c in extra_commits + [commit]:
             pr_data[1].append(c)
         commits_by_pr.append(pr_data)
@@ -970,7 +969,7 @@ def landable_commits(git_gecko,  # type: Repo
                                hasn't completed a metadata update. This flag disables
                                that and just lands everything up to the specified commit."""
     if wpt_head is None:
-        wpt_head = u"origin/master"
+        wpt_head = "origin/master"
     pr_commits = unlanded_wpt_commits_by_pr(git_gecko, git_wpt, prev_wpt_head, wpt_head)
     landable_commits = []
     for pr, commits in pr_commits:
@@ -1020,7 +1019,7 @@ def landable_commits(git_gecko,  # type: Repo
                 last = True
             elif (isinstance(sync, downstream.DownstreamSync) and
                   sync.landable_status not in (LandableStatus.ready, LandableStatus.skip)):
-                logger.info("PR %s: %s" % (pr, sync.landable_status.reason_str()))
+                logger.info(f"PR {pr}: {sync.landable_status.reason_str()}")
                 last = True
             if last:
                 break
@@ -1268,7 +1267,7 @@ def try_push_complete(git_gecko,  # type: Repo
                     try_push.status = "complete"  # type: ignore
                     return None
                 num_new_jobs = tasks.retrigger_failures()
-                logger.info("%s new tasks scheduled on try for %s" % (num_new_jobs, sync.bug))
+                logger.info(f"{num_new_jobs} new tasks scheduled on try for {sync.bug}")
                 if num_new_jobs:
                     assert sync.bug is not None
                     env.bz.comment(sync.bug,
@@ -1300,33 +1299,33 @@ def record_failure(sync, log_msg, bug_msg, fixup_msg=None):
     # type: (LandingSync, Text, Text, Optional[Any]) -> Text
     if fixup_msg is None:
         fixup_msg = "Run `wptsync landing` with either --accept-failures or --retry"
-    logger.error("Bug %s:%s\n%s" % (sync.bug, log_msg, fixup_msg))
+    logger.error(f"Bug {sync.bug}:{log_msg}\n{fixup_msg}")
     sync.error = log_msg  # type: ignore
     assert sync.bug is not None
     with env.bz.bug_ctx(sync.bug) as bug:
-        bug.add_comment("%s\nThis requires fixup from a wpt sync admin." % (bug_msg,))
+        bug.add_comment(f"{bug_msg}\nThis requires fixup from a wpt sync admin.")
         bug.needinfo(*needinfo_users())
     return log_msg
 
 
 def record_build_failures(sync, try_push):
-    log_msg = "build failures in try push %s" % (try_push.treeherder_url,)
-    bug_msg = "Landing failed due to build failures in try push %s" % (try_push.treeherder_url,)
+    log_msg = f"build failures in try push {try_push.treeherder_url}"
+    bug_msg = f"Landing failed due to build failures in try push {try_push.treeherder_url}"
     return record_failure(sync, log_msg, bug_msg)
 
 
 def record_too_many_failures(sync, try_push):
     # type: (LandingSync, TryPush) -> Text
-    log_msg = "too many test failures in try push %s" % (try_push.treeherder_url,)
-    bug_msg = "Landing failed due to too many test failures in try push %s" % (
-        try_push.treeherder_url,)
+    log_msg = f"too many test failures in try push {try_push.treeherder_url}"
+    bug_msg = "Landing failed due to too many test failures in try push {}".format(
+        try_push.treeherder_url)
     return record_failure(sync, log_msg, bug_msg)
 
 
 def record_infra_fail(sync, try_push):
     log_msg = "infra failures in try push %s. " % (try_push.treeherder_url)
-    bug_msg = "Landing failed due to infra failures in try push %s." % (
-        try_push.treeherder_url,)
+    bug_msg = "Landing failed due to infra failures in try push {}.".format(
+        try_push.treeherder_url)
     return record_failure(sync, log_msg, bug_msg)
 
 
@@ -1406,7 +1405,7 @@ def gecko_push(git_gecko,  # type: Repo
         return
 
     landed_central = repository_name == "mozilla-central"
-    revish = "%s..%s" % (base_commit.sha1, rev)
+    revish = f"{base_commit.sha1}..{rev}"
 
     landing_sync = current(git_gecko, git_wpt)
     for commit in git_gecko.iter_commits(revish,

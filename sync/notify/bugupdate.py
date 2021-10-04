@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from collections import defaultdict
 from datetime import datetime
 from six import iteritems
@@ -29,7 +28,7 @@ class ProcData(ProcessData):
     obj_type = "proc"
 
 
-class TriageBugs(object):
+class TriageBugs:
     process_name = ProcessName("proc", "bugzilla", str(0), 0)
 
     def __init__(self, repo):
@@ -102,7 +101,7 @@ class TriageBugs(object):
                 from_iso_str(bug["last_change_time"]) > self.last_update):
 
                 history_resp = env.bz.bugzilla.session.get(
-                    "%s/rest/bug/%s/history" % (bugzilla_url, bug["id"]),
+                    "{}/rest/bug/{}/history".format(bugzilla_url, bug["id"]),
                     params=history_params)
                 history_resp.raise_for_status()
                 history_data = history_resp.json()
@@ -143,7 +142,7 @@ def update_triage_bugs(git_gecko, comment=True):
 
     with ProcLock.for_process(TriageBugs.process_name) as lock:
         with triage_bugs.as_mut(lock):
-            for old_bug, new_bug in iteritems(updates):
+            for old_bug, new_bug in updates.items():
                 links = meta_links[old_bug]
                 if new_bug is None:
                     removed_by_bug[old_bug] = links
@@ -158,7 +157,7 @@ def update_triage_bugs(git_gecko, comment=True):
     # Now that the above change is commited, add some comments to bugzilla for the
     # case where we removed URLs
     comments = {}
-    for bug, old_links in iteritems(removed_by_bug):
+    for bug, old_links in removed_by_bug.items():
         comments[bug] = comment_removed(bug, old_links, submit_comment=comment)
 
     return updates, comments
@@ -170,7 +169,7 @@ def comment_removed(bug_id, links, submit_comment=True):
         by_test[link.test_id].append(link)
 
     triage_lines = []
-    for test_id, links in sorted(iteritems(by_test)):
+    for test_id, links in sorted(by_test.items()):
         triage_lines.append(test_id)
         for link in links:
             parts = []

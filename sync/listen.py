@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import abc
 import json
 import logging
@@ -98,7 +97,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
         raise ValueError("No exchanges supplied")
 
     for queue_name, exchange_name, key_name in exchanges:
-        queue_name = 'queue/%s/%s' % (userid, queue_name)
+        queue_name = f'queue/{userid}/{queue_name}'
 
         exchange = kombu.Exchange(exchange_name, type='topic',
                                   channel=conn)
@@ -130,12 +129,12 @@ def run_pulse_listener(config):
     """
     exchanges = []
     queues = {}
-    for queue_name, queue_props in iteritems(config['pulse']):
+    for queue_name, queue_props in config['pulse'].items():
         if (isinstance(queue_props, dict) and
             set(queue_props.keys()) == {"queue", "exchange", "routing_key"}):
             queues[queue_name] = queue_props
 
-    for queue in itervalues(queues):
+    for queue in queues.values():
         logger.info("Connecting to pulse queue:%(queue)s exchange:%(exchange)s"
                     " route:%(routing_key)s" % queue)
         exchanges.append((queue['queue'],
@@ -168,7 +167,7 @@ def run_pulse_listener(config):
                                     userid=config['pulse']['username'],
                                     exchanges=exchanges,
                                     logger=listen_logger)
-            for queue_name, queue in iteritems(queues):
+            for queue_name, queue in queues.items():
                 queue_filter = filter_map[queue_name](config, listen_logger)
                 listener.add_callback(queue['exchange'], queue_filter)
 
@@ -178,7 +177,7 @@ def run_pulse_listener(config):
     return None
 
 
-class Filter(six.with_metaclass(abc.ABCMeta, object)):
+class Filter(metaclass=abc.ABCMeta):
     name = None  # type: Text
     task = tasks.handle
 
@@ -205,7 +204,7 @@ class GitHubFilter(Filter):
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
     def __init__(self, config, logger):
-        super(GitHubFilter, self).__init__(config, logger)
+        super().__init__(config, logger)
         repo_path = urllib.parse.urlparse(config["web-platform-tests"]["repo"]["url"]).path
         self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
@@ -219,7 +218,7 @@ class PushFilter(Filter):
     name = "push"
 
     def __init__(self, config, logger):
-        super(PushFilter, self).__init__(config, logger)
+        super().__init__(config, logger)
         self.repos = set(config["gecko"]["repo"].keys())
 
     def accept(self, body):

@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from collections import defaultdict
 
 from six import iteritems, iterkeys, itervalues
@@ -33,22 +32,22 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
     :param include_other_browser: Boolean indicating whether to include results from
                                   non-primary browsers.
     """
-    targets = {u"head": [u"head"],
-               u"both": [u"base", u"head"]}[include_status]
+    targets = {"head": ["head"],
+               "both": ["base", "head"]}[include_status]
 
     if all(result.is_consistent(browser, target) for target in targets):
-        value = "->".join(getattr(next(itervalues(result.statuses[browser])), target)
+        value = "->".join(getattr(next(iter(result.statuses[browser].values())), target)
                           for target in targets)
     else:
         by_value = defaultdict(list)
         results = result.statuses[browser]
-        for job_name, status in iteritems(results):
+        for job_name, status in results.items():
             key = tuple(getattr(status, target) for target in targets)
             by_value[key].append(job_name)
 
-        value = ", ".join("%s [%s]" % ("->".join(statuses),
+        value = ", ".join("{} [{}]".format("->".join(statuses),
                                        ", ".join("`%s`" % item for item in sorted(job_names)))
-                          for statuses, job_names in sorted(iteritems(by_value)))
+                          for statuses, job_names in sorted(by_value.items()))
 
     if include_other_browser:
         other_browser_values = []
@@ -58,7 +57,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
             browser_status = job_results.get("GitHub")
             if not browser_status:
                 return None
-            other_browser_values.append("%s: %s" % (other_browser.title(),
+            other_browser_values.append("{}: {}".format(other_browser.title(),
                                                     "->".join(
                                                         getattr(browser_status, target)
                                                         for target in targets)))
@@ -70,14 +69,14 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
 def summary_value(result_data):
     # type: (Mapping[Text, int]) -> Text
     by_result = defaultdict(list)
-    for job_name, value in iteritems(result_data):
+    for job_name, value in result_data.items():
         by_result[value].append(job_name)
 
     if len(by_result) == 1:
-        return str(next(iterkeys(by_result)))
+        return str(next(iter(by_result.keys())))
 
-    return " ".join("%s[%s]" % (count, ", ".join(sorted(jobs)))
-                    for count, jobs in sorted(iteritems(by_result)))
+    return " ".join("{}[{}]".format(count, ", ".join(sorted(jobs)))
+                    for count, jobs in sorted(by_result.items()))
 
 
 def bug_str(url):
@@ -86,7 +85,7 @@ def bug_str(url):
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
     elif url.startswith("https://github.com"):
-        return "[Issue %s](%s)" % (urllib.parse.urlsplit(url).path.split("/")[-1],
+        return "[Issue {}]({})".format(urllib.parse.urlsplit(url).path.split("/")[-1],
                                    url)
     return "[%s]()" % url
 
@@ -112,41 +111,41 @@ def summary_message(results):
     job_names = {browser: results.job_names(browser) for browser in browsers}
 
     github_browsers = list_join(browser.title() for browser in browsers
-                                if u"GitHub" in job_names[browser])
+                                if "GitHub" in job_names[browser])
 
     gecko_configs = len([item for item in job_names["firefox"] if item != "GitHub"])
-    data = [u"Ran %s Firefox configurations based on mozilla-central" % (gecko_configs,)]
+    data = [f"Ran {gecko_configs} Firefox configurations based on mozilla-central"]
     if github_browsers:
-        data[-1] += u", and %s on GitHub CI" % (github_browsers,)
-    data.append(u"")
-    data.append(u"Total %s tests" % summary.parent_tests)
+        data[-1] += f", and {github_browsers} on GitHub CI"
+    data.append("")
+    data.append("Total %s tests" % summary.parent_tests)
 
     subtests = summary.subtests
     if subtests:
-        data[-1] += u" and %s subtests" % subtests
-    data[-1] += u"\n"
+        data[-1] += " and %s subtests" % subtests
+    data[-1] += "\n"
 
     result_statuses = [status for status in statuses if status in summary.job_results]
     if not result_statuses:
-        return u"\n".join(data)
+        return "\n".join(data)
 
-    data.append(u"## Status Summary\n")
+    data.append("## Status Summary\n")
 
     max_width = len(max(result_statuses, key=len))
     for browser in browsers:
         if not job_names[browser]:
             continue
 
-        data.append(u"### %s" % browser.title())
-        for result in [u"OK", u"PASS", u"CRASH", u"FAIL", u"PRECONDITION_FAILED", u"TIMEOUT",
-                       u"ERROR", u"NOTRUN"]:
+        data.append("### %s" % browser.title())
+        for result in ["OK", "PASS", "CRASH", "FAIL", "PRECONDITION_FAILED", "TIMEOUT",
+                       "ERROR", "NOTRUN"]:
             if browser in summary.job_results[result]:
                 result_data = summary.job_results[result][browser]
-                data.append(u"%s: %s" % (result.ljust(max_width),
+                data.append("{}: {}".format(result.ljust(max_width),
                                          summary_value(result_data)))
-        data.append(u"")
+        data.append("")
 
-    return u"\n".join(data)
+    return "\n".join(data)
 
 
 def links_message(results):
@@ -167,7 +166,7 @@ def links_message(results):
         data.insert(0, "## Links")
         data.append("")
 
-    return u"\n".join(data)
+    return "\n".join(data)
 
 
 def detail_message(results):
@@ -222,8 +221,8 @@ def detail_part(details_type,  # type: Optional[Text]
 
     :returns: A text string containing the message
     """
-    bug_prefixes = {u"bugzilla": env.bz.bz_url,
-                    u"github": u"https://github.com/"}
+    bug_prefixes = {"bugzilla": env.bz.bz_url,
+                    "github": "https://github.com/"}
 
     item_data = []
 
@@ -233,11 +232,11 @@ def detail_part(details_type,  # type: Optional[Text]
         return None
 
     if details_type:
-        item_data.append(u"### %s" % details_type)
+        item_data.append("### %s" % details_type)
 
     prev_test = None
     for test, subtest, result in results:
-        msg_line = u""
+        msg_line = ""
         if prev_test != test:
             msg_line = test
             prev_test = test
@@ -245,11 +244,11 @@ def detail_part(details_type,  # type: Optional[Text]
                             include_status=include_status,
                             include_other_browser=include_other_browser)
         if not subtest:
-            msg_line += u": %s" % status
+            msg_line += ": %s" % status
         else:
             if msg_line:
-                msg_line += u"\n"
-            msg_line += u"  %s: %s" % (subtest, status)
+                msg_line += "\n"
+            msg_line += f"  {subtest}: {status}"
 
         if include_bugs:
             prefixes = [bug_prefixes[item] for item in include_bugs]
@@ -257,11 +256,11 @@ def detail_part(details_type,  # type: Optional[Text]
             bug_links = [bug_link for bug_link in result.bug_links
                          if any(bug_link.url.startswith(prefix) for prefix in prefixes)]
             if bug_links:
-                msg_line += u" linked bug%s:%s" % (u"s" if len(bug_links) > 1 else u"",
-                                                   u", ". join(bug_str(link.url)
+                msg_line += " linked bug{}:{}".format("s" if len(bug_links) > 1 else "",
+                                                   ", ". join(bug_str(link.url)
                                                                for link in bug_links))
         item_data.append(msg_line)
-    return u"\n".join(item_data) + u"\n"
+    return "\n".join(item_data) + "\n"
 
 
 def for_results(results):
@@ -273,7 +272,7 @@ def for_results(results):
               if the message all fits in a bugzilla comment, or the
               length-truncated version if it doesn't."""
 
-    msg_parts = [u"# CI Results\n",
+    msg_parts = ["# CI Results\n",
                  summary_message(results),
                  links_message(results)]
     msg_parts += detail_message(results)
@@ -299,8 +298,8 @@ def truncate_message(parts):
               truncated message.
 
     """
-    suffix = u"(See attachment for full changes)"
-    message = u""
+    suffix = "(See attachment for full changes)"
+    message = ""
     truncated = False
 
     padding = len(suffix) + 1
@@ -309,7 +308,7 @@ def truncate_message(parts):
             truncated = True
             part = suffix
         if message:
-            message += u"\n"
+            message += "\n"
         message += part
         if truncated:
             break

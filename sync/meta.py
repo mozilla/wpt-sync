@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import sys
 
 import git
@@ -71,7 +70,7 @@ class NullWriter(wptmeta.Writer):
         raise NotImplementedError
 
 
-class Metadata(object):
+class Metadata:
     def __init__(self,
                  process_name,  # type: ProcessName
                  create_pr=False,  # type: bool
@@ -163,7 +162,7 @@ class Metadata(object):
                 logger.info("Pushing metadata commit %s" % commit_builder.commit.sha1)
                 remote_ref = self.get_remote_ref()
                 try:
-                    self.repo.remotes.origin.push("%s:refs/heads/%s" % (ref_name, remote_ref))
+                    self.repo.remotes.origin.push(f"{ref_name}:refs/heads/{remote_ref}")
                 except git.GitCommandError:
                     err = sys.exc_info()
                 else:
@@ -198,7 +197,7 @@ class Metadata(object):
         path = prefix + ref_name
         while path in self.pygit2_repo.references:
             count += 1
-            ref_name = "%s-%s" % (base_ref_name, count)
+            ref_name = f"{base_ref_name}-{count}"
             path = prefix + ref_name
         return ref_name
 

@@ -1,10 +1,8 @@
-from __future__ import absolute_import
 import subprocess
 import time
 
 import git
 from six import iteritems
-from six.moves import range
 
 from . import log
 from .env import Environment
@@ -112,7 +110,7 @@ def pr_for_commit(git_wpt, rev):
 def gecko_repo(git_gecko, head):
     # type: (Repo, Text) -> Optional[Text]
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
-             [(name, ref) for name, ref in iteritems(env.config["gecko"]["refs"])
+             [(name, ref) for name, ref in env.config["gecko"]["refs"].items()
               if name != "central"])
 
     for name, ref in repos:
@@ -129,12 +127,12 @@ def status(repo):
         if not item.strip():
             continue
         code = item[:2]
-        filenames = item[3:].rsplit(u" -> ", 1)
+        filenames = item[3:].rsplit(" -> ", 1)
         if len(filenames) == 2:
             filename, rename = filenames
         else:
             filename, rename = filenames[0], None
-        rv[filename] = {u"code": code, u"rename": rename}
+        rv[filename] = {"code": code, "rename": rename}
     return rv
 
 

@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import abc
 import json
 from collections import defaultdict
@@ -19,16 +18,16 @@ if MYPY:
     from git.repo.base import Repo
     from sync.sync import SyncProcess
     from pygit2.repository import Repository
-    ChangeEntry = Tuple[Text, Text, Text]
-    IndexKey = Tuple[Text, ...]
-    IndexValue = Union[Text, ProcessName]
+    ChangeEntry = Tuple[str, str, str]
+    IndexKey = Tuple[str, ...]
+    IndexValue = Union[str, ProcessName]
 
 
 logger = log.get_logger(__name__)
 env = Environment()
 
 
-class Index(six.with_metaclass(abc.ABCMeta, object)):
+class Index(metaclass=abc.ABCMeta):
     name = None  # type: Text
     key_fields = None  # type: Tuple[Text, ...]
     unique = False
@@ -76,7 +75,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
     @classmethod
     def get_root_path(cls):
         # type: () -> Text
-        return u"index/%s" % cls.name
+        return "index/%s" % cls.name
 
     @classmethod
     def get_or_create(cls, repo):
@@ -94,7 +93,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
         if len(key) > len(self.key_fields):
             raise ValueError
 
-        assert all(isinstance(key_part, six.string_types) for key_part in key)
+        assert all(isinstance(key_part, str) for key_part in key)
 
         items = self._read(key)
         if self.unique and len(key) == len(self.key_fields) and len(items) > 1:
@@ -113,7 +112,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
               include_local=True,  # type: bool
               ):
         # type: (...) -> Set[Text]
-        path = u"%s/%s" % (self.get_root_path(), "/".join(key))
+        path = "{}/{}".format(self.get_root_path(), "/".join(key))
         data = set()
         for obj in iter_blobs(self.pygit2_repo, path):
             data |= self._load_obj(obj)
@@ -138,7 +137,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
             if isinstance(items, list):
                 changes[key] = items
             else:
-                for key_part, values in iteritems(items):
+                for key_part, values in items.items():
                     stack.append((key + (key_part,), values))
         return changes
 
@@ -148,7 +147,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
                         ):
         # type: (...) -> None
         changes = self._read_changes(key)
-        for key_changes in itervalues(changes):
+        for key_changes in changes.values():
             for old_value, new_value, _ in key_changes:
                 if new_value is None and old_value in data:
                     data.remove(old_value)
@@ -160,7 +159,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
         rv = json.loads(obj.data)
         if isinstance(rv, list):
             return set(rv)
-        return set([rv])
+        return {rv}
 
     def save(self,
              commit_builder=None,
@@ -172,11 +171,11 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
             return
 
         if message is None:
-            message = u"Update index %s\n" % self.name
+            message = "Update index %s\n" % self.name
 
-            for key_changes in itervalues(changes):
+            for key_changes in changes.values():
                 for _, _, msg in key_changes:
-                    message += u"  %s\n" % msg
+                    message += "  %s\n" % msg
 
         if commit_builder is None:
             # TODO: @overload could help here
@@ -190,7 +189,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
             commit_builder.message += message
 
         with commit_builder as commit:
-            for key, key_changes in iteritems(changes):
+            for key, key_changes in changes.items():
                 self._update_key(commit, key, key_changes)
         self.reset()
 
@@ -202,10 +201,10 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
         if len(key) != len(self.key_fields):
             raise ValueError
 
-        assert all(isinstance(item, six.string_types) for item in key)
+        assert all(isinstance(item, str) for item in key)
 
         value = self.dump_value(value)
-        msg = "Insert key %s value %s" % (key, value)
+        msg = f"Insert key {key} value {value}"
         target = self.changes
         for part in key:
             target = target[part]
@@ -221,10 +220,10 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
         if len(key) != len(self.key_fields):
             raise ValueError
 
-        assert all(isinstance(item, six.string_types) for item in key)
+        assert all(isinstance(item, str) for item in key)
 
         value = self.dump_value(value)
-        msg = "Delete key %s value %s" % (key, value)
+        msg = f"Delete key {key} value {value}"
         target = self.changes
         for part in key:
             target = target[part]
@@ -265,7 +264,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
 
         path_suffix = "/".join(key)
 
-        path = "%s/%s" % (self.get_root_path(), path_suffix)
+        path = f"{self.get_root_path()}/{path_suffix}"
 
         if new == existing:
             return
@@ -275,7 +274,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
             return
 
         if self.unique and len(new) > 1:
-            raise ValueError("Tried to insert duplicate entry for unique index %s" % (key,))
+            raise ValueError(f"Tried to insert duplicate entry for unique index {key}")
 
         index_value = list(sorted(new))
 
@@ -300,7 +299,7 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
             for part in key:
                 target = target[part]
             assert isinstance(target, list)
-            target.append((None, None, "Clear key %s" % (key,)))
+            target.append((None, None, f"Clear key {key}"))
         entries, errors = self.build_entries(*args, **kwargs)
         for key, value in entries:
             self.insert(key, value)
@@ -318,14 +317,14 @@ class Index(six.with_metaclass(abc.ABCMeta, object)):
 
     def keys(self):
         # type: () -> Set[IndexKey]
-        return set(key for key, _ in
+        return {key for key, _ in
                    iter_tree(self.pygit2_repo, root_path=self.get_root_path())
-                   if not key[-1] == "_metadata")
+                   if not key[-1] == "_metadata"}
 
 
 class TaskGroupIndex(Index):
     name = "taskgroup"
-    key_fields = (u"taskgroup-id-0", u"taskgroup-id-1", u"taskgroup-id-2")
+    key_fields = ("taskgroup-id-0", "taskgroup-id-1", "taskgroup-id-2")
     unique = True
     value_cls = ProcessName
 
@@ -348,7 +347,7 @@ class TaskGroupIndex(Index):
 
 class TryCommitIndex(Index):
     name = "try-commit"
-    key_fields = (u"commit-0", u"commit-1", u"commit-2", u"commit-3")
+    key_fields = ("commit-0", "commit-1", "commit-2", "commit-3")
     unique = True
     value_cls = ProcessName
 
@@ -372,7 +371,7 @@ class TryCommitIndex(Index):
 
 class SyncIndex(Index):
     name = "sync-id-status"
-    key_fields = (u"objtype", u"subtype", u"status", u"obj_id")
+    key_fields = ("objtype", "subtype", "status", "obj_id")
     unique = False
     value_cls = ProcessName
 
@@ -484,7 +483,7 @@ class BugIdIndex(Index):
             try:
                 sync = sync_cls(git_gecko, git_wpt, process_name)
             except ValueError as e:
-                errors.append("Corrupt process %s:\n%s" % (process_name, e))
+                errors.append(f"Corrupt process {process_name}:\n{e}")
                 continue
             entries.append((self.make_key(sync), process_name))
         return entries, errors

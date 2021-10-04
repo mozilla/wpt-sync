@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import json
 import sys
 import weakref
@@ -36,8 +35,8 @@ if MYPY:
                         Tuple,
                         Union)
 
-    ProcessNameIndexData = DefaultDict[Text, DefaultDict[Text, DefaultDict[Text, Set]]]
-    ProcessNameKey = Tuple[Text, Text, Text, Text]
+    ProcessNameIndexData = DefaultDict[str, DefaultDict[str, DefaultDict[str, Set]]]
+    ProcessNameKey = Tuple[str, str, str, str]
 
 env = Environment()
 
@@ -80,7 +79,7 @@ class IdentityMap(type):
     def __init__(cls, name, bases, cls_dict):
         if not hasattr(cls, "_cache_key"):
             raise ValueError("Class is missing _cache_key method")
-        super(IdentityMap, cls).__init__(name, bases, cls_dict)
+        super().__init__(name, bases, cls_dict)
 
     def __call__(cls, *args, **kwargs):
         cache = IdentityMap._cache
@@ -90,7 +89,7 @@ class IdentityMap(type):
         key = (cls, cache_key)
         value = cache.get(key)
         if value is None:
-            value = super(IdentityMap, cls).__call__(*args, **kwargs)
+            value = super().__call__(*args, **kwargs)
             cache[key] = value
         if hasattr(value, "_cache_verify") and not value._cache_verify(*args, **kwargs):
             raise ValueError("Cached instance didn't match non-key arguments")
@@ -125,11 +124,11 @@ def iter_tree(pygit2_repo,  # type: Repository
         path, tree = stack.pop()
         assert isinstance(tree, pygit2.Tree)
         for item in tree:
-            item_path = u"%s/%s" % (path, item.name)
+            item_path = f"{path}/{item.name}"
             if isinstance(item, pygit2.Tree):
                 stack.append((item_path, item))
             else:
-                name = tuple(item for item in item_path[len(root_path):].split(u"/")
+                name = tuple(item for item in item_path[len(root_path):].split("/")
                              if item)
                 yield name, item
 
@@ -153,7 +152,7 @@ def iter_process_names(pygit2_repo,  # type: Repository
     while stack:
         path, tree = stack.pop()
         for item in tree:
-            item_path = "%s/%s" % (path, item.name)
+            item_path = f"{path}/{item.name}"
             if isinstance(item, pygit2.Tree):
                 stack.append((item_path, item))
             else:
@@ -162,7 +161,7 @@ def iter_process_names(pygit2_repo,  # type: Repository
                     yield process_name
 
 
-class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
+class ProcessNameIndex(metaclass=IdentityMap):
     def __init__(self, repo):
         # type: (Repo) -> None
         self.repo = repo
@@ -210,7 +209,7 @@ class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
 
         target = self._data
         for key in [obj_type, subtype, obj_id]:
-            assert isinstance(key, six.string_types)
+            assert isinstance(key, str)
             if key is None:
                 break
             target = target[key]  # type: ignore
@@ -223,12 +222,12 @@ class ProcessNameIndex(six.with_metaclass(IdentityMap, object)):
             if isinstance(item, set):
                 rv |= item
             else:
-                stack.extend(itervalues(item))  # type: ignore
+                stack.extend(item.values())  # type: ignore
 
         return rv
 
 
-class ProcessName(six.with_metaclass(IdentityMap, object)):
+class ProcessName(metaclass=IdentityMap):
     """Representation of a name that is used to identify a sync operation.
     This has the general form <obj type>/<subtype>/<obj_id>[/<seq_id>].
 
@@ -263,7 +262,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
 
     def __str__(self):
         # type: () -> str
-        data = u"%s/%s/%s/%s" % self.as_tuple()
+        data = "%s/%s/%s/%s" % self.as_tuple()
         if sys.version_info[0] == 2:
             data = data.encode("utf8")
         return data
@@ -274,7 +273,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
 
     def path(self):
         # type: () -> Text
-        return u"%s/%s/%s/%s" % self.as_tuple()
+        return "%s/%s/%s/%s" % self.as_tuple()
 
     def __eq__(self, other):
         # type: (Any) -> bool
@@ -320,7 +319,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
     @classmethod
     def from_tuple(cls, parts):
         # type: (List[Text]) -> Optional[ProcessName]
-        if parts[0] not in [u"sync", u"try"]:
+        if parts[0] not in ["sync", "try"]:
             return None
         if len(parts) != 4:
             return None
@@ -339,7 +338,7 @@ class ProcessName(six.with_metaclass(IdentityMap, object)):
         return cls(obj_type, subtype, obj_id, six.ensure_text(str(seq_id)))
 
 
-class VcsRefObject(six.with_metaclass(IdentityMap, object)):
+class VcsRefObject(metaclass=IdentityMap):
     """Representation of a named reference to a git object associated with a
     specific process_name.
 
@@ -391,7 +390,7 @@ class VcsRefObject(six.with_metaclass(IdentityMap, object)):
         logger.debug("Creating ref %s" % path)
         pygit2_repo = pygit2_get(repo)
         if path in pygit2_repo.references:
-            raise ValueError("Ref %s exists" % (path,))
+            raise ValueError(f"Ref {path} exists")
         pygit2_repo.references.create(path, pygit2_repo.revparse_single(obj).id)
         return cls(repo, name, commit_cls)
 
@@ -406,7 +405,7 @@ class VcsRefObject(six.with_metaclass(IdentityMap, object)):
     @classmethod
     def get_path(cls, name):
         # type: (Union[ProcessName, SyncPointName]) -> Text
-        return u"refs/%s/%s" % (cls.ref_prefix, name.path())
+        return f"refs/{cls.ref_prefix}/{name.path()}"
 
     @property
     def path(self):
@@ -445,7 +444,7 @@ class BranchRefObject(VcsRefObject):
     ref_prefix = "heads"
 
 
-class CommitBuilder(object):
+class CommitBuilder:
     def __init__(self,
                  repo,  # type: Repo
                  message,  # type: Text
@@ -550,7 +549,7 @@ class CommitBuilder(object):
     def add_tree(self, tree):
         # type: (Dict[Text, bytes]) -> None
         self.has_changes = True
-        for path, data in iteritems(tree):
+        for path, data in tree.items():
             blob = self.pygit2_repo.create_blob(data)
             index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
             self.index.add(index_entry)
@@ -567,7 +566,7 @@ class CommitBuilder(object):
         return self.commit
 
 
-class ProcessData(six.with_metaclass(IdentityMap, object)):
+class ProcessData(metaclass=IdentityMap):
     obj_type = None  # type: Text
 
     def __init__(self, repo, process_name):
@@ -586,7 +585,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
     def __repr__(self):
         # type: () -> str
-        return six.ensure_str("<%s %s>" % (self.__class__.__name__, self.process_name))
+        return six.ensure_str(f"<{self.__class__.__name__} {self.process_name}>")
 
     def __hash__(self):
         # type: () -> int
@@ -604,7 +603,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
     def exit_mut(self):
         # type: () -> None
-        message = u"Update %s\n\n" % self.path
+        message = "Update %s\n\n" % self.path
         with CommitBuilder(self.repo, message=message, ref=self.ref.path) as commit:
             from . import index
             if self._delete:
@@ -614,9 +613,9 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
             elif self._updated or self._deleted:
                 message_parts = []
                 if self._updated:
-                    message_parts.append("Updated: %s\n" % (", ".join(self._updated),))
+                    message_parts.append("Updated: {}\n".format(", ".join(self._updated)))
                 if self._deleted:
-                    message_parts.append("Deleted: %s\n" % (", ".join(self._deleted),))
+                    message_parts.append("Deleted: {}\n".format(", ".join(self._deleted)))
                 self._save(self._data, message=" ".join(message_parts), commit_builder=commit)
 
             self._updated = set()
@@ -634,7 +633,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
                repo,  # type: Repo
                process_name,  # type: ProcessName
                data,  # type: Dict[Text, Any]
-               message=u"Sync data",  # type: Text
+               message="Sync data",  # type: Text
                ):
         # type: (...) -> ProcessData
         assert process_name.obj_type == cls.obj_type
@@ -645,7 +644,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
         except KeyError:
             pass
         else:
-            raise ValueError("%s already exists at path %s" % (cls.__name__, path))
+            raise ValueError(f"{cls.__name__} already exists at path {path}")
         with CommitBuilder(repo, message, ref=ref.path) as commit:
             commit.add_tree({path: json.dumps(data).encode("utf8")})
         ProcessNameIndex(repo).insert(process_name)
@@ -735,8 +734,7 @@ class ProcessData(six.with_metaclass(IdentityMap, object)):
 
     def items(self):
         # type: () -> Iterator[Tuple[Text, Any]]
-        for key, value in iteritems(self._data):
-            yield key, value
+        yield from self._data.items()
 
     @mut()
     def __setitem__(self, key, value):
@@ -762,7 +760,7 @@ class FrozenDict(Mapping):
     def __init__(self, **kwargs):
         # type: (**Any) -> None
         self._data = {}
-        for key, value in iteritems(kwargs):
+        for key, value in kwargs.items():
             self._data[six.ensure_text(key)] = value
 
     def __getitem__(self, key):
@@ -776,14 +774,13 @@ class FrozenDict(Mapping):
     def copy(self, **kwargs):
         # type: (**Any) -> FrozenDict
         new_data = self._data.copy()
-        for key, value in iteritems(kwargs):
+        for key, value in kwargs.items():
             new_data[six.ensure_text(key)] = value
         return self.__class__(**new_data)
 
     def __iter__(self):
         #  type: () -> Iterator[Text]
-        for item in self._data:
-            yield item
+        yield from self._data
 
     def __len__(self):
         #  type: () -> int
@@ -794,15 +791,15 @@ class FrozenDict(Mapping):
         return self._data.copy()
 
 
-class entry_point(object):
+class entry_point:
     def __init__(self, task):
         self.task = task
 
     def __call__(self, f):
         def inner(*args, **kwargs):
             # type: (*Any, **Any) -> Optional[LandingSync]
-            logger.info("Called entry point %s.%s" % (f.__module__, f.__name__))
-            logger.debug("Called args %r kwargs %r" % (args, kwargs))
+            logger.info(f"Called entry point {f.__module__}.{f.__name__}")
+            logger.debug(f"Called args {args!r} kwargs {kwargs!r}")
 
             if self.task in env.config["sync"]["enabled"]:
                 return f(*args, **kwargs)

@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 from . import downstream
 from . import landing
 from . import log
@@ -46,7 +45,7 @@ def handle_sync(task, body):
 
 def construct_event(name, payload, **kwargs):
     # type: (Text, Dict[Text, Any], **Any) -> Dict[Text, Any]
-    event = {u"event": name, u"payload": payload}
+    event = {"event": name, "payload": payload}
     event.update(**kwargs)
     return event
 
@@ -56,7 +55,7 @@ def schedule_pr_task(action, pr, repo_update=True):
     event = construct_event("pull_request",
                             {"action": action, "number": pr.number, "pull_request": pr.raw_data},
                             _wptsync={"repo_update": repo_update})
-    logger.info("Action %s for pr %s" % (action, pr.number))
+    logger.info(f"Action {action} for pr {pr.number}")
     args = ("github", event)
     handle_sync(*args)
 
@@ -78,7 +77,7 @@ def schedule_check_run_task(commit, name, check_run, repo_update=True):
 
 def update_for_status(pr, repo_update=True):
     # type: (PullRequest, bool) -> None
-    for name, check_run in iteritems(env.gh_wpt.get_check_runs(pr.number)):
+    for name, check_run in env.gh_wpt.get_check_runs(pr.number).items():
         if check_run["required"]:
             schedule_check_run_task(pr.head, name, check_run)
             return
@@ -92,7 +91,7 @@ def update_for_action(pr, action, repo_update=True):
                              "pull_request": pr.raw_data,
                              },
                             _wptsync={"repo_update": repo_update})
-    logger.info("Running action %s for PR %s" % (action, pr.number))
+    logger.info(f"Running action {action} for PR {pr.number}")
     handle_sync("github", event)
 
 
@@ -106,7 +105,7 @@ def convert_rev(git_gecko, rev):
         try:
             hg_rev = git_gecko.cinnabar.git2hg(rev)
         except ValueError:
-            raise ValueError("%s is not a valid git or hg rev" % (rev,))
+            raise ValueError(f"{rev} is not a valid git or hg rev")
         git_rev = rev
     return git_rev, hg_rev
 
@@ -287,14 +286,14 @@ def update_taskgroup_ids(git_gecko, git_wpt, try_push=None):
                 continue
             taskgroup_id, state, runs = tc.get_taskgroup_id("try", try_push_item.try_rev)
             logger.info("Got taskgroup id %s" % taskgroup_id)
-            if state in (u"completed", u"failed", u"exception"):
-                msg = {u"status": {u"taskId": taskgroup_id,
-                                   u"taskGroupId": taskgroup_id,
-                                   u"state": state,
-                                   u"runs": runs},
-                       u"task": {u"tags": {u"kind": u"decision-task"}},
-                       u"runId": len(runs) - 1,
-                       u"version": 1}
+            if state in ("completed", "failed", "exception"):
+                msg = {"status": {"taskId": taskgroup_id,
+                                   "taskGroupId": taskgroup_id,
+                                   "state": state,
+                                   "runs": runs},
+                       "task": {"tags": {"kind": "decision-task"}},
+                       "runId": len(runs) - 1,
+                       "version": 1}
                 handle_sync("decision-task", msg)
             else:
                 logger.warning("Not setting taskgroup id because decision task is in state %s" %
@@ -355,7 +354,7 @@ def do_retrigger(git_gecko, git_wpt, pr_data, rebase=False):
     # type: (Repo, Repo, Tuple[int, List[Any], Text], bool) -> Optional[int]
     pr_id, commits, status = pr_data
     try:
-        logger.info("Retriggering %s (status %s)" % (pr_id, status))
+        logger.info(f"Retriggering {pr_id} (status {status})")
         pr = env.gh_wpt.get_pull(pr_id)
         if pr is None:
             return pr_id

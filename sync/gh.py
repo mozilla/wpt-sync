@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import itertools
 import random
 import re
@@ -73,7 +72,7 @@ class CheckRun(github.GithubObject.NonCompletableGithubObject):
         return self._head_sha.value
 
 
-class GitHub(object):
+class GitHub:
     def __init__(self, token, url):
         # type: (Text, Text) -> None
         self.gh = github.Github(token)
@@ -123,7 +122,7 @@ class GitHub(object):
         except github.GithubException:
             # Check if there's already a PR for this head
             user = self.repo_name.split("/")[0]
-            pulls = self.repo.get_pulls(head="%s:%s" % (user, head))
+            pulls = self.repo.get_pulls(head=f"{user}:{head}")
             entries = list(pulls)
             if len(entries) == 0:
                 raise
@@ -181,7 +180,7 @@ class GitHub(object):
                    pr_id,  # type: int
                    *labels  # type: Text
                    ):
-        logger.debug("Adding labels %s to PR %s" % (", ".join(labels), pr_id))
+        logger.debug("Adding labels {} to PR {}".format(", ".join(labels), pr_id))
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
         issue.add_to_labels(*labels)
@@ -190,7 +189,7 @@ class GitHub(object):
                       pr_id,  # type: int
                       *labels  # type: Text
                       ):
-        logger.debug("Removing labels %s from PR %s" % (labels, pr_id))
+        logger.debug(f"Removing labels {labels} from PR {pr_id}")
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
         for label in labels:
@@ -205,7 +204,7 @@ class GitHub(object):
                        pr_id  # type: Union[Text, int]
                        ):
         # (...) -> int
-        if not isinstance(pr_id, six.integer_types):
+        if not isinstance(pr_id, int):
             try:
                 pr_id = int(pr_id)
             except ValueError:
@@ -319,7 +318,7 @@ class GitHub(object):
         # type: (Text) -> Optional[int]
         logger.info("Looking up PR for commit %s" % sha)
         owner, repo = self.repo_name.split("/")
-        prs = list(self.gh.search_issues(query="is:pr repo:%s/%s sha:%s" % (owner, repo, sha)))
+        prs = list(self.gh.search_issues(query=f"is:pr repo:{owner}/{repo} sha:{sha}"))
         if len(prs) == 0:
             return None
 
@@ -465,7 +464,7 @@ class MockGitHub(GitHub):
         # type: (Text) -> None
         data = six.ensure_text(data)
         self.output.write(data)
-        self.output.write(u"\n")
+        self.output.write("\n")
 
     @property
     def repo(self):

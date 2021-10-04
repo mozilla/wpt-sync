@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import io
 import re
 import os
@@ -58,7 +57,7 @@ def remove_obsolete(path, moves=None):
                          patcomp)
     from lib2to3.pgen2 import driver
 
-    files_pattern = (u"with_stmt< 'with' power< 'Files' "
+    files_pattern = ("with_stmt< 'with' power< 'Files' "
                      "trailer< '(' arg=any any* ')' > any* > any* >")
     base_dir = os.path.dirname(path) or "."
     d = driver.Driver(pygram.python_grammar,
@@ -82,8 +81,8 @@ def remove_obsolete(path, moves=None):
             full_path = os.path.join(base_path, filename)
             path = os.path.relpath(full_path, base_dir)
             try:
-                assert (u"../" not in path and
-                        not path.endswith(u"/..")), "Path %s is outside %s" % (full_path,
+                assert ("../" not in path and
+                        not path.endswith("/..")), "Path {} is outside {}".format(full_path,
                                                                                base_dir)
             except AssertionError:
                 newrelic.agent.record_exception(params={
@@ -91,7 +90,7 @@ def remove_obsolete(path, moves=None):
                 })
                 continue
 
-            if path[:2] == u"./":
+            if path[:2] == "./":
                 path = path[2:]
             for pattern in unmatched_patterns.copy():
                 if match(path, pattern):
@@ -100,7 +99,7 @@ def remove_obsolete(path, moves=None):
     if moves:
         moved_patterns = compute_moves(moves, unmatched_patterns)
         unmatched_patterns -= set(moved_patterns.keys())
-        for old_pattern, new_pattern in iteritems(moved_patterns):
+        for old_pattern, new_pattern in moved_patterns.items():
             node, match_values = node_patterns[old_pattern]
             arg = match_values["arg"]
             arg.replace(arg.__class__(arg.type, '"%s"' % new_pattern))
@@ -109,7 +108,7 @@ def remove_obsolete(path, moves=None):
         logger.debug("Removing %s" % pattern)
         node_patterns[pattern][0].remove()
 
-    return six.text_type(tree)
+    return str(tree)
 
 
 def compute_moves(moves, unmatched_patterns):
@@ -121,11 +120,11 @@ def compute_moves(moves, unmatched_patterns):
         # or single-file patterns
         if "*" in pattern and not pattern.endswith("/**"):
             continue
-        for from_path, to_path in iteritems(moves):
+        for from_path, to_path in moves.items():
             if match(from_path, pattern):
                 dest_paths[pattern].append(to_path)
 
-    for pattern, paths in iteritems(dest_paths):
+    for pattern, paths in dest_paths.items():
         if "*" not in pattern:
             assert len(paths) == 1
             updated_patterns[pattern] = paths[0]
@@ -181,13 +180,13 @@ def get(git_gecko,  # type: Repo
 
     components = sorted(list(components_dict.items()), key=lambda x: -len(x[1]))
     component = components[0][0]
-    if component == u"UNKNOWN" and len(components) > 1:
+    if component == "UNKNOWN" and len(components) > 1:
         component = components[1][0]
 
-    if component == u"UNKNOWN":
+    if component == "UNKNOWN":
         return default
 
-    product, component = component.split(u" :: ", 1)
+    product, component = component.split(" :: ", 1)
     return product, component
 
 
@@ -209,12 +208,12 @@ def update(repo_work, renames):
         return os.path.join(tests_base, path)
 
     mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
-                            for old, new in iteritems(renames)}
+                            for old, new in renames.items()}
 
     if os.path.exists(mozbuild_file_path):
         new_data = remove_obsolete(mozbuild_file_path,
                                    moves=mozbuild_rel_renames)
-        with io.open(mozbuild_file_path, "w", encoding="utf8") as f:
+        with open(mozbuild_file_path, "w", encoding="utf8") as f:
             f.write(new_data)
     else:
         logger.warning("Can't find moz.build file to update")

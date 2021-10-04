@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from __future__ import print_function
 import argparse
 import itertools
 import json
@@ -290,7 +288,7 @@ def do_list(git_gecko, git_wpt, sync_type, error=False, **kwargs):
                 if try_push.taskgroup_id:
                     extra.append(try_push.taskgroup_id)
         error_data = sync.error
-        error_msg = u""
+        error_msg = ""
         if error_data is not None:
             msg = error_data["message"]
             if msg is not None:
@@ -384,10 +382,10 @@ def do_update(git_gecko,  # type: Repo
     from . import upstream
     sync_classes = []  # type: List[type]
     if not sync_type:
-        sync_type = [u"upstream", u"downstream"]
+        sync_type = ["upstream", "downstream"]
     for key in sync_type:
-        sync_classes.append({u"upstream": upstream.UpstreamSync,
-                             u"downstream": downstream.DownstreamSync}[key])
+        sync_classes.append({"upstream": upstream.UpstreamSync,
+                             "downstream": downstream.DownstreamSync}[key])
     update.update_from_github(git_gecko, git_wpt, sync_classes, status)
 
 
@@ -461,7 +459,7 @@ def do_delete(git_gecko,  # type: Repo
     from . import trypush
     objs = []  # type: Iterable[Any]
     for obj_id in obj_ids:
-        logger.info("%s %s" % (sync_type, obj_id))
+        logger.info(f"{sync_type} {obj_id}")
         if try_push:
             objs = trypush.TryPush.load_by_obj(git_gecko,
                                                sync_type,
@@ -557,7 +555,7 @@ def do_status(git_gecko,  # type: Repo
         logger.error("No matching syncs found")
 
     for obj in objs:
-        logger.info("Setting status of %s to %s" % (obj.process_name, new_status))
+        logger.info(f"Setting status of {obj.process_name} to {new_status}")
         with SyncLock.for_process(obj.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with obj.as_mut(lock):
@@ -614,7 +612,7 @@ def do_skip(git_gecko, git_wpt, pr_ids, **kwargs):
             if sync is not None:
                 assert sync.pr is not None
                 syncs[sync.pr] = sync
-    for sync_pr_id, sync in iteritems(syncs):
+    for sync_pr_id, sync in syncs.items():
         if not isinstance(sync, downstream.DownstreamSync):
             logger.error("PR %s is for an upstream sync" % sync_pr_id)
             continue
@@ -641,7 +639,7 @@ def do_notify(git_gecko, git_wpt, pr_ids, force=False, **kwargs):
                 assert sync.pr is not None
                 syncs[sync.pr] = sync
 
-    for sync_pr_id, sync in iteritems(syncs):
+    for sync_pr_id, sync in syncs.items():
         if sync is None:
             logger.error("No active sync for PR %s" % sync_pr_id)
         elif not isinstance(sync, downstream.DownstreamSync):
@@ -708,22 +706,22 @@ def do_landable(git_gecko,
                 if next_action == DownstreamAction.wait_try:
                     latest_try_push = sync.latest_try_push
                     assert latest_try_push is not None
-                    reason = "%s %s" % (reason,
+                    reason = "{} {}".format(reason,
                                         latest_try_push.treeherder_url)
                 elif next_action == DownstreamAction.manual_fix:
                     latest_try_push = sync.latest_try_push
                     assert latest_try_push is not None
-                    reason = "Manual fixup required %s" % (
-                        latest_try_push.treeherder_url,)
-                msg = "%s (%s)" % (msg, reason)
+                    reason = "Manual fixup required {}".format(
+                        latest_try_push.treeherder_url)
+                msg = f"{msg} ({reason})"
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 assert sync is not None
                 if sync.error:
                     err_msg = sync.error["message"] or ""
                     err_msg = err_msg.splitlines()[0] if err_msg else err_msg
-                    msg = "%s (%s)" % (msg, err_msg)
-            print("%s: %s" % (pr, msg))
+                    msg = f"{msg} ({err_msg})"
+            print(f"{pr}: {msg}")
 
         print("%i PRs are unlandable:" % count)
 
@@ -815,7 +813,7 @@ def do_try_push_add(git_gecko,  # type: Repo
     if not sync:
         raise ValueError
 
-    class FakeTry(object):
+    class FakeTry:
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -901,7 +899,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     repo_map = {git_gecko: git2_gecko,
                 git_wpt: git2_wpt}
-    rev_repo_map = {value: key for key, value in iteritems(repo_map)}
+    rev_repo_map = {value: key for key, value in repo_map.items()}
 
     special = {}
 
@@ -932,7 +930,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         processing_refs += 1
         assert m.group("subtype") in ("upstream", "downstream", "landing")
         assert int(m.group("obj_id")) > 0
-        new_ref = "refs/%s/%s/%s/%s/%s" % (m.group("reftype"),
+        new_ref = "refs/{}/{}/{}/{}/{}".format(m.group("reftype"),
                                            m.group("obj_type"),
                                            m.group("subtype"),
                                            m.group("obj_id"),
@@ -941,7 +939,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     duplicate = {}
     delete = set()
-    for (repo, new_ref), refs in iteritems(seen):
+    for (repo, new_ref), refs in seen.items():
         if len(refs) > 1:
             # If we have multiple /syncs/ ref, but only one /heads/ ref, use the corresponding one
             if new_ref.startswith("refs/syncs/"):
@@ -953,10 +951,10 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                     else:
                         no_head.add((ref.name, status))
                 if len(has_head) == 1:
-                    print("  Using %s from %s" % (list(has_head)[0][0].path,
+                    print("  Using {} from {}".format(list(has_head)[0][0].path,
                                                   " ".join(ref.name for ref, _ in refs)))
                     refs[:] = list(has_head)
-                    delete |= set((repo, ref_name) for ref_name, _ in no_head)
+                    delete |= {(repo, ref_name) for ref_name, _ in no_head}
 
         if len(refs) > 1:
             # If we have a later status, prefer that over an earlier one
@@ -964,10 +962,10 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
             by_status = {matches[ref.name].group("status"): (ref, status) for (ref, status) in refs}
             for target_status in ["complete", "wpt-merged", "incomplete", "infra-fail"]:
                 if target_status in by_status:
-                    print("  Using %s from %s" % (by_status[target_status][0].name,
+                    print("  Using {} from {}".format(by_status[target_status][0].name,
                                                   " ".join(ref.name for ref, _ in refs)))
-                    delete |= set((repo, ref.name) for ref, status in refs
-                                  if ref != by_status[target_status])
+                    delete |= {(repo, ref.name) for ref, status in refs
+                                  if ref != by_status[target_status]}
                     refs[:] = [by_status[target_status]]
 
         if len(refs) > 1:
@@ -975,20 +973,20 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
 
     if duplicate:
         print("  ERROR! Got duplicate %s source refs" % len(duplicate))
-        for (repo, new_ref), refs in iteritems(duplicate):
-            print("    %s %s: %s" % (repo.working_dir,
+        for (repo, new_ref), refs in duplicate.items():
+            print("    {} {}: {}".format(repo.working_dir,
                                      new_ref,
                                      " ".join(ref.name for ref, _ in refs)))
         return
 
-    for (repo, new_ref), refs in iteritems(seen):
+    for (repo, new_ref), refs in seen.items():
         ref, _ = refs[0]
 
         if ref.name.startswith("refs/syncs/sync/"):
             if "refs/heads/%s" % ref.name[len("refs/syncs/"):] not in repo.references:
                 # Try with the post-migration head
                 m = sync_ref.match(ref.name)
-                ref_path = "refs/heads/%s/%s/%s/%s" % (m.group("obj_type"),
+                ref_path = "refs/heads/{}/{}/{}/{}".format(m.group("obj_type"),
                                                        m.group("subtype"),
                                                        m.group("obj_id"),
                                                        m.group("seq_id"))
@@ -996,7 +994,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                     print("  Missing head %s" % (ref.name))
 
     created = 0
-    for i, ((repo, new_ref), refs) in enumerate(iteritems(seen)):
+    for i, ((repo, new_ref), refs) in enumerate(seen.items()):
         assert len(refs) == 1
         ref, status = refs[0]
         print("Updating %s" % ref.name)
@@ -1021,7 +1019,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         print("  Got commit %s" % commit)
 
         if new_ref not in repo.references:
-            print("  Rename %s %s" % (ref.name, new_ref))
+            print(f"  Rename {ref.name} {new_ref}")
             repo.references.create(new_ref, commit)
             created += 1
         else:
@@ -1055,7 +1053,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         m = sync_ref.match(ref.path)
         if not m:
             continue
-        path = "%s/%s/%s/%s" % (m.group("obj_type"),
+        path = "{}/{}/{}/{}".format(m.group("obj_type"),
                                 m.group("subtype"),
                                 m.group("obj_id"),
                                 m.group("seq_id"))
@@ -1064,7 +1062,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                                     "Migrate %s to single ref for data" % ref.path,
                                     ref="refs/syncs/data") as commit:
                 data = json.load(ref.commit.tree["data"].data_stream)
-                print("  Moving path %s" % (path,))
+                print(f"  Moving path {path}")
                 tree = {path: json.dumps(data)}
                 commit.add_tree(tree)
         delete.add(ref.path)

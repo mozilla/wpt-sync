@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, namedtuple
@@ -22,33 +21,33 @@ class DeleteTrackingList(list):
     def __init__(self, *args, **kwargs):
         # type: (*Any, **Any) -> None
         self._deleted = []  # type: List[Any]
-        super(DeleteTrackingList, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __setitem__(self, index, value):
         self._dirty = True
-        super(DeleteTrackingList, self).__setitem__(index, value)
+        super().__setitem__(index, value)
 
     def __setslice__(self, index0, index1, value):
         self.deleted.extend(self[index0:index1])
-        super(DeleteTrackingList, self).__setslice__(index0, index1, value)
+        super().__setslice__(index0, index1, value)
 
     def __delitem__(self, index):
         self.deleted.append(self[index]._initial_state)
-        super(DeleteTrackingList, self).__delitem__(index)
+        super().__delitem__(index)
 
     def __delslice__(self, index0, index1):
         self.deleted.extend(self[index0:index1])
-        super(DeleteTrackingList, self).__delslice__(index0, index1)
+        super().__delslice__(index0, index1)
 
     def pop(self):
-        rv = super(DeleteTrackingList, self).pop()
+        rv = super().pop()
         self._deleted.append(rv)
         return rv
 
     def remove(self, item):
         # type: (Any) -> Any
         try:
-            return super(DeleteTrackingList, self).remove(item)
+            return super().remove(item)
         finally:
             self._deleted.append(item)
 
@@ -64,7 +63,7 @@ def parse_test(test_id):
     return dir_name, test_name
 
 
-class Reader(six.with_metaclass(ABCMeta, object)):
+class Reader(metaclass=ABCMeta):
     """Class implementing read operations on paths"""
 
     @abstractmethod
@@ -97,7 +96,7 @@ class Reader(six.with_metaclass(ABCMeta, object)):
         pass
 
 
-class Writer(six.with_metaclass(ABCMeta, object)):
+class Writer(metaclass=ABCMeta):
     """Class implementing write operations on paths"""
 
     @abstractmethod
@@ -150,7 +149,7 @@ def metadata_directory(root):
     return WptMetadata(reader, writer)
 
 
-class WptMetadata(object):
+class WptMetadata:
     def __init__(self, reader, writer):
         # type: (Reader, Writer) -> None
         """Object for working with a wpt-metadata tree
@@ -179,17 +178,16 @@ class WptMetadata(object):
             if dir_name not in self.loaded:
                 self.loaded[dir_name] = MetaFile(self, dir_name)
 
-            for item in self.loaded[dir_name].iterlinks(product=product,
+            yield from self.loaded[dir_name].iterlinks(product=product,
                                                         test_id=test_id,
                                                         subtest=None,
-                                                        status=None):
-                yield item
+                                                        status=None)
 
     def write(self):
         # type: () -> List[Text]
         """Write any updated metadata to the metadata tree"""
         rv = []
-        for meta_file in itervalues(self.loaded):
+        for meta_file in self.loaded.values():
             if meta_file.write():
                 rv.append(meta_file.rel_path)
         return rv
@@ -214,7 +212,7 @@ class WptMetadata(object):
         meta_file.links.append(link)
 
 
-class MetaFile(object):
+class MetaFile:
     def __init__(self, owner, dir_name):
         # type: (WptMetadata, Text) -> None
         """Object representing a single META.yml file
@@ -311,7 +309,7 @@ class MetaFile(object):
             url = item.get("url")
             product = item.get("product")
             for result in item["results"]:
-                test_id = "/%s/%s" % (self.dir_name, result.get("test"))
+                test_id = "/{}/{}".format(self.dir_name, result.get("test"))
                 subtest = result.get("subtest")
                 status = result.get("status")
                 links_by_state[LinkState(url, product, test_id, subtest, status)] = (
@@ -329,7 +327,7 @@ class MetaFile(object):
                 links_by_state[item.state] = item.state
 
         by_link = OrderedDict()  # type: OrderedDict[Tuple[Text, Text], List[Dict[Text, Any]]]
-        for link in itervalues(links_by_state):
+        for link in links_by_state.values():
             result = {}
             test_id = link.test_id
             if test_id is not None:
@@ -346,7 +344,7 @@ class MetaFile(object):
 
         links = []
 
-        for (url, product), results in iteritems(by_link):
+        for (url, product), results in by_link.items():
             links.append({"url": url,
                           "product": product,
                           "results": results})
@@ -358,7 +356,7 @@ class MetaFile(object):
 LinkState = namedtuple("LinkState", ["url", "product", "test_id", "subtest", "status"])
 
 
-class MetaLink(object):
+class MetaLink:
     def __init__(self,
                  meta_file,  # type: MetaFile
                  url,  # type: Text
@@ -383,7 +381,7 @@ class MetaLink(object):
         # type: (MetaFile, Dict[Text, Any], Dict[Text, Text]) -> MetaLink
         url = link["url"]
         product = link.get("product")
-        test_id = "/%s/%s" % (meta_file.dir_name, result["test"])
+        test_id = "/{}/{}".format(meta_file.dir_name, result["test"])
         status = result.get("status")
         subtest = result.get("subtest")
         self = cls(meta_file, url, product, test_id, subtest, status)

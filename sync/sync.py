@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import enum
 import itertools
 import traceback
@@ -36,10 +35,7 @@ if MYPY:
     from sync.trypush import TryPush
     from sync.lock import SyncLock
 
-    if six.PY2:
-        from typing import Literal
-    else:
-        from typing_extensions import Literal
+    from typing_extensions import Literal
 
 try:
     from typing import overload
@@ -53,7 +49,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-class CommitFilter(object):
+class CommitFilter:
     """Filter of a range of commits"""
     def __init__(self):
         # type: () -> None
@@ -93,7 +89,7 @@ class CommitFilter(object):
         return list(commits)
 
 
-class CommitRange(object):
+class CommitRange:
     # This class should probably be generic in the commit subtype it returns
     # but trying that ended up with lots of errors, so for now it just specifies
     # Commit, meaning that users need to cast to use properies of subtypes
@@ -162,8 +158,7 @@ class CommitRange(object):
 
     def __iter__(self):
         # type: () -> Iterator[Commit]
-        for item in self.commits:
-            yield item
+        yield from self.commits
 
     def __len__(self):
         # type: () -> int
@@ -183,7 +178,7 @@ class CommitRange(object):
             if (self.head.sha1 == self._head_sha and
                 self.base.sha1 == self._base_sha):
                 return self._commits
-        revish = "%s..%s" % (self.base.sha1, self.head.sha1)
+        revish = f"{self.base.sha1}..{self.head.sha1}"
         commits = []  # type: List[Commit]
         for git_commit in self.repo.iter_commits(revish,
                                                  reverse=True,
@@ -258,16 +253,16 @@ class LandableStatus(enum.Enum):
 
     def reason_str(self):
         # type: () -> Text
-        return {LandableStatus.ready: u"Ready",
-                LandableStatus.no_pr: u"No PR",
-                LandableStatus.upstream: u"From gecko",
-                LandableStatus.no_sync: u"No sync created",
-                LandableStatus.error: u"Error",
-                LandableStatus.missing_try_results: u"Incomplete try results",
-                LandableStatus.skip: u"Skip"}.get(self, u"Unknown")
+        return {LandableStatus.ready: "Ready",
+                LandableStatus.no_pr: "No PR",
+                LandableStatus.upstream: "From gecko",
+                LandableStatus.no_sync: "No sync created",
+                LandableStatus.error: "Error",
+                LandableStatus.missing_try_results: "Incomplete try results",
+                LandableStatus.skip: "Skip"}.get(self, "Unknown")
 
 
-class SyncPointName(six.with_metaclass(IdentityMap, object)):
+class SyncPointName(metaclass=IdentityMap):
     """Like a process name but for pointers that aren't associated with a
     specific sync object, but with a general process e.g. the last update point
     for an upstream sync."""
@@ -306,13 +301,13 @@ class SyncPointName(six.with_metaclass(IdentityMap, object)):
 
     def __str__(self):
         # type: () -> str
-        data = u"%s/%s/%s" % (self._obj_type,
+        data = "{}/{}/{}".format(self._obj_type,
                               self._subtype,
                               self._obj_id)
         return six.ensure_str(data)
 
     def path(self):
-        return u"%s/%s/%s" % (self._obj_type,
+        return "{}/{}/{}".format(self._obj_type,
                               self._subtype,
                               self._obj_id)
 
@@ -321,7 +316,7 @@ class SyncData(ProcessData):
     obj_type = "sync"
 
 
-class SyncProcess(six.with_metaclass(IdentityMap, object)):
+class SyncProcess(metaclass=IdentityMap):
     obj_type = "sync"  # type: Text
     sync_type = "*"  # type: Text
     # Either "bug" or "pr"
@@ -387,7 +382,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     def __repr__(self):
         # type: () -> str
-        return six.ensure_str("<%s %s %s>" % (self.__class__.__name__,
+        return six.ensure_str("<{} {} {}>".format(self.__class__.__name__,
                                               self.sync_type,
                                               self.process_name))
 
@@ -464,7 +459,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                 if sync.status in statuses:
                     rv[sync.status].add(sync)
         if flat:
-            return list(itertools.chain.from_iterable(itervalues(rv)))
+            return list(itertools.chain.from_iterable(rv.values()))
         return rv
 
     @classmethod
@@ -541,11 +536,11 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
     def _output_data(self):
         # type: () -> List[Text]
-        rv = ["%s%s" % ("*" if self.error else " ",
+        rv = ["{}{}".format("*" if self.error else " ",
                         self.process_name.path()),
-              "gecko range: %s..%s" % (self.gecko_commits.base.sha1,
+              "gecko range: {}..{}".format(self.gecko_commits.base.sha1,
                                        self.gecko_commits.head.sha1),
-              "wpt range: %s..%s" % (self.wpt_commits.base.sha1,
+              "wpt range: {}..{}".format(self.wpt_commits.base.sha1,
                                      self.wpt_commits.head.sha1)]
         if self.error:
             rv.extend(["ERROR:",
@@ -557,20 +552,20 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
 
         for key, value in sorted(self.data.items()):
             if key != "error":
-                rv.append("%s: %s" % (key, value))
+                rv.append(f"{key}: {value}")
 
         try_pushes = self.try_pushes()
         if try_pushes:
             try_pushes = sorted(try_pushes, key=lambda x: x.process_name.seq_id)
             rv.append("Try pushes:")
             for try_push in try_pushes:
-                rv.append("  %s %s" % (try_push.status,
+                rv.append("  {} {}".format(try_push.status,
                                        try_push.treeherder_url))
         return rv
 
     def output(self):
         # type: () -> Text
-        return u"\n".join(self._output_data())
+        return "\n".join(self._output_data())
 
     def __ne__(self, other):
         # type: (Any) -> bool
@@ -624,7 +619,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
         if current == value:
             return
         if (current, value) not in self.status_transitions:
-            raise ValueError("Tried to change status from %s to %s" % (current, value))
+            raise ValueError(f"Tried to change status from {current} to {value}")
 
         from . import index
         index.SyncIndex(self.git_gecko).delete(index.SyncIndex.make_key(self),
@@ -723,12 +718,12 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                 return item
             if isinstance(item, str):
                 return item
-            if isinstance(item, six.text_type):
+            if isinstance(item, str):
                 return item.encode("utf8", "replace")
             return repr(item)
 
         if value is not None:
-            if isinstance(value, (str, six.text_type)):
+            if isinstance(value, (str, str)):
                 message = value
                 stack = None
             else:
@@ -837,7 +832,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
                                                cls.sync_type,
                                                obj_id)
         if not cls.multiple_syncs and process_name.seq_id != 0:
-            raise ValueError("Tried to create new %s sync for %s %s but one already exists" % (
+            raise ValueError("Tried to create new {} sync for {} {} but one already exists".format(
                 cls.obj_id, cls.sync_type, obj_id))
         SyncData.create(lock, git_gecko, process_name, data)
         BranchRefObject.create(lock, git_gecko, process_name, gecko_head, GeckoCommit)
@@ -860,7 +855,7 @@ class SyncProcess(six.with_metaclass(IdentityMap, object)):
     def finish(self, status="complete"):
         # type: (Text) -> None
         # TODO: cancel related try pushes &c.
-        logger.info("Marking sync %s as %s" % (self.process_name, status))
+        logger.info(f"Marking sync {self.process_name} as {status}")
         self.status = status  # type: ignore
         self.error = None  # type: ignore
         for worktree in [self.gecko_worktree, self.wpt_worktree]:

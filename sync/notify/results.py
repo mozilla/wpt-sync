@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import json
 import os
 from collections import defaultdict
@@ -36,20 +35,20 @@ if MYPY:
     from sync.meta import MetaLink
     from sync.tc import TaskGroupView
 
-    Logs = Mapping[Text, Mapping[Text, List[Any]]]  # Any is really "anything with a json method"
-    ResultsEntry = Tuple[Text, Optional[Text], "Result"]
-    JobResultsSummary = MutableMapping[Text, MutableMapping[Text, MutableMapping[Text, int]]]
+    Logs = Mapping[str, Mapping[str, List[Any]]]  # Any is really "anything with a json method"
+    ResultsEntry = Tuple[str, Optional[str], "Result"]
+    JobResultsSummary = MutableMapping[str, MutableMapping[str, MutableMapping[str, int]]]
 
 logger = log.get_logger(__name__)
 env = Environment()
 
-passing_statuses = frozenset([u"PASS", u"OK"])
-statuses = frozenset([u"OK", u"PASS", u"CRASH", u"FAIL", u"TIMEOUT", u"ERROR", u"NOTRUN",
-                      u"PRECONDITION_FAILED"])
-browsers = [u"firefox", u"chrome", u"safari"]
+passing_statuses = frozenset(["PASS", "OK"])
+statuses = frozenset(["OK", "PASS", "CRASH", "FAIL", "TIMEOUT", "ERROR", "NOTRUN",
+                      "PRECONDITION_FAILED"])
+browsers = ["firefox", "chrome", "safari"]
 
 
-class StatusResult(object):
+class StatusResult:
     def __init__(self, base=None, head=None):
         # type: (Optional[Text], Optional[Text]) -> None
         self.base = None  # type: Optional[Text]
@@ -91,7 +90,7 @@ class StatusResult(object):
         return self.head == "SKIP"
 
 
-class Result(object):
+class Result:
     def __init__(self):
         # type: () -> None
         # Mapping {browser: {platform: StatusResult}}
@@ -104,8 +103,8 @@ class Result(object):
                            fn,  # type: Callable
                            ):
         # type: (...) -> Iterator[Tuple[Text, Text, StatusResult]]
-        for browser, by_platform in iteritems(self.statuses):
-            for platform, status in iteritems(by_platform):
+        for browser, by_platform in self.statuses.items():
+            for platform, status in by_platform.items():
                 if fn(browser, platform, status):
                     yield browser, platform, status
 
@@ -120,15 +119,15 @@ class Result(object):
             browser)  # type: Optional[Mapping[Text, StatusResult]]
         if not browser_results:
             return True
-        first_result = getattr(next(itervalues(browser_results)), target)
+        first_result = getattr(next(iter(browser_results.values())), target)
 
         return all(getattr(result, target) == first_result
-                   for result in itervalues(browser_results))
+                   for result in browser_results.values())
 
     def is_browser_only_failure(self, target_browser="firefox"):
         # type: (Text) -> bool
-        gh_target = self.statuses[target_browser].get(u"GitHub")
-        gh_other = [self.statuses.get(browser, {}).get(u"GitHub")
+        gh_target = self.statuses[target_browser].get("GitHub")
+        gh_other = [self.statuses.get(browser, {}).get("GitHub")
                     for browser in browsers
                     if browser != target_browser]
         if gh_target is None:
@@ -144,7 +143,7 @@ class Result(object):
         # If it's passing on all internal platforms, assume a pref has to be
         # set or something. We could do better than this
         gecko_ci_statuses = [status
-                             for job_name, status in iteritems(self.statuses[target_browser])
+                             for job_name, status in self.statuses[target_browser].items()
                              if job_name != "GitHub"]
         if (gecko_ci_statuses and
             all(status.head in passing_statuses for status in gecko_ci_statuses)):
@@ -218,14 +217,14 @@ class TestResult(Result):
         # type: () -> None
         # Mapping {subtestname: SubtestResult}
         self.subtests = defaultdict(SubtestResult)  # type: MutableMapping[Text, "SubtestResult"]
-        super(TestResult, self).__init__()
+        super().__init__()
 
 
 class SubtestResult(Result):
     pass
 
 
-class ResultsSummary(object):
+class ResultsSummary:
     def __init__(self):
         self.parent_tests = 0
         self.subtests = 0
@@ -234,7 +233,7 @@ class ResultsSummary(object):
                 lambda: defaultdict(int)))  # type: JobResultsSummary
 
 
-class Results(object):
+class Results:
     def __init__(self):
         # type: () -> None
         # Mapping of {test: TestResult}
@@ -245,9 +244,9 @@ class Results(object):
 
     def iter_results(self):
         # type: () -> Iterator[ResultsEntry]
-        for test_name, result in iteritems(self.test_results):
+        for test_name, result in self.test_results.items():
             yield test_name, None, result
-            for subtest_name, subtest_result in iteritems(result.subtests):
+            for subtest_name, subtest_result in result.subtests.items():
                 yield test_name, subtest_name, subtest_result
 
     def iter_filter(self, fn):
@@ -260,8 +259,8 @@ class Results(object):
         # type: (Logs, Logs) -> None
         for (browser_logs, run_has_changes) in [(logs_with_changes, True),
                                                 (logs_no_changes, False)]:
-            for browser, browser_job_logs in iteritems(browser_logs):
-                for job_name, job_logs in iteritems(browser_job_logs):
+            for browser, browser_job_logs in browser_logs.items():
+                for job_name, job_logs in browser_job_logs.items():
                     if not run_has_changes and job_name not in self.test_results:
                         continue
 
@@ -297,7 +296,7 @@ class Results(object):
 
     def add_metadata(self, metadata):
         # type: (Metadata) -> None
-        for test, result in iteritems(self.test_results):
+        for test, result in self.test_results.items():
             for meta_link in metadata.iterbugs(test, product="firefox"):
                 if meta_link.subtest is None:
                     result.bug_links.append(meta_link)
@@ -308,16 +307,16 @@ class Results(object):
     def browsers(self):
         # type: () -> Set[Text]
         browsers = set()
-        for result in itervalues(self.test_results):
-            browsers |= set(item for item in iterkeys(result.statuses))
+        for result in self.test_results.values():
+            browsers |= {item for item in result.statuses.keys()}
         return browsers
 
     def job_names(self, browser):
         # type: (Text) -> Set[Text]
         job_names = set()
-        for result in itervalues(self.test_results):
+        for result in self.test_results.values():
             if browser in result.statuses:
-                for job_name in iterkeys(result.statuses[browser]):
+                for job_name in result.statuses[browser].keys():
                     job_names.add(job_name)
         return job_names
 
@@ -331,16 +330,16 @@ class Results(object):
 
         def update_for_result(result):
             # type: (Union[SubtestResult, TestResult]) -> None
-            for browser, browser_result in iteritems(result.statuses):
-                for job_name, job_result in iteritems(browser_result):
+            for browser, browser_result in result.statuses.items():
+                for job_name, job_result in browser_result.items():
                     if job_result.head:
                         summary.job_results[job_result.head][browser][job_name] += 1
 
-        for test_result in itervalues(self.test_results):
+        for test_result in self.test_results.values():
             summary.parent_tests += 1  # type: ignore
             summary.subtests = len(test_result.subtests)
             update_for_result(test_result)
-            for subtest_result in itervalues(test_result.subtests):
+            for subtest_result in test_result.subtests.values():
                 update_for_result(subtest_result)
         return summary
 
@@ -437,7 +436,7 @@ def get_central_tasks(git_gecko, sync):
     return wpt_tasks
 
 
-class LogFile(object):
+class LogFile:
     def __init__(self, path):
         self.path = path
 

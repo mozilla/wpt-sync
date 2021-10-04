@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import requests
 import time
 
@@ -11,7 +10,7 @@ WPT_FYI_BASE = "https://wpt.fyi/api/"
 STAGING_HOST = "staging.wpt.fyi"
 
 
-class Url(object):
+class Url:
     def __init__(self, initial_url):
         if initial_url:
             parts = parse.urlsplit(initial_url)
@@ -112,7 +111,7 @@ def get_metadata(products, link, staging=False):
     if staging:
         url.host = STAGING_HOST
 
-    if isinstance(products, six.string_types):
+    if isinstance(products, str):
         url.add_query("product", products)
     else:
         for product in products:
@@ -123,7 +122,7 @@ def get_metadata(products, link, staging=False):
 
     if link is not None:
         data = {}
-        for test, values in iteritems(resp.json()):
+        for test, values in resp.json().items():
             link_values = [item for item in values if link in item["url"]]
             if link_values:
                 data[test] = link_values

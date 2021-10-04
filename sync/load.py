@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from . import log
 from .env import Environment
 
@@ -28,7 +26,7 @@ def get_pr_sync(git_gecko,  # type: Repo
         sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if log:
         if sync:
-            logger.info("Got sync %r for PR %s" % (sync, pr_id))
+            logger.info(f"Got sync {sync!r} for PR {pr_id}")
         else:
             logger.info("No sync found for PR %s" % pr_id)
     return sync
@@ -78,9 +76,9 @@ def get_syncs(git_gecko,  # type: Repo
     from . import upstream
 
     cls_types = {
-        u"downstream": downstream.DownstreamSync,
-        u"landing": landing.LandingSync,
-        u"upstream": upstream.UpstreamSync
+        "downstream": downstream.DownstreamSync,
+        "landing": landing.LandingSync,
+        "upstream": upstream.UpstreamSync
     }
     cls = cls_types[sync_type]
     syncs = cls.load_by_obj(git_gecko, git_wpt, obj_id, seq_id=seq_id)
