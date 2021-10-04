@@ -7,32 +7,32 @@ on:
 
 jobs:
   python2-linters:
-    name: Linters in Python 2
+    name: Linters
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
       - name: Run
-        run: ./bin/run_docker_dev.sh test --no-pytest
+        run: ./bin/run_docker_dev.sh test --no-pytest --no-mypy
   python3-tests:
-    name: Unit Tests in Python 3
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
       - name: Run
-        run: ./bin/run_docker_dev.sh test --no-flake8
+        run: ./bin/run_docker_dev.sh test --no-flake8 --no-mypy
   python3-mypy:
-    name: mypy in Python 3
+    name: mypy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
       - name: Run
-        run: ./bin/run_docker_dev.sh test --no-flake8 --no-pytest --mypy-3
+        run: ./bin/run_docker_dev.sh test --no-flake8 --no-pytest
   static-analysis:
     name: Static Analysis
     runs-on: ubuntu-latest

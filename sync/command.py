@@ -147,10 +147,8 @@ def get_parser():
                              default=True, help="Don't run flake8")
     parser_test.add_argument("--no-pytest", dest="pytest", action="store_false",
                              default=True, help="Don't run pytest")
-    parser_test.add_argument("--mypy-2", dest="mypy_2", action="store_true",
-                             help="Run mypy for Python 2")
-    parser_test.add_argument("--mypy-3", dest="mypy_3", action="store_true",
-                             help="Run mypy for Python 3")
+    parser_test.add_argument("--no-mypy", dest="mypy", action="store_false",
+                             help="Don't run mypy")
     parser_test.add_argument("args", nargs="*", help="Arguments to pass to pytest")
     parser_test.set_defaults(func=do_test)
 
@@ -572,13 +570,8 @@ def do_test(**kwargs):
         subprocess.check_call(cmd, cwd="/app/wpt-sync/sync/")
         subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
 
-    if kwargs.pop("mypy_2", True):
-        logger.info("Running mypy for Python 2")
-        cmd = ["mypy", "--py2", "sync"]
-        subprocess.check_call(cmd, cwd="/app/wpt-sync/")
-
-    if kwargs.pop("mypy_3", True):
-        logger.info("Running mypy for Python 3")
+    if kwargs.pop("mypy", True):
+        logger.info("Running mypy")
         cmd = ["mypy", "sync"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
