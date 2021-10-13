@@ -165,9 +165,9 @@ typed_ast==1.4.2\
     --hash=sha256:9fc0b3cb5d1720e7141d103cf4819aea239f7d136acf9ee4a69b047b7986175a
 types-PyYAML==5.4.10 \
     --hash=sha256:f1d1357168988e45fa20c65aecb3911462246a84809015dd889ebf8b1db74124
-types-filelock==3.2.0 \
-    --hash=sha256:7e51cc23c2269c51229292e27b5e037afbe4612abcbbfc03564763ecf4bc46f8 \
-    --hash=sha256:21f179490d1ef30d472664e3fe1b4e02def61a888a3cf7cdf2e5204e00e4383b
+types-filelock==3.2.1 \
+    --hash=sha256:494eb8f6abbd523e65757082a64b4d4cf1045e72d0cf0d8857c04c63083127fa \
+    --hash=sha256:0cc8914cc35bc2bc5314ec1fb3d5a96810149374f99278d6038b98e497b177ab
 types-requests==2.25.9 \
     --hash=sha256:543ba8b3b23e38ac028da1d163aecbbc27d3cc8f654ae64339da539a191a2b1c
 types-setuptools==57.4.0 \
