@@ -114,11 +114,12 @@ class Gecko(GitSettings):
         if not os.path.exists(state_path):
             os.makedirs(state_path)
             mach = Mach(path)
+            # create-mach-environment no longer exists, but keep trying
+            # to run it in case we have an old tree
             try:
                 mach.create_mach_environment()
             except subprocess.CalledProcessError:
-                # This can happen if the base revision is too old
-                logger.warning("Failed to run create-mach-environment")
+                pass
 
     def after_worktree_delete(self, path):
         # type: (Text) -> None
