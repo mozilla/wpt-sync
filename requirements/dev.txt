@@ -185,6 +185,6 @@ types-requests==2.26.1 \
 types-setuptools==57.4.7 \
     --hash=sha256:ffda504687ea02d4b7751c0d1df517fbbcdc276836d90849e4f1a5f1ccd79f01 \
     --hash=sha256:9677d969b00ec1c14552f5be2b2b47a6fbea4d0ed4de0fdcee18abdaa0cc9267
-types-six==1.16.3 \
-    --hash=sha256:8dda49da00f9610f2442b6bd0566088a83127f8fc8093c52e1d175eb2111fec4 \
-    --hash=sha256:b1e21becdaee01e11cdb788f820ac030b9f22d14b91f88184a31cc2424064163
+types-six==1.16.10 \
+    --hash=sha256:1038d7a9a7d70004d69c94df97aa375ec177c0ee604bccb91465b1506c3972aa \
+    --hash=sha256:78e6c0fe40c2958e2a95ab1e1adfbf3dab56894dc8cf590dae18fd69f3179eff
