@@ -125,9 +125,9 @@ ipython-genutils==0.2.0 \
 jedi==0.18.1 \
     --hash=sha256:637c9635fcf47945ceb91cd7f320234a7be540ded6f3e99a50cb6febdfd1ba8d \
     --hash=sha256:74137626a64a99c8eb6ae5832d99b3bdd7d29a3850fe2aa80a4126b2a7d949ab
-kombu==5.2.3 \
-    --hash=sha256:eeaeb8024f3a5cfc71c9250e45cddb8493f269d74ada2f74909a93c59c4b4179 \
-    --hash=sha256:81a90c1de97e08d3db37dbf163eaaf667445e1068c98bfd89f051a40e9f6dbbd
+kombu==5.2.4 \
+    --hash=sha256:37cee3ee725f94ea8bb173eaab7c1760203ea53bbebae226328600f9d2799610 \
+    --hash=sha256:8b213b24293d3417bcf0d2f5537b7f756079e3ea232a8386dcc89a59fd2361a4
 mercurial==6.0.1 \
     --hash=sha256:05fd0b480389c96547f5a6c769e90ee00f1d13f7ac0d465e40a381c6cf3a56e2
 mock==4.0.3 \
