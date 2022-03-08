@@ -6,7 +6,6 @@ import subprocess
 import traceback
 from collections import defaultdict
 
-import newrelic
 import taskcluster
 import yaml
 import six
@@ -101,9 +100,8 @@ class TryCommit(object):
 
                 self.worktree.index.add([tc_config])
 
-    @newrelic.agent.function_trace()
     def push(self):
-        # type: () -> Optional[Text]
+        # type: () -> Text
         status, output = self._push()
         return self.read_treeherder(status, output)
 
@@ -112,10 +110,12 @@ class TryCommit(object):
         raise NotImplementedError
 
     def read_treeherder(self, status, output):
-        # type: (int, Text) -> Optional[Text]
+        # type: (int, Text) -> Text
+        msg = f"Failed to push to try:\n{output}"
+        try_rev = None  # type: Optional[Text]
         if status != 0:
-            logger.error("Failed to push to try:\n%s" % output)
-            raise RetryableError(AbortError("Failed to push to try"))
+            logger.error(msg)
+            raise RetryableError(AbortError(msg))
         rev_match = rev_re.search(output)
         if not rev_match:
             logger.warning("No revision found in string:\n\n{}\n".format(output))
@@ -125,9 +125,12 @@ class TryCommit(object):
             try:
                 try_rev = cinnabar(self.git_gecko).git2hg(self.worktree.head.commit.hexsha)
             except ValueError:
-                return None
+                pass
         else:
             try_rev = rev_match.group('rev')
+        if try_rev is None:
+            logger.error(msg)
+            raise AbortError(msg)
         return try_rev
 
 
@@ -284,9 +287,7 @@ class TryPush(base.ProcessData):
                                                     six.ensure_text(
                                                         str(getattr(sync, sync.obj_id))))
         rv = super(TryPush, cls).create(lock, sync.git_gecko, process_name, data)
-        # Add to the index
-        if try_rev:
-            try_idx.insert(try_idx.make_key(try_rev), process_name)
+        try_idx.insert(try_idx.make_key(try_rev), process_name)
 
         with rv.as_mut(lock):
             rv.created = taskcluster.fromNowJSON("0 days")

@@ -70,16 +70,18 @@ def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
         assert sync.latest_try_push is None
 
         # If we 'merge' the PR, then we will see a stability try push
-        handlers.handle_pr(git_gecko, git_wpt,
-                           {"action": "closed",
-                            "number": pr.number,
-                            "pull_request": {
+        with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+            mock_read.return_value = "0000000000000000"
+            handlers.handle_pr(git_gecko, git_wpt,
+                               {"action": "closed",
                                 "number": pr.number,
-                                "merge_commit_sha": "a" * 25,
-                                "base": {"sha": "b" * 25},
-                                "merged": True,
-                                "state": "closed",
-                                "merged_by": {"login": "test_user"}}})
+                                "pull_request": {
+                                    "number": pr.number,
+                                    "merge_commit_sha": "a" * 25,
+                                    "base": {"sha": "b" * 25},
+                                    "merged": True,
+                                    "state": "closed",
+                                    "merged_by": {"login": "test_user"}}})
         try_push = sync.latest_try_push
         assert try_push.stability
 
