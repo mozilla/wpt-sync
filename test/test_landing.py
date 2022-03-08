@@ -43,7 +43,9 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
             sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
-    landing_sync = landing.update_landing(git_gecko, git_wpt)
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        landing_sync = landing.update_landing(git_gecko, git_wpt)
 
     assert landing_sync is not None
     with SyncLock("landing", None) as lock:
@@ -93,7 +95,9 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
             downstream_sync.data["force-metadata-ready"] = True
 
     tree.is_open = lambda x: True
-    sync = landing.update_landing(git_gecko, git_wpt)
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        sync = landing.update_landing(git_gecko, git_wpt)
 
     assert ("Setting bug %s add_blocks %s" % (sync.bug, downstream_sync.bug)
             in env.bz.output.getvalue())
@@ -103,9 +107,12 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
         with sync.as_mut(lock), try_push.as_mut(lock):
             try_push.taskgroup_id = "abcdef"
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
-                with patch.object(tc.TaskGroup, "tasks",
-                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                with patch.object(tc.TaskGroup, "tasks", property(Mock(
+                        return_value=mock_tasks(completed=["foo"])))):
+                    with patch.object(trypush.TryCommit, 'read_treeherder',
+                                      autospec=True) as mock_read:
+                        mock_read.return_value = "0000000000000001"
+                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     assert "Pushed to try (stability)" in env.bz.output.getvalue()
     assert try_push.status == "complete"
@@ -327,7 +334,9 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     # Now start a landing
     tree.is_open = lambda x: True
-    sync = landing.update_landing(git_gecko, git_wpt)
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        sync = landing.update_landing(git_gecko, git_wpt)
 
     assert sync is not None
 
@@ -339,7 +348,11 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                 try_push.download_logs = Mock(return_value=[])
                 with patch.object(tc.TaskGroup, "tasks",
                                   property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                    with patch.object(trypush.TryCommit,
+                                      'read_treeherder',
+                                      autospec=True) as mock_read:
+                        mock_read.return_value = "0000000000000001"
+                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
     gecko_root = hg_gecko_upstream.root().strip().decode("utf8")
@@ -389,7 +402,9 @@ def test_landing_pr_on_central(env, git_gecko, git_wpt, git_wpt_upstream, pull_r
                           message=b"Change README")
 
     tree.is_open = lambda x: True
-    sync = landing.update_landing(git_gecko, git_wpt)
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        sync = landing.update_landing(git_gecko, git_wpt)
 
     assert len(sync.wpt_commits) == 2
     assert len(sync.gecko_commits) == 3
@@ -430,7 +445,9 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
     tree.is_open = lambda x: True
-    landing_sync = landing.update_landing(git_gecko, git_wpt)
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        landing_sync = landing.update_landing(git_gecko, git_wpt)
 
     assert len(landing_sync.gecko_commits) == 3
     assert landing_sync.gecko_commits[-1].metadata["wpt-type"] == "landing"
@@ -509,7 +526,9 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
         return DEFAULT
 
     m = Mock(side_effect=mock_create, wraps=sync_commit.Commit.create)
-    with patch('sync.commit.Commit.create', m):
+    with patch('sync.commit.Commit.create', m), patch.object(
+            trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
 
     commits = landing_sync.gecko_commits._commits
@@ -552,7 +571,9 @@ def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstr
     pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
     env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
 
-    landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
     commits = landing_sync.gecko_commits._commits
 
     assert len(commits) == 2

@@ -645,23 +645,25 @@ def try_push(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_sta
 
     trypush.Mach = mock_mach
     with patch("sync.tree.is_open", Mock(return_value=True)):
-        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-        sync = set_pr_status(pr.number, "success")
+        with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+            mock_read.return_value = "0000000000000000"
+            downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+            sync = set_pr_status(pr.number, "success")
 
-        with SyncLock.for_process(sync.process_name) as sync_lock:
-            git_wpt_upstream.head.commit = head_rev
-            git_wpt.remotes.origin.fetch()
-            landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+            with SyncLock.for_process(sync.process_name) as sync_lock:
+                git_wpt_upstream.head.commit = head_rev
+                git_wpt.remotes.origin.fetch()
+                landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-            with sync.as_mut(sync_lock):
-                env.gh_wpt.get_pull(sync.pr).merged = True
-                sync.data["affected-tests"] = {"Example": "affected"}
-                sync.next_try_push()
-                sync.data["force-metadata-ready"] = True
+                with sync.as_mut(sync_lock):
+                    env.gh_wpt.get_pull(sync.pr).merged = True
+                    sync.data["affected-tests"] = {"Example": "affected"}
+                    sync.next_try_push()
+                    sync.data["force-metadata-ready"] = True
 
-            try_push = sync.latest_try_push
-            with try_push.as_mut(sync_lock):
-                try_push.taskgroup_id = "abcdef"
+                try_push = sync.latest_try_push
+                with try_push.as_mut(sync_lock):
+                    try_push.taskgroup_id = "abcdef"
     return sync.latest_try_push
 
 
