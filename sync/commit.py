@@ -348,7 +348,7 @@ class Commit(object):
             show_kwargs.update(kwargs)
             return self.repo.git.show(self.sha1, *show_args, **show_kwargs) + b"\n"
         except git.GitCommandError as e:
-            raise AbortError from e
+            raise AbortError("git show failed") from e
 
 
 def move_commits(repo,  # type: Repo
@@ -379,7 +379,7 @@ def move_commits(repo,  # type: Repo
                               pretty="email", stdout_as_string=False, *diff_args) + b"\n"
         logger.info("Created patch")
     except git.GitCommandError as e:
-        raise AbortError from e
+        raise AbortError("git diff failed") from e
 
     return _apply_patch(patch, message, rev_name, dest_repo, skip_empty, msg_filter, metadata,
                         src_prefix, dest_prefix, amend, three_way, author=author, exclude=exclude,
