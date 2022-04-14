@@ -80,7 +80,7 @@ def test_msg_failure():
 # Tests Affected
 
 ### Tests with a Worse Result After Changes
-/test/test.html: FAIL (Chrome: PASS)
+* [/test/test.html](https://wpt.live/test/test.html) [[wpt.fyi](https://wpt.fyi/results/test/test.html)]: `FAIL` (Chrome: `PASS`)
 
 
 # CI Results
@@ -104,7 +104,8 @@ If this bug is split into multiple bugs, please also update the
 annotations, otherwise we are unable to track which wpt issues are
 already triaged. Resolving as duplicate or closing this issue should
 be cause the bot to automatically update or remove the annotation.
-""")
+"""  # noqa: E501
+    )
 
 
 def test_fx_only(env):
