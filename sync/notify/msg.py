@@ -37,7 +37,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
                u"both": [u"base", u"head"]}[include_status]
 
     if all(result.is_consistent(browser, target) for target in targets):
-        value = "->".join(getattr(next(itervalues(result.statuses[browser])), target)
+        value = "->".join(f"`{getattr(next(itervalues(result.statuses[browser])), target)}`"
                           for target in targets)
     else:
         by_value = defaultdict(list)
@@ -46,7 +46,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
             key = tuple(getattr(status, target) for target in targets)
             by_value[key].append(job_name)
 
-        value = ", ".join("%s [%s]" % ("->".join(statuses),
+        value = ", ".join("%s [%s]" % ("->".join(f"`{status}`" for status in statuses),
                                        ", ".join("`%s`" % item for item in sorted(job_names)))
                           for statuses, job_names in sorted(iteritems(by_value)))
 
@@ -60,7 +60,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
                 return None
             other_browser_values.append("%s: %s" % (other_browser.title(),
                                                     "->".join(
-                                                        getattr(browser_status, target)
+                                                        f"`{getattr(browser_status, target)}`"
                                                         for target in targets)))
         if other_browser_values:
             value += " (%s)" % ", ".join(other_browser_values)
@@ -142,7 +142,7 @@ def summary_message(results):
                        u"ERROR", u"NOTRUN"]:
             if browser in summary.job_results[result]:
                 result_data = summary.job_results[result][browser]
-                data.append(u"%s: %s" % (result.ljust(max_width),
+                data.append(u"%s: %s" % (f"`{result}`".ljust(max_width + 2),
                                          summary_value(result_data)))
         data.append(u"")
 
