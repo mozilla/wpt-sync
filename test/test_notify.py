@@ -51,16 +51,16 @@ Total 1 tests and 1 subtests
 ## Status Summary
 
 ### Firefox
-ERROR : 1
-NOTRUN: 1
+`ERROR` : 1
+`NOTRUN`: 1
 
 ### Chrome
-OK    : 1
-FAIL  : 1
+`OK`    : 1
+`FAIL`  : 1
 
 ### Safari
-OK    : 1
-FAIL  : 1
+`OK`    : 1
+`FAIL`  : 1
 
 ## Links
 [GitHub PR Head](https://wpt.fyi/results/?sha=6146f4a506c1b7efaac68c9e8d552597212eabca&label=pr_head)
@@ -69,11 +69,11 @@ FAIL  : 1
 ## Details
 
 ### Firefox-only Failures
-/html/browsers/sandboxing/sandbox-new-execution-context.html: ERROR
+* [/html/browsers/sandboxing/sandbox-new-execution-context.html](https://wpt.live/html/browsers/sandboxing/sandbox-new-execution-context.html) [[wpt.fyi](https://wpt.fyi/results/html/browsers/sandboxing/sandbox-new-execution-context.html)]: `ERROR`
 
 ### New Tests That Don't Pass
-/html/browsers/sandboxing/sandbox-new-execution-context.html: ERROR (Chrome: OK, Safari: OK)
-  iframe with sandbox should load with new execution context: NOTRUN (Chrome: FAIL, Safari: FAIL)
+* [/html/browsers/sandboxing/sandbox-new-execution-context.html](https://wpt.live/html/browsers/sandboxing/sandbox-new-execution-context.html) [[wpt.fyi](https://wpt.fyi/results/html/browsers/sandboxing/sandbox-new-execution-context.html)]: `ERROR` (Chrome: `OK`, Safari: `OK`)
+  * iframe with sandbox should load with new execution context: `NOTRUN` (Chrome: `FAIL`, Safari: `FAIL`)
 """  # noqa: E501
     assert message[1] is None
 
@@ -154,8 +154,8 @@ Total 1 tests and 1 subtests
 ## Status Summary
 
 ### Firefox
-ERROR : 1
-NOTRUN: 1
+`ERROR` : 1
+`NOTRUN`: 1
 
 ## Links
 [Gecko CI (Treeherder)](https://treeherder.mozilla.org/#/jobs?repo=try&revision=b0337497587b2bac7d2baeecea0d873df8bcb4f4)
@@ -163,8 +163,8 @@ NOTRUN: 1
 ## Details
 
 ### New Tests That Don't Pass
-/html/browsers/sandboxing/sandbox-new-execution-context.html: ERROR
-  iframe with sandbox should load with new execution context: NOTRUN
+* [/html/browsers/sandboxing/sandbox-new-execution-context.html](https://wpt.live/html/browsers/sandboxing/sandbox-new-execution-context.html) [[wpt.fyi](https://wpt.fyi/results/html/browsers/sandboxing/sandbox-new-execution-context.html)]: `ERROR`
+  * iframe with sandbox should load with new execution context: `NOTRUN`
 """  # noqa: E501
 
 
@@ -186,16 +186,16 @@ Total 1 tests and 1 subtests
 ## Status Summary
 
 ### Firefox
-ERROR : 1
-NOTRUN: 1
+`ERROR` : 1
+`NOTRUN`: 1
 
 ### Chrome
-OK    : 1
-FAIL  : 1
+`OK`    : 1
+`FAIL`  : 1
 
 ### Safari
-OK    : 1
-FAIL  : 1
+`OK`    : 1
+`FAIL`  : 1
 
 ## Links
 [Gecko CI (Treeherder)](https://treeherder.mozilla.org/#/jobs?repo=try&revision=b0337497587b2bac7d2baeecea0d873df8bcb4f4)
@@ -205,11 +205,11 @@ FAIL  : 1
 ## Details
 
 ### Firefox-only Failures
-/html/browsers/sandboxing/sandbox-new-execution-context.html: ERROR
+* [/html/browsers/sandboxing/sandbox-new-execution-context.html](https://wpt.live/html/browsers/sandboxing/sandbox-new-execution-context.html) [[wpt.fyi](https://wpt.fyi/results/html/browsers/sandboxing/sandbox-new-execution-context.html)]: `ERROR`
 
 ### New Tests That Don't Pass
-/html/browsers/sandboxing/sandbox-new-execution-context.html: ERROR (Chrome: OK, Safari: OK)
-  iframe with sandbox should load with new execution context: NOTRUN (Chrome: FAIL, Safari: FAIL)
+* [/html/browsers/sandboxing/sandbox-new-execution-context.html](https://wpt.live/html/browsers/sandboxing/sandbox-new-execution-context.html) [[wpt.fyi](https://wpt.fyi/results/html/browsers/sandboxing/sandbox-new-execution-context.html)]: `ERROR` (Chrome: `OK`, Safari: `OK`)
+  * iframe with sandbox should load with new execution context: `NOTRUN` (Chrome: `FAIL`, Safari: `FAIL`)
 """  # noqa: E501
 
 
@@ -223,12 +223,12 @@ def test_status_str(env):
     with_both_statuses = msg.status_str(result,
                                         include_status="both",
                                         include_other_browser=False)
-    assert with_both_statuses == "PASS->FAIL"
+    assert with_both_statuses == "`PASS`->`FAIL`"
 
     with_other_browser = msg.status_str(result,
                                         include_status="both",
                                         include_other_browser=True)
-    assert with_other_browser == "PASS->FAIL (Chrome: PASS->PASS)"
+    assert with_other_browser == "`PASS`->`FAIL` (Chrome: `PASS`->`PASS`)"
 
     result = results.Result()
     result.set_status("firefox", "platform1", False, "PASS", ["PASS"])
@@ -241,13 +241,14 @@ def test_status_str(env):
     with_platform_difference = msg.status_str(result,
                                               include_status="both",
                                               include_other_browser=False)
-    assert with_platform_difference == ("PASS->FAIL [`platform1`], "
-                                        "PASS->PASS [`platform2`, `platform3`]")
+    assert with_platform_difference == ("`PASS`->`FAIL` [`platform1`], "
+                                        "`PASS`->`PASS` [`platform2`, `platform3`]")
 
     with_platform_difference_head = msg.status_str(result,
                                                    include_status="head",
                                                    include_other_browser=False)
-    assert with_platform_difference_head == "FAIL [`platform1`], PASS [`platform2`, `platform3`]"
+    assert (with_platform_difference_head ==
+            "`FAIL` [`platform1`], `PASS` [`platform2`, `platform3`]")
 
 
 def test_link(env):
@@ -271,6 +272,6 @@ def test_link(env):
     data = msg.detail_part("Test", results_iter, include_bugs=("bugzilla", "github"),
                            include_status="head", include_other_browser=True)
     assert data == """### Test
-/test/test0.html: FAIL linked bug:Bug 1234
-/test/test1.html: FAIL linked bug:[Issue 123](https://github.com/web-platform-tests/wpt/issues/123)
+* [/test/test0.html](https://wpt.live/test/test0.html) [[wpt.fyi](https://wpt.fyi/results/test/test0.html)]: `FAIL` linked bug:Bug 1234
+* [/test/test1.html](https://wpt.live/test/test1.html) [[wpt.fyi](https://wpt.fyi/results/test/test1.html)]: `FAIL` linked bug:[Issue 123](https://github.com/web-platform-tests/wpt/issues/123)
 """  # noqa: E501
