@@ -239,7 +239,8 @@ def detail_part(details_type,  # type: Optional[Text]
     for test, subtest, result in results:
         msg_line = u""
         if prev_test != test:
-            msg_line = test
+            msg_line = (f"* [{test}](https://wpt.live{test}) " +
+                        f"[[wpt.fyi](https://wpt.fyi/results{test})]")
             prev_test = test
         status = status_str(result,
                             include_status=include_status,
@@ -249,7 +250,7 @@ def detail_part(details_type,  # type: Optional[Text]
         else:
             if msg_line:
                 msg_line += u"\n"
-            msg_line += u"  %s: %s" % (subtest, status)
+            msg_line += u"  * %s: %s" % (subtest, status)
 
         if include_bugs:
             prefixes = [bug_prefixes[item] for item in include_bugs]
