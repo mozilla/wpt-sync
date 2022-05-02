@@ -117,9 +117,9 @@ idna==3.3 \
 importlib-metadata==4.11.3 \
     --hash=sha256:1208431ca90a8cca1a6b8af391bb53c1a2db74e5d1cef6ddced95d4b2062edc6 \
     --hash=sha256:ea4c597ebf37142f827b8f39299579e31685c31d3a438b59f469406afd0f2539
-ipython==7.31.1 \
-    --hash=sha256:55df3e0bd0f94e715abd968bedd89d4e8a7bce4bf498fb123fed4f5398fea874 \
-    --hash=sha256:b5548ec5329a4bcf054a5deed5099b0f9622eb9ea51aaa7104d215fece201d8c
+ipython==8.3.0 \
+    --hash=sha256:341456643a764c28f670409bbd5d2518f9b82c013441084ff2c2fc999698f83b \
+    --hash=sha256:807ae3cf43b84693c9272f70368440a9a7eaa2e7e6882dad943c32fbf7e51402
 ipython-genutils==0.2.0 \
     --hash=sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8
 jedi==0.18.1 \
