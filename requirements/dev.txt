@@ -69,9 +69,9 @@ iniconfig==1.1.1 \
 mccabe==0.7.0\
     --hash=sha256:6c2d30ab6be0e4a46919781807b4f0d834ebdd6c6e3dca0bda5a15f863427b6e\
     --hash=sha256:348e0240c33b60bbdf4e523192ef919f28cb2c3d7d5c7794f74009290f236325
-more-itertools==8.12.0 \
-    --hash=sha256:43e6dd9942dffd72661a2c4ef383ad7da1e6a3e968a927ad7a6083ab410a688b \
-    --hash=sha256:7dc6ad46f05f545f900dd59e8dfb4e84a4827b97b3cfecb175ea0c7d247f6064 # pyup: ignore
+more-itertools==8.13.0 \
+    --hash=sha256:a42901a0a5b169d925f6f217cd5a190e32ef54360905b9c39ee7db5313bfec0f \
+    --hash=sha256:c5122bffc5f104d37c1626b8615b511f3427aa5389b94d61e5ef8236bfbc3ddb # pyup: ignore
 mypy==0.961 \
     --hash=sha256:006be38474216b833eca29ff6b73e143386f352e10e9c2fbe76aa8549e5554f5 \
     --hash=sha256:03c6cc893e7563e7b2949b969e63f02c000b32502a1b4d1314cabe391aa87d66 \
