@@ -149,9 +149,9 @@ mock==4.0.3 \
 mohawk==1.1.0 \
     --hash=sha256:3ed296a30453d0b724679e0fd41e4e940497f8e461a9a9c3b7f36e43bab0fa09 \
     --hash=sha256:d2a0e3ab10a209cc79e95e28f2dd54bd4a73fd1998ffe27b7ba0f962b6be9723
-more_itertools==8.13.0 \
-    --hash=sha256:a42901a0a5b169d925f6f217cd5a190e32ef54360905b9c39ee7db5313bfec0f \
-    --hash=sha256:c5122bffc5f104d37c1626b8615b511f3427aa5389b94d61e5ef8236bfbc3ddb # pyup < 6.0.0
+more_itertools==8.14.0 \
+    --hash=sha256:1bc4f91ee5b1b31ac7ceacc17c09befe6a40a503907baf9c839c229b5095cfd2 \
+    --hash=sha256:c09443cd3d5438b8dafccd867a6bc1cb0894389e90cb53d227456b0b0bccb750 # pyup < 6.0.0
 newrelic==7.14.0.177 \
     --hash=sha256:0340e93e30ef7dbf36748b5001272b1bd62430835fcbb7f9f06651eddcac7ad7 \
     --hash=sha256:1cfeeba603a4abe85b4447a4fb33ad9daa544240bf8ac51a7570d8c5da1ce3fd \
