@@ -7,9 +7,9 @@ attrs==21.4.0 \
 celery_stubs==0.1.2 \
     --hash=sha256:20b0523a99a5ac31d7e8cfcb68afe0b673c750c3eba081bc79aa516144191211 \
     --hash=sha256:f85fb1aa11427e5f8e93e104bb4af46a3fac8e6939ea7eecfb6b84a4e5913644
-configparser==5.2.0 \
-    --hash=sha256:e8b39238fb6f0153a069aa253d349467c3c4737934f253ef6abac5fe0eca1e5d \
-    --hash=sha256:1b35798fdf1713f1c3139016cfcbc461f09edbf099d1fb658d4b7479fcaa3daa
+configparser==5.3.0 \
+    --hash=sha256:8be267824b541c09b08db124917f48ab525a6c3e837011f3130781a224c57090 \
+    --hash=sha256:b065779fd93c6bf4cee42202fa4351b4bb842e96a3fb469440e484517a49b9fa
 contextlib2==21.6.0 \
     --hash=sha256:3fbdb64466afd23abaf6c977627b75b6139a5a3e8ce38405c5b413aed7a0471f \
     --hash=sha256:ab1e2bfe1d01d968e1b7e8d9023bc51ef3509bba217bb730cee3827e1ee82869
