@@ -66,9 +66,9 @@ coverage==6.5.0 \
 entrypoints==0.4\
     --hash=sha256:b706eddaa9218a19ebcd67b56818f05bb27589b1ca9e8d797b74affad4ccacd4\
     --hash=sha256:f174b5ff827504fd3cd97cc3f8649f3693f51538c7e4bdf3ef002c8429d42f9f
-flake8==4.0.1 \
-    --hash=sha256:479b1304f72536a55948cb40a32dce8bb0ffe3501e26eaf292c7e60eb5e0428d \
-    --hash=sha256:806e034dda44114815e23c16ef92f95c91e4c71100ff52813adf7132a6ad870d
+flake8==5.0.4 \
+    --hash=sha256:6fbe320aad8d6b95cec8b8e47bc933004678dc63095be98528b7bdd2a9f510db \
+    --hash=sha256:7a1cf6b73744f5806ab95e526f6f0d8c01c66d7bbe349562d22dfca20610b248
 importlib-metadata==5.0.0 \
     --hash=sha256:da31db32b304314d044d3c12c79bd59e307889b287ad12ff387b3500835fc2ab \
     --hash=sha256:ddb0e35065e8938f867ed4928d0ae5bf2a53b7773871bfe6bcc7e4fcdc7dea43
