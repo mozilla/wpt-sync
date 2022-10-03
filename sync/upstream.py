@@ -188,6 +188,12 @@ class UpstreamSync(SyncProcess):
         # type: () -> int
         return int(self.process_name.obj_id)
 
+    @bug.setter  # type: ignore
+    @mut()
+    def bug(self, value):
+        # type: (int) -> None
+        raise AttributeError("Can't set attribute")
+
     @property
     def pr_status(self):
         return self.data.get("pr-status", "open")
