@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import abc
 import git
 import json
@@ -6,8 +5,6 @@ import os
 import pygit2
 import subprocess
 import shutil
-import six
-from six import iteritems
 
 from . import log
 
@@ -27,7 +24,7 @@ pygit2_map = {}
 cinnabar_map = {}
 
 
-class GitSettings(six.with_metaclass(abc.ABCMeta, object)):
+class GitSettings(metaclass=abc.ABCMeta):
 
     name = None  # type: Text
     cinnabar = False
@@ -45,7 +42,7 @@ class GitSettings(six.with_metaclass(abc.ABCMeta, object)):
 
     @property
     def remotes(self):
-        return iteritems(self.config[self.name]["repo"]["remote"])
+        return self.config[self.name]["repo"]["remote"].items()
 
     def repo(self):
         # type: () -> Repo
@@ -139,7 +136,7 @@ class WptMetadata(GitSettings):
     fetch_args = ["origin", "master", "--no-tags"]
 
 
-class Cinnabar(object):
+class Cinnabar:
     hg2git_cache = {}  # type: Dict[Text, Text]
     git2hg_cache = {}  # type: Dict[Text, Text]
 
@@ -166,9 +163,9 @@ class Cinnabar(object):
 
 
 wrappers = {
-    u"gecko": Gecko,
-    u"web-platform-tests": WebPlatformTests,
-    u"wpt-metadata": WptMetadata,
+    "gecko": Gecko,
+    "web-platform-tests": WebPlatformTests,
+    "wpt-metadata": WptMetadata,
 }
 
 

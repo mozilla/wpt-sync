@@ -1,10 +1,8 @@
-from __future__ import absolute_import
 import abc
 import inspect
 import os
 
 import filelock
-import six
 
 from . import log
 from .env import Environment
@@ -115,7 +113,7 @@ class LockError(Exception):
     pass
 
 
-class Lock(six.with_metaclass(abc.ABCMeta, object)):
+class Lock(metaclass=abc.ABCMeta):
     locks = {}  # type: MutableMapping[Text, Lock]
 
     def __init__(self, *args):
@@ -151,7 +149,7 @@ class Lock(six.with_metaclass(abc.ABCMeta, object)):
 class RepoLock(Lock):
     def __init__(self, repo):
         # type: (Repo) -> None
-        super(RepoLock, self).__init__(repo)
+        super().__init__(repo)
 
     @staticmethod
     def lock_path(*args):
@@ -161,7 +159,7 @@ class RepoLock(Lock):
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
-            "%s.lock" % (repo.working_dir.replace(os.path.sep, "_"),))
+            "{}.lock".format(repo.working_dir.replace(os.path.sep, "_")))
 
 
 class ProcessLock(Lock):
@@ -183,7 +181,7 @@ class ProcessLock(Lock):
             raise ValueError("%s must be locked over each object" % sync_type)
         self.sync_type = sync_type
         self.obj_id = obj_id
-        super(ProcessLock, self).__init__(self.lock_type, sync_type, obj_id)
+        super().__init__(self.lock_type, sync_type, obj_id)
 
     @classmethod
     def for_process(cls, process_name):
@@ -218,9 +216,9 @@ class ProcessLock(Lock):
         # type: (*Any) -> Text
         obj_type, sync_type, obj_id = args
         if obj_id is None:
-            filename = "%s_%s.lock" % (obj_type, sync_type)
+            filename = "{}_{}.lock".format(obj_type, sync_type)
         else:
-            filename = "%s_%s_%s.lock" % (obj_type, sync_type, obj_id)
+            filename = "{}_{}_{}.lock".format(obj_type, sync_type, obj_id)
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
@@ -245,7 +243,7 @@ class ProcLock(ProcessLock):
     locks = {}  # type: MutableMapping[Text, Lock]
 
 
-class MutGuard(object):
+class MutGuard:
     def __init__(self,
                  lock,  # type: SyncLock
                  instance,  # type: Any
@@ -299,7 +297,7 @@ class MutGuard(object):
             self.took_lock = None
 
 
-class mut(object):
+class mut:
     def __init__(self, *args):
         """Mark a function as requiring given arguments are mutable.
 
@@ -330,7 +328,7 @@ class mut(object):
         return inner
 
 
-class constructor(object):
+class constructor:
     def __init__(self, arg_func):
         """Mark a classmethod as a constructor for an object which uses the
         mutation system.

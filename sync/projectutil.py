@@ -4,7 +4,6 @@
 
 """Utility functions for performing various Git functionality."""
 
-from __future__ import absolute_import
 
 import logging
 import os
@@ -27,7 +26,7 @@ env = Environment()
 logger = logging.getLogger(__name__)
 
 
-class Command(object):
+class Command:
     """Helper class for running git commands"""
 
     def __init__(self, name, path):
@@ -52,9 +51,9 @@ class Command(object):
             return subprocess.check_output(command, cwd=self.path, **opts)
         except subprocess.CalledProcessError as e:
             newrelic.agent.record_exception(params={
-                u"command": self.name,
-                u"exit_code": e.returncode,
-                u"command_output": e.output})
+                "command": self.name,
+                "exit_code": e.returncode,
+                "command_output": e.output})
             raise e
 
     def __getattr__(self, name):
@@ -87,7 +86,7 @@ class Mach(Command):
             cmd_env = os.environ.copy()
         cmd_env["MOZBUILD_STATE_PATH"] = state_path
         opts["env"] = cmd_env
-        return super(Mach, self).get(*subcommand, **opts)
+        return super().get(*subcommand, **opts)
 
 
 class WPT(Command):
@@ -121,11 +120,11 @@ def create_mock(name):
             if callable(data):
                 data = data(*args[1:], **kwargs)
 
-            self._log.append({u"command": self.name,
-                              u"cwd": self.path,
-                              u"args": args,
-                              u"kwargs": kwargs,
-                              u"rv": data})
+            self._log.append({"command": self.name,
+                              "cwd": self.path,
+                              "args": args,
+                              "kwargs": kwargs,
+                              "rv": data})
 
             return data
 

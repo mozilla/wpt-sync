@@ -4,8 +4,6 @@
 
 """Functionality to support VCS syncing for WPT."""
 
-from __future__ import print_function
-from __future__ import absolute_import
 
 import os
 import re
@@ -15,8 +13,6 @@ from collections import defaultdict
 from datetime import datetime
 
 import six
-from six import iteritems
-from six.moves import zip
 
 
 import enum
@@ -60,12 +56,12 @@ class DownstreamAction(enum.Enum):
 
     def reason_str(self):
         # type () -> Text
-        return {DownstreamAction.ready: u"",
-                DownstreamAction.manual_fix: u"",
-                DownstreamAction.try_push: u"valid try push required",
-                DownstreamAction.try_push_stability: u"stability try push required",
-                DownstreamAction.wait_try: u"waiting for try to complete",
-                DownstreamAction.wait_upstream: u"waiting for PR to be merged"}.get(self, u"")
+        return {DownstreamAction.ready: "",
+                DownstreamAction.manual_fix: "",
+                DownstreamAction.try_push: "valid try push required",
+                DownstreamAction.try_push_stability: "stability try push required",
+                DownstreamAction.wait_try: "waiting for try to complete",
+                DownstreamAction.wait_upstream: "waiting for PR to be merged"}.get(self, "")
 
 
 class DownstreamSync(SyncProcess):
@@ -88,14 +84,14 @@ class DownstreamSync(SyncProcess):
             ):
         # type: (...) -> DownstreamSync
         # TODO: add PR link to the comment
-        sync = super(DownstreamSync, cls).new(lock,
-                                              git_gecko,
-                                              git_wpt,
-                                              pr=pr_id,
-                                              gecko_base=DownstreamSync.gecko_landing_branch(),
-                                              gecko_head=DownstreamSync.gecko_landing_branch(),
-                                              wpt_base=wpt_base,
-                                              wpt_head="origin/pr/%s" % pr_id)
+        sync = super().new(lock,
+                           git_gecko,
+                           git_wpt,
+                           pr=pr_id,
+                           gecko_base=DownstreamSync.gecko_landing_branch(),
+                           gecko_head=DownstreamSync.gecko_landing_branch(),
+                           wpt_base=wpt_base,
+                           wpt_head="origin/pr/%s" % pr_id)
 
         with sync.as_mut(lock):
             sync.create_bug(git_wpt, pr_id, pr_title, pr_body)
@@ -326,7 +322,7 @@ class DownstreamSync(SyncProcess):
                     return False
             return True
 
-        for test_type, wpt_paths in iteritems(affected_tests):
+        for test_type, wpt_paths in affected_tests.items():
             paths = []
             for path in wpt_paths:
                 gecko_path = os.path.join(base_path, path)
@@ -385,9 +381,9 @@ class DownstreamSync(SyncProcess):
         if self.bug is not None:
             return
         comment = self.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
-        summary = u"[wpt-sync] Sync PR %s - %s" % (pr_id, pr_title)
+        summary = "[wpt-sync] Sync PR {} - {}".format(pr_id, pr_title)
         if len(summary) > 255:
-            summary = summary[:254] + u"\u2026"
+            summary = summary[:254] + "\u2026"
         bug = env.bz.new(summary=summary,
                          comment=comment,
                          product="Testing",
@@ -446,9 +442,9 @@ class DownstreamSync(SyncProcess):
 
         completed_at = datetime.now()
 
-        output = {u"title": u"Gecko sync for PR %s" % self.pr,
-                  u"summary": u"Gecko sync status: %s" % self.landable_status.reason_str(),
-                  u"test": self.build_check_text(head_sha)}
+        output = {"title": "Gecko sync for PR %s" % self.pr,
+                  "summary": "Gecko sync status: %s" % self.landable_status.reason_str(),
+                  "test": self.build_check_text(head_sha)}
 
         try:
             logger.info("Generating GH check status")
@@ -468,7 +464,7 @@ class DownstreamSync(SyncProcess):
 
     def build_check_text(self, commit_sha):
         # type: (Text) -> Text
-        text = u"""
+        text = """
 
         # Summary
 
@@ -483,28 +479,28 @@ class DownstreamSync(SyncProcess):
                       sorted(self.try_pushes(), key=lambda x: -x.process_name.seq_id)
                       if try_push.wpt_head == commit_sha]
         if not try_pushes:
-            try_push_section = u"No current try pushes"
+            try_push_section = "No current try pushes"
         else:
             items = []
             for try_push in try_pushes:
-                link_str = u"Try push" + (u" (stability)" if try_push.stability else u"")
-                items.append(u" * [%s](%s): %s%s" % (link_str,
-                                                     try_push.treeherder_url,
-                                                     try_push.status,
-                                                     u" infra-fail" if try_push.infra_fail
-                                                     else u""))
-                try_push_section = u"\n".join(items)
+                link_str = "Try push" + (" (stability)" if try_push.stability else "")
+                items.append(" * [{}]({}): {}{}".format(link_str,
+                                                        try_push.treeherder_url,
+                                                        try_push.status,
+                                                        " infra-fail" if try_push.infra_fail
+                                                        else ""))
+                try_push_section = "\n".join(items)
 
-        error_section = u"# Errors:\n ```%s```" % self.error if self.error else u""
+        error_section = "# Errors:\n ```%s```" % self.error if self.error else ""
         assert self.bug is not None
-        return text % {u"bug_link": env.bz.bugzilla_url(self.bug),
-                       u"try_push_section": try_push_section,
-                       u"error_section": error_section}
+        return text % {"bug_link": env.bz.bugzilla_url(self.bug),
+                       "try_push_section": try_push_section,
+                       "error_section": error_section}
 
     def files_changed(self):
         # type: () -> Set[Text]
         # TODO: Would be nice to do this from mach with a gecko worktree
-        return set(self.wpt.files_changed().decode("utf8", "replace").split(u"\n"))
+        return set(self.wpt.files_changed().decode("utf8", "replace").split("\n"))
 
     @property
     def metadata_commit(self):
@@ -533,8 +529,8 @@ class DownstreamSync(SyncProcess):
         else:
             assert all(item.metadata.get("wpt-type") != "metadata" for item in self.gecko_commits)
             metadata = {
-                u"wpt-pr": six.ensure_text(str(self.pr)),
-                u"wpt-type": u"metadata"
+                "wpt-pr": six.ensure_text(str(self.pr)),
+                "wpt-type": "metadata"
             }
             msg = sync_commit.Commit.make_commit_msg(
                 b"Bug %s [wpt PR %s] - Update wpt metadata, a=testonly" %
@@ -563,7 +559,7 @@ class DownstreamSync(SyncProcess):
 
         gecko_work = self.gecko_worktree.get()
         metadata_base = env.config["gecko"]["path"]["meta"]
-        for old_path, new_path in iteritems(renames):
+        for old_path, new_path in renames.items():
             old_meta_path = os.path.join(metadata_base,
                                          old_path + ".ini")
             if os.path.exists(os.path.join(gecko_work.working_dir,
@@ -634,7 +630,7 @@ class DownstreamSync(SyncProcess):
                     return False
 
             old_gecko_head = self.gecko_commits.head.sha1
-            logger.debug("PR %s gecko HEAD was %s" % (self.pr, old_gecko_head))
+            logger.debug("PR {} gecko HEAD was {}".format(self.pr, old_gecko_head))
 
             def plain_apply():
                 # type: () -> bool
@@ -647,7 +643,7 @@ class DownstreamSync(SyncProcess):
                 logger.info("Applying with a rebase onto latest integration branch")
                 new_base = self.gecko_integration_branch()
                 gecko_work = self.gecko_worktree.get()
-                reset_head = u"HEAD"
+                reset_head = "HEAD"
                 if (len(self.gecko_commits) > 0 and
                     self.gecko_commits[0].metadata.get("wpt-type") == "dependent"):
                     # If we have any dependent commits first reset to the new
@@ -665,9 +661,9 @@ class DownstreamSync(SyncProcess):
                 logger.info("Applying with upstream dependents")
                 dependencies = self.unlanded_commits_same_files()
                 if dependencies:
-                    logger.info(u"Found dependencies:\n%s" %
-                                u"\n".join(item.msg.splitlines()[0].decode("utf8", "replace")
-                                           for item in dependencies))
+                    logger.info("Found dependencies:\n%s" %
+                                "\n".join(item.msg.splitlines()[0].decode("utf8", "replace")
+                                          for item in dependencies))
                     self.wpt_to_gecko_commits(dependencies)
                     assert self.bug is not None
                     env.bz.comment(self.bug,
@@ -693,7 +689,7 @@ class DownstreamSync(SyncProcess):
             if error is not None:
                 raise error
 
-            logger.debug("PR %s gecko HEAD now %s" % (self.pr, self.gecko_commits.head.sha1))
+            logger.debug("PR {} gecko HEAD now {}".format(self.pr, self.gecko_commits.head.sha1))
             if old_gecko_head == self.gecko_commits.head.sha1:
                 logger.info("Gecko commits did not change for PR %s" % self.pr)
                 return False
@@ -814,14 +810,14 @@ class DownstreamSync(SyncProcess):
             logger.info("Moving commit %s" % wpt_commit.sha1)
             if is_dependency:
                 metadata = {
-                    u"wpt-type": u"dependency",
-                    u"wpt-commit": wpt_commit.sha1
+                    "wpt-type": "dependency",
+                    "wpt-commit": wpt_commit.sha1
                 }
                 msg_filter = None
             else:
                 metadata = {
-                    u"wpt-pr": six.ensure_text(str(self.pr)),
-                    u"wpt-commit": wpt_commit.sha1
+                    "wpt-pr": six.ensure_text(str(self.pr)),
+                    "wpt-commit": wpt_commit.sha1
                 }
                 msg_filter = self.message_filter
 
@@ -840,7 +836,7 @@ class DownstreamSync(SyncProcess):
         head = "origin/master"
         changed = self.wpt_commits.files_changed
         commits = []
-        for commit in self.git_wpt.iter_commits("%s..%s" % (base, head),
+        for commit in self.git_wpt.iter_commits("{}..{}".format(base, head),
                                                 reverse=True,
                                                 paths=list(changed)):
             wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
@@ -1040,7 +1036,7 @@ class DownstreamSync(SyncProcess):
             if sha in unreverted_commits[sync]:
                 unreverted_commits[sync].remove(sha)
 
-        rv = {sync for sync, unreverted in iteritems(unreverted_commits)
+        rv = {sync for sync, unreverted in unreverted_commits.items()
               if not unreverted}
         return rv
 
@@ -1113,7 +1109,7 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
                 try_push.infra_fail = True
                 raise AbortError(message)
             else:
-                logger.info("Try push %r for PR %s complete" % (try_push, sync.pr))
+                logger.info("Try push {!r} for PR {} complete".format(try_push, sync.pr))
                 disabled = []
                 if tasks.has_failures():
                     if sync.affected_tests():

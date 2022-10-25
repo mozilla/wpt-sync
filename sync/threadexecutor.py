@@ -1,13 +1,11 @@
-from __future__ import absolute_import
-
 import threading
 
-from six.moves import range, queue
+import queue
 
 
 class Worker(threading.Thread):
     def __init__(self, queue, init_fn, work_fn, errors):
-        super(Worker, self).__init__()
+        super().__init__()
         self.daemon = True
         self.queue = queue
         self.init_fn = init_fn
@@ -40,7 +38,7 @@ class Worker(threading.Thread):
                 self.queue.task_done()
 
 
-class ThreadExecutor(object):
+class ThreadExecutor:
     """Simple executor that runs a single function on multiple threads with
     a list of arguments.
 
