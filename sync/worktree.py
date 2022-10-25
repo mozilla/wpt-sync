@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 import shutil
 import traceback
@@ -116,7 +115,7 @@ def delete_worktree(repo, process_name, worktree):
             logger.warning("Failed to remove worktree %s:%s" %
                            (worktree.path, traceback.format_exc()))
         else:
-            logger.info("Removed worktree %s" % (worktree.path,))
+            logger.info("Removed worktree {}".format(worktree.path))
         worktree.prune(True)
 
         wrapper = wrapper_get(repo)
@@ -155,7 +154,7 @@ def get_max_worktree_count(repo):
     return max_count
 
 
-class Worktree(object):
+class Worktree:
     """Wrapper for accessing a git worktree for a specific process.
 
     To access the worktree call .get()
@@ -219,7 +218,7 @@ class Worktree(object):
                     logger.warning("Found existing content in worktree path %s, removing" %
                                    self.path)
                     shutil.rmtree(self.path)
-                logger.info("Creating worktree %s at %s" % (self.worktree_name, self.path))
+                logger.info("Creating worktree {} at {}".format(self.worktree_name, self.path))
                 if not os.path.exists(os.path.dirname(self.path)):
                     os.makedirs(os.path.dirname(self.path))
                 worktree = self.pygit2_repo.add_worktree(self.worktree_name,

@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 import re
 import shutil
@@ -9,7 +8,6 @@ from collections import defaultdict
 import taskcluster
 import yaml
 import six
-from six import iteritems, itervalues
 
 from . import base
 from . import log
@@ -41,7 +39,7 @@ auth_tc = tc.TaskclusterClient()
 rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 
 
-class TryCommit(object):
+class TryCommit:
     def __init__(self,
                  git_gecko,  # type: Repo
                  worktree,  # type: Repo
@@ -144,11 +142,11 @@ class TryFuzzyCommit(TryCommit):
                  **kwargs  # type: Any
                  ):
         # type: (...) -> None
-        super(TryFuzzyCommit, self).__init__(git_gecko, worktree, tests_by_type, rebuild,
-                                             hacks=hacks, **kwargs)
+        super().__init__(git_gecko, worktree, tests_by_type, rebuild,
+                         hacks=hacks, **kwargs)
         self.queries = self.extra_args.get("queries",
-                                           [u"web-platform-tests !macosx !shippable !asan !tsan"])
-        if isinstance(self.queries, six.string_types):
+                                           ["web-platform-tests !macosx !shippable !asan !tsan"])
+        if isinstance(self.queries, str):
             self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
         self.disable_target_task_filter = self.extra_args.get("disable_target_task_filter", False)
@@ -182,30 +180,30 @@ class TryFuzzyCommit(TryCommit):
 
         query_args = []
         for query in self.queries:
-            query_args.extend([u"-q", query])
+            query_args.extend(["-q", query])
         logger.info("Pushing to try with fuzzy query: %s" % " ".join(query_args))
 
         can_push_routes = b"--route " in mach.try_("fuzzy", "--help")
 
-        args = [u"fuzzy"] + query_args
+        args = ["fuzzy"] + query_args
         if self.rebuild:
-            args.append(u"--rebuild")
+            args.append("--rebuild")
             args.append(str(self.rebuild))
         if self.full:
-            args.append(u"--full")
+            args.append("--full")
         if self.disable_target_task_filter:
-            args.append(u"--disable-target-task-filter")
+            args.append("--disable-target-task-filter")
         if can_push_routes:
-            args.append(u"--route=notify.pulse.wptsync.try-task.on-any")
+            args.append("--route=notify.pulse.wptsync.try-task.on-any")
         if self.artifact:
-            args.append(u"--artifact")
+            args.append("--artifact")
         else:
-            args.append(u"--no-artifact")
+            args.append("--no-artifact")
 
         if self.tests_by_type is not None:
             paths = []
             all_paths = set()
-            for values in itervalues(self.tests_by_type):
+            for values in self.tests_by_type.values():
                 for item in values:
                     if (item not in all_paths and
                         os.path.exists(os.path.join(working_dir,
@@ -266,7 +264,7 @@ class TryPush(base.ProcessData):
 
         if rebuild_count is None:
             rebuild_count = 0 if not stability else env.config['gecko']['try']['stability_count']
-            if not isinstance(rebuild_count, six.integer_types):
+            if not isinstance(rebuild_count, int):
                 logger.error("Could not find config for Stability rebuild count, using default 5")
                 rebuild_count = 5
         with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks,
@@ -286,7 +284,7 @@ class TryPush(base.ProcessData):
                                                     sync.sync_type,
                                                     six.ensure_text(
                                                         str(getattr(sync, sync.obj_id))))
-        rv = super(TryPush, cls).create(lock, sync.git_gecko, process_name, data)
+        rv = super().create(lock, sync.git_gecko, process_name, data)
         try_idx.insert(try_idx.make_key(try_rev), process_name)
 
         with rv.as_mut(lock):
@@ -311,9 +309,9 @@ class TryPush(base.ProcessData):
         idx = TryCommitIndex(git_gecko)
         process_name = idx.get(idx.make_key(sha1))
         if process_name:
-            logger.info("Found try push %r for rev %s" % (process_name, sha1))
+            logger.info("Found try push {!r} for rev {}".format(process_name, sha1))
             return cls(git_gecko, process_name)
-        logger.info("No try push for rev %s" % (sha1,))
+        logger.info("No try push for rev {}".format(sha1))
 
     @classmethod
     def for_taskgroup(cls, git_gecko, taskgroup_id):
@@ -383,7 +381,7 @@ class TryPush(base.ProcessData):
         if current == value:
             return
         if (current, value) not in self.status_transitions:
-            raise ValueError("Tried to change status from %s to %s" % (current, value))
+            raise ValueError("Tried to change status from {} to {}".format(current, value))
         self["status"] = value
 
     @property
@@ -556,7 +554,7 @@ class TryPush(base.ProcessData):
 
     @mut()
     def delete(self):
-        super(TryPush, self).delete()
+        super().delete()
         for (idx_cls, data) in [(TaskGroupIndex, self.taskgroup_id),
                                 (TryCommitIndex, self.try_rev)]:
             if data is not None:
@@ -565,7 +563,7 @@ class TryPush(base.ProcessData):
                 idx.delete(key, data)
 
 
-class TryPushTasks(object):
+class TryPushTasks:
     _retrigger_count = 6
     # min rate of job success to proceed with metadata update
     _min_success = 0.7
@@ -612,7 +610,7 @@ class TryPushTasks(object):
             # type: (Text) -> bool
             return "-aarch64" in name
 
-        failures = [data["task_id"] for name, data in iteritems(task_states)
+        failures = [data["task_id"] for name, data in task_states.items()
                     if is_failure(data) and not is_excluded(name)]
         retriggered_count = 0
         for task_id in failures:
@@ -634,7 +632,7 @@ class TryPushTasks(object):
         task_states = defaultdict(lambda:
                                   defaultdict(lambda:
                                               defaultdict(int)))  # type: MutableMapping[Text, Any]
-        for name, tasks in iteritems(by_name):
+        for name, tasks in by_name.items():
             for task in tasks:
                 task_id = task.get("status", {}).get("taskId")
                 state = task.get("status", {}).get("state")
@@ -659,8 +657,8 @@ class TryPushTasks(object):
         # manual/automatic retriggers made outside of wptsync
         threshold = max(1, self._retrigger_count / 2)
         task_counts = self.wpt_states()
-        return {name: data for name, data in iteritems(task_counts)
-                if sum(itervalues(data["states"])) > threshold}
+        return {name: data for name, data in task_counts.items()
+                if sum(data["states"].values()) > threshold}
 
     def success(self):
         # type: () -> bool

@@ -9,13 +9,12 @@ import subprocess
 import types
 from collections import defaultdict
 from io import StringIO
-from mock import Mock, patch
+from unittest.mock import Mock, patch
 
 import git
 import pytest
 import requests_mock
 import six
-from six import iteritems
 
 from sync import (commit,
                   repos,
@@ -37,7 +36,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 def create_file_data(file_data, repo_workdir, repo_prefix=None):
     add_paths = []
     del_paths = []
-    for repo_path, contents in iteritems(file_data):
+    for repo_path, contents in file_data.items():
         assert contents is None or isinstance(contents, bytes)
         if repo_prefix is not None:
             repo_path = os.path.join(repo_prefix, repo_path)
@@ -72,7 +71,7 @@ def gecko_changes(env, test_changes=None, meta_changes=None, other_changes=None)
     def prefix_paths(changes, prefix):
         if changes is not None:
             return {os.path.join(prefix, path) if not path.startswith(prefix) else path:
-                    data for path, data in iteritems(changes)}
+                    data for path, data in changes.items()}
 
     test_changes = prefix_paths(test_changes, test_prefix)
     meta_changes = prefix_paths(meta_changes, meta_prefix)
@@ -86,7 +85,7 @@ def gecko_changes(env, test_changes=None, meta_changes=None, other_changes=None)
 
 # TODO: Probably don't need all of these to be function scoped
 def cleanup(config):
-    for name, dir in iteritems(config["paths"]):
+    for name, dir in config["paths"].items():
         if name == "logs":
             continue
         path = os.path.join(config["root"], dir)
@@ -114,7 +113,7 @@ def env(request, mock_mach, mock_wpt):
 
     set_env(config, bz, gh_wpt)
 
-    for name, dir in iteritems(config["paths"]):
+    for name, dir in config["paths"].items():
         path = os.path.join(config["root"], dir)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -167,7 +166,7 @@ def sample_gecko_metadata(env):
 """}
 
 
-class hg(object):
+class hg:
     def __init__(self, path):
         self.working_tree = path
 
@@ -322,7 +321,7 @@ def upstream_wpt_commit(env, git_wpt_upstream, pull_request):
 def hg_commit(hg, message, bookmarks):
     hg.commit("-m", message)
     rev = hg.log("-l1", "--template={node}")
-    if isinstance(bookmarks, (six.binary_type, six.text_type)):
+    if isinstance(bookmarks, (bytes, str)):
         bookmarks = [bookmarks]
     for bookmark in bookmarks:
         hg.bookmark(bookmark)
@@ -348,7 +347,7 @@ def upstream_gecko_commit(env, hg_gecko_upstream):
 @pytest.fixture
 def upstream_gecko_backout(env, hg_gecko_upstream):
     def inner(revs, bugs, message=None, bookmarks="mozilla/autoland"):
-        if isinstance(revs, six.text_type):
+        if isinstance(revs, str):
             revs = [revs]
         if isinstance(bugs, int):
             bugs = [bugs] * len(revs)
@@ -613,7 +612,7 @@ def open_wptreport_path(wptreport_json_data):
 def mock_tasks():
     def wpt_tasks(**kwargs):
         tasks = []
-        for state, names in iteritems(kwargs):
+        for state, names in kwargs.items():
             for name in names:
                 t = {}
                 t["status"] = {
@@ -695,7 +694,7 @@ def landing_with_try_push(env, git_gecko, git_wpt, git_wpt_upstream,
 
 @pytest.fixture
 def MockTryCls():
-    class MockTryPush(object):
+    class MockTryPush:
         def __init__(self, *args, **kwargs):
             pass
 
@@ -713,7 +712,7 @@ def MockTryCls():
 
 @pytest.fixture
 def tc_response():
-    class FileData(object):
+    class FileData:
         def __init__(self, filename):
             self.path = os.path.join(here, "sample-data", "taskcluster", filename)
             self._file = None
@@ -736,10 +735,10 @@ def mock_taskgroup(tc_response):
             with requests_mock.Mocker() as m:
                 taskgroup_id = "test"
                 m.register_uri("GET",
-                               "%stask/%s" % (tc.QUEUE_BASE, taskgroup_id),
+                               "{}task/{}".format(tc.QUEUE_BASE, taskgroup_id),
                                body=None)
                 m.register_uri("GET",
-                               "%stask-group/%s/list" % (tc.QUEUE_BASE, taskgroup_id),
+                               "{}task-group/{}/list".format(tc.QUEUE_BASE, taskgroup_id),
                                body=f)
                 taskgroup = tc.TaskGroup(taskgroup_id)
                 taskgroup.refresh()

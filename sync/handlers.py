@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import newrelic.agent
 
 from . import downstream
@@ -27,7 +26,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-class Handler(object):
+class Handler:
     def __init__(self, config):
         self.config = config
 
@@ -160,7 +159,7 @@ class PushHandler(Handler):
         # Not sure if it's ever possible to get multiple heads here in a way that
         # matters for us
         rev = body["payload"]["data"]["heads"][0]
-        logger.info("Handling commit %s to repo %s" % (rev, repo))
+        logger.info("Handling commit {} to repo {}".format(rev, repo))
 
         newrelic.agent.add_custom_parameter("repo", repo)
         newrelic.agent.add_custom_parameter("rev", rev)
@@ -233,7 +232,7 @@ class DecisionTaskHandler(Handler):
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
         if not try_push:
-            logger.debug("No try push for SHA1 %s taskId %s" % (sha1, task_id))
+            logger.debug("No try push for SHA1 {} taskId {}".format(sha1, task_id))
             # This could be a race condition if the decision task completes before this
             # task is in the index
             raise RetryableError("Got a wptsync task with no corresponding try push")

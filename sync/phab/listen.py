@@ -1,10 +1,8 @@
-from __future__ import absolute_import
 import time
 import re
 from phabricator import Phabricator
 import newrelic.agent
 
-from six.moves import map
 
 from .. import log
 from ..tasks import handle
@@ -16,7 +14,7 @@ RE_EVENT = re.compile("[0-9]{5,}:")
 RE_COMMIT = re.compile("(committed|accepted|added a reverting change for) r[A-Z]+[a-f0-9]+:")
 
 
-class PhabEventListener(object):
+class PhabEventListener:
 
     ignore_list = ["added inline comments to D",
                    "added a comment to D",

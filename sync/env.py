@@ -9,7 +9,7 @@ _bz = None  # type: Optional[Bugzilla]
 _gh_wpt = None  # type: Optional[GitHub]
 
 
-class Environment(object):
+class Environment:
     @property
     def config(self):
         # type: () -> Dict[Text, Any]

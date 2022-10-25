@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import celery
 from celery.schedules import crontab
 from celery.signals import after_setup_logger
