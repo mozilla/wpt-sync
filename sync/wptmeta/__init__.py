@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, namedtuple
@@ -7,9 +8,7 @@ import yaml
 import six
 from six.moves import urllib
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, Iterator, List, Optional, Text, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Text, Tuple
 
 """Module for interacting with a web-platform-tests metadata repository"""
 
@@ -181,7 +180,8 @@ class WptMetadata:
                 rv.append(meta_file.rel_path)
         return rv
 
-    def append_link(self, url: Text, product: Text, test_id: Text, subtest: Optional[Text] = None, status: Optional[Text] = None) -> None:
+    def append_link(self, url: Text, product: Text, test_id: Text, subtest: Optional[Text] = None,
+                    status: Optional[Text] = None) -> None:
         """Add a link to the metadata tree
 
         :param url: URL to link to
@@ -358,7 +358,8 @@ class MetaLink:
         self._initial_state: Optional[LinkState] = None
 
     @classmethod
-    def from_file_data(cls, meta_file: MetaFile, link: Dict[Text, Any], result: Dict[Text, Text]) -> MetaLink:
+    def from_file_data(cls, meta_file: MetaFile, link: Dict[Text, Any],
+                       result: Dict[Text, Text]) -> MetaLink:
         url = link["url"]
         product = link.get("product")
         test_id = "/{}/{}".format(meta_file.dir_name, result["test"])

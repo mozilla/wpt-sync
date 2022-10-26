@@ -12,12 +12,10 @@ from .env import Environment
 from .lock import MutGuard, SyncLock, mut
 from .repos import pygit2_get, wrapper_get
 
-MYPY = False
-if MYPY:
-    from git.repo.base import Repo
-    from pygit2 import Worktree as PyGit2Worktree
-    from pygit2.repository import Repository
-    from typing import Any, Iterator, Optional, Text, Tuple
+from git.repo.base import Repo
+from pygit2 import Worktree as PyGit2Worktree
+from pygit2.repository import Repository
+from typing import Any, Iterator, Optional, Text, Tuple
 
 env = Environment()
 

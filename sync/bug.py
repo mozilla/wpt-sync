@@ -1,3 +1,4 @@
+from __future__ import annotations
 import base64
 import re
 import sys
@@ -11,10 +12,8 @@ from six.moves import urllib
 from . import log
 from .env import Environment
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, List, Optional, Set, Text, Tuple, Union
-    from bugsy import Bug
+from typing import Any, Dict, List, Optional, Set, Text, Tuple, Union
+from bugsy import Bug
 
 env = Environment()
 
@@ -463,7 +462,8 @@ class MockBugzilla(Bugzilla):
                 ) -> None:
         self._log("Posting to bug {}:\n{}".format(bug_id, comment))
 
-    def set_component(self, bug_id: int, product: Optional[Text] = None, component: Optional[Text] = None) -> None:
+    def set_component(self, bug_id: int, product: Optional[Text] = None,
+                      component: Optional[Text] = None) -> None:
         self._log("Setting bug {} product: {} component: {}".format(bug_id, product, component))
 
     def set_whiteboard(self, bug_id: int, whiteboard: Text) -> None:
@@ -475,7 +475,8 @@ class MockBugzilla(Bugzilla):
     def get_status(self, bug: Union[Bug, int]) -> Tuple[Text, Text]:
         return ("NEW", "")
 
-    def set_status(self, bug: Union[Bug, int], status: Text, resolution: Optional[Text] = None) -> None:
+    def set_status(self, bug: Union[Bug, int], status: Text,
+                   resolution: Optional[Text] = None) -> None:
         self._log("Setting bug {} status {}".format(bug, status))
 
     def get_dupe(self, bug: Union[Bug, int]) -> Optional[int]:

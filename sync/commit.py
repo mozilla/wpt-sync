@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import re
 import subprocess
@@ -13,21 +14,21 @@ from .env import Environment
 from .errors import AbortError
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
-MYPY = False
-if MYPY:
-    from typing import Text
-    from typing import Dict
-    from git.repo.base import Repo
-    from typing import Any
-    from typing import Optional
-    from typing import Union
-    from typing import List
-    from typing import Callable
-    from typing import Set
-    from typing import Tuple
+from typing import Text
+from typing import Dict
+from git.repo.base import Repo
+from typing import Any
+from typing import Optional
+from typing import Union
+from typing import List
+from typing import Callable
+from typing import Set
+from typing import Tuple
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
     from sync.upstream import UpstreamSync
 
-    MsgFilterFunc = Callable[[bytes], Tuple[bytes, Dict[str, str]]]
+MsgFilterFunc = Callable[[bytes], Tuple[bytes, Dict[str, str]]]
 
 
 env = Environment()
@@ -137,7 +138,8 @@ class GitNotes:
 
 
 class Commit:
-    def __init__(self, repo: Repo, commit: Union[str, Commit, GitPythonCommit, PyGit2Commit, Oid]) -> None:
+    def __init__(self, repo: Repo,
+                 commit: Union[str, Commit, GitPythonCommit, PyGit2Commit, Oid]) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
         self.cinnabar = cinnabar_map.get(repo)
@@ -314,8 +316,7 @@ class Commit:
         if src_prefix:
             show_args = ("--", src_prefix)
         try:
-            show_kwargs: Dict[str, Any] = {"binary": True,
-                           "stdout_as_string": False}
+            show_kwargs: Dict[str, Any] = {"binary": True, "stdout_as_string": False}
             show_kwargs.update(kwargs)
             return self.repo.git.show(self.sha1, *show_args, **show_kwargs) + b"\n"
         except git.GitCommandError as e:
@@ -530,7 +531,8 @@ class GeckoCommit(Commit):
 
         return commits, set(bugs)
 
-    def wpt_commits_backed_out(self, exclude_downstream: bool = True, exclude_landing: bool = True) -> Tuple[List[GeckoCommit], Set[int]]:
+    def wpt_commits_backed_out(self, exclude_downstream: bool = True,
+                               exclude_landing: bool = True) -> Tuple[List[GeckoCommit], Set[int]]:
         """Get a list of all the wpt commits backed out by the current commit.
 
         :param exclude_downstream: Exclude commits that were downstreamed

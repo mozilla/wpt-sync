@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import re
 import os
@@ -14,15 +15,15 @@ from ..lock import mut
 from ..meta import Metadata
 from ..projectutil import Mach
 
-MYPY = False
-if MYPY:
+from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional, Text, Tuple,
+                    TYPE_CHECKING)
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.notify.results import Result, Results
     from sync.notify.results import TestResult
-    from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional, Text, Tuple
-    from git.repo.base import Repo
-
     from sync.notify.results import ResultsEntry
+
     ResultsEntryStatus = Tuple[str, Optional[str], Result, Optional[str]]
 
 logger = log.get_logger(__name__)
@@ -490,9 +491,10 @@ These updates will be on mozilla-central once bug {sync_bug_id} lands.
     return summary, comment
 
 
-def make_bug(summary: Text, comment: Text, product: Text, component: Text, depends: List[int]) -> int:
-    bug_id = env.bz.new(summary, comment, product, component, whiteboard="[wpt]",
-                        bug_type="defect", assign_to_sync=False)
+def make_bug(summary: Text, comment: Text, product: Text, component: Text,
+             depends: List[int]) -> int:
+    bug_id = env.bz.new(summary, comment, product, component,
+                        whiteboard="[wpt]", bug_type="defect", assign_to_sync=False)
     with env.bz.bug_ctx(bug_id) as bug:
         for item in depends:
             bug.add_depends(item)

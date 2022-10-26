@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 
 import git
@@ -14,10 +15,9 @@ from .env import Environment
 from .base import CommitBuilder, iter_tree
 from .lock import mut, MutGuard
 
-MYPY = False
-if MYPY:
-    from typing import Iterable, Iterator, Optional, Text, Tuple
-    from git.repo.base import Repo
+from typing import Iterable, Iterator, Optional, Text, Tuple, TYPE_CHECKING
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.base import ProcessName
     from sync.lock import SyncLock

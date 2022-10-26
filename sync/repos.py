@@ -8,12 +8,10 @@ import shutil
 
 from . import log
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, Text, Optional, Union
-    from git.repo.base import Repo
-    from git.objects.commit import Commit
-    from pygit2.repository import Repository
+from typing import Any, Dict, Text, Optional, Union
+from git.repo.base import Repo
+from git.objects.commit import Commit
+from pygit2.repository import Repository
 
 
 logger = log.get_logger(__name__)

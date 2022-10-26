@@ -12,14 +12,12 @@ from six.moves import urllib
 
 from . import log
 from .env import Environment
-MYPY = False
-if MYPY:
-    from datetime import datetime
-    from github.Branch import Branch
-    from github.Commit import Commit
-    from github.PullRequest import PullRequest
-    from github.Repository import Repository
-    from typing import Any, Dict, List, Optional, Text, Tuple, Union
+from datetime import datetime
+from github.Branch import Branch
+from github.Commit import Commit
+from github.PullRequest import PullRequest
+from github.Repository import Repository
+from typing import Any, Dict, List, Optional, Text, Tuple, Union
 
 logger = log.get_logger(__name__)
 env = Environment()

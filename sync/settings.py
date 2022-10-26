@@ -4,9 +4,7 @@ import sys
 from collections import defaultdict
 from configparser import RawConfigParser
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, Text
+from typing import Any, Dict, Text
 
 _config = None
 

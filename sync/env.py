@@ -1,6 +1,6 @@
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, Optional, Text
+from __future__ import annotations
+from typing import Any, Dict, Optional, Text, TYPE_CHECKING
+if TYPE_CHECKING:
     from sync.bug import Bugzilla
     from sync.gh import GitHub
 

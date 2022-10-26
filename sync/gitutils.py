@@ -9,11 +9,9 @@ from .errors import RetryableError
 from .lock import RepoLock
 from .repos import cinnabar
 
-MYPY = False
-if MYPY:
-    from git.objects.commit import Commit
-    from git.repo.base import Repo
-    from typing import Any, Dict, Callable, Optional, Text
+from git.objects.commit import Commit
+from git.repo.base import Repo
+from typing import Any, Dict, Callable, Optional, Text
 
 env = Environment()
 
@@ -29,7 +27,8 @@ def have_gecko_hg_commit(git_gecko: Repo, hg_rev: Text) -> bool:
     return True
 
 
-def update_repositories(git_gecko: Optional[Repo], git_wpt: Optional[Repo], wait_gecko_commit: Optional[Text] = None) -> None:
+def update_repositories(git_gecko: Optional[Repo], git_wpt: Optional[Repo],
+                        wait_gecko_commit: Optional[Text] = None) -> None:
     if git_gecko is not None:
         if wait_gecko_commit is not None:
 

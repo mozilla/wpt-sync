@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 from six import itervalues
@@ -8,11 +9,10 @@ from ..env import Environment
 
 from .results import statuses, browsers
 
-MYPY = False
-if MYPY:
+from typing import List, Iterable, Mapping, Optional, Text, Tuple, Union, TYPE_CHECKING
+if TYPE_CHECKING:
     from sync.notify.results import Result, Results, SubtestResult, TestResult
     from sync.notify.results import ResultsEntry
-    from typing import List, Iterable, Mapping, Optional, Text, Tuple, Union
 
 env = Environment()
 

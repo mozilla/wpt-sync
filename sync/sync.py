@@ -1,3 +1,4 @@
+from __future__ import annotations
 import enum
 import itertools
 import traceback
@@ -22,29 +23,26 @@ from .lock import MutGuard, mut, constructor
 from .repos import cinnabar
 from .worktree import Worktree
 
-MYPY = False
-if MYPY:
-    from typing import (
-        Any,
-        Dict,
-        Iterable,
-        Iterator,
-        List,
-        Optional,
-        Sequence,
-        Set,
-        Text,
-        Tuple,
-        Union,
-        cast,
-    )
-    from git.repo.base import Repo
-    from os import PathLike
+from typing import (Any,
+                    Dict,
+                    Iterable,
+                    Iterator,
+                    List,
+                    Optional,
+                    Sequence,
+                    Set,
+                    Text,
+                    Tuple,
+                    Union,
+                    cast,
+                    TYPE_CHECKING)
+from git.repo.base import Repo
+from os import PathLike
+from typing_extensions import Literal
+if TYPE_CHECKING:
     from sync.commit import Commit
     from sync.trypush import TryPush
     from sync.lock import SyncLock
-
-    from typing_extensions import Literal
 
 try:
     from typing import overload
@@ -224,7 +222,7 @@ class CommitRange:
     def head(self) -> Commit:
         head_commit = self._head_ref.commit
         assert head_commit is not None
-        if MYPY:
+        if TYPE_CHECKING:
             cast(Commit, head_commit)
         return head_commit
 
@@ -345,7 +343,8 @@ class SyncProcess(metaclass=IdentityMap):
         self._indexes = {ProcessNameIndex(git_gecko)}
 
     @classmethod
-    def _cache_key(cls, git_gecko: Repo, git_wpt: Repo, process_name: ProcessName) -> Tuple[Text, Text, Text, Text]:
+    def _cache_key(cls, git_gecko: Repo, git_wpt: Repo,
+                   process_name: ProcessName) -> Tuple[Text, Text, Text, Text]:
         return process_name.key()
 
     def as_mut(self, lock: SyncLock) -> MutGuard:
@@ -451,7 +450,8 @@ class SyncProcess(metaclass=IdentityMap):
         return rv
 
     @classmethod
-    def load_by_obj(cls, git_gecko: Repo, git_wpt: Repo, obj_id: int, seq_id: Optional[int] = None) -> Set[SyncProcess]:
+    def load_by_obj(cls, git_gecko: Repo, git_wpt: Repo, obj_id: int,
+                    seq_id: Optional[int] = None) -> Set[SyncProcess]:
         process_names = ProcessNameIndex(git_gecko).get(
             cls.obj_type, cls.sync_type, str(obj_id)
         )
