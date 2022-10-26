@@ -26,16 +26,14 @@ cinnabar_map = {}
 
 class GitSettings(metaclass=abc.ABCMeta):
 
-    name = None  # type: Text
+    name: Text = None
     cinnabar = False
 
-    def __init__(self, config):
-        # type: (Dict[Text, Any]) -> None
+    def __init__(self, config: Dict[Text, Any]) -> None:
         self.config = config
 
     @property
-    def root(self):
-        # type: () -> Text
+    def root(self) -> Text:
         return os.path.join(self.config["repo_root"],
                             self.config["paths"]["repos"],
                             self.name)
@@ -44,8 +42,7 @@ class GitSettings(metaclass=abc.ABCMeta):
     def remotes(self):
         return self.config[self.name]["repo"]["remote"].items()
 
-    def repo(self):
-        # type: () -> Repo
+    def repo(self) -> Repo:
         repo = git.Repo(self.root)
         wrapper_map[repo] = self
         pygit2_map[repo] = pygit2.Repository(repo.git_dir)
@@ -59,8 +56,7 @@ class GitSettings(metaclass=abc.ABCMeta):
 
         return repo
 
-    def setup(self, repo):
-        # type: (Repo) -> None
+    def setup(self, repo: Repo) -> None:
         pass
 
     def configure(self, file):
@@ -71,12 +67,10 @@ class GitSettings(metaclass=abc.ABCMeta):
         shutil.copyfile(file, os.path.normpath(os.path.join(r.git_dir, "config")))
         logger.debug("Config from {} copied to {}".format(file, os.path.join(r.git_dir, "config")))
 
-    def after_worktree_create(self, path):
-        # type: (Text) -> None
+    def after_worktree_create(self, path: Text) -> None:
         pass
 
-    def after_worktree_delete(self, path):
-        # type: (Text) -> None
+    def after_worktree_delete(self, path: Text) -> None:
         pass
 
 
@@ -99,14 +93,12 @@ class Gecko(GitSettings):
             idx.get_or_create(repo)
 
     @staticmethod
-    def get_state_path(config, path):
-        # type: (Dict[Text, Any], Text) -> Text
+    def get_state_path(config: Dict[Text, Any], path: Text) -> Text:
         return os.path.join(config["root"],
                             config["paths"]["state"],
                             os.path.relpath(path, config["root"]))
 
-    def after_worktree_create(self, path):
-        # type: (Text) -> None
+    def after_worktree_create(self, path: Text) -> None:
         from sync.projectutil import Mach
         state_path = self.get_state_path(self.config, path)
         if not os.path.exists(state_path):
@@ -119,8 +111,7 @@ class Gecko(GitSettings):
             except subprocess.CalledProcessError:
                 pass
 
-    def after_worktree_delete(self, path):
-        # type: (Text) -> None
+    def after_worktree_delete(self, path: Text) -> None:
         state_path = self.get_state_path(self.config, path)
         if os.path.exists(state_path):
             shutil.rmtree(state_path)
@@ -137,14 +128,13 @@ class WptMetadata(GitSettings):
 
 
 class Cinnabar:
-    hg2git_cache = {}  # type: Dict[Text, Text]
-    git2hg_cache = {}  # type: Dict[Text, Text]
+    hg2git_cache: Dict[Text, Text] = {}
+    git2hg_cache: Dict[Text, Text] = {}
 
     def __init__(self, repo):
         self.git = repo.git
 
-    def hg2git(self, rev):
-        # type: (Text) -> Text
+    def hg2git(self, rev: Text) -> Text:
         if rev not in self.hg2git_cache:
             value = self.git.cinnabar("hg2git", rev)
             if all(c == "0" for c in value):
@@ -152,8 +142,7 @@ class Cinnabar:
             self.hg2git_cache[rev] = value
         return self.hg2git_cache[rev]
 
-    def git2hg(self, rev):
-        # type: (Union[Text, Commit]) -> Text
+    def git2hg(self, rev: Union[Text, Commit]) -> Text:
         if rev not in self.git2hg_cache:
             value = self.git.cinnabar("git2hg", rev)
             if all(c == "0" for c in value):
@@ -169,18 +158,15 @@ wrappers = {
 }
 
 
-def pygit2_get(repo):
-    # type: (Repo) -> Repository
+def pygit2_get(repo: Repo) -> Repository:
     if repo not in pygit2_map:
         pygit2_map[repo] = pygit2.Repository(repo.git_dir)
     return pygit2_map[repo]
 
 
-def wrapper_get(repo):
-    # type: (Repo) -> Optional[GitSettings]
+def wrapper_get(repo: Repo) -> Optional[GitSettings]:
     return wrapper_map.get(repo)
 
 
-def cinnabar(repo):
-    # type: (Repo) -> Cinnabar
+def cinnabar(repo: Repo) -> Cinnabar:
     return cinnabar_map[repo]

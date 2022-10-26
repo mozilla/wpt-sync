@@ -42,8 +42,7 @@ class TriageBugs:
                                      self.wpt_metadata])
 
     @property
-    def lock_key(self):
-        # type: () -> Tuple[Text, Text]
+    def lock_key(self) -> Tuple[Text, Text]:
         return (self.process_name.subtype,
                 self.process_name.obj_id)
 
