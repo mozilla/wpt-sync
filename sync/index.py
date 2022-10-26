@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 import json
 from collections import defaultdict
@@ -11,15 +12,15 @@ from .base import ProcessName, CommitBuilder, iter_tree, iter_process_names
 from .env import Environment
 from .repos import pygit2_get
 
-MYPY = False
-if MYPY:
-    from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
-    from git.repo.base import Repo
+from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union,
+                    TYPE_CHECKING)
+from git.repo.base import Repo
+from pygit2.repository import Repository
+if TYPE_CHECKING:
     from sync.sync import SyncProcess
-    from pygit2.repository import Repository
-    ChangeEntry = Tuple[str, str, str]
-    IndexKey = Tuple[str, ...]
-    IndexValue = Union[str, ProcessName]
+ChangeEntry = Tuple[str, str, str]
+IndexKey = Tuple[str, ...]
+IndexValue = Union[str, ProcessName]
 
 
 logger = log.get_logger(__name__)

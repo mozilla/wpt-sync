@@ -8,9 +8,7 @@ from ..env import Environment
 from ..lock import mut, MutGuard, ProcLock
 from ..meta import Metadata
 
-MYPY = False
-if MYPY:
-    from typing import Text, Tuple
+from typing import Text, Tuple
 
 
 env = Environment()

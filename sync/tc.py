@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import requests
 import shutil
@@ -16,10 +17,8 @@ from .env import Environment
 from .errors import RetryableError
 from .threadexecutor import ThreadExecutor
 
-MYPY = False
-if MYPY:
-    from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
-    Task = Dict[str, Dict[str, Any]]
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
+Task = Dict[str, Dict[str, Any]]
 
 
 TASKCLUSTER_ROOT_URL = "https://firefox-ci-tc.services.mozilla.com"
@@ -178,7 +177,7 @@ class TaskGroupView:
     def __init__(self, taskgroup: TaskGroup, filter_fn: Optional[Callable[[Task], bool]]) -> None:
         self.taskgroup = taskgroup
         self.filter_fn: Callable[[Task], bool] = (filter_fn if filter_fn is not None
-                          else lambda x: bool(x))
+                                                  else lambda x: bool(x))
         self._tasks: Optional[List[Task]] = None
 
     def __bool__(self):
@@ -443,7 +442,8 @@ def get_task_status(task_id: Text) -> Optional[Dict[Text, Any]]:
     return None
 
 
-def download(log_url: Text, log_path: Text, retry: int, session: Optional[requests.Session] = None) -> bool:
+def download(log_url: Text, log_path: Text, retry: int,
+             session: Optional[requests.Session] = None) -> bool:
     if session is None:
         session = requests.Session()
     while retry > 0:

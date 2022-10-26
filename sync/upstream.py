@@ -1,3 +1,4 @@
+from __future__ import annotations
 import enum
 import os
 import re
@@ -23,15 +24,15 @@ from .lock import SyncLock, constructor, mut
 from .sync import CommitFilter, LandableStatus, SyncProcess, CommitRange
 from .repos import cinnabar, pygit2_get
 
-MYPY = False
-if MYPY:
-    from git.repo.base import Repo
+from typing import (Any, Dict, Iterable, List, Optional, Sequence, Set, Text, Tuple, Union, cast,
+                    TYPE_CHECKING)
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.base import BranchRefObject, ProcessName
     from sync.commit import Commit
-    from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Text, Tuple, Union, cast
 
-    CreateSyncs = Dict[Optional[int], Union[List, "Endpoints"]]
-    UpdateSyncs = Dict[int, Tuple["UpstreamSync", GeckoCommit]]
+CreateSyncs = Dict[Optional[int], Union[List, "Endpoints"]]
+UpdateSyncs = Dict[int, Tuple["UpstreamSync", GeckoCommit]]
 
 
 env = Environment()
@@ -562,7 +563,7 @@ class UpstreamSync(SyncProcess):
         # Create a CommitRange object and return it
         base = sync_commit.WptCommit(self.git_wpt, merge_base)
         head_ref_dict = AttrDict({'commit': pr_head})
-        if MYPY:
+        if TYPE_CHECKING:
             # This is a terrible hack.
             head_ref = cast(BranchRefObject, head_ref_dict)
         else:
@@ -595,7 +596,8 @@ def commit_message_filter(msg: bytes) -> Tuple[bytes, Dict[Text, Text]]:
     return msg, metadata
 
 
-def wpt_commits(git_gecko: Repo, first_commit: GeckoCommit, head_commit: GeckoCommit) -> List[GeckoCommit]:
+def wpt_commits(git_gecko: Repo, first_commit: GeckoCommit,
+                head_commit: GeckoCommit) -> List[GeckoCommit]:
     # List of syncs that have changed, so we can update them all as appropriate at the end
     revish = "{}..{}".format(first_commit.sha1, head_commit.sha1)
     logger.info("Getting commits in range %s" % revish)
@@ -998,7 +1000,7 @@ def gecko_push(git_gecko: Repo,
 
         landable_syncs = {item for item in UpstreamSync.load_by_status(git_gecko, git_wpt, "open")
                           if item.error is None}
-        if MYPY:
+        if TYPE_CHECKING:
             landable = cast(Set[UpstreamSync], landable_syncs)
         else:
             landable = landable_syncs

@@ -8,10 +8,8 @@ import newrelic
 from . import log
 from .env import Environment
 from .projectutil import Mach
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, List, Mapping, Set, Text, Tuple, Union
-    from git.repo.base import Repo
+from typing import Any, Dict, List, Mapping, Set, Text, Tuple, Union
+from git.repo.base import Repo
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -137,7 +135,8 @@ def compute_moves(moves: Dict[Text, Text], unmatched_patterns: Set[Text]) -> Dic
     return updated_patterns
 
 
-def components_for_wpt_paths(git_gecko: Repo, wpt_paths: Union[Set[Text], Set[str]]) -> Mapping[Text, List[Text]]:
+def components_for_wpt_paths(git_gecko: Repo,
+                             wpt_paths: Union[Set[Text], Set[str]]) -> Mapping[Text, List[Text]]:
     path_prefix = env.config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in wpt_paths]
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import sys
 import weakref
@@ -14,29 +15,29 @@ from .env import Environment
 from .lock import MutGuard, RepoLock, mut, constructor
 from .repos import pygit2_get
 
-MYPY = False
-if MYPY:
-    from git.refs.reference import Reference
-    from git.repo.base import Repo
-    from pygit2 import Commit as PyGit2Commit, TreeEntry
+from typing import (Any,
+                    DefaultDict,
+                    Dict,
+                    Iterator,
+                    List,
+                    Optional,
+                    Set,
+                    Text,
+                    Tuple,
+                    Union,
+                    TYPE_CHECKING)
+from git.refs.reference import Reference
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from pygit2.repository import Repository
+    from pygit2 import Commit as PyGit2Commit, TreeEntry
     from sync.commit import Commit
     from sync.landing import LandingSync
     from sync.lock import SyncLock
     from sync.sync import SyncPointName
-    from typing import (Any,
-                        DefaultDict,
-                        Dict,
-                        Iterator,
-                        List,
-                        Optional,
-                        Set,
-                        Text,
-                        Tuple,
-                        Union)
 
-    ProcessNameIndexData = DefaultDict[str, DefaultDict[str, DefaultDict[str, Set]]]
-    ProcessNameKey = Tuple[str, str, str, str]
+ProcessNameIndexData = DefaultDict[str, DefaultDict[str, DefaultDict[str, Set]]]
+ProcessNameKey = Tuple[str, str, str, str]
 
 env = Environment()
 
@@ -194,7 +195,8 @@ class ProcessNameIndex(metaclass=IdentityMap):
             self.build()
         return process_name in self._all
 
-    def get(self, obj_type: Text, subtype: Optional[Text] = None, obj_id: Optional[Text] = None) -> Set[ProcessName]:
+    def get(self, obj_type: Text, subtype: Optional[Text] = None,
+            obj_id: Optional[Text] = None) -> Set[ProcessName]:
         if not self._built:
             self.build()
 
@@ -229,7 +231,8 @@ class ProcessName(metaclass=IdentityMap):
 
     """
 
-    def __init__(self, obj_type: Text, subtype: Text, obj_id: Text, seq_id: Union[Text, int]) -> None:
+    def __init__(self, obj_type: Text, subtype: Text, obj_id: Text,
+                 seq_id: Union[Text, int]) -> None:
         assert obj_type is not None
         assert subtype is not None
         assert obj_id is not None
@@ -323,7 +326,8 @@ class VcsRefObject(metaclass=IdentityMap):
 
     ref_prefix: Text = None
 
-    def __init__(self, repo: Repo, name: Union[ProcessName, SyncPointName], commit_cls: type = sync_commit.Commit) -> None:
+    def __init__(self, repo: Repo, name: Union[ProcessName, SyncPointName],
+                 commit_cls: type = sync_commit.Commit) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
 
@@ -349,13 +353,15 @@ class VcsRefObject(metaclass=IdentityMap):
                    ) -> Tuple[Repo, Union[ProcessNameKey, Tuple[Text, Text]]]:
         return (repo, process_name.key())
 
-    def _cache_verify(self, repo: Repo, process_name: Union[ProcessName, SyncPointName], commit_cls: type = sync_commit.Commit) -> bool:
+    def _cache_verify(self, repo: Repo, process_name: Union[ProcessName, SyncPointName],
+                      commit_cls: type = sync_commit.Commit) -> bool:
         return commit_cls == self.commit_cls
 
     @classmethod
     @constructor(lambda args: (args["name"].subtype,
                                args["name"].obj_id))
-    def create(cls, lock: SyncLock, repo: Repo, name: ProcessName, obj: Text, commit_cls: type = sync_commit.Commit) -> VcsRefObject:
+    def create(cls, lock: SyncLock, repo: Repo, name: ProcessName, obj: Text,
+               commit_cls: type = sync_commit.Commit) -> VcsRefObject:
         path = cls.get_path(name)
         logger.debug("Creating ref %s" % path)
         pygit2_repo = pygit2_get(repo)
@@ -634,7 +640,8 @@ class ProcessData(metaclass=IdentityMap):
             rv.add(cls(repo, process_name))
         return rv
 
-    def _save(self, data: Dict[Text, Any], message: Text, commit_builder: CommitBuilder = None) -> Optional[Any]:
+    def _save(self, data: Dict[Text, Any], message: Text,
+              commit_builder: CommitBuilder = None) -> Optional[Any]:
         if commit_builder is None:
             commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         else:

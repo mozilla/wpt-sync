@@ -16,9 +16,7 @@ import six
 from sync import repos
 from sync.env import Environment
 
-MYPY = False
-if MYPY:
-    from typing import Any, Callable, Dict, List, Optional, Text, Tuple
+from typing import Any, Callable, Dict, List, Optional, Text, Tuple
 
 
 env = Environment()

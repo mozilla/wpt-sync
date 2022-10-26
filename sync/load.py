@@ -1,10 +1,10 @@
+from __future__ import annotations
 from . import log
 from .env import Environment
 
-MYPY = False
-if MYPY:
-    from typing import Dict, Iterable, Optional, Set, Text
-    from git.repo.base import Repo
+from typing import Dict, Iterable, Optional, Set, Text, TYPE_CHECKING
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.sync import SyncProcess
 
 env = Environment()

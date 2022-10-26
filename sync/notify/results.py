@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import os
 from collections import defaultdict
@@ -14,30 +15,30 @@ from ..meta import Metadata
 from ..repos import cinnabar
 from .. import wptfyi
 
-MYPY = False
-if MYPY:
-    from typing import (Any,
-                        Callable,
-                        Dict,
-                        Iterable,
-                        Iterator,
-                        List,
-                        Mapping,
-                        MutableMapping,
-                        Optional,
-                        Set,
-                        Text,
-                        Tuple,
-                        Union)
-    from requests import Response
+from typing import (Any,
+                    Callable,
+                    Dict,
+                    Iterable,
+                    Iterator,
+                    List,
+                    Mapping,
+                    MutableMapping,
+                    Optional,
+                    Set,
+                    Text,
+                    Tuple,
+                    Union,
+                    TYPE_CHECKING)
+from requests import Response
+if TYPE_CHECKING:
     from sync.repos import Repo
     from sync.downstream import DownstreamSync
     from sync.meta import MetaLink
     from sync.tc import TaskGroupView
 
-    Logs = Mapping[str, Mapping[str, List[Any]]]  # Any is really "anything with a json method"
-    ResultsEntry = Tuple[str, Optional[str], "Result"]
-    JobResultsSummary = MutableMapping[str, MutableMapping[str, MutableMapping[str, int]]]
+Logs = Mapping[str, Mapping[str, List[Any]]]  # Any is really "anything with a json method"
+ResultsEntry = Tuple[str, Optional[str], "Result"]
+JobResultsSummary = MutableMapping[str, MutableMapping[str, MutableMapping[str, int]]]
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -100,7 +101,8 @@ class Result:
                 if fn(browser, platform, status):
                     yield browser, platform, status
 
-    def set_status(self, browser: Text, job_name: Text, run_has_changes: bool, status: Text, expected: List[Text]) -> None:
+    def set_status(self, browser: Text, job_name: Text, run_has_changes: bool, status: Text,
+                   expected: List[Text]) -> None:
         self.statuses[browser][job_name].set(run_has_changes, status, expected)
 
     def is_consistent(self, browser: Text, target: Text = "head") -> bool:
@@ -249,7 +251,8 @@ class Results:
                             continue
                         self.add_log(json_data, browser, job_name, run_has_changes)
 
-    def add_log(self, data: Dict[Text, Any], browser: Text, job_name: Text, run_has_changes: bool) -> None:
+    def add_log(self, data: Dict[Text, Any], browser: Text, job_name: Text,
+                run_has_changes: bool) -> None:
         for test in data["results"]:
             use_result = run_has_changes or test["test"] in self.test_results
             if use_result:
@@ -409,7 +412,8 @@ class LogFile:
             return json.load(f)
 
 
-def get_logs(tasks: Iterable[Dict[Text, Any]], job_prefix: Text = "Gecko-") -> Mapping[Text, Mapping[Text, List[LogFile]]]:
+def get_logs(tasks: Iterable[Dict[Text, Any]],
+             job_prefix: Text = "Gecko-") -> Mapping[Text, Mapping[Text, List[LogFile]]]:
     logs = defaultdict(list)
     for task in tasks:
         job_name = job_prefix + tc.parse_job_name(

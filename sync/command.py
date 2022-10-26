@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import itertools
 import json
@@ -18,10 +19,9 @@ from .gitutils import update_repositories
 from .load import get_syncs
 from .lock import RepoLock, SyncLock
 
-MYPY = False
-if MYPY:
-    from typing import Any, Iterable, List, Optional, Set, Text, Type, Union, cast
-    from git.repo.base import Repo
+from typing import Any, Iterable, List, Optional, Set, Text, Type, Union, cast, TYPE_CHECKING
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.sync import SyncProcess
     from sync.trypush import TryPush
 
@@ -256,7 +256,8 @@ def sync_from_path(git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
     return cls(git_gecko, git_wpt, process_name)
 
 
-def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: Text, error: bool = False, **kwargs: Any) -> None:
+def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: Text, error: bool = False,
+            **kwargs: Any) -> None:
     from . import downstream
     from . import landing
     from . import upstream
@@ -387,7 +388,8 @@ def do_update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int, **kwargs: Any) -
     update.update_tasks(git_gecko, git_wpt, pr_id)
 
 
-def do_pr(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], rebase: bool = False, **kwargs: Any) -> None:
+def do_pr(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], rebase: bool = False,
+          **kwargs: Any) -> None:
     from . import update
     if not pr_ids:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -487,7 +489,8 @@ def do_start_phab_listener(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> Non
     phablisten.run_phabricator_listener(env.config)
 
 
-def do_configure_repos(git_gecko: Repo, git_wpt: Repo, repo: Text, config_file: Text, **kwargs: Any) -> None:
+def do_configure_repos(git_gecko: Repo, git_wpt: Repo, repo: Text, config_file: Text,
+                       **kwargs: Any) -> None:
     from . import repos
     r = repos.wrappers[repo](env.config)
     with RepoLock(r.repo()):
@@ -514,7 +517,7 @@ def do_status(git_gecko: Repo,
                                                  sync_type,
                                                  obj_id,
                                                  seq_id=seq_id)
-        if MYPY:
+        if TYPE_CHECKING:
             objs = cast(Set[trypush.TryPush], try_pushes)
         else:
             objs = try_pushes
@@ -596,7 +599,8 @@ def do_skip(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], **kwargs: Any) ->
                 sync.skip = True  # type: ignore
 
 
-def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], force: bool = False, **kwargs: Any) -> None:
+def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], force: bool = False,
+              **kwargs: Any) -> None:
     from . import downstream
     if not pr_ids:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -704,7 +708,8 @@ def do_landable(git_gecko,
                     str(item) for item in errors))
 
 
-def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstream: bool = False, rebase: bool = False, **kwargs: Any) -> None:
+def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstream: bool = False,
+                 rebase: bool = False, **kwargs: Any) -> None:
     from . import errors
     from . import update
     from . import upstream as upstream_sync

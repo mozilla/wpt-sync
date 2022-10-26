@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import re
 import shutil
@@ -22,13 +23,13 @@ from .projectutil import Mach
 from .repos import cinnabar
 from .tc import TaskGroupView
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Text, Tuple, Union
+from typing import (Any, Dict, List, Mapping, MutableMapping, Optional, Text, Tuple, Union,
+                    TYPE_CHECKING)
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.landing import LandingSync
     from sync.lock import SyncLock
-    from git.repo.base import Repo
     from sync.tc import TaskGroup
 
 
@@ -463,7 +464,8 @@ class TryPush(base.ProcessData):
                             "try", self.try_rev)
 
     @mut()
-    def download_logs(self, wpt_taskgroup: Union[TaskGroupView, TryPushTasks], first_only: bool = False) -> TaskGroupView:
+    def download_logs(self, wpt_taskgroup: Union[TaskGroupView, TryPushTasks],
+                      first_only: bool = False) -> TaskGroupView:
         """Download all the wptreport logs for the current try push
 
         :return: List of paths to logs
@@ -590,8 +592,7 @@ class TryPushTasks:
         #       }}
         by_name = self.wpt_tasks.by_name()
         task_states: MutableMapping[Text, Any] = defaultdict(lambda:
-                                  defaultdict(lambda:
-                                              defaultdict(int)))
+                                                             defaultdict(lambda: defaultdict(int)))
         for name, tasks in by_name.items():
             for task in tasks:
                 task_id = task.get("status", {}).get("taskId")

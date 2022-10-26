@@ -16,10 +16,8 @@ from .lock import SyncLock
 from .notify import bugupdate
 from .repos import cinnabar
 
-MYPY = False
-if MYPY:
-    from git.repo.base import Repo
-    from typing import Any, Dict, Text
+from git.repo.base import Repo
+from typing import Any, Dict, Text
 
 env = Environment()
 
@@ -311,7 +309,8 @@ class TaskGroupHandler(Handler):
         taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
 
 
-def taskgroup_complete(git_gecko: Repo, git_wpt: Repo, taskgroup_id: Text, try_push: trypush.TryPush) -> None:
+def taskgroup_complete(git_gecko: Repo, git_wpt: Repo, taskgroup_id: Text,
+                       try_push: trypush.TryPush) -> None:
     sync = try_push.sync(git_gecko, git_wpt)
     if not sync:
         newrelic.agent.record_custom_event("taskgroup_sync_missing", params={

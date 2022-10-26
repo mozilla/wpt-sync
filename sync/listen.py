@@ -12,9 +12,7 @@ from . import log
 from . import handlers
 from . import tasks
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, Text
+from typing import Any, Dict, Text
 
 here = os.path.dirname(__file__)
 

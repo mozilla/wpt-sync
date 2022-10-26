@@ -5,6 +5,7 @@
 """Functionality to support VCS syncing for WPT."""
 
 
+from __future__ import annotations
 import os
 import re
 import subprocess
@@ -35,11 +36,10 @@ from .projectutil import Mach, WPT
 from .sync import LandableStatus, SyncProcess
 from .trypush import TryPush
 
-MYPY = False
-if MYPY:
-    from git.objects.tree import Tree
-    from git.repo.base import Repo
-    from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Set, Text, Tuple, cast
+from git.objects.tree import Tree
+from git.repo.base import Repo
+from typing import (Any, Dict, List, Mapping, MutableMapping, Optional, Set, Text, Tuple, cast,
+                    TYPE_CHECKING)
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -96,7 +96,8 @@ class DownstreamSync(SyncProcess):
             sync.create_bug(git_wpt, pr_id, pr_title, pr_body)
         return sync
 
-    def make_bug_comment(self, git_wpt: Repo, pr_id: int, pr_title: Text, pr_body: Optional[Text]) -> Text:
+    def make_bug_comment(self, git_wpt: Repo, pr_id: int, pr_title: Text,
+                         pr_body: Optional[Text]) -> Text:
         pr_msg = env.gh_wpt.cleanup_pr_body(pr_body)
         # TODO: Ensure we have the right set of commits before geting here
         author = self.wpt_commits[0].author if self.wpt_commits else b""
@@ -715,7 +716,7 @@ class DownstreamSync(SyncProcess):
             commit for commit in self.gecko_commits
             if commit.metadata.get("wpt-commit") and
             commit.metadata.get("wpt-type") in ("dependency", None)]
-        if MYPY:
+        if TYPE_CHECKING:
             existing_commits = cast(List[GeckoCommit], existing)
         else:
             existing_commits = existing
@@ -999,7 +1000,8 @@ class DownstreamSync(SyncProcess):
 
 
 @entry_point("downstream")
-def new_wpt_pr(git_gecko: Repo, git_wpt: Repo, pr_data: Mapping[Text, Any], raise_on_error: bool = True, repo_update: bool = True) -> None:
+def new_wpt_pr(git_gecko: Repo, git_wpt: Repo, pr_data: Mapping[Text, Any],
+               raise_on_error: bool = True, repo_update: bool = True) -> None:
     """ Start a new downstream sync """
     if pr_data["user"]["login"] == env.config["web-platform-tests"]["github"]["user"]:
         raise ValueError("Tried to create a downstream sync for a PR created "

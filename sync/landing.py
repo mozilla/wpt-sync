@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import shutil
 from collections import defaultdict
@@ -28,12 +29,9 @@ from .projectutil import Mach
 from .repos import cinnabar, pygit2_get
 from .sync import LandableStatus, SyncProcess
 
-MYPY = False
-if MYPY:
-    from typing import Any, Dict, IO, List, Optional, Text, Tuple, Union, cast
-
-    from git.repo.base import Repo
-
+from typing import Any, Dict, IO, List, Optional, Text, Tuple, Union, cast, TYPE_CHECKING
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.base import ProcessName
     from sync.commit import Commit, WptCommit
     from sync.downstream import DownstreamSync
@@ -572,7 +570,7 @@ Automatic update from web-platform-tests\n%s
         # Find the last gecko commit containing a PR
         if len(self.gecko_commits):
             head_commit = self.gecko_commits.head
-            if MYPY:
+            if TYPE_CHECKING:
                 head = cast(GeckoCommit, head_commit)
             else:
                 head = head_commit
@@ -590,7 +588,8 @@ Automatic update from web-platform-tests\n%s
 
         gecko_commits_landed = set()
 
-        def update_gecko_landed(sync: Union[DownstreamSync, UpstreamSync], commits: List[WptCommit]) -> None:
+        def update_gecko_landed(sync: Union[DownstreamSync, UpstreamSync],
+                                commits: List[WptCommit]) -> None:
             if isinstance(sync, upstream.UpstreamSync):
                 for commit in commits:
                     gecko_commit = commit.metadata.get("gecko-commit")
@@ -781,7 +780,8 @@ MANUAL PUSH: wpt sync bot
                      "web-platform-tests linux-32 shippable",
                      "web-platform-tests mac !debug shippable"])
 
-    def try_result(self, try_push: TryPush = None, tasks: Optional[TryPushTasks] = None) -> TryPushResult:
+    def try_result(self, try_push: TryPush = None,
+                   tasks: Optional[TryPushTasks] = None) -> TryPushResult:
         """Determine whether a try push has infra failures, or an acceptable
         level of test passes for the current build"""
         if try_push is None:
@@ -1022,7 +1022,8 @@ def current(git_gecko: Repo, git_wpt: Repo) -> Optional[LandingSync]:
 
 
 @entry_point("landing")
-def wpt_push(git_gecko: Repo, git_wpt: Repo, commits: List[Text], create_missing: bool = True) -> None:
+def wpt_push(git_gecko: Repo, git_wpt: Repo, commits: List[Text],
+             create_missing: bool = True) -> None:
     prs = set()
     for commit_sha in commits:
         # This causes the PR to be recorded as a note
@@ -1266,7 +1267,8 @@ def needinfo_users() -> List[Text]:
     return [item for item in needinfo_users if item]
 
 
-def record_failure(sync: LandingSync, log_msg: Text, bug_msg: Text, fixup_msg: Optional[Any] = None) -> Text:
+def record_failure(sync: LandingSync, log_msg: Text, bug_msg: Text,
+                   fixup_msg: Optional[Any] = None) -> Text:
     if fixup_msg is None:
         fixup_msg = "Run `wptsync landing` with either --accept-failures or --retry"
     logger.error("Bug {}:{}\n{}".format(sync.bug, log_msg, fixup_msg))
@@ -1322,7 +1324,8 @@ def update_metadata(sync: LandingSync, try_push: TryPush, tasks: TryPushTasks = 
     sync.update_metadata(log_files, update_intermittents=True)
 
 
-def push_to_gecko(git_gecko: Repo, git_wpt: Repo, sync: LandingSync, allow_push: bool = True) -> None:
+def push_to_gecko(git_gecko: Repo, git_wpt: Repo, sync: LandingSync,
+                  allow_push: bool = True) -> None:
     if not allow_push:
         logger.info("Landing in bug %s is ready for push.\n"
                     "Working copy is in %s" % (sync.bug,

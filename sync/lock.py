@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 import inspect
 import os
@@ -7,12 +8,10 @@ import filelock
 from . import log
 from .env import Environment
 
-MYPY = False
-if MYPY:
-    from git.repo.base import Repo
+from typing import Any, List, MutableMapping, Optional, Set, Text, Tuple, TYPE_CHECKING
+from git.repo.base import Repo
+if TYPE_CHECKING:
     from sync.base import ProcessName
-    from typing import Any, List, MutableMapping, Optional, Set, Text, Tuple
-
 env = Environment()
 
 logger = log.get_logger(__name__)
