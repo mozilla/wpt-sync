@@ -17,12 +17,11 @@ if MYPY:
 env = Environment()
 
 
-def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
-               browser="firefox",  # type: Text
-               include_status="head",  # type: Text
-               include_other_browser=False,  # type: bool
-               ):
-    # type: (...) -> Optional[Text]
+def status_str(result: Union[Result, SubtestResult, TestResult],
+               browser: Text = "firefox",
+               include_status: Text = "head",
+               include_other_browser: bool = False,
+               ) -> Optional[Text]:
     """Construct a string containing the statuses for a results.
 
     :param result: The Result object for which to construct the string.
@@ -66,8 +65,7 @@ def status_str(result,  # type: Union[Result, SubtestResult, TestResult]
     return value
 
 
-def summary_value(result_data):
-    # type: (Mapping[Text, int]) -> Text
+def summary_value(result_data: Mapping[Text, int]) -> Text:
     by_result = defaultdict(list)
     for job_name, value in result_data.items():
         by_result[value].append(job_name)
@@ -79,8 +77,7 @@ def summary_value(result_data):
                     for count, jobs in sorted(by_result.items()))
 
 
-def bug_str(url):
-    # type: (Text) -> Text
+def bug_str(url: Text) -> Text:
     """Create a bug string for a given bug url"""
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
@@ -90,8 +87,7 @@ def bug_str(url):
     return "[%s]()" % url
 
 
-def list_join(items_iter):
-    # type: (Iterable) -> Text
+def list_join(items_iter: Iterable) -> Text:
     """Join a list of strings using commands, with "and" before the final item."""
     items = list(items_iter)
     if len(items) == 0:
@@ -103,8 +99,7 @@ def list_join(items_iter):
     return rv
 
 
-def summary_message(results):
-    # type: (Results) -> Text
+def summary_message(results: Results) -> Text:
     """Generate a summary message for results indicating how many tests ran"""
     summary = results.summary()
 
@@ -148,8 +143,7 @@ def summary_message(results):
     return "\n".join(data)
 
 
-def links_message(results):
-    # type: (Results) -> Text
+def links_message(results: Results) -> Text:
     """Generate a list of relevant links for the results"""
     data = []
 
@@ -169,8 +163,7 @@ def links_message(results):
     return "\n".join(data)
 
 
-def detail_message(results):
-    # type: (Results) -> List[Text]
+def detail_message(results: Results) -> List[Text]:
     """Generate a message for results highlighting specific noteworthy test outcomes"""
     data = []
 
@@ -201,13 +194,12 @@ def detail_message(results):
     return data
 
 
-def detail_part(details_type,  # type: Optional[Text]
-                iterator,  # type: Iterable[ResultsEntry]
-                include_bugs,  # type: Optional[Tuple[Text, ...]]
-                include_status,  # type: Text
-                include_other_browser,  # type: bool
-                ):
-    # type: (...) -> Optional[Text]
+def detail_part(details_type: Optional[Text],
+                iterator: Iterable[ResultsEntry],
+                include_bugs: Optional[Tuple[Text, ...]],
+                include_status: Text,
+                include_other_browser: bool,
+                ) -> Optional[Text]:
     """Generate a message for a specific class of notable results.
 
     :param details_type: The name of the results class
@@ -264,8 +256,7 @@ def detail_part(details_type,  # type: Optional[Text]
     return "\n".join(item_data) + "\n"
 
 
-def for_results(results):
-    # type: (Results) -> Tuple[Text, Optional[Text]]
+def for_results(results: Results) -> Tuple[Text, Optional[Text]]:
     """Generate a notification message for results
 
     :param results: a Results object
@@ -280,7 +271,7 @@ def for_results(results):
     msg_parts = [item for item in msg_parts if item]
     truncated, message = truncate_message(msg_parts)
     if truncated:
-        truncated_message = message  # type: Optional[Text]
+        truncated_message: Optional[Text] = message
         message = "\n".join(msg_parts)
     else:
         truncated_message = None
@@ -288,8 +279,7 @@ def for_results(results):
     return message, truncated_message
 
 
-def truncate_message(parts):
-    # type: (Iterable[Text]) -> Tuple[bool, Text]
+def truncate_message(parts: Iterable[Text]) -> Tuple[bool, Text]:
     """Take an iterator of message parts and return a string consisting of
     all the parts starting from the first that will fit into a
     bugzilla comment, seperated by new lines.

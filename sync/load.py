@@ -12,12 +12,11 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def get_pr_sync(git_gecko,  # type: Repo
-                git_wpt,  # type: Repo
-                pr_id,  # type: int
-                log=True,  # type: bool
-                ):
-    # type: (...) -> Optional[SyncProcess]
+def get_pr_sync(git_gecko: Repo,
+                git_wpt: Repo,
+                pr_id: int,
+                log: bool = True,
+                ) -> Optional[SyncProcess]:
     from . import downstream
     from . import upstream
 
@@ -32,12 +31,11 @@ def get_pr_sync(git_gecko,  # type: Repo
     return sync
 
 
-def get_bug_sync(git_gecko,  # type: Repo
-                 git_wpt,  # type: Repo
-                 bug_number,  # type: int
-                 statuses=None  # type: Optional[Iterable[Text]]
-                 ):
-    # type: (...) -> Dict[Text, Set[SyncProcess]]
+def get_bug_sync(git_gecko: Repo,
+                 git_wpt: Repo,
+                 bug_number: int,
+                 statuses: Optional[Iterable[Text]] = None
+                 ) -> Dict[Text, Set[SyncProcess]]:
     from . import downstream
     from . import landing
     from . import upstream
@@ -63,14 +61,13 @@ def get_bug_sync(git_gecko,  # type: Repo
     return syncs
 
 
-def get_syncs(git_gecko,  # type: Repo
-              git_wpt,  # type: Repo
-              sync_type,  # type: Text
-              obj_id,  # type: int
-              status=None,  # type: Optional[Text]
-              seq_id=None  # type: Optional[int]
-              ):
-    # type: (...) -> Set[SyncProcess]
+def get_syncs(git_gecko: Repo,
+              git_wpt: Repo,
+              sync_type: Text,
+              obj_id: int,
+              status: Optional[Text] = None,
+              seq_id: Optional[int] = None
+              ) -> Set[SyncProcess]:
     from . import downstream
     from . import landing
     from . import upstream

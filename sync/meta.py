@@ -31,19 +31,16 @@ logger = log.get_logger(__name__)
 class GitReader(wptmeta.Reader):
     """Reader that works with a Git repository (without a worktree)"""
 
-    def __init__(self, repo, ref="origin/master"):
-        # type: (Repo, Text) -> None
+    def __init__(self, repo: Repo, ref: Text = "origin/master") -> None:
         self.repo = repo
         self.repo.remotes.origin.fetch()
         self.pygit2_repo = repos.pygit2_get(repo)
         self.rev = self.pygit2_repo.revparse_single(ref)
 
-    def exists(self, rel_path):
-        # type: (Text) -> bool
+    def exists(self, rel_path: Text) -> bool:
         return rel_path in self.rev.tree
 
-    def read_path(self, rel_path):
-        # type: (Text) -> bytes
+    def read_path(self, rel_path: Text) -> bytes:
         entry = self.rev.tree[rel_path]
         return self.pygit2_repo[entry.id].read_raw()
 
@@ -56,12 +53,10 @@ class GitReader(wptmeta.Reader):
 class GitWriter(wptmeta.Writer):
     """Writer that works with a Git repository (without a worktree)"""
 
-    def __init__(self, builder):
-        # type: (CommitBuilder) -> None
+    def __init__(self, builder: CommitBuilder) -> None:
         self.builder = builder
 
-    def write(self, rel_path, data):
-        # type: (Text, bytes) -> None
+    def write(self, rel_path: Text, data: bytes) -> None:
         self.builder.add_tree({rel_path: data})
 
 
@@ -72,11 +67,10 @@ class NullWriter(wptmeta.Writer):
 
 class Metadata:
     def __init__(self,
-                 process_name,  # type: ProcessName
-                 create_pr=False,  # type: bool
-                 branch="master"  # type: Text
-                 ):
-        # type: (...) -> None
+                 process_name: ProcessName,
+                 create_pr: bool = False,
+                 branch: Text = "master"
+                 ) -> None:
         """Object for working with a wpt-metadata repository without requiring
         a worktree.
 
@@ -116,28 +110,23 @@ class Metadata:
     def _push(self):
         raise NotImplementedError
 
-    def as_mut(self, lock):
-        # type: (SyncLock) -> MutGuard
+    def as_mut(self, lock: SyncLock) -> MutGuard:
         return MutGuard(lock, self)
 
     @property
-    def github(self):
-        # type: () -> gh.GitHub
+    def github(self) -> gh.GitHub:
         return gh.GitHub(env.config["web-platform-tests"]["github"]["token"],
                          env.config["metadata"]["repo"]["url"])
 
     @classmethod
-    def for_sync(cls, sync, create_pr=False):
-        # type: (DownstreamSync, bool) -> Metadata
+    def for_sync(cls, sync: DownstreamSync, create_pr: bool = False) -> Metadata:
         return cls(sync.process_name, create_pr=create_pr)
 
     @property
-    def lock_key(self):
-        # type: () -> Tuple[Text, Text]
+    def lock_key(self) -> Tuple[Text, Text]:
         return (self.process_name.subtype, self.process_name.obj_id)
 
-    def exit_mut(self):
-        # type: () -> None
+    def exit_mut(self) -> None:
         ref_name = self.process_name.path()
         message = "Gecko sync update"
         retry = 0
@@ -185,8 +174,7 @@ class Metadata:
             self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter()
 
-    def get_remote_ref(self):
-        # type: () -> Text
+    def get_remote_ref(self) -> Text:
         if not self.create_pr:
             return self.branch
 
@@ -203,13 +191,12 @@ class Metadata:
 
     @mut()
     def link_bug(self,
-                 test_id,  # type: Text
-                 bug_url,  # type: Text
-                 product="firefox",  # type: Text
-                 subtest=None,  # type: Optional[Text]
-                 status=None  # type: Optional[Text]
-                 ):
-        # type: (...) -> None
+                 test_id: Text,
+                 bug_url: Text,
+                 product: Text = "firefox",
+                 subtest: Optional[Text] = None,
+                 status: Optional[Text] = None
+                 ) -> None:
         """Add a link to a bug to the metadata
 
         :param test_id: id of the test for which the link applies
@@ -224,13 +211,12 @@ class Metadata:
                                   status=status)
 
     def iterbugs(self,
-                 test_id,  # type: Text
-                 product="firefox",  # type: Text
-                 prefixes=None,  # type: Optional[Iterable[Text]]
-                 subtest=None,  # type: Optional[Text]
-                 status=None,  # type: Optional[Text]
-                 ):
-        # type: (...) -> Iterator[MetaLink]
+                 test_id: Text,
+                 product: Text = "firefox",
+                 prefixes: Optional[Iterable[Text]] = None,
+                 subtest: Optional[Text] = None,
+                 status: Optional[Text] = None,
+                 ) -> Iterator[MetaLink]:
         if prefixes is None:
             prefixes = (env.bz.bz_url,
                         "https://github.com/wpt/web-platform-tests")

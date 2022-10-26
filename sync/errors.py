@@ -9,8 +9,7 @@ logger = log.get_logger(__name__)
 
 
 class AbortError(Exception):
-    def __init__(self, msg, cleanup=None, set_flag=None):
-        # type: (Text, Optional[Any], Optional[Any]) -> None
+    def __init__(self, msg: Text, cleanup: Optional[Any] = None, set_flag: Optional[Any] = None) -> None:
         Exception.__init__(self, msg)
         self.message = msg
         self.cleanup = cleanup

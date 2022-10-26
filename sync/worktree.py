@@ -24,15 +24,13 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def cleanup(git_gecko, git_wpt):
-    # type: (Repo, Repo) -> None
+def cleanup(git_gecko: Repo, git_wpt: Repo) -> None:
     for repo in [git_gecko, git_wpt]:
         pygit2_repo = pygit2_get(repo)
         cleanup_repo(repo, pygit2_repo, get_max_worktree_count(repo))
 
 
-def cleanup_repo(repo, pygit2_repo, max_count=None):
-    # type: (Repo, Repository, Optional[int]) -> None
+def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] = None) -> None:
     # TODO: Always cleanup repos where the sync is finished
     prune_worktrees(pygit2_repo)
     unprunable = []
@@ -103,8 +101,7 @@ def cleanup_repo(repo, pygit2_repo, max_count=None):
             break
 
 
-def delete_worktree(repo, process_name, worktree):
-    # type: (Repo, ProcessName, PyGit2Worktree) -> None
+def delete_worktree(repo: Repo, process_name: ProcessName, worktree: PyGit2Worktree) -> None:
     assert worktree.path.startswith(os.path.join(env.config["root"],
                                                  env.config["paths"]["worktrees"]))
     with SyncLock.for_process(process_name):
@@ -123,14 +120,12 @@ def delete_worktree(repo, process_name, worktree):
         wrapper.after_worktree_delete(worktree.path)
 
 
-def worktrees(pygit2_repo):
-    # type: (Repository) -> Iterator[PyGit2Worktree]
+def worktrees(pygit2_repo: Repository) -> Iterator[PyGit2Worktree]:
     for name in pygit2_repo.list_worktrees():
         yield pygit2_repo.lookup_worktree(name)
 
 
-def prune_worktrees(pygit2_repo):
-    # type: (Repository) -> None
+def prune_worktrees(pygit2_repo: Repository) -> None:
     for worktree in worktrees(pygit2_repo):
         # For some reason libgit2 thinks worktrees are not prunable when their
         # working dir is gone
@@ -139,8 +134,7 @@ def prune_worktrees(pygit2_repo):
             worktree.prune(True)
 
 
-def get_max_worktree_count(repo):
-    # type: (Repo) -> Optional[Any]
+def get_max_worktree_count(repo: Repo) -> Optional[Any]:
     repo_wrapper = wrapper_get(repo)
     if not repo_wrapper:
         return None
@@ -160,11 +154,10 @@ class Worktree:
     To access the worktree call .get()
     """
 
-    def __init__(self, repo, process_name):
-        # type: (Repo, ProcessName) -> None
+    def __init__(self, repo: Repo, process_name: ProcessName) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
-        self._worktree = None  # type: Optional[Repo]
+        self._worktree: Optional[Repo] = None
         self.process_name = process_name
         self.worktree_name = "-".join(str(item) for item in self.process_name.as_tuple())
         working_dir = repo.working_dir
@@ -176,18 +169,15 @@ class Worktree:
                                  process_name.obj_id)
         self._lock = None
 
-    def as_mut(self, lock):
-        # type: (SyncLock) -> MutGuard
+    def as_mut(self, lock: SyncLock) -> MutGuard:
         return MutGuard(lock, self)
 
     @property
-    def lock_key(self):
-        # type: () -> Tuple[Text, Text]
+    def lock_key(self) -> Tuple[Text, Text]:
         return (self.process_name.subtype, self.process_name.obj_id)
 
     @mut()
-    def get(self):
-        # type: () -> Repo
+    def get(self) -> Repo:
         """Return the worktree.
 
         On first access, the worktree is reset to the current HEAD. Subsequent
@@ -242,8 +232,7 @@ class Worktree:
         return self._worktree
 
     @mut()
-    def delete(self):
-        # type: () -> None
+    def delete(self) -> None:
         if not os.path.exists(self.path):
             return
         try:
