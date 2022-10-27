@@ -28,15 +28,15 @@ env = Environment()
 
 
 class Index(metaclass=abc.ABCMeta):
-    name: Text = None
-    key_fields: Tuple[Text, ...] = None
+    name: Optional[Text] = None
+    key_fields: Tuple[Text, ...]
     unique = False
     value_cls: type = tuple
 
     # Overridden in subclasses using the constructor
     # This provides a kind of borg pattern where all instances of
     # the class have the same changes data
-    changes: Dict[Any, Any] = None
+    changes: Optional[Dict[Any, Any]] = None
 
     def __init__(self, repo: Repo) -> None:
         if self.__class__.changes is None:
@@ -118,7 +118,8 @@ class Index(metaclass=abc.ABCMeta):
             return {}
         if key:
             for part in key:
-                target = target[part]
+                if target is not None:
+                    target = target[part]
         else:
             key = ()
         changes: Dict[IndexKey, List[ChangeEntry]] = {}
@@ -128,8 +129,9 @@ class Index(metaclass=abc.ABCMeta):
             if isinstance(items, list):
                 changes[key] = items
             else:
-                for key_part, values in items.items():
-                    stack.append((key + (key_part,), values))
+                if items is not None:
+                    for key_part, values in items.items():
+                        stack.append((key + (key_part,), values))
         return changes
 
     def _update_changes(self,
@@ -194,7 +196,8 @@ class Index(metaclass=abc.ABCMeta):
         msg = "Insert key {} value {}".format(key, value)
         target = self.changes
         for part in key:
-            target = target[part]
+            if target is not None:
+                target = target[part]
         assert isinstance(target, list)
         target.append((None, value, msg))
         return self
@@ -212,7 +215,8 @@ class Index(metaclass=abc.ABCMeta):
         msg = "Delete key {} value {}".format(key, value)
         target = self.changes
         for part in key:
-            target = target[part]
+            if target is not None:
+                target = target[part]
         assert isinstance(target, list)
         target.append((value, None, msg))
         return self
@@ -278,7 +282,8 @@ class Index(metaclass=abc.ABCMeta):
             assert len(key) == len(self.key_fields)
             target = self.changes
             for part in key:
-                target = target[part]
+                if target is not None:
+                    target = target[part]
             assert isinstance(target, list)
             target.append((None, None, "Clear key {}".format(key)))
         entries, errors = self.build_entries(*args, **kwargs)

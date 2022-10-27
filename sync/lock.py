@@ -156,8 +156,8 @@ class RepoLock(Lock):
 
 
 class ProcessLock(Lock):
-    obj_types: Tuple[Text, ...] = None
-    lock_type: Text = None
+    obj_types: Optional[Tuple[Text, ...]] = None
+    lock_type: Optional[Text] = None
     lock_per_type: Set[Text] = set()
     lock_per_obj: Set[Text] = set()
 
@@ -181,7 +181,7 @@ class ProcessLock(Lock):
         # This is sort of an antipattern because it requires the class to know about consumers.
         # But it also enforces some invariants to ensure that things have the right kind of
         # lock
-        assert process_name.obj_type in cls.obj_types
+        assert cls.obj_types is not None and process_name.obj_type in cls.obj_types
         sync_type = process_name.subtype
         obj_id = process_name.obj_id if sync_type in cls.lock_per_obj else None
         return cls(sync_type, obj_id)

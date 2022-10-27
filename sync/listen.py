@@ -12,7 +12,7 @@ from . import log
 from . import handlers
 from . import tasks
 
-from typing import Any, Dict, Text
+from typing import Any, Dict, Optional, Text
 
 here = os.path.dirname(__file__)
 
@@ -173,7 +173,7 @@ def run_pulse_listener(config: Dict[Text, Any]) -> None:
 
 
 class Filter(metaclass=abc.ABCMeta):
-    name: Text = None
+    name: Optional[Text] = None
     task = tasks.handle
 
     def __init__(self, config, logger):
