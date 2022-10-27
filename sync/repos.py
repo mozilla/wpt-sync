@@ -24,7 +24,7 @@ cinnabar_map = {}
 
 class GitSettings(metaclass=abc.ABCMeta):
 
-    name: Text = None
+    name: Text = ""
     cinnabar = False
 
     def __init__(self, config: Dict[Text, Any]) -> None:

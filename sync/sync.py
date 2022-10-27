@@ -301,7 +301,7 @@ class SyncProcess(metaclass=IdentityMap):
     obj_type: Text = "sync"
     sync_type: Text = "*"
     # Either "bug" or "pr"
-    obj_id: Text = None
+    obj_id: Optional[Text] = None
     statuses: Tuple[Text, ...] = ()
     status_transitions: List[Tuple[Text, Text]] = []
     # Can multiple syncs have the same obj_id

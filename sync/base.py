@@ -324,7 +324,7 @@ class VcsRefObject(metaclass=IdentityMap):
     This is typically either a tag or a head (i.e. branch), but can be any
     git object."""
 
-    ref_prefix: Text = None
+    ref_prefix: Optional[Text] = None
 
     def __init__(self, repo: Repo, name: Union[ProcessName, SyncPointName],
                  commit_cls: type = sync_commit.Commit) -> None:
@@ -530,7 +530,7 @@ class CommitBuilder:
 
 
 class ProcessData(metaclass=IdentityMap):
-    obj_type: Text = None
+    obj_type: Text = ""
 
     def __init__(self, repo: Repo, process_name: ProcessName) -> None:
         assert process_name.obj_type == self.obj_type
