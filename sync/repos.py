@@ -8,7 +8,7 @@ import shutil
 
 from . import log
 
-from typing import Any, Dict, Text, Optional, Union
+from typing import Any, Dict, Optional, Union
 from git.repo.base import Repo
 from git.objects.commit import Commit
 from pygit2.repository import Repository
@@ -24,14 +24,14 @@ cinnabar_map = {}
 
 class GitSettings(metaclass=abc.ABCMeta):
 
-    name: Text = ""
+    name: str = ""
     cinnabar = False
 
-    def __init__(self, config: Dict[Text, Any]) -> None:
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
 
     @property
-    def root(self) -> Text:
+    def root(self) -> str:
         return os.path.join(self.config["repo_root"],
                             self.config["paths"]["repos"],
                             self.name)
@@ -65,10 +65,10 @@ class GitSettings(metaclass=abc.ABCMeta):
         shutil.copyfile(file, os.path.normpath(os.path.join(r.git_dir, "config")))
         logger.debug("Config from {} copied to {}".format(file, os.path.join(r.git_dir, "config")))
 
-    def after_worktree_create(self, path: Text) -> None:
+    def after_worktree_create(self, path: str) -> None:
         pass
 
-    def after_worktree_delete(self, path: Text) -> None:
+    def after_worktree_delete(self, path: str) -> None:
         pass
 
 
@@ -91,12 +91,12 @@ class Gecko(GitSettings):
             idx.get_or_create(repo)
 
     @staticmethod
-    def get_state_path(config: Dict[Text, Any], path: Text) -> Text:
+    def get_state_path(config: Dict[str, Any], path: str) -> str:
         return os.path.join(config["root"],
                             config["paths"]["state"],
                             os.path.relpath(path, config["root"]))
 
-    def after_worktree_create(self, path: Text) -> None:
+    def after_worktree_create(self, path: str) -> None:
         from sync.projectutil import Mach
         state_path = self.get_state_path(self.config, path)
         if not os.path.exists(state_path):
@@ -109,7 +109,7 @@ class Gecko(GitSettings):
             except subprocess.CalledProcessError:
                 pass
 
-    def after_worktree_delete(self, path: Text) -> None:
+    def after_worktree_delete(self, path: str) -> None:
         state_path = self.get_state_path(self.config, path)
         if os.path.exists(state_path):
             shutil.rmtree(state_path)
@@ -126,13 +126,13 @@ class WptMetadata(GitSettings):
 
 
 class Cinnabar:
-    hg2git_cache: Dict[Text, Text] = {}
-    git2hg_cache: Dict[Text, Text] = {}
+    hg2git_cache: Dict[str, str] = {}
+    git2hg_cache: Dict[str, str] = {}
 
     def __init__(self, repo):
         self.git = repo.git
 
-    def hg2git(self, rev: Text) -> Text:
+    def hg2git(self, rev: str) -> str:
         if rev not in self.hg2git_cache:
             value = self.git.cinnabar("hg2git", rev)
             if all(c == "0" for c in value):
@@ -140,7 +140,7 @@ class Cinnabar:
             self.hg2git_cache[rev] = value
         return self.hg2git_cache[rev]
 
-    def git2hg(self, rev: Union[Text, Commit]) -> Text:
+    def git2hg(self, rev: Union[str, Commit]) -> str:
         if rev not in self.git2hg_cache:
             value = self.git.cinnabar("git2hg", rev)
             if all(c == "0" for c in value):

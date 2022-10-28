@@ -15,7 +15,7 @@ from .env import Environment
 from .base import CommitBuilder, iter_tree
 from .lock import mut, MutGuard
 
-from typing import Iterable, Iterator, Optional, Text, Tuple, TYPE_CHECKING
+from typing import Iterable, Iterator, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
@@ -31,16 +31,16 @@ logger = log.get_logger(__name__)
 class GitReader(wptmeta.Reader):
     """Reader that works with a Git repository (without a worktree)"""
 
-    def __init__(self, repo: Repo, ref: Text = "origin/master") -> None:
+    def __init__(self, repo: Repo, ref: str = "origin/master") -> None:
         self.repo = repo
         self.repo.remotes.origin.fetch()
         self.pygit2_repo = repos.pygit2_get(repo)
         self.rev = self.pygit2_repo.revparse_single(ref)
 
-    def exists(self, rel_path: Text) -> bool:
+    def exists(self, rel_path: str) -> bool:
         return rel_path in self.rev.tree
 
-    def read_path(self, rel_path: Text) -> bytes:
+    def read_path(self, rel_path: str) -> bytes:
         entry = self.rev.tree[rel_path]
         return self.pygit2_repo[entry.id].read_raw()
 
@@ -56,7 +56,7 @@ class GitWriter(wptmeta.Writer):
     def __init__(self, builder: CommitBuilder) -> None:
         self.builder = builder
 
-    def write(self, rel_path: Text, data: bytes) -> None:
+    def write(self, rel_path: str, data: bytes) -> None:
         self.builder.add_tree({rel_path: data})
 
 
@@ -69,7 +69,7 @@ class Metadata:
     def __init__(self,
                  process_name: ProcessName,
                  create_pr: bool = False,
-                 branch: Text = "master"
+                 branch: str = "master"
                  ) -> None:
         """Object for working with a wpt-metadata repository without requiring
         a worktree.
@@ -123,7 +123,7 @@ class Metadata:
         return cls(sync.process_name, create_pr=create_pr)
 
     @property
-    def lock_key(self) -> Tuple[Text, Text]:
+    def lock_key(self) -> tuple[str, str]:
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def exit_mut(self) -> None:
@@ -151,7 +151,7 @@ class Metadata:
                 logger.info("Pushing metadata commit %s" % commit_builder.commit.sha1)
                 remote_ref = self.get_remote_ref()
                 try:
-                    self.repo.remotes.origin.push("{}:refs/heads/{}".format(ref_name, remote_ref))
+                    self.repo.remotes.origin.push(f"{ref_name}:refs/heads/{remote_ref}")
                 except git.GitCommandError:
                     err = sys.exc_info()
                 else:
@@ -174,7 +174,7 @@ class Metadata:
             self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter()
 
-    def get_remote_ref(self) -> Text:
+    def get_remote_ref(self) -> str:
         if not self.create_pr:
             return self.branch
 
@@ -185,17 +185,17 @@ class Metadata:
         path = prefix + ref_name
         while path in self.pygit2_repo.references:
             count += 1
-            ref_name = "{}-{}".format(base_ref_name, count)
+            ref_name = f"{base_ref_name}-{count}"
             path = prefix + ref_name
         return ref_name
 
     @mut()
     def link_bug(self,
-                 test_id: Text,
-                 bug_url: Text,
-                 product: Text = "firefox",
-                 subtest: Optional[Text] = None,
-                 status: Optional[Text] = None
+                 test_id: str,
+                 bug_url: str,
+                 product: str = "firefox",
+                 subtest: str | None = None,
+                 status: str | None = None
                  ) -> None:
         """Add a link to a bug to the metadata
 
@@ -211,11 +211,11 @@ class Metadata:
                                   status=status)
 
     def iterbugs(self,
-                 test_id: Text,
-                 product: Text = "firefox",
-                 prefixes: Optional[Iterable[Text]] = None,
-                 subtest: Optional[Text] = None,
-                 status: Optional[Text] = None,
+                 test_id: str,
+                 product: str = "firefox",
+                 prefixes: Iterable[str] | None = None,
+                 subtest: str | None = None,
+                 status: str | None = None,
                  ) -> Iterator[MetaLink]:
         if prefixes is None:
             prefixes = (env.bz.bz_url,

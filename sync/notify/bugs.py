@@ -15,8 +15,7 @@ from ..lock import mut
 from ..meta import Metadata
 from ..projectutil import Mach
 
-from typing import (Dict, Iterable, List, Mapping, MutableMapping, Optional, Text, Tuple,
-                    TYPE_CHECKING)
+from typing import Iterable, Mapping, MutableMapping, Optional, Tuple, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
@@ -44,7 +43,7 @@ be cause the bot to automatically update or remove the annotation.
 """
 
 
-def test_ids_to_paths(git_work: Repo, test_ids: List[Text]) -> Dict[Text, List[Text]]:
+def test_ids_to_paths(git_work: Repo, test_ids: list[str]) -> dict[str, list[str]]:
     mach = Mach(git_work.working_dir)
     data = {}
     min_idx = 0
@@ -61,7 +60,7 @@ def test_ids_to_paths(git_work: Repo, test_ids: List[Text]) -> Dict[Text, List[T
     return data
 
 
-def fallback_test_ids_to_paths(test_ids: List[Text]) -> Dict:
+def fallback_test_ids_to_paths(test_ids: list[str]) -> dict:
     """Fallback for known rules mapping test_id to path, for cases where we
     can't read the manifest"""
     data = defaultdict(list)
@@ -89,7 +88,7 @@ def fallback_test_ids_to_paths(test_ids: List[Text]) -> Dict:
     return data
 
 
-def filter_test_failures(test: Text, subtest: Text, result: TestResult) -> bool:
+def filter_test_failures(test: str, subtest: str, result: TestResult) -> bool:
     if result.has_link():
         return False
     if result.has_regression("firefox"):
@@ -110,7 +109,7 @@ def filter_test_failures(test: Text, subtest: Text, result: TestResult) -> bool:
 @mut('sync')
 def for_sync(sync: DownstreamSync,
              results: Results,
-             ) -> Mapping[int, List[ResultsEntryStatus]]:
+             ) -> Mapping[int, list[ResultsEntryStatus]]:
     """Create the bugs for followup work for test problems found in a sync.
 
     This creates bugs that will be owned by the triage owner of the component
@@ -121,7 +120,7 @@ def for_sync(sync: DownstreamSync,
     :returns: A dict {bug_id: bug_info} where bug_info is a list of test results
               that are included in the bug, each represented as a tuple
               (test_id, subtest, results, status)"""
-    rv: MutableMapping[int, List[ResultsEntryStatus]] = {}
+    rv: MutableMapping[int, list[ResultsEntryStatus]] = {}
 
     newrelic.agent.record_custom_event("sync_bug", params={
         "sync_bug": sync.bug,
@@ -167,7 +166,7 @@ def for_sync(sync: DownstreamSync,
                 test_path_by_id[test_id] = os.path.relpath(path, path_prefix)
 
         paths = set(test_path_by_id.values())
-        logger.info("Got paths {}".format(paths))
+        logger.info(f"Got paths {paths}")
         components = components_for_wpt_paths(git_work, paths)
 
         components_by_path = {}
@@ -195,7 +194,7 @@ def for_sync(sync: DownstreamSync,
                 # For things with no component don't file a bug
                 continue
 
-            component_key = "{} :: {}".format(key, component)
+            component_key = f"{key} :: {component}"
 
             if require_opt_in and component not in opt_in_components:
                 logger.info("Not filing bugs for component %s" % component)
@@ -236,10 +235,10 @@ class LengthCappedStringBuilder:
     def __init__(self, max_length: int) -> None:
         """Builder for a string that must not exceed a given length"""
         self.max_length = max_length
-        self.data: List[Text] = []
+        self.data: list[str] = []
         self.current_length = 0
 
-    def append(self, other: Text) -> bool:
+    def append(self, other: str) -> bool:
         """Add a string the end of the data. Returns True if the add was
         a success i.e. the new string is under the length limit, otherwise
         False"""
@@ -254,12 +253,12 @@ class LengthCappedStringBuilder:
         """Check if we have chars remaining capacity in the string"""
         return self.current_length + chars <= self.max_length
 
-    def get(self) -> Text:
+    def get(self) -> str:
         """Return the complete string"""
         return "".join(self.data)
 
 
-def split_id(test_id: Text) -> Tuple[Text, ...]:
+def split_id(test_id: str) -> tuple[str, ...]:
     """Convert a test id into a list of path parts, preserving the hash
     and query fragments on the final part.
 
@@ -284,8 +283,8 @@ def split_id(test_id: Text) -> Tuple[Text, ...]:
     return tuple(parts)
 
 
-def get_common_prefix(test_ids: Iterable[Text]
-                      ) -> Tuple[List[Tuple[Text, ...]], Tuple[Text, ...]]:
+def get_common_prefix(test_ids: Iterable[str]
+                      ) -> tuple[list[tuple[str, ...]], tuple[str, ...]]:
     """Given a list of test ids, return the paths split into directory parts,
     and the longest common prefix directory shared by all the inputs.
 
@@ -308,11 +307,11 @@ def get_common_prefix(test_ids: Iterable[Text]
     return split_names, common_prefix
 
 
-def make_summary(test_results: List[ResultsEntry],
-                 prefix: Text,
+def make_summary(test_results: list[ResultsEntry],
+                 prefix: str,
                  max_length: int = 255,
                  max_tests: int = 3,
-                 ) -> Text:
+                 ) -> str:
     """Construct a summary for the bugs based on the test results.
 
     The approach here is to start building the string up using the
@@ -379,10 +378,10 @@ def make_summary(test_results: List[ResultsEntry],
 
 
 def bug_data_crash(sync: DownstreamSync,
-                   test_results: List[ResultsEntry],
-                   treeherder_url: Optional[Text],
-                   wpt_sha: Optional[Text],
-                   ) -> Tuple[Text, Text]:
+                   test_results: list[ResultsEntry],
+                   treeherder_url: str | None,
+                   wpt_sha: str | None,
+                   ) -> tuple[str, str]:
     summary = make_summary(test_results,
                            "New wpt crashes")
 
@@ -426,10 +425,10 @@ These updates will be on mozilla-central once bug {sync_bug_id} lands.
 
 
 def bug_data_failure(sync: DownstreamSync,
-                     test_results: List[ResultsEntry],
-                     treeherder_url: Optional[Text],
-                     wpt_sha: Optional[Text],
-                     ) -> Tuple[Text, Text]:
+                     test_results: list[ResultsEntry],
+                     treeherder_url: str | None,
+                     wpt_sha: str | None,
+                     ) -> tuple[str, str]:
     summary = make_summary(test_results,
                            "New wpt failures")
 
@@ -491,8 +490,8 @@ These updates will be on mozilla-central once bug {sync_bug_id} lands.
     return summary, comment
 
 
-def make_bug(summary: Text, comment: Text, product: Text, component: Text,
-             depends: List[int]) -> int:
+def make_bug(summary: str, comment: str, product: str, component: str,
+             depends: list[int]) -> int:
     bug_id = env.bz.new(summary, comment, product, component,
                         whiteboard="[wpt]", bug_type="defect", assign_to_sync=False)
     with env.bz.bug_ctx(bug_id) as bug:
@@ -503,7 +502,7 @@ def make_bug(summary: Text, comment: Text, product: Text, component: Text,
 
 @mut('sync')
 def update_metadata(sync: DownstreamSync,
-                    bugs: Dict[int, List[ResultsEntryStatus]],
+                    bugs: dict[int, list[ResultsEntryStatus]],
                     ) -> None:
     newrelic.agent.record_custom_event("sync_bug_metadata", params={
         "sync_bug": sync.bug,

@@ -98,7 +98,7 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
-    assert ("Setting bug {} add_blocks {}".format(sync.bug, downstream_sync.bug)
+    assert (f"Setting bug {sync.bug} add_blocks {downstream_sync.bug}"
             in env.bz.output.getvalue())
 
     try_push = sync.latest_try_push

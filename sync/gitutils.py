@@ -11,7 +11,7 @@ from .repos import cinnabar
 
 from git.objects.commit import Commit
 from git.repo.base import Repo
-from typing import Any, Dict, Callable, Optional, Text
+from typing import Any, Dict, Callable, Optional
 
 env = Environment()
 
@@ -19,7 +19,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def have_gecko_hg_commit(git_gecko: Repo, hg_rev: Text) -> bool:
+def have_gecko_hg_commit(git_gecko: Repo, hg_rev: str) -> bool:
     try:
         cinnabar(git_gecko).hg2git(hg_rev)
     except ValueError:
@@ -28,7 +28,7 @@ def have_gecko_hg_commit(git_gecko: Repo, hg_rev: Text) -> bool:
 
 
 def update_repositories(git_gecko: Optional[Repo], git_wpt: Optional[Repo],
-                        wait_gecko_commit: Optional[Text] = None) -> None:
+                        wait_gecko_commit: Optional[str] = None) -> None:
     if git_gecko is not None:
         if wait_gecko_commit is not None:
 
@@ -85,7 +85,7 @@ def _update_wpt(git_wpt: Repo) -> None:
         git_wpt.git.fetch("origin")
 
 
-def refs(git: Repo, prefix: Optional[Text] = None) -> Dict[Text, Text]:
+def refs(git: Repo, prefix: Optional[str] = None) -> Dict[str, str]:
     rv = {}
     refs = git.git.show_ref().split("\n")
     for item in refs:
@@ -96,7 +96,7 @@ def refs(git: Repo, prefix: Optional[Text] = None) -> Dict[Text, Text]:
     return rv
 
 
-def pr_for_commit(git_wpt: Repo, rev: Text) -> Optional[int]:
+def pr_for_commit(git_wpt: Repo, rev: str) -> Optional[int]:
     prefix = "refs/remotes/origin/pr/"
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
@@ -104,7 +104,7 @@ def pr_for_commit(git_wpt: Repo, rev: Text) -> Optional[int]:
     return None
 
 
-def gecko_repo(git_gecko: Repo, head: Commit) -> Optional[Text]:
+def gecko_repo(git_gecko: Repo, head: Commit) -> Optional[str]:
     repos = ([("central", env.config["gecko"]["refs"]["central"])] +
              [(name, ref) for name, ref in env.config["gecko"]["refs"].items()
               if name != "central"])
@@ -115,7 +115,7 @@ def gecko_repo(git_gecko: Repo, head: Commit) -> Optional[Text]:
     return None
 
 
-def status(repo: Repo) -> Dict[Text, Dict[Text, Any]]:
+def status(repo: Repo) -> Dict[str, Dict[str, Any]]:
     status_entries = repo.git.status(z=True).split("\0")
     rv = {}
     for item in status_entries:
@@ -149,7 +149,7 @@ def handle_empty_commit(worktree, e):
     return False
 
 
-def cherry_pick(worktree: Repo, commit: Text) -> bool:
+def cherry_pick(worktree: Repo, commit: str) -> bool:
     try:
         worktree.git.cherry_pick(commit)
         return True

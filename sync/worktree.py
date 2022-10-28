@@ -15,7 +15,7 @@ from .repos import pygit2_get, wrapper_get
 from git.repo.base import Repo
 from pygit2 import Worktree as PyGit2Worktree
 from pygit2.repository import Repository
-from typing import Any, Iterator, Optional, Text, Tuple
+from typing import Any, Iterator, Optional, Tuple
 
 env = Environment()
 
@@ -110,7 +110,7 @@ def delete_worktree(repo: Repo, process_name: ProcessName, worktree: PyGit2Workt
             logger.warning("Failed to remove worktree %s:%s" %
                            (worktree.path, traceback.format_exc()))
         else:
-            logger.info("Removed worktree {}".format(worktree.path))
+            logger.info(f"Removed worktree {worktree.path}")
         worktree.prune(True)
 
         wrapper = wrapper_get(repo)
@@ -171,7 +171,7 @@ class Worktree:
         return MutGuard(lock, self)
 
     @property
-    def lock_key(self) -> Tuple[Text, Text]:
+    def lock_key(self) -> Tuple[str, str]:
         return (self.process_name.subtype, self.process_name.obj_id)
 
     @mut()
@@ -206,7 +206,7 @@ class Worktree:
                     logger.warning("Found existing content in worktree path %s, removing" %
                                    self.path)
                     shutil.rmtree(self.path)
-                logger.info("Creating worktree {} at {}".format(self.worktree_name, self.path))
+                logger.info(f"Creating worktree {self.worktree_name} at {self.path}")
                 if not os.path.exists(os.path.dirname(self.path)):
                     os.makedirs(os.path.dirname(self.path))
                 worktree = self.pygit2_repo.add_worktree(self.worktree_name,

@@ -16,7 +16,7 @@ import six
 from sync import repos
 from sync.env import Environment
 
-from typing import Any, Callable, Dict, List, Optional, Text, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 env = Environment()
@@ -36,7 +36,7 @@ class Command:
         self.path = path
         self.logger = logger
 
-    def get(self, *subcommand: Text, **opts: Any) -> bytes:
+    def get(self, *subcommand: str, **opts: Any) -> bytes:
         """ Run the specified subcommand with `command` and return the result.
 
         eg. r = mach.get('test-info', 'path/to/test')
@@ -57,7 +57,7 @@ class Command:
         if name.endswith("_"):
             name = name[:-1]
 
-        def call(self: Any, *args: Text, **kwargs: Any) -> Text:
+        def call(self: Any, *args: str, **kwargs: Any) -> str:
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
         args: Tuple[Any, ...] = (call, self)
@@ -71,7 +71,7 @@ class Mach(Command):
     def __init__(self, path):
         Command.__init__(self, "mach", path)
 
-    def get(self, *subcommand: Text, **opts: Any) -> bytes:
+    def get(self, *subcommand: str, **opts: Any) -> bytes:
         state_path = repos.Gecko.get_state_path(env.config, self.path)
 
         if "env" in opts:
@@ -93,19 +93,19 @@ def create_mock(name):
         _data = {}
         _log = []
 
-        def __init__(self, path: Optional[Text]) -> None:
+        def __init__(self, path: Optional[str]) -> None:
             self.name = name
             self.path = path
 
         @classmethod
-        def set_data(cls, command: Text, value: Text) -> None:
+        def set_data(cls, command: str, value: str) -> None:
             cls._data[command] = value
 
         @classmethod
-        def get_log(cls) -> List[Dict[Text, Any]]:
+        def get_log(cls) -> List[Dict[str, Any]]:
             return cls._log
 
-        def get(self, *args: Text, **kwargs: Any) -> bytes:
+        def get(self, *args: str, **kwargs: Any) -> bytes:
             data = self._data.get(args[0], b"")
             if callable(data):
                 data = data(*args[1:], **kwargs)

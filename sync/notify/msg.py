@@ -9,7 +9,7 @@ from ..env import Environment
 
 from .results import statuses, browsers
 
-from typing import List, Iterable, Mapping, Optional, Text, Tuple, Union, TYPE_CHECKING
+from typing import Iterable, Mapping, TYPE_CHECKING
 if TYPE_CHECKING:
     from sync.notify.results import Result, Results, SubtestResult, TestResult
     from sync.notify.results import ResultsEntry
@@ -17,11 +17,11 @@ if TYPE_CHECKING:
 env = Environment()
 
 
-def status_str(result: Union[Result, SubtestResult, TestResult],
-               browser: Text = "firefox",
-               include_status: Text = "head",
+def status_str(result: Result | SubtestResult | TestResult,
+               browser: str = "firefox",
+               include_status: str = "head",
                include_other_browser: bool = False,
-               ) -> Optional[Text]:
+               ) -> str | None:
     """Construct a string containing the statuses for a results.
 
     :param result: The Result object for which to construct the string.
@@ -65,7 +65,7 @@ def status_str(result: Union[Result, SubtestResult, TestResult],
     return value
 
 
-def summary_value(result_data: Mapping[Text, int]) -> Text:
+def summary_value(result_data: Mapping[str, int]) -> str:
     by_result = defaultdict(list)
     for job_name, value in result_data.items():
         by_result[value].append(job_name)
@@ -77,7 +77,7 @@ def summary_value(result_data: Mapping[Text, int]) -> Text:
                     for count, jobs in sorted(by_result.items()))
 
 
-def bug_str(url: Text) -> Text:
+def bug_str(url: str) -> str:
     """Create a bug string for a given bug url"""
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
@@ -87,7 +87,7 @@ def bug_str(url: Text) -> Text:
     return "[%s]()" % url
 
 
-def list_join(items_iter: Iterable) -> Text:
+def list_join(items_iter: Iterable) -> str:
     """Join a list of strings using commands, with "and" before the final item."""
     items = list(items_iter)
     if len(items) == 0:
@@ -99,7 +99,7 @@ def list_join(items_iter: Iterable) -> Text:
     return rv
 
 
-def summary_message(results: Results) -> Text:
+def summary_message(results: Results) -> str:
     """Generate a summary message for results indicating how many tests ran"""
     summary = results.summary()
 
@@ -109,9 +109,9 @@ def summary_message(results: Results) -> Text:
                                 if "GitHub" in job_names[browser])
 
     gecko_configs = len([item for item in job_names["firefox"] if item != "GitHub"])
-    data = ["Ran {} Firefox configurations based on mozilla-central".format(gecko_configs)]
+    data = [f"Ran {gecko_configs} Firefox configurations based on mozilla-central"]
     if github_browsers:
-        data[-1] += ", and {} on GitHub CI".format(github_browsers)
+        data[-1] += f", and {github_browsers} on GitHub CI"
     data.append("")
     data.append("Total %s tests" % summary.parent_tests)
 
@@ -143,7 +143,7 @@ def summary_message(results: Results) -> Text:
     return "\n".join(data)
 
 
-def links_message(results: Results) -> Text:
+def links_message(results: Results) -> str:
     """Generate a list of relevant links for the results"""
     data = []
 
@@ -163,7 +163,7 @@ def links_message(results: Results) -> Text:
     return "\n".join(data)
 
 
-def detail_message(results: Results) -> List[Text]:
+def detail_message(results: Results) -> list[str]:
     """Generate a message for results highlighting specific noteworthy test outcomes"""
     data = []
 
@@ -194,12 +194,12 @@ def detail_message(results: Results) -> List[Text]:
     return data
 
 
-def detail_part(details_type: Optional[Text],
+def detail_part(details_type: str | None,
                 iterator: Iterable[ResultsEntry],
-                include_bugs: Optional[Tuple[Text, ...]],
-                include_status: Text,
+                include_bugs: tuple[str, ...] | None,
+                include_status: str,
                 include_other_browser: bool,
-                ) -> Optional[Text]:
+                ) -> str | None:
     """Generate a message for a specific class of notable results.
 
     :param details_type: The name of the results class
@@ -241,7 +241,7 @@ def detail_part(details_type: Optional[Text],
         else:
             if msg_line:
                 msg_line += "\n"
-            msg_line += "  * {}: {}".format(subtest, status)
+            msg_line += f"  * {subtest}: {status}"
 
         if include_bugs:
             prefixes = [bug_prefixes[item] for item in include_bugs]
@@ -256,7 +256,7 @@ def detail_part(details_type: Optional[Text],
     return "\n".join(item_data) + "\n"
 
 
-def for_results(results: Results) -> Tuple[Text, Optional[Text]]:
+def for_results(results: Results) -> tuple[str, str | None]:
     """Generate a notification message for results
 
     :param results: a Results object
@@ -271,7 +271,7 @@ def for_results(results: Results) -> Tuple[Text, Optional[Text]]:
     msg_parts = [item for item in msg_parts if item]
     truncated, message = truncate_message(msg_parts)
     if truncated:
-        truncated_message: Optional[Text] = message
+        truncated_message: str | None = message
         message = "\n".join(msg_parts)
     else:
         truncated_message = None
@@ -279,7 +279,7 @@ def for_results(results: Results) -> Tuple[Text, Optional[Text]]:
     return message, truncated_message
 
 
-def truncate_message(parts: Iterable[Text]) -> Tuple[bool, Text]:
+def truncate_message(parts: Iterable[str]) -> tuple[bool, str]:
     """Take an iterator of message parts and return a string consisting of
     all the parts starting from the first that will fit into a
     bugzilla comment, seperated by new lines.

@@ -4,7 +4,7 @@ import sys
 from collections import defaultdict
 from configparser import RawConfigParser
 
-from typing import Any, Dict, Text
+from typing import Any, Dict
 
 _config = None
 
@@ -35,7 +35,7 @@ def get_root():
     return root, repo_root
 
 
-def load() -> Dict[Text, Any]:
+def load() -> Dict[str, Any]:
     global _config
     if _config is None:
         root, _ = get_root()
@@ -52,7 +52,7 @@ def load() -> Dict[Text, Any]:
 def load_files(ini_sync, ini_credentials):
     root, repo_root = get_root()
 
-    def nested() -> Dict[Text, Any]:
+    def nested() -> Dict[str, Any]:
         return defaultdict(nested)
 
     config = nested()

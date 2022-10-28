@@ -12,7 +12,7 @@ from six.moves import urllib
 from . import log
 from .env import Environment
 
-from typing import Any, Dict, List, Optional, Set, Text, Tuple, Union
+from typing import Any
 from bugsy import Bug
 
 env = Environment()
@@ -39,7 +39,7 @@ def bz_url_from_api_url(api_url):
     return urllib.parse.urlunparse(bz_url)
 
 
-def bug_number_from_url(url: Text) -> Optional[Text]:
+def bug_number_from_url(url: str) -> str | None:
     if url is None:
         return None
     bugs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("id")
@@ -51,7 +51,7 @@ def bug_number_from_url(url: Text) -> Optional[Text]:
 status_re = re.compile(r"\[wptsync ([^\[ ]+)(?: ([^\[ ]+))?\]")
 
 
-def get_sync_data(whiteboard: Text) -> Tuple[Optional[Text], Optional[Text]]:
+def get_sync_data(whiteboard: str) -> tuple[str | None, str | None]:
     matches = status_re.findall(whiteboard)
     if matches:
         subtype, status = matches[0]
@@ -61,12 +61,12 @@ def get_sync_data(whiteboard: Text) -> Tuple[Optional[Text], Optional[Text]]:
     return None, None
 
 
-def set_sync_data(whiteboard: Text, subtype: Optional[Text], status: Optional[Text]) -> Text:
+def set_sync_data(whiteboard: str, subtype: str | None, status: str | None) -> str:
     if subtype is None:
         raise ValueError
 
     if status:
-        text = "[wptsync {} {}]".format(subtype, status)
+        text = f"[wptsync {subtype} {status}]"
     else:
         text = "[wptsync %s]" % subtype
     new = status_re.sub(text, whiteboard)
@@ -85,7 +85,7 @@ def check_valid_comment(text):
 
 
 class Bugzilla:
-    bug_cache: Dict[int, Bug] = {}
+    bug_cache: dict[int, Bug] = {}
 
     def __init__(self, config):
         self.api_url = config["bugzilla"]["url"]
@@ -98,8 +98,8 @@ class Bugzilla:
     def bug_ctx(self, bug_id: int) -> BugContext:
         return BugContext(self, bug_id)
 
-    def bugzilla_url(self, bug_id: int) -> Text:
-        return "{}/show_bug.cgi?id={}".format(self.bz_url, bug_id)
+    def bugzilla_url(self, bug_id: int) -> str:
+        return f"{self.bz_url}/show_bug.cgi?id={bug_id}"
 
     def id_from_url(self, url, bz_url=None):
         if bz_url is None:
@@ -112,7 +112,7 @@ class Bugzilla:
             return None
         return query["id"][0]
 
-    def _get_bug(self, bug_id: int) -> Optional[Bug]:
+    def _get_bug(self, bug_id: int) -> Bug | None:
         if bug_id not in self.bug_cache:
             try:
                 bug = self.bugzilla.get(bug_id)
@@ -120,7 +120,7 @@ class Bugzilla:
                 logger.error("Failed to retrieve bug with id %s" % bug_id)
                 return None
             except Exception as e:
-                logger.error("Failed to retrieve bug with id {}: {}".format(bug_id, e))
+                logger.error(f"Failed to retrieve bug with id {bug_id}: {e}")
                 newrelic.agent.record_exception()
                 return None
 
@@ -129,29 +129,29 @@ class Bugzilla:
 
     def comment(self,
                 bug_id: int,
-                comment: Text,
+                comment: str,
                 **kwargs: Any
                 ) -> None:
         bug = self._get_bug(bug_id)
         if bug is None:
-            logger.error("Failed to find bug {} to add comment:\n{}".format(bug_id, comment))
+            logger.error(f"Failed to find bug {bug_id} to add comment:\n{comment}")
             return
         body = {
             "comment": check_valid_comment(comment)
         }
         body.update(kwargs)
-        self.bugzilla.request('bug/{}/comment'.format(bug.id),
+        self.bugzilla.request(f'bug/{bug.id}/comment',
                               method='POST', json=body)
 
     def new(self,
-            summary: Text,
-            comment: Text,
-            product: Text,
-            component: Text,
-            whiteboard: Optional[Text] = None,
-            priority: Optional[Text] = None,
-            url: Optional[Text] = None,
-            bug_type: Text = "task",
+            summary: str,
+            comment: str,
+            product: str,
+            component: str,
+            whiteboard: str | None = None,
+            priority: str | None = None,
+            url: str | None = None,
+            bug_type: str = "task",
             assign_to_sync: bool = True
             ):
         # type (...) -> int
@@ -180,9 +180,9 @@ class Bugzilla:
         return bug.id
 
     def set_component(self,
-                      bug: Union[Bug, int],
-                      product: Optional[Text] = None,
-                      component: Optional[Text] = None
+                      bug: Bug | int,
+                      product: str | None = None,
+                      component: str | None = None
                       ):
         # type (...) -> None
         if not isinstance(bug, bugsy.Bug):
@@ -201,11 +201,11 @@ class Bugzilla:
             try:
                 self.bugzilla.put(bug)
             except bugsy.BugsyException:
-                logger.error("Failed to set component {} :: {}".format(bug.product, bug.component))
+                logger.error(f"Failed to set component {bug.product} :: {bug.component}")
 
     def set_whiteboard(self,
-                       bug: Union[Bug, int],
-                       whiteboard: Text
+                       bug: Bug | int,
+                       whiteboard: str
                        ):
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
@@ -217,17 +217,17 @@ class Bugzilla:
         except bugsy.errors.BugsyException:
             logger.warning(traceback.format_exc())
         except Exception as e:
-            logger.warning("Problem setting Bug {} Whiteboard: {}".format(bug.id, e))
+            logger.warning(f"Problem setting Bug {bug.id} Whiteboard: {e}")
             newrelic.agent.record_exception()
 
-    def get_whiteboard(self, bug: Union[Bug, int]) -> Optional[Text]:
+    def get_whiteboard(self, bug: Bug | int) -> str | None:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if not bug:
             return None
         return bug._bug.get("whiteboard", "")
 
-    def get_status(self, bug: Union[Bug, int]) -> Optional[Tuple[Text, Text]]:
+    def get_status(self, bug: Bug | int) -> tuple[str, str] | None:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if not bug:
@@ -235,9 +235,9 @@ class Bugzilla:
         return (bug.status, bug.resolution)
 
     def set_status(self,
-                   bug: Union[Bug, int],
-                   status: Text,
-                   resolution: Optional[Text] = None
+                   bug: Bug | int,
+                   status: str,
+                   resolution: str | None = None
                    ) -> None:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
@@ -249,7 +249,7 @@ class Bugzilla:
             bug.resolution = resolution
         self.bugzilla.put(bug)
 
-    def get_dupe(self, bug_id: Union[Bug, int]) -> Optional[int]:
+    def get_dupe(self, bug_id: Bug | int) -> int | None:
         if not isinstance(bug_id, bugsy.Bug):
             bug = self._get_bug(bug_id)
         else:
@@ -270,11 +270,11 @@ class BugContext:
     def __enter__(self) -> BugContext:
         self.bug: Bug = self.bugzilla._get_bug(self.bug_id)
         self._comments = None
-        self.comment: Optional[Dict[Text, Any]] = None
-        self.attachments: List[Dict[Text, Any]] = []
-        self.depends: Dict[Text, List[int]] = {"add": [], "remove": []}
-        self.blocks: Dict[Text, List[int]] = {"add": [], "remove": []}
-        self.dirty: Set[Text] = set()
+        self.comment: dict[str, Any] | None = None
+        self.attachments: list[dict[str, Any]] = []
+        self.depends: dict[str, list[int]] = {"add": [], "remove": []}
+        self.blocks: dict[str, list[int]] = {"add": [], "remove": []}
+        self.dirty: set[str] = set()
 
         return self
 
@@ -307,7 +307,7 @@ class BugContext:
         self.bug = None
 
     def __setitem__(self,
-                    name: Text,
+                    name: str,
                     value: Any
                     ):
         if name == "comment":
@@ -316,9 +316,9 @@ class BugContext:
         self.dirty.add(name)
 
     def add_comment(self,
-                    comment: Text,
+                    comment: str,
                     check_dupe: bool = True,
-                    comment_tags: List[Text] = None,
+                    comment_tags: list[str] = None,
                     is_private: bool = False,
                     is_markdown: bool = False
                     ):
@@ -344,7 +344,7 @@ class BugContext:
             self._comments = self.bug.get_comments()
         return self._comments
 
-    def needinfo(self, *requestees: Text) -> None:
+    def needinfo(self, *requestees: str) -> None:
         if not requestees:
             return
         flags = self.bug._bug.get("flags", [])
@@ -363,16 +363,16 @@ class BugContext:
 
     def add_attachment(self,
                        data: bytes,
-                       file_name: Text,
-                       summary: Text,
-                       content_type: Text = "text/plain",
+                       file_name: str,
+                       summary: str,
+                       content_type: str = "text/plain",
                        comment=None,  # type Optional[Text]
                        is_patch: bool = False,
                        is_private: bool = False,
                        is_markdown: bool = False,
-                       flags: Optional[List[Text]] = None
+                       flags: list[str] | None = None
                        ):
-        body: Dict[Text, Any] = {
+        body: dict[str, Any] = {
             "data": base64.encodestring(data).decode("ascii"),
             "file_name": file_name,
             "summary": summary,
@@ -417,7 +417,7 @@ class MockBugzilla(Bugzilla):
         self.known_bugs = []
         self.dupes = {}
 
-    def _log(self, data: Union[Text, bytes]) -> None:
+    def _log(self, data: str | bytes) -> None:
         data = six.ensure_text(data)
         self.output.write(data)
         self.output.write("\n")
@@ -426,14 +426,14 @@ class MockBugzilla(Bugzilla):
         return MockBugContext(self, bug_id)
 
     def new(self,
-            summary: Text,
-            comment: Text,
-            product: Text,
-            component: Text,
-            whiteboard: Optional[Text] = None,
-            priority: Optional[Text] = None,
-            url: Optional[Text] = None,
-            bug_type: Text = "task",
+            summary: str,
+            comment: str,
+            product: str,
+            component: str,
+            whiteboard: str | None = None,
+            priority: str | None = None,
+            url: str | None = None,
+            bug_type: str = "task",
             assign_to_sync: bool = True,
             ) -> int:
         self._log("Creating a bug in component {product} :: {component}\nSummary: {summary}\n"
@@ -457,29 +457,29 @@ class MockBugzilla(Bugzilla):
 
     def comment(self,
                 bug_id: int,
-                comment: Text,
+                comment: str,
                 **kwargs: Any
                 ) -> None:
-        self._log("Posting to bug {}:\n{}".format(bug_id, comment))
+        self._log(f"Posting to bug {bug_id}:\n{comment}")
 
-    def set_component(self, bug_id: int, product: Optional[Text] = None,
-                      component: Optional[Text] = None) -> None:
-        self._log("Setting bug {} product: {} component: {}".format(bug_id, product, component))
+    def set_component(self, bug_id: int, product: str | None = None,
+                      component: str | None = None) -> None:
+        self._log(f"Setting bug {bug_id} product: {product} component: {component}")
 
-    def set_whiteboard(self, bug_id: int, whiteboard: Text) -> None:
-        self._log("Setting bug {} whiteboard: {}".format(bug_id, whiteboard))
+    def set_whiteboard(self, bug_id: int, whiteboard: str) -> None:
+        self._log(f"Setting bug {bug_id} whiteboard: {whiteboard}")
 
-    def get_whiteboard(self, bug: Union[Bug, int]) -> Text:
+    def get_whiteboard(self, bug: Bug | int) -> str:
         return "fake data"
 
-    def get_status(self, bug: Union[Bug, int]) -> Tuple[Text, Text]:
+    def get_status(self, bug: Bug | int) -> tuple[str, str]:
         return ("NEW", "")
 
-    def set_status(self, bug: Union[Bug, int], status: Text,
-                   resolution: Optional[Text] = None) -> None:
-        self._log("Setting bug {} status {}".format(bug, status))
+    def set_status(self, bug: Bug | int, status: str,
+                   resolution: str | None = None) -> None:
+        self._log(f"Setting bug {bug} status {status}")
 
-    def get_dupe(self, bug: Union[Bug, int]) -> Optional[int]:
+    def get_dupe(self, bug: Bug | int) -> int | None:
         return self.dupes.get(bug)
 
 
@@ -489,22 +489,22 @@ class MockBugContext(BugContext):
         self.bug_id = bug_id
 
     def __enter__(self) -> BugContext:
-        self.changes: List[Text] = []
-        self.comment: Optional[Dict[Text, Any]] = None
+        self.changes: list[str] = []
+        self.comment: dict[str, Any] | None = None
         return self
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         for item in self.changes:
             self.bugzilla._log("%s\n" % item)  # type: ignore
 
-    def __setitem__(self, name: Text, value: Text) -> None:
+    def __setitem__(self, name: str, value: str) -> None:
         self.changes.append("Setting bug {} {} {}".format(self.bug_id,
                                                           name, value))
 
     def add_comment(self,
-                    comment: Text,
+                    comment: str,
                     check_dupe: bool = True,
-                    comment_tags: List[Text] = None,
+                    comment_tags: list[str] = None,
                     is_private: bool = False,
                     is_markdown: bool = False
                     ) -> None:
@@ -520,22 +520,22 @@ class MockBugContext(BugContext):
         # type () -> List[bugsy.Comment]
         return []
 
-    def needinfo(self, *requestees: Text) -> None:
+    def needinfo(self, *requestees: str) -> None:
         for requestee in requestees:
-            self.changes.append("Setting bug {} needinfo {}".format(self.bug_id, requestee))
+            self.changes.append(f"Setting bug {self.bug_id} needinfo {requestee}")
 
     def add_attachment(self,
                        data: bytes,
-                       file_name: Text,
-                       summary: Text,
-                       content_type: Text = "text/plain",
+                       file_name: str,
+                       summary: str,
+                       content_type: str = "text/plain",
                        comment=None,  # type Optional[Text]
                        is_patch: bool = False,
                        is_private: bool = False,
                        is_markdown: bool = False,
-                       flags: Optional[List[Text]] = None
+                       flags: list[str] | None = None
                        ):
-        body: Dict[Text, Any] = {
+        body: dict[str, Any] = {
             "data": base64.encodestring(data),
             "file_name": file_name,
             "summary": summary,
@@ -555,13 +555,13 @@ class MockBugContext(BugContext):
                             (self.bug_id, body))
 
     def add_depends(self, bug_id: int) -> None:
-        self.changes.append("Setting bug {} add_depends {}".format(self.bug_id, bug_id))
+        self.changes.append(f"Setting bug {self.bug_id} add_depends {bug_id}")
 
     def remove_depends(self, bug_id: int) -> None:
-        self.changes.append("Setting bug {} remove_depends {}".format(self.bug_id, bug_id))
+        self.changes.append(f"Setting bug {self.bug_id} remove_depends {bug_id}")
 
     def add_blocks(self, bug_id: int) -> None:
-        self.changes.append("Setting bug {} add_blocks {}".format(self.bug_id, bug_id))
+        self.changes.append(f"Setting bug {self.bug_id} add_blocks {bug_id}")
 
     def remove_blocks(self, bug_id: int) -> None:
-        self.changes.append("Setting bug {} remove_blocks {}".format(self.bug_id, bug_id))
+        self.changes.append(f"Setting bug {self.bug_id} remove_blocks {bug_id}")

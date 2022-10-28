@@ -14,15 +14,10 @@ from .env import Environment
 from .errors import AbortError
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
-from typing import Text
 from typing import Dict
 from git.repo.base import Repo
 from typing import Any
-from typing import Optional
-from typing import Union
-from typing import List
 from typing import Callable
-from typing import Set
 from typing import Tuple
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -37,7 +32,7 @@ logger = log.get_logger(__name__)
 METADATA_RE = re.compile(br"([^:]+): (.*)")
 
 
-def get_metadata(msg: bytes) -> Dict[Text, Text]:
+def get_metadata(msg: bytes) -> dict[str, str]:
     # Since this is data we add, we can be sure it's UTF-8 encoded
     data = {}
     for line in msg.splitlines():
@@ -59,7 +54,7 @@ def try_filter(msg: bytes) -> bytes:
     return msg
 
 
-def first_non_merge(commits: List[WptCommit]) -> WptCommit:
+def first_non_merge(commits: list[WptCommit]) -> WptCommit:
     for item in commits:
         if not item.is_merge:
             return item
@@ -112,7 +107,7 @@ class GitNotes:
         self.pygit2_repo = pygit2_get(commit.repo)
         self._data = self._read()
 
-    def _read(self) -> Dict[Text, Text]:
+    def _read(self) -> dict[str, str]:
         try:
             note_sha = self.pygit2_repo.lookup_note(self.commit.sha1).id
             note_data = self.pygit2_repo[note_sha].data
@@ -120,13 +115,13 @@ class GitNotes:
             return {}
         return get_metadata(note_data)
 
-    def __getitem__(self, key: Text) -> Text:
+    def __getitem__(self, key: str) -> str:
         return self._data[key]
 
-    def __contains__(self, key: Text) -> bool:
+    def __contains__(self, key: str) -> bool:
         return key in self._data
 
-    def __setitem__(self, key: Text, value: Text) -> None:
+    def __setitem__(self, key: str, value: str) -> None:
         self._data[key] = value
         data = "\n".join("%s: %s" % item for item in self._data.items())
         self.pygit2_repo.create_note(data,
@@ -139,7 +134,7 @@ class GitNotes:
 
 class Commit:
     def __init__(self, repo: Repo,
-                 commit: Union[str, Commit, GitPythonCommit, PyGit2Commit, Oid]) -> None:
+                 commit: str | Commit | GitPythonCommit | PyGit2Commit | Oid) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
         self.cinnabar = cinnabar_map.get(repo)
@@ -157,7 +152,7 @@ class Commit:
             sha1 = commit.sha1
         elif isinstance(commit, (bytes, str)):
             if isinstance(commit, bytes):
-                commit_text: Text = commit.decode("ascii")
+                commit_text: str = commit.decode("ascii")
             else:
                 commit_text = commit
             commit_obj = self.pygit2_repo.revparse_single(commit_text)
@@ -171,10 +166,10 @@ class Commit:
         sha1 = six.ensure_text(sha1)
         if sha1 not in self.pygit2_repo:
             raise ValueError("Commit with SHA1 %s not found" % sha1)
-        self.sha1: Text = sha1
+        self.sha1: str = sha1
         self._commit = _commit
         self._pygit2_commit = _pygit2_commit
-        self._notes: Optional[GitNotes] = None
+        self._notes: GitNotes | None = None
 
     def __eq__(self, other: Any) -> bool:
         if hasattr(other, "sha1"):
@@ -208,7 +203,7 @@ class Commit:
         return self._notes
 
     @property
-    def canonical_rev(self) -> Text:
+    def canonical_rev(self) -> str:
         if self.cinnabar:
             return self.cinnabar.git2hg(self.sha1)
         return self.sha1
@@ -230,7 +225,7 @@ class Commit:
         return author.raw_email
 
     @property
-    def metadata(self) -> Dict[Text, Text]:
+    def metadata(self) -> dict[str, str]:
         return get_metadata(self.msg)
 
     @property
@@ -241,13 +236,13 @@ class Commit:
     def create(cls,
                repo: Repo,
                msg: bytes,
-               metadata: Optional[Dict[Text, Text]],
-               author: Optional[bytes] = None,
+               metadata: dict[str, str] | None,
+               author: bytes | None = None,
                amend: bool = False,
                allow_empty: bool = False
                ) -> Commit:
         msg = Commit.make_commit_msg(msg, metadata)
-        commit_kwargs: Dict[str, Any] = {}
+        commit_kwargs: dict[str, Any] = {}
         if amend:
             commit_kwargs["amend"] = True
             commit_kwargs["no_edit"] = True
@@ -260,7 +255,7 @@ class Commit:
         return cls(repo, commit.hexsha)
 
     @staticmethod
-    def make_commit_msg(msg: bytes, metadata: Optional[Dict[Text, Text]]) -> bytes:
+    def make_commit_msg(msg: bytes, metadata: dict[str, str] | None) -> bytes:
         if metadata:
             metadata_text = "\n".join("%s: %s" % item for item in sorted(metadata.items()))
             new_lines = b"\n\n" if not msg.endswith(b"\n") else b"\n"
@@ -269,7 +264,7 @@ class Commit:
             msg = msg.encode("utf8")
         return msg
 
-    def is_empty(self, prefix: Optional[str] = None) -> bool:
+    def is_empty(self, prefix: str | None = None) -> bool:
         if len(self.pygit2_commit.parents) == 1:
             # Fast-path for non-merge commits
             diff = self.pygit2_repo.diff(self.pygit2_commit,
@@ -288,35 +283,35 @@ class Commit:
                          format="",
                          patch=True).strip() == ""
 
-    def tags(self) -> List[Text]:
+    def tags(self) -> list[str]:
         return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n")
                 if item.strip()]
 
     def move(self,
              dest_repo: Repo,
              skip_empty: bool = True,
-             msg_filter: Optional[MsgFilterFunc] = None,
-             metadata: Optional[Dict[Text, Text]] = None,
-             src_prefix: Optional[str] = None,
-             dest_prefix: Optional[str] = None,
+             msg_filter: MsgFilterFunc | None = None,
+             metadata: dict[str, str] | None = None,
+             src_prefix: str | None = None,
+             dest_prefix: str | None = None,
              amend: bool = False,
              three_way: bool = True,
-             exclude: Optional[Any] = None,
+             exclude: Any | None = None,
              patch_fallback: bool = False,
              allow_empty: bool = False,
-             ) -> Optional[Commit]:
+             ) -> Commit | None:
 
         return _apply_patch(self.show(src_prefix), self.msg, self.canonical_rev, dest_repo,
                             skip_empty, msg_filter, metadata, src_prefix, dest_prefix, amend,
                             three_way, author=self.author, exclude=exclude,
                             patch_fallback=patch_fallback, allow_empty=allow_empty)
 
-    def show(self, src_prefix: Optional[str] = None, **kwargs: Any) -> bytes:
-        show_args: Tuple[str, ...] = ()
+    def show(self, src_prefix: str | None = None, **kwargs: Any) -> bytes:
+        show_args: tuple[str, ...] = ()
         if src_prefix:
             show_args = ("--", src_prefix)
         try:
-            show_kwargs: Dict[str, Any] = {"binary": True, "stdout_as_string": False}
+            show_kwargs: dict[str, Any] = {"binary": True, "stdout_as_string": False}
             show_kwargs.update(kwargs)
             return self.repo.git.show(self.sha1, *show_args, **show_kwargs) + b"\n"
         except git.GitCommandError as e:
@@ -324,25 +319,25 @@ class Commit:
 
 
 def move_commits(repo: Repo,
-                 revish: Text,
+                 revish: str,
                  message: bytes,
                  dest_repo: Repo,
                  skip_empty: bool = True,
-                 msg_filter: Optional[MsgFilterFunc] = None,
-                 metadata: Optional[Dict[Text, Text]] = None,
-                 src_prefix: Optional[str] = None,
-                 dest_prefix: Optional[str] = None,
+                 msg_filter: MsgFilterFunc | None = None,
+                 metadata: dict[str, str] | None = None,
+                 src_prefix: str | None = None,
+                 dest_prefix: str | None = None,
                  amend: bool = False,
                  three_way: bool = True,
-                 rev_name: Optional[Text] = None,
-                 author: Optional[bytes] = None,
-                 exclude: Set[str] = None,
+                 rev_name: str | None = None,
+                 author: bytes | None = None,
+                 exclude: set[str] = None,
                  patch_fallback: bool = False,
                  allow_empty: bool = False,
-                 ) -> Optional[Commit]:
+                 ) -> Commit | None:
     if rev_name is None:
         rev_name = revish
-    diff_args: Tuple[str, ...] = ()
+    diff_args: tuple[str, ...] = ()
     if src_prefix:
         diff_args = ("--", src_prefix)
     try:
@@ -359,20 +354,20 @@ def move_commits(repo: Repo,
 
 def _apply_patch(patch: bytes,
                  message: bytes,
-                 rev_name: Text,
+                 rev_name: str,
                  dest_repo: Repo,
                  skip_empty: bool = True,
-                 msg_filter: Optional[MsgFilterFunc] = None,
-                 metadata: Optional[Dict[Text, Text]] = None,
-                 src_prefix: Optional[str] = None,
-                 dest_prefix: Optional[str] = None,
+                 msg_filter: MsgFilterFunc | None = None,
+                 metadata: dict[str, str] | None = None,
+                 src_prefix: str | None = None,
+                 dest_prefix: str | None = None,
                  amend: bool = False,
                  three_way: bool = True,
-                 author: Optional[bytes] = None,
-                 exclude: Optional[Set[str]] = None,
+                 author: bytes | None = None,
+                 exclude: set[str] | None = None,
                  patch_fallback: bool = False,
                  allow_empty: bool = False,
-                 ) -> Optional[Commit]:
+                 ) -> Commit | None:
     assert isinstance(patch, bytes)
 
     if skip_empty and (not patch or patch.isspace() or
@@ -401,7 +396,7 @@ def _apply_patch(patch: bytes,
         with Store(dest_repo, rev_name + ".diff", patch) as patch_path:
             # Without this tests were failing with "Index does not match"
             dest_repo.git.update_index(refresh=True)
-            apply_kwargs: Dict[str, Any] = {}
+            apply_kwargs: dict[str, Any] = {}
             if dest_prefix:
                 apply_kwargs["directory"] = dest_prefix
             if three_way:
@@ -409,7 +404,7 @@ def _apply_patch(patch: bytes,
             else:
                 apply_kwargs["reject"] = True
 
-            err_msg: Optional[Text] = None
+            err_msg: str | None = None
             try:
                 logger.info("Trying to apply patch")
                 dest_repo.git.apply(patch_path, index=True, binary=True,
@@ -482,7 +477,7 @@ def _apply_patch(patch: bytes,
 
 class GeckoCommit(Commit):
     @property
-    def bug(self) -> Optional[int]:
+    def bug(self) -> int | None:
         bugs = commitparser.parse_bugs(self.msg.splitlines()[0])
         if len(bugs) > 1:
             logger.warning("Got multiple bugs for commit %s: %s" %
@@ -511,10 +506,10 @@ class GeckoCommit(Commit):
         from . import landing
         return landing.LandingSync.has_metadata(self.msg)
 
-    def commits_backed_out(self) -> Tuple[List[GeckoCommit], Set[int]]:
+    def commits_backed_out(self) -> tuple[list[GeckoCommit], set[int]]:
         # TODO: should bugs be int here
-        commits: List[GeckoCommit] = []
-        bugs: List[int] = []
+        commits: list[GeckoCommit] = []
+        bugs: list[int] = []
         if self.is_backout:
             nodes_bugs = commitparser.parse_backouts(self.msg)
             if nodes_bugs is None:
@@ -532,7 +527,7 @@ class GeckoCommit(Commit):
         return commits, set(bugs)
 
     def wpt_commits_backed_out(self, exclude_downstream: bool = True,
-                               exclude_landing: bool = True) -> Tuple[List[GeckoCommit], Set[int]]:
+                               exclude_landing: bool = True) -> tuple[list[GeckoCommit], set[int]]:
         """Get a list of all the wpt commits backed out by the current commit.
 
         :param exclude_downstream: Exclude commits that were downstreamed
@@ -547,7 +542,7 @@ class GeckoCommit(Commit):
                 commits.append(commit)
         return commits, set(bugs)
 
-    def landing_commits_backed_out(self) -> Tuple[List[GeckoCommit], Set[int]]:
+    def landing_commits_backed_out(self) -> tuple[list[GeckoCommit], set[int]]:
         all_commits, bugs = self.commits_backed_out()
         commits = []
         for commit in all_commits:
@@ -555,10 +550,10 @@ class GeckoCommit(Commit):
                 commits.append(commit)
         return commits, set(bugs)
 
-    def upstream_sync(self, git_gecko: Repo, git_wpt: Repo) -> Optional[UpstreamSync]:
+    def upstream_sync(self, git_gecko: Repo, git_wpt: Repo) -> UpstreamSync | None:
         from . import upstream
         if "upstream-sync" in self.notes:
-            seq_id: Optional[int] = None
+            seq_id: int | None = None
             bug_str, seq_id_str = self.notes["upstream-sync"].split(":", 1)
             if seq_id_str == "":
                 seq_id = None
@@ -581,11 +576,11 @@ class GeckoCommit(Commit):
         seq_id = sync.seq_id
         if seq_id is None:
             seq_id = ""
-        self.notes["upstream-sync"] = "{}:{}".format(sync.bug, seq_id)
+        self.notes["upstream-sync"] = f"{sync.bug}:{seq_id}"
 
 
 class WptCommit(Commit):
-    def pr(self) -> Optional[int]:
+    def pr(self) -> int | None:
         if "wpt_pr" not in self.notes:
             tags = [item.rsplit("_", 1)[1] for item in self.tags()
                     if item.startswith("merge_pr_")]
@@ -608,14 +603,14 @@ class WptCommit(Commit):
 class Store:
     """Create a named file that is deleted if no exception is raised"""
 
-    def __init__(self, repo: Repo, name: Text, data: bytes) -> None:
+    def __init__(self, repo: Repo, name: str, data: bytes) -> None:
         working_dir = repo.working_dir
         assert working_dir is not None
         self.path = os.path.join(working_dir, name)
-        self.data: Optional[bytes] = data
+        self.data: bytes | None = data
         assert isinstance(data, bytes)
 
-    def __enter__(self) -> Text:
+    def __enter__(self) -> str:
         assert self.data is not None
         with open(self.path, "wb") as f:
             f.write(self.data)
@@ -623,9 +618,9 @@ class Store:
         return self.path
 
     def __exit__(self,
-                 type: Optional[type],
-                 value: Optional[Exception],
-                 traceback: Optional[Any],
+                 type: type | None,
+                 value: Exception | None,
+                 traceback: Any | None,
                  ) -> None:
         if not type:
             os.unlink(self.path)

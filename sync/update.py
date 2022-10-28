@@ -15,7 +15,7 @@ from .repos import cinnabar
 
 from git import Repo
 from github.PullRequest import PullRequest
-from typing import Any, Dict, Iterable, List, Optional, Text, Tuple, Type, TYPE_CHECKING
+from typing import Any, Iterable, TYPE_CHECKING
 if TYPE_CHECKING:
     from sync.sync import SyncProcess
     from sync.trypush import TryPush
@@ -24,7 +24,7 @@ env = Environment()
 logger = log.get_logger(__name__)
 
 
-def handle_sync(task: Text, body: Dict[Text, Any]) -> None:
+def handle_sync(task: str, body: dict[str, Any]) -> None:
     from .tasks import get_handlers, setup
 
     handlers = get_handlers()
@@ -40,22 +40,22 @@ def handle_sync(task: Text, body: Dict[Text, Any]) -> None:
         logger.error("No handler for %s" % task)
 
 
-def construct_event(name: Text, payload: Dict[Text, Any], **kwargs: Any) -> Dict[Text, Any]:
+def construct_event(name: str, payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     event = {"event": name, "payload": payload}
     event.update(**kwargs)
     return event
 
 
-def schedule_pr_task(action: Text, pr: PullRequest, repo_update: bool = True) -> None:
+def schedule_pr_task(action: str, pr: PullRequest, repo_update: bool = True) -> None:
     event = construct_event("pull_request",
                             {"action": action, "number": pr.number, "pull_request": pr.raw_data},
                             _wptsync={"repo_update": repo_update})
-    logger.info("Action {} for pr {}".format(action, pr.number))
+    logger.info(f"Action {action} for pr {pr.number}")
     args = ("github", event)
     handle_sync(*args)
 
 
-def schedule_check_run_task(head_sha: Text, name: Text, check_run: Dict[Text, Any],
+def schedule_check_run_task(head_sha: str, name: str, check_run: dict[str, Any],
                             repo_update: bool = True) -> None:
     check_run_data = check_run.copy()
     del check_run_data["required"]
@@ -77,18 +77,18 @@ def update_for_status(pr: PullRequest, repo_update: bool = True) -> None:
             return
 
 
-def update_for_action(pr: PullRequest, action: Text, repo_update: bool = True) -> None:
+def update_for_action(pr: PullRequest, action: str, repo_update: bool = True) -> None:
     event = construct_event("pull_request",
                             {"action": action,
                              "number": pr.number,
                              "pull_request": pr.raw_data,
                              },
                             _wptsync={"repo_update": repo_update})
-    logger.info("Running action {} for PR {}".format(action, pr.number))
+    logger.info(f"Running action {action} for PR {pr.number}")
     handle_sync("github", event)
 
 
-def convert_rev(git_gecko: Repo, rev: Text) -> Tuple[Text, Text]:
+def convert_rev(git_gecko: Repo, rev: str) -> tuple[str, str]:
     try:
         git_rev = cinnabar(git_gecko).hg2git(rev)
         hg_rev = rev
@@ -97,17 +97,17 @@ def convert_rev(git_gecko: Repo, rev: Text) -> Tuple[Text, Text]:
         try:
             hg_rev = cinnabar(git_gecko).git2hg(rev)
         except ValueError:
-            raise ValueError("{} is not a valid git or hg rev".format(rev))
+            raise ValueError(f"{rev} is not a valid git or hg rev")
         git_rev = rev
     return git_rev, hg_rev
 
 
-def update_push(git_gecko: Repo, git_wpt: Repo, rev: Text, base_rev: Optional[Text] = None,
-                processes: Optional[List[Text]] = None) -> None:
+def update_push(git_gecko: Repo, git_wpt: Repo, rev: str, base_rev: str | None = None,
+                processes: list[str] | None = None) -> None:
     git_rev, hg_rev = convert_rev(git_gecko, rev)
     git_rev_commit = git_gecko.rev_parse(git_rev)
 
-    hg_rev_base: Optional[Text] = None
+    hg_rev_base: str | None = None
     if base_rev is not None:
         _, hg_rev_base = convert_rev(git_gecko, base_rev)
 
@@ -118,7 +118,7 @@ def update_push(git_gecko: Repo, git_wpt: Repo, rev: Text, base_rev: Optional[Te
                                env.config["gecko"]["refs"]["autoland"]):
         routing_key = "integration/autoland"
 
-    kwargs: Dict[Text, Any] = {"_wptsync": {}}
+    kwargs: dict[str, Any] = {"_wptsync": {}}
 
     if hg_rev_base is not None:
         kwargs["_wptsync"]["base_rev"] = hg_rev_base
@@ -240,8 +240,8 @@ def update_bug(git_gecko: Repo, git_wpt: Repo, bug: int) -> None:
                     logger.warning("Can't update sync %s" % sync)
 
 
-def update_from_github(git_gecko: Repo, git_wpt: Repo, sync_classes: List[Type[SyncProcess]],
-                       statuses: Optional[List[Text]] = None) -> None:
+def update_from_github(git_gecko: Repo, git_wpt: Repo, sync_classes: list[type[SyncProcess]],
+                       statuses: list[str] | None = None) -> None:
     if statuses is None:
         statuses = ["*"]
     update_repositories(git_gecko, git_wpt)
@@ -261,7 +261,7 @@ def update_from_github(git_gecko: Repo, git_wpt: Repo, sync_classes: List[Type[S
 
 
 def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo,
-                         try_push: Optional[TryPush] = None) -> None:
+                         try_push: TryPush | None = None) -> None:
     if try_push is None:
         try_pushes = trypush.TryPush.load_all(git_gecko)
     else:
@@ -293,8 +293,8 @@ def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo,
                                state)
 
 
-def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: Optional[int] = None,
-                 sync: Optional[SyncProcess] = None) -> None:
+def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int | None = None,
+                 sync: SyncProcess | None = None) -> None:
     logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
 
     syncs: Iterable[SyncProcess] = []
@@ -323,8 +323,8 @@ def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: Optional[int] = None,
                 pass
 
 
-def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: List[Tuple[int, List[Any], Text]],
-              rebase: bool = False) -> List[int]:
+def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: list[tuple[int, list[Any], str]],
+              rebase: bool = False) -> list[int]:
     from .sync import LandableStatus
 
     retriggerable_prs = [(pr_id, commits, status)
@@ -343,11 +343,11 @@ def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: List[Tuple[int, Li
     return errors
 
 
-def do_retrigger(git_gecko: Repo, git_wpt: Repo, pr_data: Tuple[int, List[Any], Text],
-                 rebase: bool = False) -> Optional[int]:
+def do_retrigger(git_gecko: Repo, git_wpt: Repo, pr_data: tuple[int, list[Any], str],
+                 rebase: bool = False) -> int | None:
     pr_id, commits, status = pr_data
     try:
-        logger.info("Retriggering {} (status {})".format(pr_id, status))
+        logger.info(f"Retriggering {pr_id} (status {status})")
         pr = env.gh_wpt.get_pull(pr_id)
         if pr is None:
             return pr_id
