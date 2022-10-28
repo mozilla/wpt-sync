@@ -2,7 +2,7 @@ from __future__ import annotations
 from . import log
 from .env import Environment
 
-from typing import Dict, Iterable, Optional, Set, Text, TYPE_CHECKING
+from typing import Iterable, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.sync import SyncProcess
@@ -16,7 +16,7 @@ def get_pr_sync(git_gecko: Repo,
                 git_wpt: Repo,
                 pr_id: int,
                 log: bool = True,
-                ) -> Optional[SyncProcess]:
+                ) -> SyncProcess | None:
     from . import downstream
     from . import upstream
 
@@ -25,7 +25,7 @@ def get_pr_sync(git_gecko: Repo,
         sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if log:
         if sync:
-            logger.info("Got sync {!r} for PR {}".format(sync, pr_id))
+            logger.info(f"Got sync {sync!r} for PR {pr_id}")
         else:
             logger.info("No sync found for PR %s" % pr_id)
     return sync
@@ -34,8 +34,8 @@ def get_pr_sync(git_gecko: Repo,
 def get_bug_sync(git_gecko: Repo,
                  git_wpt: Repo,
                  bug_number: int,
-                 statuses: Optional[Iterable[Text]] = None
-                 ) -> Dict[Text, Set[SyncProcess]]:
+                 statuses: Iterable[str] | None = None
+                 ) -> dict[str, set[SyncProcess]]:
     from . import downstream
     from . import landing
     from . import upstream
@@ -63,11 +63,11 @@ def get_bug_sync(git_gecko: Repo,
 
 def get_syncs(git_gecko: Repo,
               git_wpt: Repo,
-              sync_type: Text,
+              sync_type: str,
               obj_id: int,
-              status: Optional[Text] = None,
-              seq_id: Optional[int] = None
-              ) -> Set[SyncProcess]:
+              status: str | None = None,
+              seq_id: int | None = None
+              ) -> set[SyncProcess]:
     from . import downstream
     from . import landing
     from . import upstream

@@ -497,7 +497,7 @@ def mock_try_push(git_gecko):
     log = []
 
     def push(self):
-        log.append("Pushing to try with message:\n{}".format(self.worktree.head.commit.message))
+        log.append(f"Pushing to try with message:\n{self.worktree.head.commit.message}")
         return repos.cinnabar(git_gecko).git2hg(self.worktree.commit("HEAD~").hexsha)
 
     trypush.TryCommit.push = push
@@ -735,10 +735,10 @@ def mock_taskgroup(tc_response):
             with requests_mock.Mocker() as m:
                 taskgroup_id = "test"
                 m.register_uri("GET",
-                               "{}task/{}".format(tc.QUEUE_BASE, taskgroup_id),
+                               f"{tc.QUEUE_BASE}task/{taskgroup_id}",
                                body=None)
                 m.register_uri("GET",
-                               "{}task-group/{}/list".format(tc.QUEUE_BASE, taskgroup_id),
+                               f"{tc.QUEUE_BASE}task-group/{taskgroup_id}/list",
                                body=f)
                 taskgroup = tc.TaskGroup(taskgroup_id)
                 taskgroup.refresh()

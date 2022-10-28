@@ -17,14 +17,9 @@ from .repos import pygit2_get
 
 from typing import (Any,
                     DefaultDict,
-                    Dict,
                     Iterator,
-                    List,
-                    Optional,
                     Set,
-                    Text,
                     Tuple,
-                    Union,
                     TYPE_CHECKING)
 from git.refs.reference import Reference
 from git.repo.base import Repo
@@ -98,9 +93,9 @@ class IdentityMap(type):
 
 
 def iter_tree(pygit2_repo: Repository,
-              root_path: Text = "",
-              rev: Optional[PyGit2Commit] = None,
-              ) -> Iterator[Tuple[Tuple[Text, ...], TreeEntry]]:
+              root_path: str = "",
+              rev: PyGit2Commit | None = None,
+              ) -> Iterator[tuple[tuple[str, ...], TreeEntry]]:
     """Iterator over all paths in a tree"""
     if rev is None:
         ref_name = env.config["sync"]["ref"]
@@ -124,7 +119,7 @@ def iter_tree(pygit2_repo: Repository,
         path, tree = stack.pop()
         assert isinstance(tree, pygit2.Tree)
         for item in tree:
-            item_path = "{}/{}".format(path, item.name)
+            item_path = f"{path}/{item.name}"
             if isinstance(item, pygit2.Tree):
                 stack.append((item_path, item))
             else:
@@ -134,7 +129,7 @@ def iter_tree(pygit2_repo: Repository,
 
 
 def iter_process_names(pygit2_repo: Repository,
-                       kind: List[str] = ["sync", "try"],
+                       kind: list[str] = ["sync", "try"],
                        ) -> Iterator[ProcessName]:
     """Iterator over all ProcessName objects"""
     ref = pygit2_repo.references[env.config["sync"]["ref"]]
@@ -151,7 +146,7 @@ def iter_process_names(pygit2_repo: Repository,
     while stack:
         path, tree = stack.pop()
         for item in tree:
-            item_path = "{}/{}".format(path, item.name)
+            item_path = f"{path}/{item.name}"
             if isinstance(item, pygit2.Tree):
                 stack.append((item_path, item))
             else:
@@ -167,11 +162,11 @@ class ProcessNameIndex(metaclass=IdentityMap):
         self.reset()
 
     @classmethod
-    def _cache_key(cls, repo: Repo) -> Tuple[Repo]:
+    def _cache_key(cls, repo: Repo) -> tuple[Repo]:
         return (repo,)
 
     def reset(self) -> None:
-        self._all: Set[ProcessName] = set()
+        self._all: set[ProcessName] = set()
         self._data: ProcessNameIndexData = defaultdict(
             lambda: defaultdict(
                 lambda: defaultdict(set)))
@@ -195,8 +190,8 @@ class ProcessNameIndex(metaclass=IdentityMap):
             self.build()
         return process_name in self._all
 
-    def get(self, obj_type: Text, subtype: Optional[Text] = None,
-            obj_id: Optional[Text] = None) -> Set[ProcessName]:
+    def get(self, obj_type: str, subtype: str | None = None,
+            obj_id: str | None = None) -> set[ProcessName]:
         if not self._built:
             self.build()
 
@@ -207,7 +202,7 @@ class ProcessNameIndex(metaclass=IdentityMap):
                 break
             target = target[key]  # type: ignore
 
-        rv: Set[ProcessName] = set()
+        rv: set[ProcessName] = set()
         stack = [target]
 
         while stack:
@@ -231,8 +226,8 @@ class ProcessName(metaclass=IdentityMap):
 
     """
 
-    def __init__(self, obj_type: Text, subtype: Text, obj_id: Text,
-                 seq_id: Union[Text, int]) -> None:
+    def __init__(self, obj_type: str, subtype: str, obj_id: str,
+                 seq_id: str | int) -> None:
         assert obj_type is not None
         assert subtype is not None
         assert obj_id is not None
@@ -245,11 +240,11 @@ class ProcessName(metaclass=IdentityMap):
 
     @classmethod
     def _cache_key(cls,
-                   obj_type: Text,
-                   subtype: Text,
-                   obj_id: Text,
-                   seq_id: Union[Text, int],
-                   ) -> Tuple[Text, Text, Text, Text]:
+                   obj_type: str,
+                   subtype: str,
+                   obj_id: str,
+                   seq_id: str | int,
+                   ) -> tuple[str, str, str, str]:
         return (obj_type, subtype, six.ensure_text(str(obj_id)), six.ensure_text(str(seq_id)))
 
     def __str__(self) -> str:
@@ -258,10 +253,10 @@ class ProcessName(metaclass=IdentityMap):
             data = data.encode("utf8")
         return data
 
-    def key(self) -> Tuple[Text, Text, Text, Text]:
+    def key(self) -> tuple[str, str, str, str]:
         return self._cache_key(self._obj_type, self._subtype, self._obj_id, self._seq_id)
 
-    def path(self) -> Text:
+    def path(self) -> str:
         return "%s/%s/%s/%s" % self.as_tuple()
 
     def __eq__(self, other: Any) -> bool:
@@ -275,30 +270,30 @@ class ProcessName(metaclass=IdentityMap):
         return hash(self.key())
 
     @property
-    def obj_type(self) -> Text:
+    def obj_type(self) -> str:
         return self._obj_type
 
     @property
-    def subtype(self) -> Text:
+    def subtype(self) -> str:
         return self._subtype
 
     @property
-    def obj_id(self) -> Text:
+    def obj_id(self) -> str:
         return self._obj_id
 
     @property
     def seq_id(self) -> int:
         return int(self._seq_id)
 
-    def as_tuple(self) -> Tuple[Text, Text, Text, int]:
+    def as_tuple(self) -> tuple[str, str, str, int]:
         return (self.obj_type, self.subtype, self.obj_id, self.seq_id)
 
     @classmethod
-    def from_path(cls, path: Text) -> Optional[ProcessName]:
+    def from_path(cls, path: str) -> ProcessName | None:
         return cls.from_tuple(path.split("/"))
 
     @classmethod
-    def from_tuple(cls, parts: List[Text]) -> Optional[ProcessName]:
+    def from_tuple(cls, parts: list[str]) -> ProcessName | None:
         if parts[0] not in ["sync", "try"]:
             return None
         if len(parts) != 4:
@@ -306,7 +301,7 @@ class ProcessName(metaclass=IdentityMap):
         return cls(*parts)
 
     @classmethod
-    def with_seq_id(cls, repo: Repo, obj_type: Text, subtype: Text, obj_id: Text) -> ProcessName:
+    def with_seq_id(cls, repo: Repo, obj_type: str, subtype: str, obj_id: str) -> ProcessName:
         existing = ProcessNameIndex(repo).get(obj_type, subtype, obj_id)
         last_id = -1
         for process_name in existing:
@@ -324,9 +319,9 @@ class VcsRefObject(metaclass=IdentityMap):
     This is typically either a tag or a head (i.e. branch), but can be any
     git object."""
 
-    ref_prefix: Optional[Text] = None
+    ref_prefix: str | None = None
 
-    def __init__(self, repo: Repo, name: Union[ProcessName, SyncPointName],
+    def __init__(self, repo: Repo, name: ProcessName | SyncPointName,
                  commit_cls: type = sync_commit.Commit) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
@@ -342,31 +337,31 @@ class VcsRefObject(metaclass=IdentityMap):
         return MutGuard(lock, self)
 
     @property
-    def lock_key(self) -> Tuple[Text, Text]:
+    def lock_key(self) -> tuple[str, str]:
         return (self.name.subtype, self.name.obj_id)
 
     @classmethod
     def _cache_key(cls,
                    repo: Repo,
-                   process_name: Union[ProcessName, SyncPointName],
+                   process_name: ProcessName | SyncPointName,
                    commit_cls: type = sync_commit.Commit,
-                   ) -> Tuple[Repo, Union[ProcessNameKey, Tuple[Text, Text]]]:
+                   ) -> tuple[Repo, ProcessNameKey | tuple[str, str]]:
         return (repo, process_name.key())
 
-    def _cache_verify(self, repo: Repo, process_name: Union[ProcessName, SyncPointName],
+    def _cache_verify(self, repo: Repo, process_name: ProcessName | SyncPointName,
                       commit_cls: type = sync_commit.Commit) -> bool:
         return commit_cls == self.commit_cls
 
     @classmethod
     @constructor(lambda args: (args["name"].subtype,
                                args["name"].obj_id))
-    def create(cls, lock: SyncLock, repo: Repo, name: ProcessName, obj: Text,
+    def create(cls, lock: SyncLock, repo: Repo, name: ProcessName, obj: str,
                commit_cls: type = sync_commit.Commit) -> VcsRefObject:
         path = cls.get_path(name)
         logger.debug("Creating ref %s" % path)
         pygit2_repo = pygit2_get(repo)
         if path in pygit2_repo.references:
-            raise ValueError("Ref {} exists".format(path))
+            raise ValueError(f"Ref {path} exists")
         pygit2_repo.references.create(path, pygit2_repo.revparse_single(obj).id)
         return cls(repo, name, commit_cls)
 
@@ -377,21 +372,21 @@ class VcsRefObject(metaclass=IdentityMap):
         self.pygit2_repo.references[self.path].delete()
 
     @classmethod
-    def get_path(cls, name: Union[ProcessName, SyncPointName]) -> Text:
-        return "refs/{}/{}".format(cls.ref_prefix, name.path())
+    def get_path(cls, name: ProcessName | SyncPointName) -> str:
+        return f"refs/{cls.ref_prefix}/{name.path()}"
 
     @property
-    def path(self) -> Text:
+    def path(self) -> str:
         return self.get_path(self.name)
 
     @property
-    def ref(self) -> Optional[Reference]:
+    def ref(self) -> Reference | None:
         if self.path in self.pygit2_repo.references:
             return git.Reference(self.repo, self.path)
         return None
 
     @property
-    def commit(self) -> Optional[Commit]:
+    def commit(self) -> Commit | None:
         ref = self.ref
         if ref is not None:
             commit = self.commit_cls(self.repo, ref.commit)
@@ -400,7 +395,7 @@ class VcsRefObject(metaclass=IdentityMap):
 
     @commit.setter  # type: ignore
     @mut()
-    def commit(self, commit: Union[Commit, Text]) -> None:
+    def commit(self, commit: Commit | str) -> None:
         if isinstance(commit, sync_commit.Commit):
             sha1 = commit.sha1
         else:
@@ -416,8 +411,8 @@ class BranchRefObject(VcsRefObject):
 class CommitBuilder:
     def __init__(self,
                  repo: Repo,
-                 message: Text,
-                 ref: Optional[Text] = None,
+                 message: str,
+                 ref: str | None = None,
                  commit_cls: type = sync_commit.Commit,
                  initial_empty: bool = False
                  ) -> None:
@@ -462,7 +457,7 @@ class CommitBuilder:
 
         # State set for the life of the context manager
         self.lock = RepoLock(repo)
-        self.parents: Optional[List[Text]] = None
+        self.parents: list[str] | None = None
         self.commit = None
         self.index: pygit2.Index = None
         self.has_changes = False
@@ -512,25 +507,25 @@ class CommitBuilder:
         self.lock.__exit__(*args, **kwargs)
         self.commit = self.commit_cls(self.repo, sha1)
 
-    def add_tree(self, tree: Dict[Text, bytes]) -> None:
+    def add_tree(self, tree: dict[str, bytes]) -> None:
         self.has_changes = True
         for path, data in tree.items():
             blob = self.pygit2_repo.create_blob(data)
             index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
             self.index.add(index_entry)
 
-    def delete(self, delete: List[Text]) -> None:
+    def delete(self, delete: list[str]) -> None:
         self.has_changes = True
         if delete:
             for path in delete:
                 self.index.remove(path)
 
-    def get(self) -> Optional[Any]:
+    def get(self) -> Any | None:
         return self.commit
 
 
 class ProcessData(metaclass=IdentityMap):
-    obj_type: Text = ""
+    obj_type: str = ""
 
     def __init__(self, repo: Repo, process_name: ProcessName) -> None:
         assert process_name.obj_type == self.obj_type
@@ -541,12 +536,12 @@ class ProcessData(metaclass=IdentityMap):
         self.path = self.get_path(process_name)
         self._data = self._load()
         self._lock = None
-        self._updated: Set[Text] = set()
-        self._deleted: Set[Text] = set()
+        self._updated: set[str] = set()
+        self._deleted: set[str] = set()
         self._delete = False
 
     def __repr__(self) -> str:
-        return six.ensure_str("<{} {}>".format(self.__class__.__name__, self.process_name))
+        return six.ensure_str(f"<{self.__class__.__name__} {self.process_name}>")
 
     def __hash__(self) -> int:
         return hash(self.process_name)
@@ -589,8 +584,8 @@ class ProcessData(metaclass=IdentityMap):
                lock: SyncLock,
                repo: Repo,
                process_name: ProcessName,
-               data: Dict[Text, Any],
-               message: Text = "Sync data",
+               data: dict[str, Any],
+               message: str = "Sync data",
                ) -> ProcessData:
         assert process_name.obj_type == cls.obj_type
         path = cls.get_path(process_name)
@@ -600,27 +595,27 @@ class ProcessData(metaclass=IdentityMap):
         except KeyError:
             pass
         else:
-            raise ValueError("{} already exists at path {}".format(cls.__name__, path))
+            raise ValueError(f"{cls.__name__} already exists at path {path}")
         with CommitBuilder(repo, message, ref=ref.path) as commit:
             commit.add_tree({path: json.dumps(data).encode("utf8")})
         ProcessNameIndex(repo).insert(process_name)
         return cls(repo, process_name)
 
     @classmethod
-    def _cache_key(cls, repo: Repo, process_name: ProcessName) -> Tuple[Repo, ProcessNameKey]:
+    def _cache_key(cls, repo: Repo, process_name: ProcessName) -> tuple[Repo, ProcessNameKey]:
         return (repo, process_name.key())
 
     @classmethod
-    def get_path(self, process_name: ProcessName) -> Text:
+    def get_path(self, process_name: ProcessName) -> str:
         return process_name.path()
 
     @classmethod
     def load_by_obj(cls,
                     repo: Repo,
-                    subtype: Text,
+                    subtype: str,
                     obj_id: int,
                     seq_id=None  # Type: Optional[int]
-                    ) -> Set[ProcessData]:
+                    ) -> set[ProcessData]:
         process_names = ProcessNameIndex(repo).get(cls.obj_type,
                                                    subtype,
                                                    str(obj_id))
@@ -640,8 +635,8 @@ class ProcessData(metaclass=IdentityMap):
             rv.add(cls(repo, process_name))
         return rv
 
-    def _save(self, data: Dict[Text, Any], message: Text,
-              commit_builder: CommitBuilder = None) -> Optional[Any]:
+    def _save(self, data: dict[str, Any], message: str,
+              commit_builder: CommitBuilder = None) -> Any | None:
         if commit_builder is None:
             commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         else:
@@ -651,13 +646,13 @@ class ProcessData(metaclass=IdentityMap):
             commit.add_tree(tree)
         return commit.get()
 
-    def _delete_data(self, message: Text, commit_builder: Optional[CommitBuilder] = None) -> None:
+    def _delete_data(self, message: str, commit_builder: CommitBuilder | None = None) -> None:
         if commit_builder is None:
             commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         with commit_builder as commit:
             commit.delete([self.path])
 
-    def _load(self) -> Dict[Text, Any]:
+    def _load(self) -> dict[str, Any]:
         ref = self.pygit2_repo.references[self.ref.path]
         repo = self.pygit2_repo
         try:
@@ -667,29 +662,29 @@ class ProcessData(metaclass=IdentityMap):
         return json.loads(data)
 
     @property
-    def lock_key(self) -> Tuple[Text, Text]:
+    def lock_key(self) -> tuple[str, str]:
         return (self.process_name.subtype, self.process_name.obj_id)
 
-    def __getitem__(self, key: Text) -> Any:
+    def __getitem__(self, key: str) -> Any:
         return self._data[key]
 
-    def __contains__(self, key: Text) -> bool:
+    def __contains__(self, key: str) -> bool:
         return key in self._data
 
-    def get(self, key: Text, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
-    def items(self) -> Iterator[Tuple[Text, Any]]:
+    def items(self) -> Iterator[tuple[str, Any]]:
         yield from self._data.items()
 
     @mut()
-    def __setitem__(self, key: Text, value: Any) -> None:
+    def __setitem__(self, key: str, value: Any) -> None:
         if key not in self._data or self._data[key] != value:
             self._data[key] = value
             self._updated.add(key)
 
     @mut()
-    def __delitem__(self, key: Text) -> None:
+    def __delitem__(self, key: str) -> None:
         if key in self._data:
             del self._data[key]
             self._deleted.add(key)
@@ -705,7 +700,7 @@ class FrozenDict(Mapping):
         for key, value in kwargs.items():
             self._data[six.ensure_text(key)] = value
 
-    def __getitem__(self, key: Text) -> Any:
+    def __getitem__(self, key: str) -> Any:
         return self._data[key]
 
     def __contains__(self, key: Any) -> bool:
@@ -717,13 +712,13 @@ class FrozenDict(Mapping):
             new_data[six.ensure_text(key)] = value
         return self.__class__(**new_data)
 
-    def __iter__(self) -> Iterator[Text]:
+    def __iter__(self) -> Iterator[str]:
         yield from self._data
 
     def __len__(self) -> int:
         return len(self._data)
 
-    def as_dict(self) -> Dict[Text, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return self._data.copy()
 
 
@@ -732,9 +727,9 @@ class entry_point:
         self.task = task
 
     def __call__(self, f):
-        def inner(*args: Any, **kwargs: Any) -> Optional[LandingSync]:
-            logger.info("Called entry point {}.{}".format(f.__module__, f.__name__))
-            logger.debug("Called args {!r} kwargs {!r}".format(args, kwargs))
+        def inner(*args: Any, **kwargs: Any) -> LandingSync | None:
+            logger.info(f"Called entry point {f.__module__}.{f.__name__}")
+            logger.debug(f"Called args {args!r} kwargs {kwargs!r}")
 
             if self.task in env.config["sync"]["enabled"]:
                 return f(*args, **kwargs)

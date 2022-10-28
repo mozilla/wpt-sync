@@ -1,13 +1,12 @@
 from . import log
 from typing import Any
 from typing import Optional
-from typing import Text
 
 logger = log.get_logger(__name__)
 
 
 class AbortError(Exception):
-    def __init__(self, msg: Text, cleanup: Optional[Any] = None,
+    def __init__(self, msg: str, cleanup: Optional[Any] = None,
                  set_flag: Optional[Any] = None) -> None:
         Exception.__init__(self, msg)
         self.message = msg

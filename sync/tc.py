@@ -17,7 +17,7 @@ from .env import Environment
 from .errors import RetryableError
 from .threadexecutor import ThreadExecutor
 
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Text, Tuple, Union
+from typing import Any, Callable, Dict, Iterator
 Task = Dict[str, Dict[str, Any]]
 
 
@@ -89,7 +89,7 @@ class TaskclusterClient:
         return rv or None
 
 
-def normalize_task_id(task_id: Text) -> Text:
+def normalize_task_id(task_id: str) -> str:
     # For some reason, pulse doesn't get the real
     # task ID, but some alternate encoding of it that doesn't
     # work anywhere else. So we have to first convert to the canonical
@@ -136,12 +136,12 @@ def result_from_run(run):
 
 
 class TaskGroup:
-    def __init__(self, taskgroup_id: Text, tasks: Optional[Any] = None) -> None:
+    def __init__(self, taskgroup_id: str, tasks: Any | None = None) -> None:
         self.taskgroup_id = taskgroup_id
         self._tasks = tasks
 
     @property
-    def tasks(self) -> List[Task]:
+    def tasks(self) -> list[Task]:
         if self._tasks:
             return self._tasks
 
@@ -162,23 +162,23 @@ class TaskGroup:
         self._tasks = tasks
         return self._tasks
 
-    def refresh(self) -> List[Task]:
+    def refresh(self) -> list[Task]:
         self._tasks = None
         return self.tasks
 
-    def tasks_by_id(self) -> Dict[Text, Task]:
+    def tasks_by_id(self) -> dict[str, Task]:
         return {item["status"]["taskId"]: item for item in self.tasks}
 
-    def view(self, filter_fn: Optional[Callable] = None) -> TaskGroupView:
+    def view(self, filter_fn: Callable | None = None) -> TaskGroupView:
         return TaskGroupView(self, filter_fn)
 
 
 class TaskGroupView:
-    def __init__(self, taskgroup: TaskGroup, filter_fn: Optional[Callable[[Task], bool]]) -> None:
+    def __init__(self, taskgroup: TaskGroup, filter_fn: Callable[[Task], bool] | None) -> None:
         self.taskgroup = taskgroup
         self.filter_fn: Callable[[Task], bool] = (filter_fn if filter_fn is not None
                                                   else lambda x: bool(x))
-        self._tasks: Optional[List[Task]] = None
+        self._tasks: list[Task] | None = None
 
     def __bool__(self):
         return bool(self.tasks)
@@ -190,7 +190,7 @@ class TaskGroupView:
         yield from self.tasks
 
     @property
-    def tasks(self) -> List[Task]:
+    def tasks(self) -> list[Task]:
         if self._tasks:
             return self._tasks
 
@@ -227,7 +227,7 @@ class TaskGroupView:
     def is_complete(self, allow_unscheduled: bool = False) -> bool:
         return not any(self.incomplete_tasks(allow_unscheduled))
 
-    def by_name(self) -> Dict[Text, List[Task]]:
+    def by_name(self) -> dict[str, list[Task]]:
         rv = defaultdict(list)
         for task in self.tasks:
             name = task.get("task", {}).get("metadata", {}).get("name")
@@ -236,8 +236,8 @@ class TaskGroupView:
         return rv
 
     @newrelic.agent.function_trace()
-    def download_logs(self, destination: Text,
-                      file_names: List[Text],
+    def download_logs(self, destination: str,
+                      file_names: list[str],
                       retry: int = 5
                       ):
         # type (...) -> None
@@ -270,10 +270,10 @@ def start_session():
     return {"session": requests.Session()}
 
 
-def get_task_artifacts(destination: Text,
+def get_task_artifacts(destination: str,
                        task: Task,
-                       file_names: List[Text],
-                       session: Optional[requests.Session],
+                       file_names: list[str],
+                       session: requests.Session | None,
                        retry: int
                        ):
     status = task.get("status", {})
@@ -300,19 +300,19 @@ def get_task_artifacts(destination: Text,
         }
         log_name = "{task}_{file_name}".format(**params)
         success = False
-        logger.debug("Trying to download {}".format(url))
+        logger.debug(f"Trying to download {url}")
         log_path = os.path.abspath(os.path.join(destination, log_name))
         if not os.path.exists(log_path):
             success = download(url, log_path, retry, session=session)
         else:
             success = True
         if not success:
-            logger.warning("Failed to download log from {}".format(url))
+            logger.warning(f"Failed to download log from {url}")
         run["_log_paths"][params["file_name"]] = log_path
 
 
 def task_is_incomplete(task: Task,
-                       tasks_by_id: Dict[Text, Task],
+                       tasks_by_id: dict[str, Task],
                        allow_unscheduled: bool,
                        ) -> bool:
     status = task.get("status", {}).get("state", PENDING)
@@ -340,8 +340,8 @@ def task_is_incomplete(task: Task,
     return False
 
 
-def is_suite(suite: Text,
-             task: Dict[Text, Dict[Text, Any]],
+def is_suite(suite: str,
+             task: dict[str, dict[str, Any]],
              ) -> bool:
     t = task.get("task", {}).get("extra", {}).get("suite", {})
     if isinstance(t, dict):
@@ -354,7 +354,7 @@ def is_suite_fn(suite: str) -> Callable:
 
 
 def check_tag(task: Task,
-              tag: Text,
+              tag: str,
               ) -> bool:
     tags = task.get("task", {}).get("tags")
     if tags:
@@ -370,20 +370,20 @@ def is_build(task: Task) -> bool:
     return check_tag(task, "build")
 
 
-def is_status(statuses: Union[Set[Text], Text],
+def is_status(statuses: set[str] | str,
               task: Task,
               ) -> bool:
-    state: Optional[Text] = task.get("status", {}).get("state")
+    state: str | None = task.get("status", {}).get("state")
     return state is not None and state in statuses
 
 
-def is_status_fn(statuses: Union[Set[Text], Text]) -> Callable:
+def is_status_fn(statuses: set[str] | str) -> Callable:
     if isinstance(statuses, (str, str)):
         statuses = {statuses}
     return lambda x: is_status(statuses, x)
 
 
-def lookup_index(index_name: Text) -> Optional[Text]:
+def lookup_index(index_name: str) -> str | None:
     if index_name is None:
         return None
 
@@ -399,8 +399,8 @@ def lookup_index(index_name: Text) -> Optional[Text]:
     return task_id
 
 
-def lookup_treeherder(project: Text, revision: Text) -> Optional[Text]:
-    push_data = fetch_json(TREEHERDER_BASE + "api/project/{}/push/".format(project),
+def lookup_treeherder(project: str, revision: str) -> str | None:
+    push_data = fetch_json(TREEHERDER_BASE + f"api/project/{project}/push/",
                            params={"revision": revision})
 
     pushes = push_data.get("results", [])
@@ -418,7 +418,7 @@ def lookup_treeherder(project: Text, revision: Text) -> Optional[Text]:
     return decision_tasks[-1][idx_task]
 
 
-def get_task(task_id: Text) -> Optional[Dict[Text, Any]]:
+def get_task(task_id: str) -> dict[str, Any] | None:
     if task_id is None:
         return
     task_url = QUEUE_BASE + "task/" + task_id
@@ -430,10 +430,10 @@ def get_task(task_id: Text) -> Optional[Dict[Text, Any]]:
     return None
 
 
-def get_task_status(task_id: Text) -> Optional[Dict[Text, Any]]:
+def get_task_status(task_id: str) -> dict[str, Any] | None:
     if task_id is None:
         return
-    status_url = "{}task/{}/status".format(QUEUE_BASE, task_id)
+    status_url = f"{QUEUE_BASE}task/{task_id}/status"
     r = requests.get(status_url)
     status = r.json()
     if status.get("status"):
@@ -442,8 +442,8 @@ def get_task_status(task_id: Text) -> Optional[Dict[Text, Any]]:
     return None
 
 
-def download(log_url: Text, log_path: Text, retry: int,
-             session: Optional[requests.Session] = None) -> bool:
+def download(log_url: str, log_path: str, retry: int,
+             session: requests.Session | None = None) -> bool:
     if session is None:
         session = requests.Session()
     while retry > 0:
@@ -468,8 +468,8 @@ def download(log_url: Text, log_path: Text, retry: int,
     return False
 
 
-def fetch_json(url: Text,
-               params: Dict[Text, Text] = None,
+def fetch_json(url: str,
+               params: dict[str, str] = None,
                session: requests.Session = None
                ):
     # type (...) -> Union[Dict[Text, Any], List[Any]]
@@ -487,8 +487,8 @@ def fetch_json(url: Text,
     return resp.json()
 
 
-def get_taskgroup_id(project: Text, revision: Text) -> Tuple[Text, Text, List[Dict[Text, Any]]]:
-    idx = "gecko.v2.{}.revision.{}.firefox.decision".format(project, revision)
+def get_taskgroup_id(project: str, revision: str) -> tuple[str, str, list[dict[str, Any]]]:
+    idx = f"gecko.v2.{project}.revision.{revision}.firefox.decision"
     try:
         task_id = lookup_index(idx)
     except requests.HTTPError:

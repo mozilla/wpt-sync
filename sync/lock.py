@@ -8,7 +8,7 @@ import filelock
 from . import log
 from .env import Environment
 
-from typing import Any, List, MutableMapping, Optional, Set, Text, Tuple, TYPE_CHECKING
+from typing import Any, MutableMapping, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.base import ProcessName
@@ -113,7 +113,7 @@ class LockError(Exception):
 
 
 class Lock(metaclass=abc.ABCMeta):
-    locks: MutableMapping[Text, Lock] = {}
+    locks: MutableMapping[str, Lock] = {}
 
     def __init__(self, *args: Any) -> None:
         self.path = self.lock_path(*args)
@@ -136,7 +136,7 @@ class Lock(metaclass=abc.ABCMeta):
 
     @staticmethod
     @abc.abstractmethod
-    def lock_path(*args: Any) -> Text:
+    def lock_path(*args: Any) -> str:
         """Return a path to the file representing the current lock"""
         pass
 
@@ -146,7 +146,7 @@ class RepoLock(Lock):
         super().__init__(repo)
 
     @staticmethod
-    def lock_path(*args: Any) -> Text:
+    def lock_path(*args: Any) -> str:
         # This is annoying but otherwise mypy complains
         repo, = args
         return os.path.join(
@@ -156,14 +156,14 @@ class RepoLock(Lock):
 
 
 class ProcessLock(Lock):
-    obj_types: Optional[Tuple[Text, ...]] = None
-    lock_type: Optional[Text] = None
-    lock_per_type: Set[Text] = set()
-    lock_per_obj: Set[Text] = set()
+    obj_types: tuple[str, ...] | None = None
+    lock_type: str | None = None
+    lock_per_type: set[str] = set()
+    lock_per_obj: set[str] = set()
 
-    locks: MutableMapping[Text, Lock] = {}
+    locks: MutableMapping[str, Lock] = {}
 
-    def __init__(self, sync_type: Text, obj_id: Optional[Text]) -> None:
+    def __init__(self, sync_type: str, obj_id: str | None) -> None:
         assert sync_type in self.lock_per_obj | self.lock_per_type
 
         if sync_type in self.lock_per_type:
@@ -186,7 +186,7 @@ class ProcessLock(Lock):
         obj_id = process_name.obj_id if sync_type in cls.lock_per_obj else None
         return cls(sync_type, obj_id)
 
-    def check(self, sync_type: Text, obj_id: Optional[Text]) -> None:
+    def check(self, sync_type: str, obj_id: str | None) -> None:
         """Check that the current lock is valid for the provided sync_type and obj_id"""
         if sync_type in self.lock_per_type:
             obj_id = None
@@ -202,12 +202,12 @@ class ProcessLock(Lock):
                               self.lock.is_locked))
 
     @staticmethod
-    def lock_path(*args: Any) -> Text:
+    def lock_path(*args: Any) -> str:
         obj_type, sync_type, obj_id = args
         if obj_id is None:
-            filename = "{}_{}.lock".format(obj_type, sync_type)
+            filename = f"{obj_type}_{sync_type}.lock"
         else:
-            filename = "{}_{}_{}.lock".format(obj_type, sync_type, obj_id)
+            filename = f"{obj_type}_{sync_type}_{obj_id}.lock"
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
@@ -217,26 +217,26 @@ class ProcessLock(Lock):
 class SyncLock(ProcessLock):
     obj_types = ("sync", "try")
     lock_type = "sync"
-    lock_per_type: Set[Text] = {"landing", "upstream"}
-    lock_per_obj: Set[Text] = {"downstream"}
+    lock_per_type: set[str] = {"landing", "upstream"}
+    lock_per_obj: set[str] = {"downstream"}
 
-    locks: MutableMapping[Text, Lock] = {}
+    locks: MutableMapping[str, Lock] = {}
 
 
 class ProcLock(ProcessLock):
     obj_types = ("proc",)
     lock_type = "proc"
-    lock_per_type: Set[Text] = {"bugzilla"}
-    lock_per_obj: Set[Text] = set()
+    lock_per_type: set[str] = {"bugzilla"}
+    lock_per_obj: set[str] = set()
 
-    locks: MutableMapping[Text, Lock] = {}
+    locks: MutableMapping[str, Lock] = {}
 
 
 class MutGuard:
     def __init__(self,
                  lock: SyncLock,
                  instance: Any,
-                 props: Optional[List[Any]] = None,
+                 props: list[Any] | None = None,
                  ) -> None:
         """Context Manager wrapping an object that is to be accessed for mutation.
 
@@ -247,9 +247,9 @@ class MutGuard:
         self.instance = instance
         self.lock = lock
         self.props = props or []
-        self.owned_guards: List[Any] = []
+        self.owned_guards: list[Any] = []
         lock.check(*instance.lock_key)
-        self.took_lock: Optional[bool] = None
+        self.took_lock: bool | None = None
 
     def __enter__(self) -> Any:
         logger.debug("Making object mutable %r" % self.instance)

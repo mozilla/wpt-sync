@@ -12,7 +12,7 @@ from . import log
 from . import handlers
 from . import tasks
 
-from typing import Any, Dict, Optional, Text
+from typing import Any, Dict, Optional
 
 here = os.path.dirname(__file__)
 
@@ -93,7 +93,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
         raise ValueError("No exchanges supplied")
 
     for queue_name, exchange_name, key_name in exchanges:
-        queue_name = 'queue/{}/{}'.format(userid, queue_name)
+        queue_name = f'queue/{userid}/{queue_name}'
 
         exchange = kombu.Exchange(exchange_name, type='topic',
                                   channel=conn)
@@ -116,7 +116,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
     return Listener(conn, [item[1] for item in exchanges], queues, logger)
 
 
-def run_pulse_listener(config: Dict[Text, Any]) -> None:
+def run_pulse_listener(config: Dict[str, Any]) -> None:
     """
     Configures Pulse connection and triggers events from Pulse messages.
 
@@ -173,7 +173,7 @@ def run_pulse_listener(config: Dict[Text, Any]) -> None:
 
 
 class Filter(metaclass=abc.ABCMeta):
-    name: Optional[Text] = None
+    name: Optional[str] = None
     task = tasks.handle
 
     def __init__(self, config, logger):
@@ -186,7 +186,7 @@ class Filter(metaclass=abc.ABCMeta):
             self.logger.debug(json.dumps(body))
             self.task.apply_async((self.name, body))
 
-    def accept(self, body: Dict[Text, Any]) -> bool:
+    def accept(self, body: Dict[str, Any]) -> bool:
         raise NotImplementedError
 
 

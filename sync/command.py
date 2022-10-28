@@ -19,7 +19,7 @@ from .gitutils import update_repositories
 from .load import get_syncs
 from .lock import RepoLock, SyncLock
 
-from typing import Any, Iterable, List, Optional, Set, Text, Type, Union, cast, TYPE_CHECKING
+from typing import Any, Iterable, Set, cast, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.sync import SyncProcess
@@ -232,7 +232,7 @@ def get_parser():
     return parser
 
 
-def sync_from_path(git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
+def sync_from_path(git_gecko: Repo, git_wpt: Repo) -> SyncProcess | None:
     from . import base
     git_work = git.Repo(os.curdir)
     branch = git_work.active_branch.name
@@ -241,7 +241,7 @@ def sync_from_path(git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
         return None
     if parts[1] == "downstream":
         from . import downstream
-        cls: Type[SyncProcess] = downstream.DownstreamSync
+        cls: type[SyncProcess] = downstream.DownstreamSync
     elif parts[1] == "upstream":
         from . import upstream
         cls = upstream.UpstreamSync
@@ -256,12 +256,12 @@ def sync_from_path(git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
     return cls(git_gecko, git_wpt, process_name)
 
 
-def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: Text, error: bool = False,
+def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: str, error: bool = False,
             **kwargs: Any) -> None:
     from . import downstream
     from . import landing
     from . import upstream
-    syncs: List[SyncProcess] = []
+    syncs: list[SyncProcess] = []
 
     def filter_sync(sync):
         if error:
@@ -299,7 +299,7 @@ def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: Text, error: bool = False
                error_msg))
 
 
-def do_detail(git_gecko: Repo, git_wpt: Repo, sync_type: Text, obj_id: int, **kwargs: Any) -> None:
+def do_detail(git_gecko: Repo, git_wpt: Repo, sync_type: str, obj_id: int, **kwargs: Any) -> None:
     syncs = get_syncs(git_gecko, git_wpt, sync_type, obj_id)
     for sync in syncs:
         print(sync.output())
@@ -307,8 +307,8 @@ def do_detail(git_gecko: Repo, git_wpt: Repo, sync_type: Text, obj_id: int, **kw
 
 def do_landing(git_gecko: Repo,
                git_wpt: Repo,
-               wpt_head: Optional[Text] = None,
-               prev_wpt_head: Optional[Text] = None,
+               wpt_head: str | None = None,
+               prev_wpt_head: str | None = None,
                include_incomplete: bool = False,
                accept_failures: bool = False,
                retry: bool = False,
@@ -366,14 +366,14 @@ def do_landing(git_gecko: Repo,
 
 def do_update(git_gecko: Repo,
               git_wpt: Repo,
-              sync_type: Optional[List[Text]] = None,
-              status: Optional[List[Text]] = None,
+              sync_type: list[str] | None = None,
+              status: list[str] | None = None,
               **kwargs: Any
               ) -> None:
     from . import downstream
     from . import update
     from . import upstream
-    sync_classes: List[type] = []
+    sync_classes: list[type] = []
     if not sync_type:
         sync_type = ["upstream", "downstream"]
     for key in sync_type:
@@ -388,7 +388,7 @@ def do_update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int, **kwargs: Any) -
     update.update_tasks(git_gecko, git_wpt, pr_id)
 
 
-def do_pr(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], rebase: bool = False,
+def do_pr(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], rebase: bool = False,
           **kwargs: Any) -> None:
     from . import update
     if not pr_ids:
@@ -425,9 +425,9 @@ def do_bug(git_gecko: Repo, git_wpt: Repo, bug: int, **kwargs: Any) -> None:
 
 def do_push(git_gecko: Repo,
             git_wpt: Repo,
-            rev: Optional[Text] = None,
-            base_rev: Optional[Text] = None,
-            processes: Optional[List[Text]] = None,
+            rev: str | None = None,
+            base_rev: str | None = None,
+            processes: list[str] | None = None,
             **kwargs: Any
             ) -> None:
     from . import update
@@ -439,16 +439,16 @@ def do_push(git_gecko: Repo,
 
 def do_delete(git_gecko: Repo,
               git_wpt: Repo,
-              sync_type: Text,
-              obj_ids: List[int],
+              sync_type: str,
+              obj_ids: list[int],
               try_push: bool = False,
               delete_all: bool = False,
-              seq_id: Optional[int] = None,
+              seq_id: int | None = None,
               **kwargs) -> None:
     from . import trypush
     objs: Iterable[Any] = []
     for obj_id in obj_ids:
-        logger.info("{} {}".format(sync_type, obj_id))
+        logger.info(f"{sync_type} {obj_id}")
         if try_push:
             objs = trypush.TryPush.load_by_obj(git_gecko,
                                                sync_type,
@@ -467,9 +467,9 @@ def do_delete(git_gecko: Repo,
 
 def do_worktree(git_gecko: Repo,
                 git_wpt: Repo,
-                sync_type: Text,
+                sync_type: str,
                 obj_id: int,
-                worktree_type: Text,
+                worktree_type: str,
                 **kwargs: Any
                 ) -> None:
     attr_name = worktree_type + "_worktree"
@@ -489,7 +489,7 @@ def do_start_phab_listener(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> Non
     phablisten.run_phabricator_listener(env.config)
 
 
-def do_configure_repos(git_gecko: Repo, git_wpt: Repo, repo: Text, config_file: Text,
+def do_configure_repos(git_gecko: Repo, git_wpt: Repo, repo: str, config_file: str,
                        **kwargs: Any) -> None:
     from . import repos
     r = repos.wrappers[repo](env.config)
@@ -499,19 +499,19 @@ def do_configure_repos(git_gecko: Repo, git_wpt: Repo, repo: Text, config_file: 
 
 def do_status(git_gecko: Repo,
               git_wpt: Repo,
-              obj_type: Text,
-              sync_type: Text,
+              obj_type: str,
+              sync_type: str,
               obj_id: int,
-              new_status: Text,
-              seq_id: Optional[int] = None,
-              old_status: Optional[int] = None,
+              new_status: str,
+              seq_id: int | None = None,
+              old_status: int | None = None,
               **kwargs: Any
               ) -> None:
     from . import upstream
     from . import downstream
     from . import landing
     from . import trypush
-    objs: Iterable[Union[TryPush, SyncProcess]] = []
+    objs: Iterable[TryPush | SyncProcess] = []
     if obj_type == "try":
         try_pushes = trypush.TryPush.load_by_obj(git_gecko,
                                                  sync_type,
@@ -523,7 +523,7 @@ def do_status(git_gecko: Repo,
             objs = try_pushes
     else:
         if sync_type == "upstream":
-            cls: Type[SyncProcess] = upstream.UpstreamSync
+            cls: type[SyncProcess] = upstream.UpstreamSync
         if sync_type == "downstream":
             cls = downstream.DownstreamSync
         if sync_type == "landing":
@@ -540,7 +540,7 @@ def do_status(git_gecko: Repo,
         logger.error("No matching syncs found")
 
     for obj in objs:
-        logger.info("Setting status of {} to {}".format(obj.process_name, new_status))
+        logger.info(f"Setting status of {obj.process_name} to {new_status}")
         with SyncLock.for_process(obj.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with obj.as_mut(lock):
@@ -574,7 +574,7 @@ def do_cleanup(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     cleanup()
 
 
-def do_skip(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], **kwargs: Any) -> None:
+def do_skip(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], **kwargs: Any) -> None:
     from . import downstream
     if not pr_ids:
         sync = sync_from_path(git_gecko, git_wpt)
@@ -599,7 +599,7 @@ def do_skip(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], **kwargs: Any) ->
                 sync.skip = True  # type: ignore
 
 
-def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], force: bool = False,
+def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], force: bool = False,
               **kwargs: Any) -> None:
     from . import downstream
     if not pr_ids:
@@ -631,7 +631,7 @@ def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: List[int], force: bool = F
 
 def do_landable(git_gecko,
                 git_wpt,
-                prev_wpt_head: Optional[Text] = None,
+                prev_wpt_head: str | None = None,
                 include_incomplete: bool = False,
                 include_all: bool = True,
                 retrigger: bool = False,
@@ -689,15 +689,15 @@ def do_landable(git_gecko,
                     assert latest_try_push is not None
                     reason = "Manual fixup required {}".format(
                         latest_try_push.treeherder_url)
-                msg = "{} ({})".format(msg, reason)
+                msg = f"{msg} ({reason})"
             elif status == LandableStatus.error:
                 sync = DownstreamSync.for_pr(git_gecko, git_wpt, pr)
                 assert sync is not None
                 if sync.error:
                     err_msg = sync.error["message"] or ""
                     err_msg = err_msg.splitlines()[0] if err_msg else err_msg
-                    msg = "{} ({})".format(msg, err_msg)
-            print("{}: {}".format(pr, msg))
+                    msg = f"{msg} ({err_msg})"
+            print(f"{pr}: {msg}")
 
         print("%i PRs are unlandable:" % count)
 
@@ -748,11 +748,11 @@ def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstr
 
 def do_try_push_add(git_gecko: Repo,
                     git_wpt: Repo,
-                    try_rev: Text,
+                    try_rev: str,
                     stability: bool = False,
-                    sync_type: Optional[Text] = None,
-                    sync_id: Optional[int] = None,
-                    rebuild_count: Optional[int] = None,
+                    sync_type: str | None = None,
+                    sync_id: int | None = None,
+                    rebuild_count: int | None = None,
                     **kwargs: Any
                     ) -> None:
     from . import downstream
@@ -817,8 +817,8 @@ def do_try_push_add(git_gecko: Repo,
 
 def do_download_logs(git_gecko: Repo,
                      git_wpt: Repo,
-                     log_path: Text,
-                     taskgroup_id: Text,
+                     log_path: str,
+                     taskgroup_id: str,
                      **kwargs: Any
                      ) -> None:
     from . import tc
@@ -843,7 +843,7 @@ def do_bugupdate(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     handlers.BugUpdateHandler(env.config)(git_gecko, git_wpt, {})
 
 
-def do_build_index(git_gecko: Repo, git_wpt: Repo, index_name: Text, **kwargs: Any) -> None:
+def do_build_index(git_gecko: Repo, git_wpt: Repo, index_name: str, **kwargs: Any) -> None:
     from . import index
     if not index_name:
         index_names = None
@@ -991,7 +991,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         print("  Got commit %s" % commit)
 
         if new_ref not in repo.references:
-            print("  Rename {} {}".format(ref.name, new_ref))
+            print(f"  Rename {ref.name} {new_ref}")
             repo.references.create(new_ref, commit)
             created += 1
         else:
@@ -1034,7 +1034,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
                                     "Migrate %s to single ref for data" % ref.path,
                                     ref="refs/syncs/data") as commit:
                 data = json.load(ref.commit.tree["data"].data_stream)
-                print("  Moving path {}".format(path))
+                print(f"  Moving path {path}")
                 tree = {path: json.dumps(data)}
                 commit.add_tree(tree)
         delete.add(ref.path)
@@ -1044,7 +1044,7 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         git2_repo.references.delete(ref_name)
 
 
-def set_config(opts: List[Text]) -> None:
+def set_config(opts: list[str]) -> None:
     for opt in opts:
         keys, value = opt.split("=", 1)
         key_parts = keys.split(".")

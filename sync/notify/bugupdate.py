@@ -8,7 +8,7 @@ from ..env import Environment
 from ..lock import mut, MutGuard, ProcLock
 from ..meta import Metadata
 
-from typing import Text, Tuple
+from typing import Tuple
 
 
 env = Environment()
@@ -40,7 +40,7 @@ class TriageBugs:
                                      self.wpt_metadata])
 
     @property
-    def lock_key(self) -> Tuple[Text, Text]:
+    def lock_key(self) -> Tuple[str, str]:
         return (self.process_name.subtype,
                 self.process_name.obj_id)
 

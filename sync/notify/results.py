@@ -17,17 +17,13 @@ from .. import wptfyi
 
 from typing import (Any,
                     Callable,
-                    Dict,
                     Iterable,
                     Iterator,
                     List,
                     Mapping,
                     MutableMapping,
                     Optional,
-                    Set,
-                    Text,
                     Tuple,
-                    Union,
                     TYPE_CHECKING)
 from requests import Response
 if TYPE_CHECKING:
@@ -50,13 +46,13 @@ browsers = ["firefox", "chrome", "safari"]
 
 
 class StatusResult:
-    def __init__(self, base: Optional[Text] = None, head: Optional[Text] = None) -> None:
-        self.base: Optional[Text] = None
-        self.head: Optional[Text] = None
-        self.head_expected: List[Text] = []
-        self.base_expected: List[Text] = []
+    def __init__(self, base: str | None = None, head: str | None = None) -> None:
+        self.base: str | None = None
+        self.head: str | None = None
+        self.head_expected: list[str] = []
+        self.base_expected: list[str] = []
 
-    def set(self, has_changes: bool, status: Text, expected: List[Text]) -> None:
+    def set(self, has_changes: bool, status: str, expected: list[str]) -> None:
         if has_changes:
             self.head = status
             self.head_expected = expected
@@ -88,26 +84,26 @@ class StatusResult:
 class Result:
     def __init__(self) -> None:
         # Mapping {browser: {platform: StatusResult}}
-        self.statuses: MutableMapping[Text, MutableMapping[Text, StatusResult]] = defaultdict(
+        self.statuses: MutableMapping[str, MutableMapping[str, StatusResult]] = defaultdict(
             lambda: defaultdict(
                 StatusResult))
-        self.bug_links: List[MetaLink] = []
+        self.bug_links: list[MetaLink] = []
 
     def iter_filter_status(self,
                            fn: Callable,
-                           ) -> Iterator[Tuple[Text, Text, StatusResult]]:
+                           ) -> Iterator[tuple[str, str, StatusResult]]:
         for browser, by_platform in self.statuses.items():
             for platform, status in by_platform.items():
                 if fn(browser, platform, status):
                     yield browser, platform, status
 
-    def set_status(self, browser: Text, job_name: Text, run_has_changes: bool, status: Text,
-                   expected: List[Text]) -> None:
+    def set_status(self, browser: str, job_name: str, run_has_changes: bool, status: str,
+                   expected: list[str]) -> None:
         self.statuses[browser][job_name].set(run_has_changes, status, expected)
 
-    def is_consistent(self, browser: Text, target: Text = "head") -> bool:
+    def is_consistent(self, browser: str, target: str = "head") -> bool:
         assert target in ["base", "head"]
-        browser_results: Optional[Mapping[Text, StatusResult]] = self.statuses.get(
+        browser_results: Mapping[str, StatusResult] | None = self.statuses.get(
             browser)
         if not browser_results:
             return True
@@ -116,7 +112,7 @@ class Result:
         return all(getattr(result, target) == first_result
                    for result in browser_results.values())
 
-    def is_browser_only_failure(self, target_browser: Text = "firefox") -> bool:
+    def is_browser_only_failure(self, target_browser: str = "firefox") -> bool:
         gh_target = self.statuses[target_browser].get("GitHub")
         gh_other = [self.statuses.get(browser, {}).get("GitHub")
                     for browser in browsers
@@ -142,7 +138,7 @@ class Result:
 
         return True
 
-    def is_github_only_failure(self, target_browser: Text = "firefox") -> bool:
+    def is_github_only_failure(self, target_browser: str = "firefox") -> bool:
         gh_status = self.statuses[target_browser].get("GitHub")
         if not gh_status:
             return False
@@ -159,27 +155,27 @@ class Result:
 
         return True
 
-    def has_crash(self, target_browser: Text = "firefox") -> bool:
+    def has_crash(self, target_browser: str = "firefox") -> bool:
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_crash())))
 
-    def has_new_non_passing(self, target_browser: Text = "firefox") -> bool:
+    def has_new_non_passing(self, target_browser: str = "firefox") -> bool:
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_new_non_passing())))
 
-    def has_regression(self, target_browser: Text = "firefox") -> bool:
+    def has_regression(self, target_browser: str = "firefox") -> bool:
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_regression())))
 
-    def has_disabled(self, target_browser: Text = "firefox") -> bool:
+    def has_disabled(self, target_browser: str = "firefox") -> bool:
         return any(self.iter_filter_status(
             lambda browser, _, status: (browser == target_browser and
                                         status.is_disabled())))
 
-    def has_non_disabled(self, target_browser: Text = "firefox") -> bool:
+    def has_non_disabled(self, target_browser: str = "firefox") -> bool:
         return any(self.iter_filter_status(
             lambda browser, platform, status: (browser == target_browser and
                                                platform != "GitHub" and
@@ -189,7 +185,7 @@ class Result:
         return any(self.iter_filter_status(
             lambda _browser, _platform, status: status.head in passing_statuses))
 
-    def has_link(self, status: Optional[Text] = None) -> bool:
+    def has_link(self, status: str | None = None) -> bool:
         if status is None:
             return len(self.bug_links) > 0
         return any(item for item in self.bug_links if item.status == status)
@@ -198,7 +194,7 @@ class Result:
 class TestResult(Result):
     def __init__(self) -> None:
         # Mapping {subtestname: SubtestResult}
-        self.subtests: MutableMapping[Text, "SubtestResult"] = defaultdict(SubtestResult)
+        self.subtests: MutableMapping[str, SubtestResult] = defaultdict(SubtestResult)
         super().__init__()
 
 
@@ -218,10 +214,10 @@ class ResultsSummary:
 class Results:
     def __init__(self) -> None:
         # Mapping of {test: TestResult}
-        self.test_results: MutableMapping[Text, TestResult] = defaultdict(TestResult)
-        self.errors: List[Tuple[Text, bool]] = []
-        self.wpt_sha: Optional[Text] = None
-        self.treeherder_url: Optional[Text] = None
+        self.test_results: MutableMapping[str, TestResult] = defaultdict(TestResult)
+        self.errors: list[tuple[str, bool]] = []
+        self.wpt_sha: str | None = None
+        self.treeherder_url: str | None = None
 
     def iter_results(self) -> Iterator[ResultsEntry]:
         for test_name, result in self.test_results.items():
@@ -251,7 +247,7 @@ class Results:
                             continue
                         self.add_log(json_data, browser, job_name, run_has_changes)
 
-    def add_log(self, data: Dict[Text, Any], browser: Text, job_name: Text,
+    def add_log(self, data: dict[str, Any], browser: str, job_name: str,
                 run_has_changes: bool) -> None:
         for test in data["results"]:
             use_result = run_has_changes or test["test"] in self.test_results
@@ -281,13 +277,13 @@ class Results:
                     if meta_link.subtest in result.subtests:
                         result.subtests[meta_link.subtest].bug_links.append(meta_link)
 
-    def browsers(self) -> Set[Text]:
+    def browsers(self) -> set[str]:
         browsers = set()
         for result in self.test_results.values():
             browsers |= {item for item in result.statuses.keys()}
         return browsers
 
-    def job_names(self, browser: Text) -> Set[Text]:
+    def job_names(self, browser: str) -> set[str]:
         job_names = set()
         for result in self.test_results.values():
             if browser in result.statuses:
@@ -302,7 +298,7 @@ class Results:
         summary.parent_tests = 0
         summary.subtests = 0
 
-        def update_for_result(result: Union[SubtestResult, TestResult]) -> None:
+        def update_for_result(result: SubtestResult | TestResult) -> None:
             for browser, browser_result in result.statuses.items():
                 for job_name, job_result in browser_result.items():
                     if job_result.head:
@@ -316,7 +312,7 @@ class Results:
                 update_for_result(subtest_result)
         return summary
 
-    def iter_crashes(self, target_browser: Text = "firefox") -> Iterator[ResultsEntry]:
+    def iter_crashes(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
         return self.iter_filter(lambda _test, _subtest, result:
                                 result.has_crash(target_browser))
 
@@ -333,12 +329,12 @@ class Results:
                                 result.has_disabled(target_browser))
 
     def iter_browser_only(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
-        def is_browser_only(_test: Text, _subtest: Optional[Text], result: Result) -> bool:
+        def is_browser_only(_test: str, _subtest: str | None, result: Result) -> bool:
             return result.is_browser_only_failure(target_browser)
         return self.iter_filter(is_browser_only)
 
 
-def get_push_changeset(commit: sync_commit.GeckoCommit) -> Optional[Text]:
+def get_push_changeset(commit: sync_commit.GeckoCommit) -> str | None:
     url = ("https://hg.mozilla.org/mozilla-central/json-pushes?changeset=%s&version=2&tipsonly=1" %
            commit.canonical_rev)
     headers = {"Accept": "application/json",
@@ -357,7 +353,7 @@ def get_push_changeset(commit: sync_commit.GeckoCommit) -> Optional[Text]:
     return changeset
 
 
-def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> Optional[TaskGroupView]:
+def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> TaskGroupView | None:
     merge_base_commit = sync_commit.GeckoCommit(
         git_gecko,
         git_gecko.merge_base(sync.gecko_commits.head.sha1,
@@ -407,13 +403,13 @@ class LogFile:
     def __init__(self, path):
         self.path = path
 
-    def json(self) -> Dict[Text, Any]:
+    def json(self) -> dict[str, Any]:
         with open(self.path) as f:
             return json.load(f)
 
 
-def get_logs(tasks: Iterable[Dict[Text, Any]],
-             job_prefix: Text = "Gecko-") -> Mapping[Text, Mapping[Text, List[LogFile]]]:
+def get_logs(tasks: Iterable[dict[str, Any]],
+             job_prefix: str = "Gecko-") -> Mapping[str, Mapping[str, list[LogFile]]]:
     logs = defaultdict(list)
     for task in tasks:
         job_name = job_prefix + tc.parse_job_name(
@@ -473,7 +469,7 @@ def add_wpt_fyi_data(sync: DownstreamSync, results: Results) -> bool:
     logs = []
     for target, run_has_changes in [("base", False),
                                     ("head", True)]:
-        target_results: MutableMapping[Text, Dict[Text, List[Response]]] = defaultdict(
+        target_results: MutableMapping[str, dict[str, list[Response]]] = defaultdict(
             dict)
         try:
             runs = wptfyi.get_runs(sha=head_sha1, labels=["pr_%s" % target])

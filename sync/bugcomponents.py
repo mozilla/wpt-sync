@@ -8,7 +8,7 @@ import newrelic
 from . import log
 from .env import Environment
 from .projectutil import Mach
-from typing import Any, Dict, List, Mapping, Set, Text, Tuple, Union
+from typing import Any, Dict, List, Mapping, Set, Tuple, Union
 from git.repo.base import Repo
 
 logger = log.get_logger(__name__)
@@ -18,7 +18,7 @@ env = Environment()
 re_cache = {}
 
 
-def match(path: Text, pattern: Text) -> bool:
+def match(path: str, pattern: str) -> bool:
     '''
     Return whether the given path matches the given pattern.
     An asterisk can be used to match any string, including the null string, in
@@ -44,7 +44,7 @@ def match(path: Text, pattern: Text) -> bool:
     return re_cache[pattern].match(path) is not None
 
 
-def remove_obsolete(path: Text, moves: Dict[Text, Text] = None) -> Text:
+def remove_obsolete(path: str, moves: Dict[str, str] = None) -> str:
     from lib2to3 import (pygram,  # type: ignore
                          pytree,
                          patcomp)
@@ -104,7 +104,7 @@ def remove_obsolete(path: Text, moves: Dict[Text, Text] = None) -> Text:
     return str(tree)
 
 
-def compute_moves(moves: Dict[Text, Text], unmatched_patterns: Set[Text]) -> Dict[Text, Text]:
+def compute_moves(moves: Dict[str, str], unmatched_patterns: Set[str]) -> Dict[str, str]:
     updated_patterns = {}
     dest_paths = defaultdict(list)
     for pattern in unmatched_patterns:
@@ -136,14 +136,14 @@ def compute_moves(moves: Dict[Text, Text], unmatched_patterns: Set[Text]) -> Dic
 
 
 def components_for_wpt_paths(git_gecko: Repo,
-                             wpt_paths: Union[Set[Text], Set[str]]) -> Mapping[Text, List[Text]]:
+                             wpt_paths: Union[Set[str], Set[str]]) -> Mapping[str, List[str]]:
     path_prefix = env.config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in wpt_paths]
 
     mach = Mach(git_gecko.working_dir)
     output = mach.file_info("bugzilla-component", *paths)
 
-    components: Mapping[Text, List[Text]] = defaultdict(list)
+    components: Mapping[str, List[str]] = defaultdict(list)
     current = None
     for line in output.split(b"\n"):
         if line.startswith(b" "):
@@ -159,9 +159,9 @@ def components_for_wpt_paths(git_gecko: Repo,
 
 
 def get(git_gecko: Repo,
-        files_changed: Union[Set[Text], Set[Text]],
-        default: Tuple[Text, Text],
-        ) -> Tuple[Text, Text]:
+        files_changed: Union[Set[str], Set[str]],
+        default: Tuple[str, str],
+        ) -> Tuple[str, str]:
     if not files_changed:
         return default
 
@@ -181,7 +181,7 @@ def get(git_gecko: Repo,
     return product, component
 
 
-def mozbuild_path(repo_work: Repo) -> Text:
+def mozbuild_path(repo_work: Repo) -> str:
     working_dir = repo_work.working_dir
     assert working_dir is not None
     return os.path.join(working_dir,
@@ -190,11 +190,11 @@ def mozbuild_path(repo_work: Repo) -> Text:
                         "moz.build")
 
 
-def update(repo_work: Repo, renames: Dict[Text, Text]) -> None:
+def update(repo_work: Repo, renames: Dict[str, str]) -> None:
     mozbuild_file_path = mozbuild_path(repo_work)
     tests_base = os.path.split(env.config["gecko"]["path"]["wpt"])[1]
 
-    def tests_rel_path(path: Text) -> Text:
+    def tests_rel_path(path: str) -> str:
         return os.path.join(tests_base, path)
 
     mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
