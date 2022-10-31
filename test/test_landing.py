@@ -538,8 +538,10 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
     assert any([c.bug == downstream_sync.bug for c in commits])
 
 
+@pytest.mark.parametrize("delete_reflog", [False, True])
 def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                         upstream_gecko_commit, mock_mach, git_wpt_upstream):
+                                         upstream_gecko_commit, mock_mach, git_wpt_upstream,
+                                         delete_reflog):
     trypush.Mach = mock_mach
 
     sync = create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
@@ -569,6 +571,10 @@ def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstr
     git_wpt.remotes.origin.fetch()
     pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
     env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
+
+    if delete_reflog:
+        for _ in git_wpt.references[sync.branch_name].log():
+            git_wpt.git.reflog("delete", f"{sync.branch_name}@{{0}}")
 
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"

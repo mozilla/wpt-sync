@@ -287,8 +287,13 @@ Automatic update from web-platform-tests\n%s
             else:
                 # Check if we rebased locally without pushing the rebase;
                 # this is a thing we used to do to check the PR would merge
-                ref_log = sync.git_wpt.references[sync.branch_name].log()
-                commit_is_local = any(entry.newhexsha == pr_head for entry in ref_log)
+                try:
+                    ref_log = sync.git_wpt.references[sync.branch_name].log()
+                except Exception:
+                    # If we can't read the reflog just skip this
+                    pass
+                else:
+                    commit_is_local = any(entry.newhexsha == pr_head for entry in ref_log)
             if commit_is_local:
                 logger.info("Upstream sync doesn't introduce any gecko changes")
                 return None
