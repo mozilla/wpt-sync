@@ -8,7 +8,6 @@ from collections import defaultdict
 
 import taskcluster
 import yaml
-import six
 
 from . import base
 from . import log
@@ -270,8 +269,7 @@ class TryPush(base.ProcessData):
         process_name = base.ProcessName.with_seq_id(sync.git_gecko,
                                                     cls.obj_type,
                                                     sync.sync_type,
-                                                    six.ensure_text(
-                                                        str(getattr(sync, sync.obj_id))))
+                                                    str(getattr(sync, sync.obj_id)))
         rv = super().create(lock, sync.git_gecko, process_name, data)
         try_idx.insert(try_idx.make_key(try_rev), process_name)
 

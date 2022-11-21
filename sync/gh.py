@@ -2,12 +2,11 @@ import itertools
 import random
 import re
 import time
+import urllib.parse
 from io import StringIO
 
 import github
 import newrelic
-import six
-from six.moves import urllib
 
 
 from . import log
@@ -435,7 +434,6 @@ class MockGitHub(GitHub):
         self.checks = {}
 
     def _log(self, data: str) -> None:
-        data = six.ensure_text(data)
         self.output.write(data)
         self.output.write("\n")
 

@@ -5,7 +5,6 @@ import traceback
 from collections import defaultdict
 
 import git
-import six
 
 from . import bug
 from . import log
@@ -273,14 +272,13 @@ class SyncPointName(metaclass=IdentityMap):
 
     @classmethod
     def _cache_key(cls, subtype: str, obj_id: str) -> tuple[str, str]:
-        return (subtype, six.ensure_text(str(obj_id)))
+        return (subtype, str(obj_id))
 
     def key(self) -> tuple[str, str]:
         return (self._subtype, self._obj_id)
 
     def __str__(self) -> str:
-        data = f"{self._obj_type}/{self._subtype}/{self._obj_id}"
-        return six.ensure_str(data)
+        return f"{self._obj_type}/{self._subtype}/{self._obj_id}"
 
     def path(self):
         return f"{self._obj_type}/{self._subtype}/{self._obj_id}"
@@ -358,10 +356,8 @@ class SyncProcess(metaclass=IdentityMap):
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def __repr__(self) -> str:
-        return six.ensure_str(
-            "<{} {} {}>".format(
-                self.__class__.__name__, self.sync_type, self.process_name
-            )
+        return "<{} {} {}>".format(
+            self.__class__.__name__, self.sync_type, self.process_name
         )
 
     @classmethod
@@ -424,7 +420,7 @@ class SyncProcess(metaclass=IdentityMap):
         """
         from . import index
 
-        bug_str = six.ensure_text(str(bug))
+        bug_str = str(bug)
         statuses = set(statuses) if statuses is not None else set(cls.statuses)
         rv = defaultdict(set)
         idx_key = (bug_str,)
@@ -688,7 +684,7 @@ class SyncProcess(metaclass=IdentityMap):
                 message = value
                 stack = None
             else:
-                message = six.ensure_text(str(value))
+                message = str(value)
                 stack = traceback.format_exc()
             error = {"message": encode(message), "stack": encode(stack)}
             self.data["error"] = error
@@ -770,10 +766,10 @@ class SyncProcess(metaclass=IdentityMap):
 
         if cls.obj_id == "bug":
             assert bug is not None
-            obj_id = six.ensure_text(str(bug))
+            obj_id = str(bug)
         elif cls.obj_id == "pr":
             assert pr is not None
-            obj_id = six.ensure_text(str(pr))
+            obj_id = str(pr)
         else:
             raise ValueError("Invalid cls.obj_id: %s" % cls.obj_id)
 

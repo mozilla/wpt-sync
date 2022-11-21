@@ -11,7 +11,6 @@ import subprocess
 import types
 
 import newrelic
-import six
 
 from sync import repos
 from sync.env import Environment
@@ -61,8 +60,6 @@ class Command:
             return self.get(name.replace("_", "-"), *args, **kwargs)
         call.__name__ = name
         args: Tuple[Any, ...] = (call, self)
-        if six.PY2:
-            args += (self.__class__,)
         self.__dict__[name] = types.MethodType(*args)
         return self.__dict__[name]
 

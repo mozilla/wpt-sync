@@ -3,11 +3,10 @@ import base64
 import re
 import sys
 import traceback
+import urllib.parse
 
 import bugsy
 import newrelic
-import six
-from six.moves import urllib
 
 from . import log
 from .env import Environment
@@ -418,7 +417,7 @@ class MockBugzilla(Bugzilla):
         self.dupes = {}
 
     def _log(self, data: str | bytes) -> None:
-        data = six.ensure_text(data)
+        data = str(data)
         self.output.write(data)
         self.output.write("\n")
 

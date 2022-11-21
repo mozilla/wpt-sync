@@ -7,7 +7,6 @@ from collections.abc import Mapping
 
 import git
 import pygit2
-import six
 
 from . import log
 from . import commit as sync_commit
@@ -235,8 +234,8 @@ class ProcessName(metaclass=IdentityMap):
 
         self._obj_type = obj_type
         self._subtype = subtype
-        self._obj_id = six.ensure_text(str(obj_id))
-        self._seq_id = six.ensure_text(str(seq_id))
+        self._obj_id = str(obj_id)
+        self._seq_id = str(seq_id)
 
     @classmethod
     def _cache_key(cls,
@@ -245,7 +244,7 @@ class ProcessName(metaclass=IdentityMap):
                    obj_id: str,
                    seq_id: str | int,
                    ) -> tuple[str, str, str, str]:
-        return (obj_type, subtype, six.ensure_text(str(obj_id)), six.ensure_text(str(seq_id)))
+        return (obj_type, subtype, str(obj_id), str(seq_id))
 
     def __str__(self) -> str:
         data = "%s/%s/%s/%s" % self.as_tuple()
@@ -309,7 +308,7 @@ class ProcessName(metaclass=IdentityMap):
                 int(process_name.seq_id) > last_id):
                 last_id = process_name.seq_id
         seq_id = last_id + 1
-        return cls(obj_type, subtype, obj_id, six.ensure_text(str(seq_id)))
+        return cls(obj_type, subtype, obj_id, str(seq_id))
 
 
 class VcsRefObject(metaclass=IdentityMap):
@@ -366,7 +365,7 @@ class VcsRefObject(metaclass=IdentityMap):
         return cls(repo, name, commit_cls)
 
     def __str__(self) -> str:
-        return six.ensure_str(self.path)
+        return self.path
 
     def delete(self) -> None:
         self.pygit2_repo.references[self.path].delete()
@@ -541,7 +540,7 @@ class ProcessData(metaclass=IdentityMap):
         self._delete = False
 
     def __repr__(self) -> str:
-        return six.ensure_str(f"<{self.__class__.__name__} {self.process_name}>")
+        return f"<{self.__class__.__name__} {self.process_name}>"
 
     def __hash__(self) -> int:
         return hash(self.process_name)
@@ -698,7 +697,7 @@ class FrozenDict(Mapping):
     def __init__(self, **kwargs: Any) -> None:
         self._data = {}
         for key, value in kwargs.items():
-            self._data[six.ensure_text(key)] = value
+            self._data[key] = value
 
     def __getitem__(self, key: str) -> Any:
         return self._data[key]
@@ -709,7 +708,7 @@ class FrozenDict(Mapping):
     def copy(self, **kwargs: Any) -> FrozenDict:
         new_data = self._data.copy()
         for key, value in kwargs.items():
-            new_data[six.ensure_text(key)] = value
+            new_data[key] = value
         return self.__class__(**new_data)
 
     def __iter__(self) -> Iterator[str]:
