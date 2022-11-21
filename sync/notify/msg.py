@@ -1,8 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
-
-from six import itervalues
-from six.moves import urllib
+import urllib.parse
 
 from ..bug import bug_number_from_url, max_comment_length
 from ..env import Environment
@@ -35,7 +33,7 @@ def status_str(result: Result | SubtestResult | TestResult,
                "both": ["base", "head"]}[include_status]
 
     if all(result.is_consistent(browser, target) for target in targets):
-        value = "->".join(f"`{getattr(next(itervalues(result.statuses[browser])), target)}`"
+        value = "->".join(f"`{getattr(next(iter(result.statuses[browser].values())), target)}`"
                           for target in targets)
     else:
         by_value = defaultdict(list)

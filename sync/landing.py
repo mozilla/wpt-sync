@@ -6,7 +6,6 @@ from collections import defaultdict
 import enum
 import git
 from celery.exceptions import OperationalError
-import six
 
 from . import bug
 from . import bugcomponents
@@ -394,7 +393,7 @@ Automatic update from web-platform-tests\n%s
 
         head = sync_commit.GeckoCommit(self.git_gecko, git_work_gecko.head.commit)
         if (head.is_downstream and
-            head.metadata.get("wpt-pr") == six.ensure_text(str(pr.number))):
+            head.metadata.get("wpt-pr") == str(pr.number)):
             return None
 
         revish = f"{base}..{wpt_commits[-1].sha1}"
@@ -829,7 +828,7 @@ def push(landing: LandingSync) -> None:
             landing.gecko_rebase(landing.gecko_integration_branch())
         except AbortError as e:
             logger.error(e)
-            env.bz.comment(landing.bug, six.ensure_text(str(e)))
+            env.bz.comment(landing.bug, str(e))
             raise e
 
         if old_head == landing.gecko_commits.head.sha1:

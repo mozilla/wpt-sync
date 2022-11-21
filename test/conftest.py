@@ -14,7 +14,6 @@ from unittest.mock import Mock, patch
 import git
 import pytest
 import requests_mock
-import six
 
 from sync import (commit,
                   repos,
@@ -182,8 +181,6 @@ username=test""")
             return subprocess.check_output(cmd, cwd=self.working_tree)
         call.__name__ = name
         args = (call, self)
-        if six.PY2:
-            args += (hg,)
         return types.MethodType(*args)
 
 

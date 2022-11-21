@@ -8,7 +8,6 @@ import subprocess
 import traceback
 
 import git
-import six
 
 from . import listen
 from .phab import listen as phablisten
@@ -742,7 +741,7 @@ def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstr
 
         pr_errors = update.retrigger(git_gecko, git_wpt, unlandable, rebase=rebase)
         if pr_errors:
-            print("The following PRs have errors:\n%s" % "\n".join(six.ensure_text(str(item))
+            print("The following PRs have errors:\n%s" % "\n".join(str(item)
                                                                    for item in pr_errors))
 
 

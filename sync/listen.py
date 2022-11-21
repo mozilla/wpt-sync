@@ -2,8 +2,7 @@ import abc
 import json
 import logging
 import os
-
-from six.moves import urllib
+import urllib.parse
 
 import kombu
 from kombu.mixins import ConsumerMixin

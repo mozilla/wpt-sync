@@ -3,10 +3,9 @@ import os
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, namedtuple
 from copy import deepcopy
+import urllib.parse
 
 import yaml
-import six
-from six.moves import urllib
 
 from typing import Any, Iterator
 
@@ -379,7 +378,7 @@ class MetaLink:
 
     def __repr__(self) -> str:
         data = (self.__class__.__name__,) + self.state
-        return six.ensure_str("<%s url:%s product:%s test:%s subtest:%s status:%s>" % data)
+        return "<%s url:%s product:%s test:%s subtest:%s status:%s>" % data
 
     def delete(self) -> None:
         """Remove the link from the owning file"""

@@ -13,8 +13,6 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 
-import six
-
 
 import enum
 import git
@@ -411,7 +409,7 @@ class DownstreamSync(SyncProcess):
 
         assert self.bug is not None
         url = env.bz.bugzilla_url(self.bug)
-        external_id = six.ensure_text(str(self.bug))
+        external_id = str(self.bug)
 
         # For now hardcode the status at completed
         status = "completed"
@@ -502,7 +500,7 @@ class DownstreamSync(SyncProcess):
         else:
             assert all(item.metadata.get("wpt-type") != "metadata" for item in self.gecko_commits)
             metadata = {
-                "wpt-pr": six.ensure_text(str(self.pr)),
+                "wpt-pr": str(self.pr),
                 "wpt-type": "metadata"
             }
             msg = sync_commit.Commit.make_commit_msg(
@@ -780,7 +778,7 @@ class DownstreamSync(SyncProcess):
                 msg_filter = None
             else:
                 metadata = {
-                    "wpt-pr": six.ensure_text(str(self.pr)),
+                    "wpt-pr": str(self.pr),
                     "wpt-commit": wpt_commit.sha1
                 }
                 msg_filter = self.message_filter

@@ -4,7 +4,6 @@ import re
 import subprocess
 
 import git
-import six
 from mozautomation import commitparser
 from git.objects.commit import Commit as GitPythonCommit
 from pygit2 import Commit as PyGit2Commit, Oid
@@ -163,7 +162,6 @@ class Commit:
             _pygit2_commit = commit
         else:
             raise ValueError("Unrecognised commit %r" % commit)
-        sha1 = six.ensure_text(sha1)
         if sha1 not in self.pygit2_repo:
             raise ValueError("Commit with SHA1 %s not found" % sha1)
         self.sha1: str = sha1
@@ -588,7 +586,7 @@ class WptCommit(Commit):
                 logger.info("Using tagged PR for commit %s" % self.sha1)
                 pr = tags[0]
             else:
-                pr = six.ensure_text(str(env.gh_wpt.pr_for_commit(self.sha1)))
+                pr = str(env.gh_wpt.pr_for_commit(self.sha1))
             if not pr:
                 pr == ""
             logger.info("Setting PR to %s" % pr)

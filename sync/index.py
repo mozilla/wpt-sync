@@ -5,7 +5,6 @@ from collections import defaultdict
 
 import git
 import pygit2
-import six
 
 from . import log
 from .base import ProcessName, CommitBuilder, iter_tree, iter_process_names
@@ -270,7 +269,7 @@ class Index(metaclass=abc.ABCMeta):
     def dump_value(self, value: IndexValue) -> str:
         if isinstance(value, ProcessName):
             return value.path()
-        return six.ensure_text(value)
+        return value
 
     def load_value(self, value: str) -> IndexValue:
         return self.value_cls(*(value.split("/")))
@@ -297,7 +296,7 @@ class Index(metaclass=abc.ABCMeta):
 
     @classmethod
     def make_key(cls, value: Any) -> IndexKey:
-        return (six.ensure_text(value),)
+        return (value,)
 
     def keys(self) -> set[IndexKey]:
         return {key for key, _ in
@@ -313,9 +312,9 @@ class TaskGroupIndex(Index):
 
     @classmethod
     def make_key(cls, value: str) -> IndexKey:
-        return (six.ensure_text(value[:2]),
-                six.ensure_text(value[2:4]),
-                six.ensure_text(value[4:]))
+        return (value[:2],
+                value[2:4],
+                value[4:])
 
     def build_entries(self, *args, **kwargs):
         from . import trypush
@@ -335,10 +334,10 @@ class TryCommitIndex(Index):
 
     @classmethod
     def make_key(cls, value: str) -> IndexKey:
-        return (six.ensure_text(value[:2]),
-                six.ensure_text(value[2:4]),
-                six.ensure_text(value[4:6]),
-                six.ensure_text(value[6:]))
+        return (value[:2],
+                value[2:4],
+                value[4:6],
+                value[6:])
 
     def build_entries(self, *args, **kwargs):
         entries = []
@@ -360,10 +359,10 @@ class SyncIndex(Index):
     def make_key(cls,
                  sync: SyncProcess,
                  ) -> IndexKey:
-        return (six.ensure_text(sync.process_name.obj_type),
-                six.ensure_text(sync.process_name.subtype),
-                six.ensure_text(sync.status),
-                six.ensure_text(str(sync.process_name.obj_id)))
+        return (sync.process_name.obj_type,
+                sync.process_name.subtype,
+                sync.status,
+                str(sync.process_name.obj_id))
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -400,7 +399,7 @@ class PrIdIndex(Index):
 
     @classmethod
     def make_key(cls, sync: SyncProcess) -> IndexKey:
-        return (six.ensure_text(str(sync.pr)),)
+        return (str(sync.pr),)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -437,7 +436,7 @@ class BugIdIndex(Index):
     def make_key(cls,
                  sync: SyncProcess,
                  ) -> IndexKey:
-        return (six.ensure_text(str(sync.bug)), six.ensure_text(sync.status))
+        return (str(sync.bug), sync.status)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
