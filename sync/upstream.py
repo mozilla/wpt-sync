@@ -94,8 +94,8 @@ class UpstreamSync(SyncProcess):
             gecko_base: str,
             gecko_head: str,
             wpt_base: str = "origin/master",
-            wpt_head: str = None,
-            bug: str = None,
+            wpt_head: str | None = None,
+            bug: str | None = None,
             status: str = "open",
             ) -> UpstreamSync:
         self = super().new(lock,
@@ -174,7 +174,7 @@ class UpstreamSync(SyncProcess):
     def landable_status(self):
         return LandableStatus.upstream
 
-    @property
+    @property   # type: ignore[override]
     def bug(self) -> int:
         return int(self.process_name.obj_id)
 
@@ -1106,9 +1106,9 @@ def update_pr(git_gecko: Repo,
               git_wpt: Repo,
               sync: UpstreamSync,
               action: str,
-              merge_sha: str = None,
-              base_sha: str = None,
-              merged_by: str = None,
+              merge_sha: str | None = None,
+              base_sha: str | None = None,
+              merged_by: str | None = None,
               ) -> None:
     """Update the sync status for a PR event on github
 

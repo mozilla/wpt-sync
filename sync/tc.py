@@ -281,6 +281,8 @@ def get_task_artifacts(destination: str,
         logger.debug("No runs for task %s" % status["taskId"])
         return
     artifacts_base_url = QUEUE_BASE + "task/%s/artifacts" % status["taskId"]
+    if session is None:
+        session = requests.Session()
     try:
         artifacts = fetch_json(artifacts_base_url, session=session)
     except requests.HTTPError as e:
@@ -469,8 +471,8 @@ def download(log_url: str, log_path: str, retry: int,
 
 
 def fetch_json(url: str,
-               params: dict[str, str] = None,
-               session: requests.Session = None
+               params: dict[str, str] | None = None,
+               session: requests.Session | None = None
                ):
     # type (...) -> Union[Dict[Text, Any], List[Any]]
     if session is None:

@@ -129,7 +129,7 @@ class GitHubHandler(Handler):
         newrelic.agent.set_transaction_name("GitHubHandler")
         handler = self.dispatch_event[body["event"]]
         newrelic.agent.add_custom_parameter("event", body["event"])
-        if handler:
+        if handler is not None:
             return handler(git_gecko, git_wpt, body["payload"])
         # TODO: other events to check if we can merge a PR
         # because of some update

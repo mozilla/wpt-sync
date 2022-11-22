@@ -8,7 +8,7 @@ import newrelic
 from . import log
 from .env import Environment
 from .projectutil import Mach
-from typing import Any, Dict, List, Mapping, Set, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple, Union
 from git.repo.base import Repo
 
 logger = log.get_logger(__name__)
@@ -44,7 +44,7 @@ def match(path: str, pattern: str) -> bool:
     return re_cache[pattern].match(path) is not None
 
 
-def remove_obsolete(path: str, moves: Dict[str, str] = None) -> str:
+def remove_obsolete(path: str, moves: Optional[Dict[str, str]] = None) -> str:
     from lib2to3 import (pygram,  # type: ignore
                          pytree,
                          patcomp)

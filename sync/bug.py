@@ -317,7 +317,7 @@ class BugContext:
     def add_comment(self,
                     comment: str,
                     check_dupe: bool = True,
-                    comment_tags: list[str] = None,
+                    comment_tags: list[str] | None = None,
                     is_private: bool = False,
                     is_markdown: bool = False
                     ):
@@ -503,7 +503,7 @@ class MockBugContext(BugContext):
     def add_comment(self,
                     comment: str,
                     check_dupe: bool = True,
-                    comment_tags: list[str] = None,
+                    comment_tags: list[str] | None = None,
                     is_private: bool = False,
                     is_markdown: bool = False
                     ) -> None:
