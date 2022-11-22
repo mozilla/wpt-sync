@@ -548,7 +548,7 @@ class MockGitHub(GitHub):
 
     def merge_pull(self, pr_id: int) -> str:
         pr = self.get_pull(pr_id)
-        if self.is_mergeable:
+        if self.is_mergeable(pr_id):
             pr.merged = True
         else:
             # TODO: raise the right kind of error here

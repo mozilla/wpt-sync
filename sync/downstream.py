@@ -1113,7 +1113,7 @@ def update_pr(git_gecko: Repo,
               action: str,
               merge_sha: str,
               base_sha: str,
-              merged_by: str = None,
+              merged_by: str | None = None,
               ) -> None:
     try:
         if action == "closed" and not merge_sha:

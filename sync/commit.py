@@ -329,7 +329,7 @@ def move_commits(repo: Repo,
                  three_way: bool = True,
                  rev_name: str | None = None,
                  author: bytes | None = None,
-                 exclude: set[str] = None,
+                 exclude: set[str] | None = None,
                  patch_fallback: bool = False,
                  allow_empty: bool = False,
                  ) -> Commit | None:

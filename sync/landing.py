@@ -784,7 +784,7 @@ MANUAL PUSH: wpt sync bot
                      "web-platform-tests linux-32 shippable",
                      "web-platform-tests mac !debug shippable"])
 
-    def try_result(self, try_push: TryPush = None,
+    def try_result(self, try_push: TryPush | None = None,
                    tasks: TryPushTasks | None = None) -> TryPushResult:
         """Determine whether a try push has infra failures, or an acceptable
         level of test passes for the current build"""
@@ -1311,7 +1311,8 @@ def record_rebase_failure(sync):
     return record_failure(sync, log_msg, bug_msg, fixup_msg)
 
 
-def update_metadata(sync: LandingSync, try_push: TryPush, tasks: TryPushTasks = None) -> None:
+def update_metadata(sync: LandingSync, try_push: TryPush,
+                    tasks: TryPushTasks | None = None) -> None:
     if tasks is None:
         tasks = try_push.tasks()
     if tasks is None:

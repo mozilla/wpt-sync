@@ -635,7 +635,7 @@ class ProcessData(metaclass=IdentityMap):
         return rv
 
     def _save(self, data: dict[str, Any], message: str,
-              commit_builder: CommitBuilder = None) -> Any | None:
+              commit_builder: CommitBuilder | None = None) -> Any | None:
         if commit_builder is None:
             commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         else:
