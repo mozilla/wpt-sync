@@ -357,12 +357,18 @@ class SyncIndex(Index):
 
     @classmethod
     def make_key(cls,
-                 sync: SyncProcess,
+                 value: Union[SyncProcess, Tuple[ProcessName, str]],
                  ) -> IndexKey:
-        return (sync.process_name.obj_type,
-                sync.process_name.subtype,
-                sync.status,
-                str(sync.process_name.obj_id))
+        if isinstance(value, tuple):
+            process_name, status = value
+        else:
+            process_name = value.process_name
+            status = value.status
+
+        return (process_name.obj_type,
+                process_name.subtype,
+                status,
+                str(process_name.obj_id))
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -398,8 +404,13 @@ class PrIdIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls, sync: SyncProcess) -> IndexKey:
-        return (str(sync.pr),)
+    def make_key(cls, value: Union[SyncProcess, ProcessName]) -> IndexKey:
+        if isinstance(value, ProcessName):
+            pr_id = value.obj_id
+        else:
+            pr_id = str(value.pr)
+            assert pr_id is not None
+        return (pr_id,)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync
@@ -434,9 +445,16 @@ class BugIdIndex(Index):
 
     @classmethod
     def make_key(cls,
-                 sync: SyncProcess,
+                 value: Union[SyncProcess, Tuple[ProcessName, str]],
                  ) -> IndexKey:
-        return (str(sync.bug), sync.status)
+        if isinstance(value, tuple):
+            process_name, status = value
+            bug = process_name.obj_id
+        else:
+            assert value.bug is not None
+            bug = str(value.bug)
+            status = value.status
+        return (bug, status)
 
     def build_entries(self, git_gecko, git_wpt, **kwargs):
         from .downstream import DownstreamSync

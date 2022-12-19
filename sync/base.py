@@ -17,6 +17,7 @@ from .repos import pygit2_get
 from typing import (Any,
                     DefaultDict,
                     Iterator,
+                    Optional,
                     Set,
                     Tuple,
                     TYPE_CHECKING)
@@ -354,14 +355,21 @@ class VcsRefObject(metaclass=IdentityMap):
     @classmethod
     @constructor(lambda args: (args["name"].subtype,
                                args["name"].obj_id))
-    def create(cls, lock: SyncLock, repo: Repo, name: ProcessName, obj: str,
-               commit_cls: type = sync_commit.Commit) -> VcsRefObject:
+    def create(cls,
+               lock: SyncLock,
+               repo: Repo,
+               name: ProcessName, obj: str,
+               commit_cls: type = sync_commit.Commit,
+               force: bool = False) -> VcsRefObject:
         path = cls.get_path(name)
         logger.debug("Creating ref %s" % path)
         pygit2_repo = pygit2_get(repo)
         if path in pygit2_repo.references:
-            raise ValueError(f"Ref {path} exists")
-        pygit2_repo.references.create(path, pygit2_repo.revparse_single(obj).id)
+            if not force:
+                raise ValueError(f"Ref {path} exists")
+        pygit2_repo.references.create(path,
+                                      pygit2_repo.revparse_single(obj).id,
+                                      force=force)
         return cls(repo, name, commit_cls)
 
     def __str__(self) -> str:
@@ -585,17 +593,26 @@ class ProcessData(metaclass=IdentityMap):
                process_name: ProcessName,
                data: dict[str, Any],
                message: str = "Sync data",
+               commit_builder: Optional[CommitBuilder] = None
                ) -> ProcessData:
         assert process_name.obj_type == cls.obj_type
         path = cls.get_path(process_name)
+
         ref = git.Reference(repo, env.config["sync"]["ref"])
+
         try:
             ref.commit.tree[path]
         except KeyError:
             pass
         else:
             raise ValueError(f"{cls.__name__} already exists at path {path}")
-        with CommitBuilder(repo, message, ref=ref.path) as commit:
+
+        if commit_builder is None:
+            commit_builder = CommitBuilder(repo, message, ref=ref.path)
+        else:
+            assert commit_builder.ref == ref.path
+
+        with commit_builder as commit:
             commit.add_tree({path: json.dumps(data).encode("utf8")})
         ProcessNameIndex(repo).insert(process_name)
         return cls(repo, process_name)

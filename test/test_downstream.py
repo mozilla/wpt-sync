@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 from sync import downstream, handlers, load, trypush
+from sync.base import ProcessName
 from sync.lock import SyncLock
 
 
@@ -14,7 +15,18 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
 
     mock_wpt.set_data("files-changed", b"README\n")
 
+    initial_data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
+
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+
+    # We currently create the following commits:
+    #   1. Initial sync creation
+    #   2. Adding a bug
+    #   3. Adding the GH checks status
+    # This could be reduced to exactly one commit in the future
+    data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
+    assert len(data_commits) == len(initial_data_commits) + 3
+
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
     env.gh_wpt.set_status(pr["number"], "success", "http://test/", "description",
                           "continuous-integration/travis-ci/pr")
@@ -22,6 +34,7 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
+
     assert sync.gecko_commits[0].metadata == {
         "wpt-pr": str(pr["number"]),
         "wpt-commit": pr["head"]
@@ -30,6 +43,35 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     assert len(env.gh_wpt.checks) == 1
     assert len(env.gh_wpt.checks[pr["head"]])
     assert "Creating a bug in component Testing :: web-platform" in env.bz.output.getvalue()
+
+
+def test_new_pr_existing_branch(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
+                      "Test PR")
+
+    mock_mach.set_data("file-info", b"""Testing :: web-platform-tests
+  testing/web-platform/tests/README
+""")
+
+    mock_wpt.set_data("files-changed", b"README\n")
+
+    initial_data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
+    process_name = ProcessName("sync", "downstream", pr["number"], "0")
+
+    git_wpt.remotes.origin.fetch()
+
+    # Pre-create some branches that will clash with the sync branches
+    git_gecko.create_head(process_name.path(), env.config["gecko"]["refs"]["central"])
+    git_wpt.create_head(process_name.path(), "origin/master")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
+    assert len(data_commits) == len(initial_data_commits) + 3
+
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+
+    assert sync is not None
+    assert sync.process_name == process_name
 
 
 def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,

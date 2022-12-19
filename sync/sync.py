@@ -10,6 +10,7 @@ from . import bug
 from . import log
 from .base import (
     BranchRefObject,
+    CommitBuilder,
     IdentityMap,
     ProcessData,
     ProcessName,
@@ -33,11 +34,11 @@ from os import PathLike
 from typing_extensions import Literal
 if TYPE_CHECKING:
     from sync.commit import Commit
-    from sync.trypush import TryPush
+    from sync.index import Index
     from sync.lock import SyncLock
-
+    from sync.trypush import TryPush
 try:
-    from typing import overload
+    from typing import (List, Tuple, Type, overload)
 except ImportError:
 
     def typing(f):
@@ -794,22 +795,47 @@ class SyncProcess(metaclass=IdentityMap):
                     cls.obj_id, cls.sync_type, obj_id
                 )
             )
-        SyncData.create(lock, git_gecko, process_name, data)
-        BranchRefObject.create(lock, git_gecko, process_name, gecko_head, GeckoCommit)
-        BranchRefObject.create(lock, git_wpt, process_name, wpt_head, WptCommit)
 
-        rv = cls(git_gecko, git_wpt, process_name)
+        commit_builder = CommitBuilder(git_gecko,
+                                       f"Create sync {process_name}\n",
+                                       env.config["sync"]["ref"])
 
-        idx = index.SyncIndex(git_gecko)
-        idx.insert(idx.make_key(rv), process_name).save()
+        refs = [BranchRefObject.create(lock,
+                                       git_gecko,
+                                       process_name,
+                                       gecko_head,
+                                       GeckoCommit,
+                                       force=True),
+                BranchRefObject.create(lock,
+                                       git_wpt,
+                                       process_name,
+                                       wpt_head,
+                                       WptCommit,
+                                       force=True)]
 
-        if cls.obj_id == "bug":
-            bug_idx = index.BugIdIndex(git_gecko)
-            bug_idx.insert(bug_idx.make_key(rv), process_name).save()
-        elif cls.obj_id == "pr":
-            pr_idx = index.PrIdIndex(git_gecko)
-            pr_idx.insert(pr_idx.make_key(rv), process_name).save()
-        return rv
+        try:
+            # This will commit all the data in a single commit when we exit the "with" block
+            with commit_builder:
+                SyncData.create(lock,
+                                git_gecko,
+                                process_name,
+                                data,
+                                commit_builder=commit_builder)
+                sync_idx_key = (process_name, status)
+                idxs: List[Tuple[Any, Type[Index]]] = [(sync_idx_key, index.SyncIndex)]
+                if cls.obj_id == "bug":
+                    idxs.append(((process_name, status), index.BugIdIndex))
+                elif cls.obj_id == "pr":
+                    idxs.append((process_name, index.PrIdIndex))
+                for (key, idx_cls) in idxs:
+                    idx = idx_cls(git_gecko)
+                    idx.insert(idx.make_key(key), process_name).save(commit_builder)
+        except Exception:
+            for ref in refs:
+                ref.delete()
+            raise
+
+        return cls(git_gecko, git_wpt, process_name)
 
     @mut()
     def finish(self, status: str = "complete") -> None:
