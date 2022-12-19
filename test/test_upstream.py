@@ -12,13 +12,20 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
                                 message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+
+    initial_data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
     pushed, landed, failed = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
                                                  raise_on_error=True)
     assert len(pushed) == 1
     assert len(landed) == 0
     assert len(failed) == 0
+    # Creating one upstream sync creates an initial commit and then one to update the
+    # relevant PR id and remote branch. This could be reduced to just one.
+    data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
+    assert len(data_commits) == len(initial_data_commits) + 2
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+
     assert list(syncs.keys()) == ["open"]
     assert len(syncs["open"]) == 1
     sync = syncs["open"].pop()
