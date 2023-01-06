@@ -274,7 +274,7 @@ def set_remote_urls(repo):
             if len(current_urls) > 1:
                 for old_url in current_urls[1:]:
                     remote.delete_url(old_url)
-            remote.set_url(url, current_urls[0])
+            remote.set_url(url, current_urls[0], allow_unsafe_protocols=True)
 
 
 @pytest.fixture(scope="function")
