@@ -111,8 +111,8 @@ class Bugzilla:
             return None
         return query["id"][0]
 
-    def _get_bug(self, bug_id: int) -> Bug | None:
-        if bug_id not in self.bug_cache:
+    def _get_bug(self, bug_id: int, force_update: bool = False) -> Bug | None:
+        if bug_id not in self.bug_cache or force_update:
             try:
                 bug = self.bugzilla.get(bug_id)
             except bugsy.BugsyException:
@@ -221,7 +221,7 @@ class Bugzilla:
 
     def get_whiteboard(self, bug: Bug | int) -> str | None:
         if not isinstance(bug, bugsy.Bug):
-            bug = self._get_bug(bug)
+            bug = self._get_bug(bug, True)
         if not bug:
             return None
         return bug._bug.get("whiteboard", "")
