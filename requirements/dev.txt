@@ -171,9 +171,9 @@ types-PyYAML==6.0.12.7 \
 types-filelock==3.2.7 \
     --hash=sha256:0673a25b45725c5c45661fe3744c3d8058653a16e683f0ae4a74afb44a0cdef4 \
     --hash=sha256:ee0ee2b4ec3d491ebe71f7343e21435c3a07f910881275a94788cac42acf4339
-types-requests==2.28.11.7 \
-    --hash=sha256:0ae38633734990d019b80f5463dfa164ebd3581998ac8435f526da6fe4d598c3 \
-    --hash=sha256:b6a2fca8109f4fdba33052f11ed86102bddb2338519e1827387137fefc66a98b
+types-requests==2.28.11.13 \
+    --hash=sha256:3fd332842e8759ea5f7eb7789df8aa772ba155216ccf10ef4aa3b0e5b42e1b46 \
+    --hash=sha256:94896f6f8e9f3db11e422c6e3e4abbc5d7ccace853eac74b23bdd65eeee3cdee
 types-setuptools==67.3.0.1 \
     --hash=sha256:1a26d373036c720e566823b6edd664a2db4d138b6eeba856721ec1254203474f \
     --hash=sha256:a7e0f0816b5b449f5bcdc0efa43da91ff81dbe6941f293a6490d68a450e130a1
