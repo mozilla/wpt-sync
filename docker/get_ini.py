@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
-from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
     if path not in loaded:
         raise ValueError("%s not loaded" % path)
     value = parser.get(section, option)
-    print value
+    print(value)
 
 
 if __name__ == "__main__":
