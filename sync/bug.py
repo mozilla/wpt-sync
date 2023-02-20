@@ -372,7 +372,7 @@ class BugContext:
                        flags: list[str] | None = None
                        ):
         body: dict[str, Any] = {
-            "data": base64.encodestring(data).decode("ascii"),
+            "data": base64.encodebytes(data).decode("ascii"),
             "file_name": file_name,
             "summary": summary,
             "content_type": content_type
@@ -535,7 +535,7 @@ class MockBugContext(BugContext):
                        flags: list[str] | None = None
                        ):
         body: dict[str, Any] = {
-            "data": base64.encodestring(data),
+            "data": base64.encodebytes(data),
             "file_name": file_name,
             "summary": summary,
             "content_type": content_type
