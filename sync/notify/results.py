@@ -203,7 +203,7 @@ class SubtestResult(Result):
 
 
 class ResultsSummary:
-    def __init__(self):
+    def __init__(self) -> None:
         self.parent_tests = 0
         self.subtests = 0
         self.job_results: JobResultsSummary = defaultdict(
