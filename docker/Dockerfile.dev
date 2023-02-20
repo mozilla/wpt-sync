@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
     RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq \
@@ -30,9 +30,6 @@ RUN set -eux; \
         sudo \
         vim \
         wget \
-        # Ensure /usr/bin/python exists
-        python \
-        # Required by cinnabar, mach, wpt, even for Py3
         python3 \
         python3-distutils \
         python3-dev \
