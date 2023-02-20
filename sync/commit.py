@@ -73,7 +73,7 @@ def create_commit(repo: Repo, msg: bytes, **kwargs: Any) -> GitPythonCommit:
     exec_kwargs = {k: v for k, v in kwargs.items() if k in git.cmd.execute_kwargs}
     opts_kwargs = {k: v for k, v in kwargs.items() if k not in git.cmd.execute_kwargs}
 
-    cmd = [repo.git.GIT_PYTHON_GIT_EXECUTABLE]
+    cmd: list[str | bytes | None] = [repo.git.GIT_PYTHON_GIT_EXECUTABLE]
     cmd.extend(repo.git._persistent_git_options)
     cmd.append(b"commit")
     cmd.append(b"--message=%s" % msg)
