@@ -12,6 +12,8 @@ RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
     groupadd --gid 10002 rabbitmq && \
     useradd --uid 10002 --gid 10002 rabbitmq --home /home/rabbitmq --create-home && \
+    # Ensure subdirs of /app are accessible to other users
+    chmod a+x /app && \
     # Disable ipv6 in gpg to avoid signing failures
     mkdir ~/.gnupg && echo "disable-ipv6" >> ~/.gnupg/dirmngr.conf
 
