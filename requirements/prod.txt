@@ -141,8 +141,8 @@ jedi==0.18.2 \
 kombu==5.2.4 \
     --hash=sha256:37cee3ee725f94ea8bb173eaab7c1760203ea53bbebae226328600f9d2799610 \
     --hash=sha256:8b213b24293d3417bcf0d2f5537b7f756079e3ea232a8386dcc89a59fd2361a4
-mercurial==6.3.2 \
-    --hash=sha256:cfe6eeb5dd893ab32c0b79c1531aac420773e0fc837a35db3d4d92703df45a98
+mercurial==6.4 \
+    --hash=sha256:e88bfbcb9911e76904a31b972e57f86da8e6ce5892b98c39dd51d3b9599c1347
 mock==5.0.1 \
     --hash=sha256:c41cfb1e99ba5d341fbcc5308836e7d7c9786d302f995b2c271ce2144dece9eb \
     --hash=sha256:e3ea505c03babf7977fd21674a69ad328053d414f05e6433c30d8fa14a534a6b # pyup < 4.0.0
