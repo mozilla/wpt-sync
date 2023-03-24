@@ -246,6 +246,40 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
                 assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
+def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_request,
+                                             set_pr_status, MockTryCls, hg_gecko_try,
+                                             mock_mach, mock_taskgroup):
+    taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
+    try_tasks = trypush.TryPushTasks(taskgroup)
+
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
+                      "Test PR")
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+
+    try_patch = patch("sync.trypush.TryPush.tasks", Mock(return_value=try_tasks))
+    tree_open_patch = patch("sync.tree.is_open", Mock(return_value=True))
+    taskgroup_patch = patch("sync.tc.TaskGroup", Mock(return_value=taskgroup))
+    mach_patch = patch("sync.trypush.Mach", mock_mach)
+
+    with tree_open_patch, try_patch, taskgroup_patch, mach_patch:
+        sync = set_pr_status(pr.number, "success")
+        env.gh_wpt.get_pull(sync.pr).merged = True
+
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                assert len(sync.try_pushes()) == 0
+
+                sync.data["affected-tests"] = {"testharness": ["example"]}
+
+                try_push = sync.next_try_push(try_cls=MockTryCls)
+                with try_push.as_mut(lock):
+                    try_push["taskgroup-id"] = None
+                    try_push.status = "complete"
+                    try_push.infra_fail = True
+
+                assert sync.next_action == downstream.DownstreamAction.ready
+
+
 def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
                           pull_request_commit):
     upstream_wpt_commit(b"First change", {"README": b"Example change\n"})
