@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from sync import downstream, handlers, load, trypush
+from sync import downstream, handlers, load, trypush, upstream
 from sync.base import ProcessName
 from sync.lock import SyncLock
 
@@ -247,8 +247,8 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
 
 
 def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_request,
-                                             set_pr_status, MockTryCls, hg_gecko_try,
-                                             mock_mach, mock_taskgroup):
+                                             set_pr_status, MockTryCls, mock_mach,
+                                             mock_taskgroup, upstream_gecko_commit):
     taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
     try_tasks = trypush.TryPushTasks(taskgroup)
 
@@ -269,15 +269,28 @@ def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_reque
             with sync.as_mut(lock):
                 assert len(sync.try_pushes()) == 0
 
+                commit_hash_before_rebase = sync.gecko_commits.base.sha1
+
+                rev = upstream_gecko_commit(test_changes={"OTHER_CHANGES": b"TEST"},
+                                            message=b"Other changes")
+                downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+                upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+
                 sync.data["affected-tests"] = {"testharness": ["example"]}
+                sync.data["skip"] = False
 
                 try_push = sync.next_try_push(try_cls=MockTryCls)
                 with try_push.as_mut(lock):
                     try_push["taskgroup-id"] = None
                     try_push.status = "complete"
                     try_push.infra_fail = True
+                    try_push["stability"] = False
 
-                assert sync.next_action == downstream.DownstreamAction.ready
+                assert sync.next_action == downstream.DownstreamAction.try_push_stability
+
+                # Check that rebase has happened
+                commit_hash_after_rebase = sync.gecko_commits.base.sha1
+                assert commit_hash_before_rebase != commit_hash_after_rebase
 
 
 def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
