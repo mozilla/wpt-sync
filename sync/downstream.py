@@ -181,14 +181,18 @@ class DownstreamSync(SyncProcess):
         if not self.requires_try:
             return DownstreamAction.ready
         if self.error:
-            self.try_rebase()
+            next_action = self.try_rebase()
+            if next_action:
+                return next_action
 
         latest_try_push = self.latest_valid_try_push
         if (latest_try_push and not latest_try_push.taskgroup_id):
             if latest_try_push.status == "open":
                 return DownstreamAction.wait_try
             elif latest_try_push.infra_fail:
-                self.try_rebase()
+                next_action = self.try_rebase()
+                if next_action:
+                    return next_action
 
         assert self.pr is not None
         pr = env.gh_wpt.get_pull(self.pr)
@@ -245,13 +249,26 @@ class DownstreamSync(SyncProcess):
     def skip(self, value: bool) -> None:
         self.data["skip"] = value
 
-    def try_rebase(self) -> DownstreamAction:
-        try:
-            logger.info("Rebasing onto %s" % self.gecko_integration_branch())
-            self.gecko_rebase(self.gecko_integration_branch())
-            return DownstreamAction.ready
-        except AbortError:
+    @property
+    def tried_to_rebase(self) -> bool:
+        return self.data.get("tried_to_rebase", False)
+
+    @tried_to_rebase.setter  # type: ignore
+    @mut()
+    def tried_to_rebase(self, value: bool) -> None:
+        self.data["tried_to_rebase"] = value
+
+    def try_rebase(self) -> DownstreamAction | None:
+        if self.tried_to_rebase:
             return DownstreamAction.manual_fix
+        else:
+            try:
+                logger.info("Rebasing onto %s" % self.gecko_integration_branch())
+                self.tried_to_rebase = True
+                self.gecko_rebase(self.gecko_integration_branch(), abort_on_fail=True)
+                return None
+            except AbortError:
+                return DownstreamAction.manual_fix
 
     @property
     def wpt(self) -> WPT:
