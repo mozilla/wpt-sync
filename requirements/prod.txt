@@ -130,9 +130,9 @@ idna==3.4 \
 importlib-metadata==6.3.0 \
     --hash=sha256:23c2bcae4762dfb0bbe072d358faec24957901d75b6c4ab11172c0c982532402 \
     --hash=sha256:8f8bd2af397cf33bd344d35cfe7f489219b7d14fc79a3f854b75b8417e9226b0
-ipython==8.10.0 \
-    --hash=sha256:b13a1d6c1f5818bd388db53b7107d17454129a70de2b87481d555daede5eb49e \
-    --hash=sha256:b38c31e8fc7eff642fc7c597061fff462537cf2314e3225a19c906b7b0d8a345
+ipython==8.12.0 \
+    --hash=sha256:1c183bf61b148b00bcebfa5d9b39312733ae97f6dad90d7e9b4d86c8647f498c \
+    --hash=sha256:a950236df04ad75b5bc7f816f9af3d74dc118fd42f2ff7e80e8e60ca1f182e2d
 ipython-genutils==0.2.0 \
     --hash=sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8
 jedi==0.18.2 \
