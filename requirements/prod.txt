@@ -127,9 +127,9 @@ GitPython==3.1.31 \
 idna==3.4 \
     --hash=sha256:814f528e8dead7d329833b91c5faa87d60bf71824cd12a7530b5526063d02cb4 \
     --hash=sha256:90b77e79eaa3eba6de819a0c442c0b4ceefc341a7a2ab77d7562bf49f425c5c2
-importlib-metadata==6.3.0 \
-    --hash=sha256:23c2bcae4762dfb0bbe072d358faec24957901d75b6c4ab11172c0c982532402 \
-    --hash=sha256:8f8bd2af397cf33bd344d35cfe7f489219b7d14fc79a3f854b75b8417e9226b0
+importlib-metadata==6.4.1 \
+    --hash=sha256:63ace321e24167d12fbb176b6015f4dbe06868c54a2af4f15849586afb9027fd \
+    --hash=sha256:eb1a7933041f0f85c94cd130258df3fb0dec060ad8c1c9318892ef4192c47ce1
 ipython==8.12.0 \
     --hash=sha256:1c183bf61b148b00bcebfa5d9b39312733ae97f6dad90d7e9b4d86c8647f498c \
     --hash=sha256:a950236df04ad75b5bc7f816f9af3d74dc118fd42f2ff7e80e8e60ca1f182e2d
