@@ -263,10 +263,17 @@ class DownstreamSync(SyncProcess):
             return DownstreamAction.manual_fix
         else:
             try:
-                logger.info("Rebasing onto %s" % self.gecko_integration_branch())
+                logger.info("Rebasing onto %s" % self.gecko_landing_branch())
                 self.tried_to_rebase = True
-                self.gecko_rebase(self.gecko_integration_branch(), abort_on_fail=True)
-                return None
+
+                commit_hash_before_rebase = self.gecko_commits.base.sha1
+                self.gecko_rebase(self.gecko_landing_branch(), abort_on_fail=True)
+                commit_hash_after_rebase = self.gecko_commits.base.sha1
+
+                if commit_hash_before_rebase == commit_hash_after_rebase:
+                    return DownstreamAction.manual_fix
+                else:
+                    return None
             except AbortError:
                 return DownstreamAction.manual_fix
 
