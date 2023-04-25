@@ -272,9 +272,9 @@ def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_reque
                 commit_hash_before_rebase = sync.gecko_commits.base.sha1
 
                 rev = upstream_gecko_commit(test_changes={"OTHER_CHANGES": b"TEST"},
-                                            message=b"Other changes")
+                                            message=b"Other changes", bookmarks="mozilla/central")
                 downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-                upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+                upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
 
                 sync.data["affected-tests"] = {"testharness": ["example"]}
                 sync.data["skip"] = False
