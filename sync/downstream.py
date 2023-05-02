@@ -50,6 +50,7 @@ class DownstreamAction(enum.Enum):
     try_push_stability = 3
     wait_try = 4
     wait_upstream = 5
+    try_rebase = 6
 
     def reason_str(self):
         # type () -> Text
@@ -58,7 +59,8 @@ class DownstreamAction(enum.Enum):
                 DownstreamAction.try_push: "valid try push required",
                 DownstreamAction.try_push_stability: "stability try push required",
                 DownstreamAction.wait_try: "waiting for try to complete",
-                DownstreamAction.wait_upstream: "waiting for PR to be merged"}.get(self, "")
+                DownstreamAction.wait_upstream: "waiting for PR to be merged",
+                DownstreamAction.try_rebase: "Need to rebase try push"}.get(self, "")
 
 
 class DownstreamSync(SyncProcess):
@@ -181,18 +183,14 @@ class DownstreamSync(SyncProcess):
         if not self.requires_try:
             return DownstreamAction.ready
         if self.error:
-            next_action = self.try_rebase()
-            if next_action:
-                return next_action
+            return DownstreamAction.try_rebase
 
         latest_try_push = self.latest_valid_try_push
         if (latest_try_push and not latest_try_push.taskgroup_id):
             if latest_try_push.status == "open":
                 return DownstreamAction.wait_try
             elif latest_try_push.infra_fail:
-                next_action = self.try_rebase()
-                if next_action:
-                    return next_action
+                return DownstreamAction.try_rebase
 
         assert self.pr is not None
         pr = env.gh_wpt.get_pull(self.pr)
@@ -258,6 +256,7 @@ class DownstreamSync(SyncProcess):
     def tried_to_rebase(self, value: bool) -> None:
         self.data["tried_to_rebase"] = value
 
+    @mut()
     def try_rebase(self) -> DownstreamAction | None:
         if self.tried_to_rebase:
             return DownstreamAction.manual_fix
@@ -369,6 +368,10 @@ class DownstreamSync(SyncProcess):
         self.affected_tests()
 
         action = self.next_action
+        if action == DownstreamAction.try_rebase:
+            action = self.try_rebase()
+            if action is None:
+                action = DownstreamAction.try_push_stability
         if action == DownstreamAction.try_push:
             return TryPush.create(self._lock,
                                   self,
