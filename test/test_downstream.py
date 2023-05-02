@@ -286,7 +286,8 @@ def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_reque
                     try_push.infra_fail = True
                     try_push["stability"] = False
 
-                assert sync.next_action == downstream.DownstreamAction.try_push_stability
+                assert sync.next_action == downstream.DownstreamAction.try_rebase
+                sync.next_try_push(try_cls=MockTryCls)
 
                 # Check that rebase has happened
                 commit_hash_after_rebase = sync.gecko_commits.base.sha1
