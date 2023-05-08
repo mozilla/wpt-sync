@@ -183,14 +183,18 @@ class DownstreamSync(SyncProcess):
         if not self.requires_try:
             return DownstreamAction.ready
         if self.error:
-            return DownstreamAction.try_rebase
+            if self.tried_to_rebase is False:
+                return DownstreamAction.try_rebase
+            return DownstreamAction.manual_fix
 
         latest_try_push = self.latest_valid_try_push
         if (latest_try_push and not latest_try_push.taskgroup_id):
             if latest_try_push.status == "open":
                 return DownstreamAction.wait_try
             elif latest_try_push.infra_fail:
-                return DownstreamAction.try_rebase
+                if self.tried_to_rebase is False:
+                    return DownstreamAction.try_rebase
+                return DownstreamAction.manual_fix
 
         assert self.pr is not None
         pr = env.gh_wpt.get_pull(self.pr)
@@ -257,24 +261,17 @@ class DownstreamSync(SyncProcess):
         self.data["tried_to_rebase"] = value
 
     @mut()
-    def try_rebase(self) -> DownstreamAction | None:
-        if self.tried_to_rebase:
-            return DownstreamAction.manual_fix
-        else:
-            try:
-                logger.info("Rebasing onto %s" % self.gecko_landing_branch())
-                self.tried_to_rebase = True
+    def try_rebase(self) -> None:
+        logger.info("Rebasing onto %s" % self.gecko_landing_branch())
+        initial_tried_to_rebase = self.tried_to_rebase
+        self.tried_to_rebase = True
 
-                commit_hash_before_rebase = self.gecko_commits.base.sha1
-                self.gecko_rebase(self.gecko_landing_branch(), abort_on_fail=True)
-                commit_hash_after_rebase = self.gecko_commits.base.sha1
+        commit_hash_before_rebase = self.gecko_commits.base.sha1
+        self.gecko_rebase(self.gecko_landing_branch(), abort_on_fail=True)
+        commit_hash_after_rebase = self.gecko_commits.base.sha1
 
-                if commit_hash_before_rebase == commit_hash_after_rebase:
-                    return DownstreamAction.manual_fix
-                else:
-                    return None
-            except AbortError:
-                return DownstreamAction.manual_fix
+        if commit_hash_before_rebase == commit_hash_after_rebase:
+            self.tried_to_rebase = initial_tried_to_rebase
 
     @property
     def wpt(self) -> WPT:
@@ -369,9 +366,8 @@ class DownstreamSync(SyncProcess):
 
         action = self.next_action
         if action == DownstreamAction.try_rebase:
-            action = self.try_rebase()
-            if action is None:
-                action = DownstreamAction.try_push_stability
+            self.try_rebase()
+            action = self.next_action
         if action == DownstreamAction.try_push:
             return TryPush.create(self._lock,
                                   self,
