@@ -287,11 +287,70 @@ def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_reque
                     try_push["stability"] = False
 
                 assert sync.next_action == downstream.DownstreamAction.try_rebase
-                sync.next_try_push(try_cls=MockTryCls)
+                try_push = sync.next_try_push(try_cls=MockTryCls)
 
                 # Check that rebase has happened
                 commit_hash_after_rebase = sync.gecko_commits.base.sha1
                 assert commit_hash_before_rebase != commit_hash_after_rebase
+
+                # Make sure that stability try push was created
+                assert try_push["stability"] is True
+
+
+def test_next_try_push_infra_fail_try_rebase_failed(env, git_gecko, git_wpt, pull_request,
+                                                    set_pr_status, MockTryCls, mock_mach,
+                                                    mock_taskgroup, upstream_gecko_commit):
+    taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
+    try_tasks = trypush.TryPushTasks(taskgroup)
+
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
+                      "Test PR")
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+
+    try_patch = patch("sync.trypush.TryPush.tasks", Mock(return_value=try_tasks))
+    tree_open_patch = patch("sync.tree.is_open", Mock(return_value=True))
+    taskgroup_patch = patch("sync.tc.TaskGroup", Mock(return_value=taskgroup))
+    mach_patch = patch("sync.trypush.Mach", mock_mach)
+
+    with tree_open_patch, try_patch, taskgroup_patch, mach_patch:
+        sync = set_pr_status(pr.number, "success")
+        env.gh_wpt.get_pull(sync.pr).merged = True
+
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                assert len(sync.try_pushes()) == 0
+
+                sync.data["affected-tests"] = {"testharness": ["example"]}
+                sync.data["skip"] = False
+
+                try_push = sync.next_try_push(try_cls=MockTryCls)
+                with try_push.as_mut(lock):
+                    try_push["taskgroup-id"] = None
+                    try_push.status = "complete"
+                    try_push.infra_fail = True
+                    try_push["stability"] = False
+
+                assert sync.next_action == downstream.DownstreamAction.try_rebase
+
+                sync.next_try_push(try_cls=MockTryCls)
+
+                # Since the base didn't change with the previous rebase, that rebase
+                # was not considered successful, and we have to try to rebase again.
+                assert sync.next_action == downstream.DownstreamAction.try_rebase
+
+                rev = upstream_gecko_commit(test_changes={"OTHER_CHANGES": b"TEST"},
+                                            message=b"Other changes", bookmarks="mozilla/central")
+                downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+                upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
+
+                try_push = sync.next_try_push(try_cls=MockTryCls)
+                with try_push.as_mut(lock):
+                    try_push["taskgroup-id"] = None
+                    try_push.status = "complete"
+                    try_push.infra_fail = True
+                    try_push["stability"] = False
+
+                assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
 def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
