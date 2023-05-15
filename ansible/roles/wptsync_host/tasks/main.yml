@@ -86,7 +86,7 @@
     mode: 0600
   with_items:
     - { src: "{{ _sync_ini }}", dest: "{{ mount_config }}/prod/sync.ini" }
-  when: update_credentials
+  when: update_config
 
 - name: install credentials (if environment variables are configured)
   copy:
