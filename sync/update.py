@@ -173,7 +173,13 @@ def update_pr(git_gecko: Repo, git_wpt: Repo, pr: PullRequest, force_rebase: boo
             assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
                 if force_rebase:
-                    sync.gecko_rebase(sync.gecko_landing_branch())
+                    central = git_gecko.rev_parse(sync.gecko_landing_branch())
+                    commit = git_gecko.rev_parse(sync.gecko_commits.base.sha1)
+                    # Check if the current central is already an ancestor of the commit
+                    if git_gecko.is_ancestor(central, commit):
+                        sync.gecko_rebase(sync.gecko_integration_branch())
+                    else:
+                        sync.gecko_rebase(sync.gecko_landing_branch())
 
                 if len(sync.wpt_commits) == 0:
                     sync.update_wpt_commits()
