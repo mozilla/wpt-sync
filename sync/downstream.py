@@ -295,14 +295,30 @@ class DownstreamSync(SyncProcess):
         so we always assume that any try push is valid"""
 
         latest_try_push = self.latest_try_push
+        if latest_try_push is None:
+            return None
+
+        if len(self.gecko_commits) == 0:
+            return None
+        if self.metadata_commit is not None:
+            if len(self.gecko_commits) == 1:
+                # Apparently we only have a metadata commit and the actual change got rebased away
+                # In this case the metadata commit is probably wrong, but we can't fix that here
+                return latest_try_push
+            gecko_head = self.gecko_commits[-2]
+        else:
+            gecko_head = self.gecko_commits[-1]
 
         # Check if the try push is for the current PR head
-        if (latest_try_push and
-            latest_try_push.wpt_head and
+        if (latest_try_push.wpt_head and
             latest_try_push.wpt_head not in (self.pr_head.sha1, self.wpt_commits.head.sha1)):
-            # If the try push isn't for the head of the PR or for the post merge head
-            # then we need a new try push
-            latest_try_push = None
+            logger.info("Got more commits since latest try push")
+            return None
+        if latest_try_push.gecko_head not in {gecko_head.sha1,
+                                              self.metadata_commit.sha1
+                                              if self.metadata_commit else None}:
+            logger.info("Gecko commits changed since latest try push")
+            return None
 
         return latest_try_push
 
