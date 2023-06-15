@@ -1148,6 +1148,12 @@ def try_push_complete(git_gecko, git_wpt, try_push, sync):
         sync.next_try_push()
         sync.update_github_check()
 
+    if sync.metadata_commit is not None and len(sync.gecko_commits) == 1:
+        # Apparently we only have a metadata commit and the actual change got rebased away
+        # In this case the metadata commit is probably wrong,
+        # and we just want to skip this sync.
+        sync.skip = True
+
     if sync.landable_status == LandableStatus.ready:
         sync.try_notify()
 
