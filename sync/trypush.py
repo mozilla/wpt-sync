@@ -22,7 +22,7 @@ from .projectutil import Mach
 from .repos import cinnabar
 from .tc import TaskGroupView
 
-from typing import Any, Mapping, MutableMapping, TYPE_CHECKING
+from typing import Any, Mapping, MutableMapping, Text, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
@@ -364,6 +364,10 @@ class TryPush(base.ProcessData):
     @property
     def wpt_head(self) -> str:
         return self.get("wpt-head")
+
+    @property
+    def gecko_head(self) -> Text:
+        return self.get("gecko-head")
 
     def sync(self, git_gecko, git_wpt):
         process_name = self.process_name
