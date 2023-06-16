@@ -265,7 +265,7 @@ class MetaFile:
         data = self._get_data(reread)
         self._update_data(data)
 
-        self.owner.writer.write(self.rel_path, yaml.safe_dump(data))
+        self.owner.writer.write(self.rel_path, yaml.safe_dump(data, encoding="utf8"))
 
         self._file_data = data
         self.links._deleted = []
