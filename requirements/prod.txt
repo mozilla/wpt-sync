@@ -297,9 +297,9 @@ smmap==5.0.0 \
     --hash=sha256:c840e62059cd3be204b0c9c9f74be2c09d5648eddd4580d9314c3ecde0b30936
 smmap2==3.0.1 \
     --hash=sha256:0cb6ea470b1ad9a65a02ca7f4c7ae601861f7dd24a43812ca51cfca2892bb524
-taskcluster==53.0.0 \
-    --hash=sha256:214b72c0db20291ef1b30ba01ab1e79ceaf9bbbdeb2737ba03097f1fbdce875f \
-    --hash=sha256:aa438a314f94198fdfe378f3a11d95c78c0782ef671a990ed1a1574f56e954bc
+taskcluster==54.2.0 \
+    --hash=sha256:542d791f7533c8744fb4c1e724ded46eb48abcd6ffe93867d3d9fc626b0fd1e4 \
+    --hash=sha256:a805c653281d1ce9224448ddf9030024ddd4ebdc7051dad0a11d17bed50ba4db
 taskcluster-urls==13.0.1 \
     --hash=sha256:5e25e7e6818e8877178b175ff43d2e6548afad72694aa125f404a7329ece0973 \
     --hash=sha256:f66dcbd6572a6216ab65949f0fa0b91f2df647918028436c384e6af5cd12ae2b \
