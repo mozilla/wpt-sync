@@ -629,8 +629,9 @@ def remove_complete_backouts(commits: Iterable[Commit]) -> Sequence[Commit]:
         if commit.is_backout:
             backed_out_commits, _ = commit.wpt_commits_backed_out()
             backed_out = {item.sha1 for item in backed_out_commits}
-            if backed_out.issubset(commits_remaining):
-                commits_remaining -= backed_out
+            intersecion = backed_out.intersection(commits_remaining)
+            if len(intersecion) > 0:
+                commits_remaining -= intersecion
                 continue
         commits_remaining.add(commit.sha1)
 
