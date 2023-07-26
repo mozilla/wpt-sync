@@ -173,6 +173,57 @@ def test_create_partial_backout_reland(git_gecko, git_wpt, upstream_gecko_commit
     sync.wpt_commits[1].metadata["gecko-commit"] == relanding_rev
 
 
+def test_create_backout_of_multiple_bugs(git_gecko, git_wpt, upstream_gecko_commit,
+                                         upstream_gecko_backout):
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
+                                message=b"Change README")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
+                        raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+
+    bug_2 = 5678
+    test_changes_2 = {"OTHER": b"Add other file\n"}
+    rev_2 = upstream_gecko_commit(test_changes=test_changes_2, bug=bug_2,
+                                  message=b"Add other")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_2)
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev_2,
+                        raise_on_error=True)
+
+    syncs_2 = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_2)
+
+    backout_rev = upstream_gecko_backout([rev_2, rev], [bug_2, bug])
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", backout_rev, raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    syncs_2 = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug_2)
+
+    assert list(syncs.keys()) == ["incomplete"]
+    assert len(syncs["incomplete"]) == 1
+    sync = syncs["incomplete"].pop()
+    assert sync.status == "incomplete"
+    assert sync.process_name.seq_id == 0
+    assert len(sync.gecko_commits) == 0
+    assert len(sync.upstreamed_gecko_commits) == 1
+    assert len(sync.wpt_commits) == 1
+
+    assert list(syncs_2.keys()) == ["incomplete"]
+    assert len(syncs_2["incomplete"]) == 1
+    sync_2 = syncs_2["incomplete"].pop()
+    assert sync_2.status == "incomplete"
+    assert sync_2.process_name.seq_id == 0
+    assert len(sync_2.gecko_commits) == 0
+    assert len(sync_2.upstreamed_gecko_commits) == 1
+    assert len(sync_2.wpt_commits) == 1
+
+
 def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit):
     bug = 1234
     test_changes = {"README": b"Change README\n"}
