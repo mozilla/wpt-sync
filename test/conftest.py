@@ -173,7 +173,9 @@ class hg:
         self.init()
         with open(os.path.join(self.working_tree, ".hg", "hgrc"), "w") as f:
             f.write("""[ui]
-username=test""")
+username=test
+[extensions]
+shelve=""")
 
     def __getattr__(self, name):
         def call(self, *args):
@@ -349,12 +351,23 @@ def upstream_gecko_backout(env, hg_gecko_upstream):
         if isinstance(bugs, int):
             bugs = [bugs] * len(revs)
         assert len(bugs) == len(revs)
-        msg = [b"Backed out %i changesets (bug %d) for test, r=backout" % (len(revs), bugs[0]), b""]
+        msg = []
+        all_bugs_msgs = []
         for rev, bug in zip(revs, bugs):
             hg_gecko_upstream.backout("--no-commit", rev)
-            msg.append(b"Backed out changeset %s (Bug %d)" % (rev[:12].encode("ascii"), bug))
+            # Shelve the changes so we can perform the next backout.
+            hg_gecko_upstream.shelve()
+            bug_msg = b'bug %d' % bug
+            msg.append(b"Backed out changeset %s (%s)" % (rev[:12].encode("ascii"), bug_msg))
+            all_bugs_msgs.append(bug_msg)
+        bugs_msg = b", ".join(all_bugs_msgs)
+        if len(bugs) > 1:
+            title = [b"Backed out %i changesets (%s) for test, r=backout" % (len(revs), bugs_msg)]
+            msg = title + msg
         if message is None:
             message = b"\n".join(msg)
+        for _ in revs:
+            hg_gecko_upstream.unshelve()
         return hg_commit(hg_gecko_upstream, message, bookmarks)
     return inner
 
