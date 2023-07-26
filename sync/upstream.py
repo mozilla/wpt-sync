@@ -687,9 +687,9 @@ def updates_for_backout(git_gecko: Repo,
             sync = syncs.pop()
             assert isinstance(sync, UpstreamSync)
             if commit in sync.gecko_commits:
-                # This commit was already processed
-                backed_out_commit_shas = set()
-                return {}, {}
+                # This commit was already processed for this sync
+                backed_out_commit_shas.remove(backed_out_commit.sha1)
+                continue
             if backed_out_commit in sync.upstreamed_gecko_commits:
                 backed_out_commit_shas.remove(backed_out_commit.sha1)
                 assert sync.bug is not None
