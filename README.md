@@ -8,7 +8,9 @@ Synchronize changes between gecko and web-platform-tests
 
 ## Additional documentation
 
-See `./docs`
+See `./docs`.
+More up-to-date information can be found [in this document](https://docs.google.com/document/d/1T-GKq50R4SQcSWJjwKVmLid_NnMZzB1PgAqEnvelLK8/)
+(only accessible to Mozilla employees).
 
 ## Development environment
 
