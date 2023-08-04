@@ -207,7 +207,6 @@ def test_already_linked(env):
                  None,
                  None))
     sync = Mock()
-    sync = Mock()
     # The Mock class defines a _lock property which interferes with our one;
     # since we don't run tests multithreaded just overwrite it with another Mock
     sync._lock = Mock()
