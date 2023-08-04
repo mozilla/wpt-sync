@@ -111,6 +111,9 @@ be cause the bot to automatically update or remove the annotation.
 def test_fx_only(env):
     results_obj = fx_only_failure()
     sync = Mock()
+    # The Mock class defines a _lock property which interferes with our one;
+    # since we don't run tests multithreaded just overwrite it with another Mock
+    sync._lock = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict()
     env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
@@ -134,6 +137,9 @@ def test_fx_only(env):
 def test_crash(env):
     results_obj = fx_crash()
     sync = Mock()
+    # The Mock class defines a _lock property which interferes with our one;
+    # since we don't run tests multithreaded just overwrite it with another Mock
+    sync._lock = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict()
     env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
@@ -201,6 +207,9 @@ def test_already_linked(env):
                  None,
                  None))
     sync = Mock()
+    # The Mock class defines a _lock property which interferes with our one;
+    # since we don't run tests multithreaded just overwrite it with another Mock
+    sync._lock = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict()
     env.config["notify"]["components"] = "Foo :: Bar; Testing :: web-platform-tests"
@@ -262,6 +271,9 @@ def test_split_id():
 def test_already_filed(env):
     results_obj = fx_only_failure()
     sync = Mock()
+    # The Mock class defines a _lock property which interferes with our one;
+    # since we don't run tests multithreaded just overwrite it with another Mock
+    sync._lock = Mock()
     sync.lock_key = ("downstream", None)
     sync.notify_bugs = FrozenDict(**{"failure :: Testing :: web-platform-tests": 1234})
 
