@@ -1018,7 +1018,8 @@ class DownstreamSync(SyncProcess):
             # Just use the first match for now
             sha = revert_shas[0].decode("ascii")
             try:
-                self.git_wpt.rev_parse(sha)
+                # Reassign the hash here, in case a short hash was used for reverting.
+                sha = str(self.git_wpt.rev_parse(sha))
             except (ValueError, git.BadName):
                 # Commit isn't in this repo (could be upstream)
                 return set()
