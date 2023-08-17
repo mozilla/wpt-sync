@@ -159,6 +159,47 @@ def test_revert_pr(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, pull
     assert sync_revert.skip
 
 
+def test_revert_pr_with_squash(env, git_gecko, git_wpt, git_wpt_upstream, pull_request,
+                               pull_request_fn, set_pr_status, wpt_worktree, mock_mach):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
+                      "Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            commit = sync.wpt_commits[0]
+            sync.wpt_commits.base = sync.data["wpt-base"] = git_wpt_upstream.head.commit.hexsha
+            git_wpt_upstream.git.merge(commit.sha1, squash=True)
+            git_wpt_upstream.index.commit(commit.msg.decode())
+            pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
+            commit_to_revert = pr['merge_commit_sha']
+            env.gh_wpt.get_pull(sync.pr).merged = True
+
+    git_wpt.remotes.origin.fetch()
+    # Update mocked list of PRs to be able to find the PR.
+    env.gh_wpt.commit_prs[commit_to_revert] = pr.number
+
+    def revert_fn():
+        git_wpt.remotes["origin"].fetch()
+        wpt_work = wpt_worktree()
+        wpt_work.git.revert(commit_to_revert, no_edit=True)
+        wpt_work.git.push("origin", "HEAD:refs/heads/revert")
+        git_wpt_upstream.commit("revert")
+        return "revert"
+
+    pr_revert = pull_request_fn(revert_fn, title="Revert Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr_revert)
+    sync_revert = load.get_pr_sync(git_gecko, git_wpt, pr_revert["number"])
+
+    # Refresh the instance data
+    sync.data._load()
+    assert sync.skip
+    assert sync_revert.skip
+
+
 def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryCls,
                        hg_gecko_try, pull_request_commit, mock_mach):
     pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],

@@ -1037,6 +1037,10 @@ class DownstreamSync(SyncProcess):
                 unreverted_commits[sync] = {item.sha1 for item in sync.wpt_commits}
             if sha in unreverted_commits[sync]:
                 unreverted_commits[sync].remove(sha)
+            # If the commit is not part of the sync, check if the PR was squashed and then reverted,
+            # in that case all commits of the sync should be reverted.
+            elif sha == env.gh_wpt.merge_sha(pr):
+                unreverted_commits[sync] = set()
 
         rv = {sync for sync, unreverted in unreverted_commits.items()
               if not unreverted}
