@@ -299,7 +299,8 @@ class DownstreamSync(SyncProcess):
             return None
 
         if len(self.gecko_commits) == 0:
-            return None
+            # Something most likely is not correct, but we can't fix it here.
+            return latest_try_push
         if self.metadata_commit is not None:
             if len(self.gecko_commits) == 1:
                 # Apparently we only have a metadata commit and the actual change got rebased away
