@@ -203,8 +203,10 @@ class DownstreamSync(SyncProcess):
                 if self.requires_stability_try:
                     logger.debug("Sync for PR %s requires a stability try push" % self.pr)
                     return DownstreamAction.try_push_stability
-                else:
+                elif self.requires_try:
                     return DownstreamAction.try_push
+                else:
+                    return DownstreamAction.ready
 
             if latest_try_push.status != "complete":
                 return DownstreamAction.wait_try
@@ -281,7 +283,7 @@ class DownstreamSync(SyncProcess):
 
     @property
     def requires_try(self) -> bool:
-        return not self.skip
+        return not self.skip and len(self.gecko_commits) > 0
 
     @property
     def requires_stability_try(self) -> bool:
