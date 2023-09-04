@@ -180,8 +180,6 @@ class DownstreamSync(SyncProcess):
             return DownstreamAction.ready
         if self.skip:
             return DownstreamAction.ready
-        if not self.requires_try:
-            return DownstreamAction.ready
         if self.error:
             if self.tried_to_rebase is False:
                 return DownstreamAction.try_rebase
@@ -376,7 +374,7 @@ class DownstreamSync(SyncProcess):
         None is not an indication that the sync is ready to land, just that
         there's no further action at this time.
         """
-        if not self.requires_try or self.status != "open":
+        if self.skip or self.status != "open":
             return None
 
         self.update_commits()
