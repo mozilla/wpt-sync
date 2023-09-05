@@ -493,7 +493,7 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
 
 def test_github_next_action_on_error(env, git_gecko, git_wpt, pull_request, git_wpt_upstream,
                                      upstream_gecko_commit, upstream_wpt_commit):
-    # Loacl conflict
+    # Local conflict
     upstream_gecko_commit(test_changes={"new file": b"gecko data\n"},
                           bookmarks=["mozilla/central", "mozilla/autoland"])
     update_repositories(git_gecko, git_wpt)
