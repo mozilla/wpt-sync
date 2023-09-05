@@ -1,7 +1,11 @@
 from unittest.mock import Mock, patch
 
+import pytest
+
 from sync import downstream, handlers, load, trypush, upstream
 from sync.base import ProcessName
+from sync.errors import AbortError
+from sync.gitutils import update_repositories
 from sync.lock import SyncLock
 
 
@@ -485,3 +489,28 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
             sync.update_commits()
 
     assert env.gh_wpt.get_pull(pr["number"])["labels"] == []
+
+
+def test_github_next_action_on_error(env, git_gecko, git_wpt, pull_request, git_wpt_upstream,
+                                     upstream_gecko_commit, upstream_wpt_commit):
+    # Local conflict
+    upstream_gecko_commit(test_changes={"new file": b"gecko data\n"},
+                          bookmarks=["mozilla/central", "mozilla/autoland"])
+    update_repositories(git_gecko, git_wpt)
+    # PR that doesn't apply
+    pr = pull_request([(b"Testing", {"new file": b"upstream data"})],
+                      "Test PR")
+
+    with pytest.raises(AbortError):
+        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+
+    assert len(sync.gecko_commits) == 0
+    assert sync.next_action == downstream.DownstreamAction.try_rebase
+
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            with pytest.raises(AbortError):
+                sync.try_rebase()
+
+    assert sync.next_action == downstream.DownstreamAction.manual_fix

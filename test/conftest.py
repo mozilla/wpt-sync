@@ -329,7 +329,7 @@ def hg_commit(hg, message, bookmarks):
 @pytest.fixture
 def upstream_gecko_commit(env, hg_gecko_upstream):
     def inner(test_changes=None, meta_changes=None, other_changes=None,
-              bug=1234, message="Example changes", bookmarks="mozilla/autoland"):
+              bug=1234, message=b"Example changes", bookmarks="mozilla/autoland"):
         changes = gecko_changes(env, test_changes, meta_changes, other_changes)
         message = b"Bug %d - %s" % (bug, message)
 
