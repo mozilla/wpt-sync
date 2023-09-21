@@ -642,13 +642,16 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
     assert try_push.status == "complete"
     assert sync.status == "open"
 
-    # Add gecko change
-    test_changes = {"change1": b"CHANGE1\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug=1111,
-                                message=b"Add change1 file")
-
-    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    sync_gecko_rebase = sync.gecko_rebase
+    rebase_counter = 0
+    def mock_rebase(branch):
+        nonlocal rebase_counter
+        if rebase_counter == 0:
+            sync_gecko_rebase(branch)
+            test_changes = {"change1": b"CHANGE1\n"}
+            upstream_gecko_commit(test_changes=test_changes, bug=1111,
+                                  message=b"Add change1 file")
+            rebase_counter += 1
 
     try_push = sync.latest_try_push
     with SyncLock.for_process(sync.process_name) as lock:
@@ -658,9 +661,10 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
                 with patch.object(tc.TaskGroup, "tasks",
                                   property(Mock(return_value=mock_tasks(completed=["foo"])))):
                     # Mock rebasing method to let landing fail on push
-                    with patch.object(sync, "gecko_rebase", Mock(return_value=True)):
-                        with pytest.raises(AbortError):
+                    with patch.object(sync, "gecko_rebase", Mock(side_effect=mock_rebase)):
+                        with pytest.raises(AbortError) as error:
                             landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                        assert str(error.value) == "[rejected] (non-fast-forward)\n"
 
     assert sync.status != "complete"
     assert downstream_sync.status != "complete"

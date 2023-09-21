@@ -845,10 +845,13 @@ def push(landing: LandingSync) -> None:
 
         try:
             logger.info("Pushing landing")
-            landing.git_gecko.remotes.mozilla.push(
+            push_info = landing.git_gecko.remotes.mozilla.push(
                 "{}:{}".format(landing.branch_name,
                                landing.gecko_integration_branch().split("/", 1)[1])
-            ).raise_if_error()
+            )
+            for item in push_info:
+                if item.flags & item.ERROR:
+                    raise AbortError(item.summary)
         except git.GitCommandError as e:
             changes = landing.git_gecko.remotes.mozilla.fetch()
             err = "Pushing update to remote failed:\n%s" % e
