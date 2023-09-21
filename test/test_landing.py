@@ -644,6 +644,7 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
 
     sync_gecko_rebase = sync.gecko_rebase
     rebase_counter = 0
+
     def mock_rebase(branch):
         nonlocal rebase_counter
         if rebase_counter == 0:
