@@ -598,3 +598,69 @@ def test_accept_failures(landing_with_try_push, mock_tasks):
             with sync.latest_try_push.as_mut(lock):
                 sync.latest_try_push.accept_failures = True
         assert sync.try_result() == landing.TryPushResult.acceptable_failures
+
+
+def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
+                             upstream_gecko_commit, mock_mach, mock_tasks, hg_gecko_upstream):
+    pr = pull_request([(b"Test commit", {"README": b"example_change"})])
+    head_rev = pr._commits[0]["sha"]
+
+    trypush.Mach = mock_mach
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    downstream_sync = set_pr_status(pr.number, "success")
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+        with downstream_sync.as_mut(downstream_lock):
+            downstream_sync.data["force-metadata-ready"] = True
+
+    tree.is_open = lambda x: True
+    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        sync = landing.update_landing(git_gecko, git_wpt)
+
+    assert (f"Setting bug {sync.bug} add_blocks {downstream_sync.bug}"
+            in env.bz.output.getvalue())
+
+    try_push = sync.latest_try_push
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcdef"
+            with patch.object(try_push, "download_logs", Mock(return_value=[])):
+                with patch.object(tc.TaskGroup, "tasks", property(Mock(
+                        return_value=mock_tasks(completed=["foo"])))):
+                    with patch.object(trypush.TryCommit, 'read_treeherder',
+                                      autospec=True) as mock_read:
+                        mock_read.return_value = "0000000000000001"
+                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+
+    assert "Pushed to try (stability)" in env.bz.output.getvalue()
+    assert try_push.status == "complete"
+    assert sync.status == "open"
+
+    # Add gecko change
+    test_changes = {"change1": b"CHANGE1\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1111,
+                                message=b"Add change1 file")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+
+    try_push = sync.latest_try_push
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock), try_push.as_mut(lock):
+            try_push.taskgroup_id = "abcdef2"
+            with patch.object(try_push, "download_logs", Mock(return_value=[])):
+                with patch.object(tc.TaskGroup, "tasks",
+                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                    # Mock rebasing method to let landing fail on push
+                    with patch.object(sync, "gecko_rebase", Mock(return_value=True)):
+                        with pytest.raises(AbortError):
+                            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+
+    assert sync.status != "complete"
+    assert downstream_sync.status != "complete"
