@@ -554,7 +554,7 @@ class ProcessData(metaclass=IdentityMap):
         return hash(self.process_name)
 
     def __eq__(self, other: Any) -> bool:
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         return self.repo == other.repo and self.process_name == other.process_name
 
