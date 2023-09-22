@@ -472,9 +472,12 @@ class UpstreamSync(SyncProcess):
                 env.bz.comment(self.bug, "Upstream PR merged by %s" %
                                env.config["web-platform-tests"]["github"]["user"])
             except GithubException as e:
+                if isinstance(e.data, dict):
+                    err_msg = e.data.get("message", "Unknown GitHub Error")
+                else:
+                    err_msg = e.data
                 msg = ("Merging PR %s failed.\nMessage: %s" %
-                       (env.gh_wpt.pr_url(self.pr),
-                        e.data.get("message", "Unknown GitHub Error")))
+                       (env.gh_wpt.pr_url(self.pr), err_msg))
             except Exception as e:
                 msg = ("Merging PR %s failed.\nMessage: %s" %
                        (env.gh_wpt.pr_url(self.pr), e))
