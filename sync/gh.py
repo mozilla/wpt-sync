@@ -184,7 +184,11 @@ class GitHub:
             try:
                 issue.remove_from_labels(label)
             except github.GithubException as e:
-                if e.data.get("message", "") != "Label does not exist":
+                if isinstance(e.data, dict):
+                    msg = e.data.get("message", "")
+                else:
+                    msg = e.data
+                if msg != "Label does not exist":
                     logger.warning("Error handling label removal: %s" % e)
                     newrelic.agent.record_exception()
 
