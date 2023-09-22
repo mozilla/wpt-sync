@@ -512,6 +512,6 @@ def iter_blobs(repo: Repository, path: str) -> Iterator[pygit2.Blob]:
 
 
 indicies = {item for item in globals().values()
-            if type(item) == type(Index) and
+            if type(item) is type(Index) and
             issubclass(item, Index) and
             item != Index}
