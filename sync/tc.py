@@ -518,8 +518,8 @@ def cleanup():
             if not os.path.isdir(rev_path):
                 continue
             now = datetime.now()
-            # Data hasn't been touched in five days
+            # Data hasn't been touched in three days
             if (datetime.fromtimestamp(os.stat(rev_path).st_mtime) <
-                now - timedelta(days=5)):
+                now - timedelta(days=3)):
                 logger.info("Removing downloaded logs without recent activity %s" % rev_path)
                 shutil.rmtree(rev_path)
