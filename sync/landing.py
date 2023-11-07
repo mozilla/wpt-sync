@@ -915,10 +915,10 @@ def unlanded_wpt_commits_by_pr(git_gecko: Repo,
             pr_data: tuple[int | None, list[WptCommit]] = (pr, [])
             # If we have a merge commit, also get the commits merged in
             if len(commit.parents) > 1:
-                merged_revish = f"{commit.commit.parents[0].hexsha}..{commit.sha1}"
+                merged_revish = f"{commit.parents[0].hexsha}..{commit.hexsha}"
                 for merged_commit in git_wpt.iter_commits(merged_revish,
                                                           reverse=True):
-                    if merged_commit.hexsha != commit.sha1:
+                    if merged_commit.hexsha != commit.hexsha:
                         wpt_commit = sync_commit.WptCommit(git_wpt, merged_commit.hexsha)
                         if wpt_commit.pr() == pr:
                             extra_commits.append(wpt_commit)
