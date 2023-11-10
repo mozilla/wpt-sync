@@ -172,9 +172,9 @@ types-filelock==3.2.7 \
 types-requests==2.31.0.10 \
     --hash=sha256:b32b9a86beffa876c0c3ac99a4cd3b8b51e973fb8e3bd4e0a6bb32c7efad80fc \
     --hash=sha256:dc5852a76f1eaf60eafa81a2e50aefa3d1f015c34cf0cba130930866b1b22a92
-types-setuptools==68.2.0.0 \
-    --hash=sha256:77edcc843e53f8fc83bb1a840684841f3dc804ec94562623bfa2ea70d5a2ba1b \
-    --hash=sha256:a4216f1e2ef29d089877b3af3ab2acf489eb869ccaf905125c69d2dc3932fd85
+types-setuptools==68.2.0.1 \
+    --hash=sha256:8f31e8201e7969789e0eb23463b53ebe5f67d92417df4b648a6ea3c357ca4f51 \
+    --hash=sha256:e9c649559743e9f98c924bec91eae97f3ba208a70686182c3658fd7e81778d37
 types-six==1.16.21.9 \
     --hash=sha256:1591a09430a3035326da5fdb71692d0b3cc36b25a440cc5929ca6241f3984705 \
     --hash=sha256:746e6c25b8c48b3c8ab9efe7f68022839111de423d35ba4b206b88b12d75f233
