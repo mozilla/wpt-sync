@@ -116,7 +116,8 @@ elif [ "$1" == "--worker" ]; then
                        --pidfile=${CELERY_PID_FILE} \
                        --logfile=${CELERY_LOG_FILE} \
                        --loglevel=DEBUG \
-                       -P prefork
+                       -P prefork \
+                       -n ${CELERY_WORKER}
 
     # ./bin/run_docker_dev.sh run --worker --phab
     if [ "$2" == "--phab" ]; then
