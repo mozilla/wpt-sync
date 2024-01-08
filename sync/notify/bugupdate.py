@@ -58,9 +58,9 @@ class TriageBugs:
 
     def meta_links(self):
         rv = defaultdict(list)
-        for link in self.wpt_metadata.iterbugs(test_id=None,
-                                               product="firefox",
-                                               prefixes=(bugzilla_url,)):
+        for link in self.wpt_metadata.iter_bug_links(test_id=None,
+                                                     product="firefox",
+                                                     prefixes=(bugzilla_url,)):
             bug = int(env.bz.id_from_url(link.url, bugzilla_url))
             rv[bug].append(link)
         return rv

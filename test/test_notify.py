@@ -256,16 +256,16 @@ def test_link(env):
     result0.set_status("firefox", "GitHub", False, "PASS", ["PASS"])
     result0.set_status("firefox", "GitHub", True, "FAIL", ["PASS"])
     result0.bug_links.append(MetaLink(None,
+                                      "/test/test0.html",
                                       "%s/show_bug.cgi?id=1234" % env.bz.bz_url,
-                                      "firefox",
-                                      "/test/test0.html"))
+                                      "firefox"))
     result1 = results.Result()
     result1.set_status("firefox", "GitHub", False, "PASS", ["PASS"])
     result1.set_status("firefox", "GitHub", True, "FAIL", ["PASS"])
     result1.bug_links.append(MetaLink(None,
+                                      "/test/test1.html",
                                       "https://github.com/web-platform-tests/wpt/issues/123",
-                                      "firefox",
-                                      "/test/test1.html"))
+                                      "firefox"))
 
     results_iter = [("/test/test0.html", None, result0),
                     ("/test/test1.html", None, result1)]

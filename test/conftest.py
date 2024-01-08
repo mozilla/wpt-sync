@@ -151,7 +151,11 @@ links:
   - url: https://bugzilla-dev.allizom.org/show_bug.cgi?id=1234
     product: firefox
     results:
-      - test: test.html"""}
+      - test: test.html
+  - label: test-data
+    results:
+      - test: test.html
+"""}
 
 
 @pytest.fixture
