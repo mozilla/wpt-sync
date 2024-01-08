@@ -187,7 +187,7 @@ def test_update_metadata(env, git_gecko, git_wpt, pull_request, git_wpt_metadata
     bug = bugs_filed[0]
 
     metadata = meta.Metadata(sync.process_name, branch=head)
-    links = list(metadata.iterbugs("/test/test.html"))
+    links = list(metadata.iter_bug_links("/test/test.html"))
     assert len(links) == 1
     link = links[0]
     assert link.url == f"{env.bz.bz_url}/show_bug.cgi?id={bug}"
@@ -201,9 +201,9 @@ def test_already_linked(env):
     results_obj = fx_only_failure()
     results_obj.test_results["/test/test.html"].bug_links.append(
         MetaLink(None,
+                 "/test/test.html",
                  f"{env.bz.bz_url}/show_bug.cgi?id=10000",
                  "firefox",
-                 "/test/test.html",
                  None,
                  None))
     sync = Mock()

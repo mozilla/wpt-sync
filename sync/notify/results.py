@@ -270,7 +270,7 @@ class Results:
 
     def add_metadata(self, metadata: Metadata) -> None:
         for test, result in self.test_results.items():
-            for meta_link in metadata.iterbugs(test, product="firefox"):
+            for meta_link in metadata.iter_bug_links(test, product="firefox"):
                 if meta_link.subtest is None:
                     result.bug_links.append(meta_link)
                 else:

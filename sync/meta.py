@@ -210,13 +210,12 @@ class Metadata:
                                   subtest=subtest,
                                   status=status)
 
-    def iterbugs(self,
-                 test_id: str,
-                 product: str = "firefox",
-                 prefixes: Iterable[str] | None = None,
-                 subtest: str | None = None,
-                 status: str | None = None,
-                 ) -> Iterator[MetaLink]:
+    def iter_bug_links(self,
+                       test_id: str,
+                       product: str = "firefox",
+                       prefixes: Iterable[str] | None = None,
+                       subtest: str | None = None,
+                       status: str | None = None) -> Iterator[MetaLink]:
         if prefixes is None:
             prefixes = (env.bz.bz_url,
                         "https://github.com/wpt/web-platform-tests")

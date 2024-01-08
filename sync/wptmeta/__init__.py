@@ -149,27 +149,46 @@ class WptMetadata:
         self.writer = writer
         self.loaded: dict[str, MetaFile] = {}
 
-    def iterlinks(self,
-                  test_id: str,
-                  product: str | None = None,
-                  subtest: str | None = None,
-                  status: str | None = None,
-                  ) -> Iterator[MetaLink]:
-        """Get the metadata matching a specified set of conditions"""
+    def iter(self,
+             test_id: str | None = None,
+             product: str | None = None,
+             subtest: str | None = None,
+             status: str | None = None) -> Iterator[MetaEntry]:
+        """Get the link metadata matching a specified set of conditions"""
         if test_id is None:
             dir_names = self.reader.walk("")
         else:
             assert test_id.startswith("/")
             dir_name, _ = parse_test(test_id)
-            dir_names = [dir_name]
+            dir_names = iter([dir_name])
         for dir_name in dir_names:
             if dir_name not in self.loaded:
                 self.loaded[dir_name] = MetaFile(self, dir_name)
 
-            yield from self.loaded[dir_name].iterlinks(product=product,
-                                                       test_id=test_id,
-                                                       subtest=None,
-                                                       status=None)
+            yield from self.loaded[dir_name].iter(product=product,
+                                                  test_id=test_id,
+                                                  subtest=subtest,
+                                                  status=status)
+
+    def iterlinks(self,
+                  test_id: str | None = None,
+                  product: str | None = None,
+                  subtest: str | None = None,
+                  status: str | None = None) -> Iterator[MetaLink]:
+        """Get the link metadata matching a specified set of conditions"""
+        for item in self.iter(test_id, product, subtest, status):
+            if isinstance(item, MetaLink):
+                yield item
+
+    def iterlabels(self,
+                   test_id: str | None = None,
+                   product: str | None = None,
+                   subtest: str | None = None,
+                   status: str | None = None) -> Iterator[MetaLabel]:
+        """Get the label metadata matching a specified set of conditions"""
+        for item in self.iter(test_id, product, subtest, status):
+            if isinstance(item, MetaLabel):
+                yield item
 
     def write(self) -> list[str]:
         """Write any updated metadata to the metadata tree"""
@@ -195,7 +214,7 @@ class WptMetadata:
         if dir_name not in self.loaded:
             self.loaded[dir_name] = MetaFile(self, dir_name)
         meta_file = self.loaded[dir_name]
-        link = MetaLink(meta_file, url, product, test_id, subtest, status)
+        link = MetaLink(meta_file, test_id, url, product, subtest, status)
         meta_file.links.append(link)
 
 
@@ -230,7 +249,7 @@ class MetaFile:
 
         for link in self._file_data.get("links", []):
             for result in link.get("results", []):
-                self.links.append(MetaLink.from_file_data(self, link, result))
+                self.links.append(MetaEntry.from_file_data(self, link, result))
 
     def _load_file(self, rel_path: str) -> dict[str, Any]:
         if self.owner.reader.exists(rel_path):
@@ -239,20 +258,20 @@ class MetaFile:
             data = {}
         return data
 
-    def iterlinks(self,
-                  product: str | None = None,
-                  test_id: str | None = None,
-                  subtest: str | None = None,
-                  status: str | None = None,
-                  ) -> Iterator[MetaLink]:
+    def iter(self,
+             test_id: str | None = None,
+             product: str | None = None,
+             subtest: str | None = None,
+             status: str | None = None) -> Iterator[MetaEntry]:
         """Iterator over all links in the file, filtered by arguments"""
         for item in self.links:
             if ((product is None or
-                 item.product.startswith(product)) and
+                 (item.product is not None and
+                  item.product.startswith(product))) and
                 (test_id is None or
                  item.test_id == test_id) and
                 (subtest is None or
-                 item.subtest == subtest) and
+                 getattr(item, "subtest", None) == subtest) and
                 (status is None or
                  item.status == status)):
                 yield item
@@ -287,14 +306,15 @@ class MetaFile:
         links_by_state = OrderedDict()
 
         for item in data.get("links", []):
+            label = item.get("label")
             url = item.get("url")
             product = item.get("product")
             for result in item["results"]:
                 test_id = "/{}/{}".format(self.dir_name, result.get("test"))
                 subtest = result.get("subtest")
                 status = result.get("status")
-                links_by_state[LinkState(url, product, test_id, subtest, status)] = (
-                    LinkState(url, product, test_id, subtest, status))
+                links_by_state[LinkState(label, url, product, test_id, subtest, status)] = (
+                    LinkState(label, url, product, test_id, subtest, status))
 
         # Remove deletions first so that delete and readd works
         for item in self.links._deleted:
@@ -307,7 +327,8 @@ class MetaFile:
             else:
                 links_by_state[item.state] = item.state
 
-        by_link: OrderedDict[tuple[str, str], list[dict[str, Any]]] = OrderedDict()
+        by_link: OrderedDict[tuple[str | None, str | None, str],
+                             list[dict[str, Any]]] = OrderedDict()
         for link in links_by_state.values():
             result = {}
             test_id = link.test_id
@@ -318,68 +339,141 @@ class MetaFile:
                 value = getattr(link, prop)
                 if value is not None:
                     result[prop] = value
-            key = (link.url, link.product)
+            key = (link.label, link.url, link.product)
             if key not in by_link:
                 by_link[key] = []
             by_link[key].append(result)
 
         links = []
 
-        for (url, product), results in by_link.items():
-            links.append({"url": url,
-                          "product": product,
-                          "results": results})
+        for (label, url, product), results in by_link.items():
+            link_data = {"results": results}
+            for link_key, value in [("label", label), ("url", url), ("product", product)]:
+                if value is not None:
+                    link_data[link_key] = value
+            links.append(link_data)
         data["links"] = links
 
         return data
 
 
-LinkState = namedtuple("LinkState", ["url", "product", "test_id", "subtest", "status"])
+LinkState = namedtuple("LinkState", ["label", "url", "product", "test_id", "subtest", "status"])
 
 
-class MetaLink:
-    def __init__(self,
-                 meta_file: MetaFile,
-                 url: str,
-                 product: str | None,
-                 test_id: str,
-                 subtest: str | None = None,
-                 status: str | None = None,
-                 ) -> None:
+class MetaEntry:
+    __metaclass__ = ABCMeta
+
+    def __init__(self, meta_file: MetaFile, test_id: str) -> None:
         """A single link object"""
         assert test_id.startswith("/")
         self.meta_file = meta_file
-        self.url = url
-        self.product = product
         self.test_id = test_id
-        self.subtest = subtest
-        self.status = status
         self._initial_state: LinkState | None = None
 
-    @classmethod
-    def from_file_data(cls, meta_file: MetaFile, link: dict[str, Any],
-                       result: dict[str, str]) -> MetaLink:
-        url = link["url"]
-        product = link.get("product")
-        test_id = "/{}/{}".format(meta_file.dir_name, result["test"])
-        status = result.get("status")
-        subtest = result.get("subtest")
-        self = cls(meta_file, url, product, test_id, subtest, status)
-        self._initial_state = self.state
-        return self
+    @staticmethod
+    def from_file_data(meta_file: MetaFile, link: dict[str, Any],
+                       result: dict[str, str]) -> MetaLink | MetaEntry:
+        if "label" in link:
+            return MetaLabel.from_file_data(meta_file, link, result)
+        elif "url" in link:
+            return MetaLink.from_file_data(meta_file, link, result)
+        else:
+            raise ValueError("Unable to load metadata entry")
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} test_id: {self.test_id}>"
 
     @property
+    @abstractmethod
     def state(self) -> LinkState:
-        return LinkState(self.url,
-                         self.product,
-                         self.test_id,
-                         self.subtest,
-                         self.status)
-
-    def __repr__(self) -> str:
-        data = (self.__class__.__name__,) + self.state
-        return "<%s url:%s product:%s test:%s subtest:%s status:%s>" % data
+        pass
 
     def delete(self) -> None:
         """Remove the link from the owning file"""
         self.meta_file.links.remove(self)
+
+
+class MetaLabel(MetaEntry):
+    def __init__(self,
+                 meta_file: MetaFile,
+                 test_id: str,
+                 label: str,
+                 url: str | None,
+                 product: str | None = None,
+                 status: str | None = None,
+                 ) -> None:
+        """A single link object"""
+        super().__init__(meta_file, test_id)
+        self.label = label
+        self.url = url
+        self.product = product
+        self.status = status
+
+    @classmethod
+    def from_file_data(cls, meta_file: MetaFile, link: dict[str, Any],
+                       result: dict[str, str]) -> MetaLabel:
+        test_id = "/{}/{}".format(meta_file.dir_name, result["test"])
+        label = link["label"]
+        url = link.get("url")
+        product = link.get("product")
+        status = result.get("status")
+        self = cls(meta_file, test_id, label, url, product, status)
+        self._initial_state = self.state
+        return self
+
+    def __repr__(self):
+        base = super().__repr__()
+        return (f"{base[:-1]} label: {self.label} url: {self.url} "
+                f"product: {self.product} status: {self.status}>")
+
+    @property
+    def state(self) -> LinkState:
+        return LinkState(self.label,
+                         self.url,
+                         self.product,
+                         self.test_id,
+                         None,
+                         self.status)
+
+
+class MetaLink(MetaEntry):
+    def __init__(self,
+                 meta_file: MetaFile,
+                 test_id: str,
+                 url: str,
+                 product: str | None,
+                 subtest: str | None = None,
+                 status: str | None = None,
+                 ) -> None:
+        """A single link object"""
+        super().__init__(meta_file, test_id)
+        self.url = url
+        self.product = product
+        self.subtest = subtest
+        self.status = status
+
+    @classmethod
+    def from_file_data(cls, meta_file: MetaFile, link: dict[str, Any],
+                       result: dict[str, str]) -> MetaLink:
+        test_id = "/{}/{}".format(meta_file.dir_name, result["test"])
+        url = link["url"]
+        product = link.get("product")
+        status = result.get("status")
+        subtest = result.get("subtest")
+        self = cls(meta_file, test_id, url, product, subtest, status)
+        self._initial_state = self.state
+        return self
+
+    def __repr__(self):
+        base = super().__repr__()
+        return (f"{base[:-1]} url: {self.url} product: {self.product} "
+                f"status: {self.status} subtest: {self.subtest}>")
+
+    @property
+    def state(self) -> LinkState:
+        return LinkState(None,
+                         self.url,
+                         self.product,
+                         self.test_id,
+                         self.subtest,
+                         self.status)
