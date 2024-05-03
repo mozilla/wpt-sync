@@ -19,10 +19,14 @@ if [ "$#" -ne 2 ]; then
     exit 1
 fi
 
-if [ ! -z ${WPT_CONFIG} ]; then
-    if [ ! -f ${PWD}/config/prod/sync.ini ]; then
-        echo Please add a sync.ini file to ${PWD}/config/prod
+# Config file will be copied from `sync_prod.ini` and updated by default.
+# To disable it set WPT_CONFIG=false
+if [[ ${WPT_CONFIG} != "false" ]]; then
+    if [ ! -d ${PWD}/config/prod ]; then
+        mkdir ${PWD}/config/prod/
     fi
+    cp ${PWD}/sync_prod.ini ${PWD}/config/prod/sync.ini
+    echo Created config file ${PWD}/config/prod/sync.ini from ${PWD}/sync_prod.ini
 fi
 
 if [ ! -z ${WPT_CREDENTIALS} ]; then
