@@ -49,8 +49,10 @@ role at `ansible/roles/wptsync_host`. The playbooks have been tested
 against a minimal Centos 7 host.
 
 1.  Activate a virtualenv and `pip install -r ./requirements/deploy.txt`
-2.  Put ini files (if updating) into `config/prod` and ssh keys into `config/prod/ssh`
-2.  Do __one__ of the following from the repo root:
+2.  Put credentials.ini files (if updating) into `config/prod` and ssh keys into `config/prod/ssh`.
+sync.ini file will be automatically copied from the root folder to `config/prod` and updated on the
+server. It can be disabled with the env variable WPT_CONFIG is false.
+3.  Do __one__ of the following from the repo root:
     *   If you need to build and push a new Docker image or update credentials 
         run `./bin/provision.sh`
     *   If you only need to update the wpt-sync repo to the latest commit on
@@ -63,6 +65,7 @@ where this script is installed.
 
 ## Environement variables
 
+* `WPT_CONFIG` - "false" if we shouldn't update the config
 * `WPT_CREDENTIALS` - "true" if we should re-deploy credentials
 * `WPT_REV` - Revision to deploy (origin/master by default)
 
