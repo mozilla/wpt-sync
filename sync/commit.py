@@ -143,9 +143,8 @@ class Commit:
             assert isinstance(commit, GitPythonCommit)
             sha1 = commit.hexsha
             _commit = commit
-        elif hasattr(commit, "hex"):
-            assert isinstance(commit, Oid)
-            sha1 = commit.hex
+        elif isinstance(commit, Oid):
+            sha1 = str(commit)
         elif hasattr(commit, "sha1"):
             assert isinstance(commit, Commit)
             sha1 = commit.sha1
@@ -161,9 +160,9 @@ class Commit:
             sha1 = commit.id
             _pygit2_commit = commit
         else:
-            raise ValueError("Unrecognised commit %r" % commit)
+            raise ValueError("Unrecognised commit %r (type %s)" % (commit, type(commit)))
         if sha1 not in self.pygit2_repo:
-            raise ValueError("Commit with SHA1 %s not found" % sha1)
+            raise ValueError(f"Commit with SHA1 {sha1} not found")
         self.sha1: str = sha1
         self._commit = _commit
         self._pygit2_commit = _pygit2_commit
