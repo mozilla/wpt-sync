@@ -734,7 +734,7 @@ class SyncProcess(metaclass=IdentityMap):
     def wpt_renames(self) -> dict[str, str]:
         renames = {}
         diff_blobs = self.wpt_commits.head.commit.diff(
-            self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1)
+            self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1)[0]
         )
         for item in diff_blobs:
             if item.rename_from:
