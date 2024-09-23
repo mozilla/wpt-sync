@@ -86,9 +86,9 @@ click-plugins==1.1.1 \
 click_repl==0.3.0 \
     --hash=sha256:17849c23dba3d667247dc4defe1757fff98694e90fe37474f3feebb69ced26a9 \
     --hash=sha256:fb7e06deb8da8de86180a33a9da97ac316751c094c6899382da7feeeeb51b812
-configparser==7.0.0 \
-    --hash=sha256:af3c618a67aaaedc4d689fd7317d238f566b9aa03cae50102e92d7f0dfe78ba0 \
-    --hash=sha256:f46d52a12811c637104c6bb8eb33693be0038ab6bf01d69aae009c39ec8c2017
+configparser==7.1.0 \
+    --hash=sha256:98e374573c4e10e92399651e3ba1c47a438526d633c44ee96143dec26dad4299 \
+    --hash=sha256:eb82646c892dbdf773dae19c633044d163c3129971ae09b49410a303b8e0a5f7
 contextlib2==21.6.0 \
     --hash=sha256:3fbdb64466afd23abaf6c977627b75b6139a5a3e8ce38405c5b413aed7a0471f \
     --hash=sha256:ab1e2bfe1d01d968e1b7e8d9023bc51ef3509bba217bb730cee3827e1ee82869
