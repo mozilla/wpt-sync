@@ -188,6 +188,9 @@ class TryFuzzyCommit(TryCommit):
         else:
             args.append("--no-artifact")
 
+        # --push-to-vcs is required to push directly to hgmo
+        args.append("--push-to-vcs")
+
         if self.tests_by_type is not None:
             paths = []
             all_paths = set()
