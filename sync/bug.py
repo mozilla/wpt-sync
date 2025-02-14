@@ -346,7 +346,8 @@ class BugContext:
     def needinfo(self, *requestees: str) -> None:
         if not requestees:
             return
-        flags = self.bug._bug.get("flags", [])
+        bug: Bug = self.bugzilla._get_bug(self.bug_id)
+        flags = bug._bug.get("flags", [])
         existing = {item["requestee"] for item in flags
                     if item["name"] == "needinfo" and
                     item["status"] == "?"}
