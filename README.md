@@ -1,6 +1,6 @@
 # wpt-sync
 
-[![Build Status](https://travis-ci.org/mozilla/wpt-sync.svg?branch=master)](https://travis-ci.org/mozilla/wpt-sync)
+[![CI](https://github.com/mozilla/wpt-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/mozilla/wpt-sync/actions/workflows/ci.yml)
 
 ## Description
 
@@ -19,7 +19,7 @@ requires [Docker](https://www.docker.com/).
 
 We're _somewhat_ following [mozilla-services' Dockerflow](https://github.com/mozilla-services/Dockerflow).
 
-If you are on MacOS and have brew installed you can do
+If you are on macOS and have brew installed you can do
 
 ```
 brew cask install docker
@@ -36,8 +36,8 @@ setting container environment variables. See `Dockerfile.dev` and
 You can include these customizations in a shell script or a docker-compose.yml:
 
 *   There's a dev-env convenience script for building the docker image and
-    running the wptsync command in a corresponding container: `./bin/
-    run_docker_dev.sh`. It is similar to the script we use in production.
+    running the wptsync command in a corresponding container: `./bin/run_docker_dev.sh`.
+    It is similar to the script we use in production.
 
 ### Quick Setup
 
@@ -47,7 +47,7 @@ See Development Environment above.
 ```
 ./bin/run_docker_dev.sh build
 ```
-This will setup the container and make sure the relevant configuration files are in the right place.
+This will set up the container and make sure the relevant configuration files are in the right place.
 You will be asked to enter in a passphrase when it creates development ssh keys, press enter
 to leave these blank.
 
@@ -135,7 +135,10 @@ If you're on Linux, for each path run
 sudo chown -R 10001 <path>
 ```
 
-You may not need to do this at all on mac.
+You may not need to do this at all on macOS.
 
-__Note__ that replacing the default entry point means that you're no longer running the `start_wptsync.sh` script at container start-up and therefore some
-configuration may be missing or incomplete. For example, the Dockerfile (build-time) doesn't set up any credentials; instead, credentials are only set up in the container at run-time with the above-mentioned script.
+__Note__ that replacing the default entry point means that you're no longer running
+the `start_wptsync.sh` script at container start-up and therefore some configuration
+may be missing or incomplete. For example, the Dockerfile (build-time) doesn't set up
+any credentials; instead, credentials are only set up in the container at run-time with
+the above-mentioned script.
