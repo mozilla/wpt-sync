@@ -6,41 +6,40 @@ on:
   pull_request:
 
 jobs:
-  python2-linters:
+  lint:
     name: Linters
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
-      - name: Run
+      - name: Run flake8
         run: ./bin/run_docker_dev.sh test --no-pytest --no-mypy
-  python3-tests:
+  test:
     name: Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
-      - name: Run
+      - name: Run pytest
         run: ./bin/run_docker_dev.sh test --no-flake8 --no-mypy
-  python3-mypy:
+  typing:
     name: mypy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
-      - name: Run
+      - name: Run mypy
         run: ./bin/run_docker_dev.sh test --no-flake8 --no-pytest
-  static-analysis:
+  security:
     name: Static Analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.12
-      - name: Run
+      - name: Run bandit
         run:  pip install bandit && bandit -r sync -ll
