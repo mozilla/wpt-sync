@@ -1,2 +1,0 @@
-mercurial==6.8.1 \
-    --hash=sha256:030e8a7a6d590e4eaeb403ee25675615cd80d236f3ab8a0b56dcc84181158b05
