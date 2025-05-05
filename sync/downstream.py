@@ -521,7 +521,8 @@ class DownstreamSync(SyncProcess):
 
     def files_changed(self) -> set[str]:
         # TODO: Would be nice to do this from mach with a gecko worktree
-        return set(self.wpt.files_changed().decode("utf8", "replace").split("\n"))
+        paths = self.wpt.files_changed().decode("utf8", "replace").split("\n")
+        return set(path for path in paths if path.strip())
 
     @property
     def metadata_commit(self) -> GeckoCommit | None:
