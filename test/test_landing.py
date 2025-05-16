@@ -13,6 +13,12 @@ from sync.repos import cinnabar
 from conftest import git_commit
 
 
+def mock_push(landing):
+    landing.git_gecko.remotes.mozilla.push(
+        "{}:{}".format(landing.branch_name,
+                       landing.gecko_integration_branch().split("/", 1)[1]))
+
+
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
     pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
@@ -125,7 +131,8 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
                 with patch.object(tc.TaskGroup, "tasks",
                                   property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                    landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                    with patch.object(landing, "push_with_lando", Mock(side_effect=mock_push)):
+                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
@@ -352,7 +359,8 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                       'read_treeherder',
                                       autospec=True) as mock_read:
                         mock_read.return_value = "0000000000000001"
-                        landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
+                        with patch.object(landing, "push_with_lando", Mock(side_effect=mock_push)):
+                            landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
     gecko_root = hg_gecko_upstream.root().strip().decode("utf8")
@@ -664,9 +672,8 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
                                   property(Mock(return_value=mock_tasks(completed=["foo"])))):
                     # Mock rebasing method to let landing fail on push
                     with patch.object(sync, "gecko_rebase", Mock(side_effect=mock_rebase)):
-                        with pytest.raises(AbortError) as error:
+                        with pytest.raises(AbortError):
                             landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
-                        assert str(error.value) == "[rejected] (non-fast-forward)\n"
 
     assert sync.status != "complete"
     assert downstream_sync.status != "complete"
