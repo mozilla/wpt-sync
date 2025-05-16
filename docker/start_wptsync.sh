@@ -92,6 +92,9 @@ elif [ "$1" == "--worker" ]; then
     set -x
     export NEW_RELIC_CONFIG_FILE=/app/config/newrelic.ini
 
+    set -x
+    export LANDO_CONFIG_PATH=/app/config/lando.toml
+
     # TODO: need to configure the API key correctly to record deploys
     # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
 

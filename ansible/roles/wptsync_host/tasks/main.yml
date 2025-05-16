@@ -76,6 +76,7 @@
     - { src: "{{ host_config }}/wpt-metadata_config", dest: "{{ mount_config }}/wpt-metadata_config" }
     - { src: "{{ host_config }}/newrelic.ini", dest: "{{ mount_config }}/newrelic.ini" }
     - { src: "{{ host_config }}/rabbitmq.conf", dest: "{{ mount_config }}/rabbitmq.conf" }
+    - { src: "{{ host_config }}/lando.toml", dest: "{{ mount_config }}/lando.toml" }
 
 - name: install sync config (if environment variables are configured)
   copy:

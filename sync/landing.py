@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import shutil
+import subprocess
 from collections import defaultdict
 
 import enum
@@ -844,24 +845,31 @@ def push(landing: LandingSync) -> None:
             raise RetryableError(AbortError("Tree is closed"))
 
         try:
-            logger.info("Pushing landing")
-            push_info = landing.git_gecko.remotes.mozilla.push(
-                "{}:{}".format(landing.branch_name,
-                               landing.gecko_integration_branch().split("/", 1)[1])
-            )
-            for item in push_info:
-                if item.flags & item.ERROR:
-                    raise AbortError(item.summary)
-        except git.GitCommandError as e:
-            changes = landing.git_gecko.remotes.mozilla.fetch()
+            output = push_with_lando(landing)
+            logger.info(output)
+        except subprocess.CalledProcessError as e:
             err = "Pushing update to remote failed:\n%s" % e
-            if not changes:
-                logger.error(err)
-                env.bz.comment(landing.bug, err)
-                raise AbortError(err)
+            logger.error(err)
+            env.bz.comment(landing.bug, err)
+            raise AbortError(err)
         else:
             success = True
     # The landing is marked as finished when it reaches central
+
+
+def push_with_lando(landing):
+    logger.info("Pushing landing")
+    cmd = [
+        "lando",
+        "push-commits",
+        "--local-repo",
+        landing.gecko_worktree.path,
+        "--lando-repo",
+        "firefox-autoland",
+        "--yes"
+    ]
+    logger.info(" ".join(cmd))
+    return subprocess.check_output(cmd)
 
 
 def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
