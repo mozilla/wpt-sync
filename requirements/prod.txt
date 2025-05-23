@@ -143,9 +143,9 @@ ipython-genutils==0.2.0 \
 jedi==0.19.2 \
     --hash=sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0 \
     --hash=sha256:a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9
-kombu==5.4.2 \
-    --hash=sha256:14212f5ccf022fc0a70453bb025a1dcc32782a588c49ea866884047d66e14763 \
-    --hash=sha256:eef572dd2fd9fc614b37580e3caeafdd5af46c1eff31e7fba89138cdb406f2cf
+kombu==5.5.3 \
+    --hash=sha256:021a0e11fcfcd9b0260ef1fb64088c0e92beb976eb59c1dfca7ddd4ad4562ea2 \
+    --hash=sha256:5b0dbceb4edee50aa464f59469d34b97864be09111338cfb224a10b6a163909b
 mercurial==7.0.2 \
     --hash=sha256:09553ef65a274385713861eaf2481964c739687ba3bccef8ba9d8e0fea8097cd \
     --hash=sha256:0b6f45b121d5502b3199f0dc73159020fecc0867110359e0a80f740d5ddaff05 \
