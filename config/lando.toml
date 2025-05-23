@@ -1,4 +1,0 @@
-[auth]
-
-api_token="%SECRET%"
-user_email="wptsync@mozilla.com"

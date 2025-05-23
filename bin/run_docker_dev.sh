@@ -69,7 +69,6 @@ elif [[ $command == "run" ]]; then
     --env WPTSYNC_WPT_METADATA_CONFIG=${WPTSYNC_WPT_METADATA_CONFIG:-/app/config/wpt-metadata_config} \
     --env WPTSYNC_GH_SSH_KEY=${WPTSYNC_GH_SSH_KEY:-/app/config/dev/ssh/id_github} \
     --env WPTSYNC_HGMO_SSH_KEY=${WPTSYNC_HGMO_SSH_KEY:-/app/config/dev/ssh/id_hgmo} \
-    --env LANDO_CONFIG_PATH=${LANDO_CONFIG_PATH:-/app/config/lando.toml} \
     --mount type=bind,source=$(pwd)/config,target=/app/config \
     --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
     --mount type=bind,source=$(pwd)/repos,target=/app/repos \
