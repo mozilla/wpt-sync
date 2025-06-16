@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
     RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq \
@@ -6,7 +6,12 @@ ENV PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:
     SHELL=/bin/bash \
     WPTSYNC_ROOT=/app/workspace \
     WPTSYNC_REPO_ROOT=/app/repos/ \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    UV_REQUIRE_HASHES=1 \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON=python3.12
 
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
@@ -22,6 +27,7 @@ RUN set -eux; \
     apt-get update; \
     apt-get upgrade -y; \
     apt-get install -y \
+        2to3 \
         apt-transport-https \
         curl \
         emacs-nox \
@@ -33,10 +39,7 @@ RUN set -eux; \
         vim \
         wget \
         python3 \
-        python3-distutils \
-        python3-dev \
-        python3-pip;
-
+        python3-dev;
 
 ## Add apt repositories maintained by Team RabbitMQ
 COPY ./docker/rabbitmq.list /etc/apt/sources.list.d/rabbitmq.list
@@ -49,19 +52,15 @@ RUN set -eux; \
     ## PackageCloud RabbitMQ repository
     sudo apt-key add /app/rabbitmq-server.gpg; \
     rm /app/rabbitmq-server.gpg; \
-
     sudo cat /etc/apt/sources.list.d/rabbitmq.list; \
-
     ## Update package indices
     sudo apt-get update -y; \
-
     ## Install Erlang packages
     sudo apt-get install -y erlang-base \
        erlang-asn1 erlang-crypto erlang-eldap erlang-ftp erlang-inets \
        erlang-mnesia erlang-os-mon erlang-parsetools erlang-public-key \
        erlang-runtime-tools erlang-snmp erlang-ssl \
        erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl; \
-
     sudo apt-get install rabbitmq-server -y --fix-missing;
 
 # install tini for process management so we can use its -g option
@@ -87,9 +86,6 @@ COPY ./docker/get_ini.py /app/get_ini.py
 RUN chmod +x /app/get_ini.py /app/start_wptsync.sh
 
 USER app
-
-RUN python3 -m pip install --upgrade pip; \
-    python3 -m pip install --user requests;
 
 # Set up files and config
 RUN mkdir -p /app/workspace \
@@ -121,23 +117,27 @@ RUN cd /app/third_party/fzf \
 
 # Need the files required for setup in the image, but the actual
 # code will be mounted from the host
-COPY ./requirements /app/wpt-sync/requirements/
 COPY ./00-startup.py /app/.ipython/profile_default/startup/
-COPY ./setup.py ./setup.cfg /app/wpt-sync/
+COPY ./pyproject.toml ./uv.lock ./setup.py /app/wpt-sync/
+COPY ./sync /app/wpt-sync/sync
+RUN sudo chown -R app:app /app/wpt-sync/
+
+# Install UV
+COPY --from=ghcr.io/astral-sh/uv:0.6.6 /uv /uvx /bin/
 
 RUN set -eux; \
     git config --global user.name moz-wptsync-bot; \
-    git config --global user.email wptsync@mozilla.com; \
-    # Install the wptsync app in development
-    pip3 install -r /app/wpt-sync/requirements/prod.txt --no-deps --require-hashes \
-    && pip3 install -r /app/wpt-sync/requirements/dev.txt --no-deps \
-    && pip3 install -r /app/wpt-sync/requirements/mozautomation.txt --no-deps
+    git config --global user.email wptsync@mozilla.com;
 
 # /app/wpt-sync: bind mount to src dir (only on dev) or dir with wheels?
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs
 # config files, credentials, ssh config
 # /app/repos: bind mount to ebs volume for gecko and wpt repos (or local dev repos)
 VOLUME ["/app/wpt-sync", "/app/workspace", "/app/repos", "/app/config"]
+
+RUN cd /app/wpt-sync && ls && uv sync --locked
+
+ENV UV_FROZEN=1
 
 ENTRYPOINT ["/tini", "-v", "-g", "--", "/app/start_wptsync.sh"]
 CMD ["--worker"]
