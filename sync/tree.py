@@ -8,7 +8,7 @@ from . import log
 logger = log.get_logger(__name__)
 
 
-def get_tree_status(project):
+def get_tree_status(project: str) -> str:
     try:
         r = requests.get("https://treestatus.mozilla-releng.net/trees2")
         r.raise_for_status()
@@ -16,9 +16,11 @@ def get_tree_status(project):
         for s in tree_status:
             if s["tree"] == project:
                 return s["status"]
-    except Exception as e:
-        logger.warning(traceback.format_exc(e))
+        raise ValueError(f"No tree status for project {project}")
+    except Exception:
+        logger.warning(traceback.format_exc())
+        return ""
 
 
-def is_open(project):
+def is_open(project: str) -> bool:
     return get_tree_status(project) == "open"

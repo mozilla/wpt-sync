@@ -70,4 +70,4 @@ disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
-module = "bugsy.*,newrelic.*,pygit2.*,kombu.*,mozautomation.*,phabricator.*"
+module = "bugsy.*,newrelic.*,pygit2.*,kombu.*,mozautomation.*,phabricator.*,slugid.*,taskcluster.*"

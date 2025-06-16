@@ -22,7 +22,7 @@ from .projectutil import Mach
 from .repos import cinnabar
 from .tc import TaskGroupView
 
-from typing import Any, Mapping, MutableMapping, Text, TYPE_CHECKING
+from typing import Any, Iterator, Mapping, MutableMapping, Self, Text, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
@@ -63,7 +63,7 @@ class TryCommit:
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self.cleanup()
 
-    def create(self):
+    def create(self) -> None:
         pass
 
     def cleanup(self) -> None:
@@ -288,13 +288,13 @@ class TryPush(base.ProcessData):
         return rv
 
     @classmethod
-    def load_all(cls, git_gecko):
+    def load_all(cls, git_gecko: Repo) -> Iterator[Self]:
         process_names = base.ProcessNameIndex(git_gecko).get("try")
         for process_name in process_names:
             yield cls(git_gecko, process_name)
 
     @classmethod
-    def for_commit(cls, git_gecko, sha1):
+    def for_commit(cls, git_gecko: Repo, sha1: str) -> Self:
         idx = TryCommitIndex(git_gecko)
         process_name = idx.get(idx.make_key(sha1))
         if process_name:
@@ -303,7 +303,7 @@ class TryPush(base.ProcessData):
         logger.info(f"No try push for rev {sha1}")
 
     @classmethod
-    def for_taskgroup(cls, git_gecko, taskgroup_id):
+    def for_taskgroup(cls, git_gecko: Repo, taskgroup_id: str) -> Self:
         idx = TaskGroupIndex(git_gecko)
         process_name = idx.get(idx.make_key(taskgroup_id))
         if process_name:

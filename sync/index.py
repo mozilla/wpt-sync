@@ -291,7 +291,7 @@ class Index(metaclass=abc.ABCMeta):
         for error in errors:
             logger.warning(error)
 
-    def build_entries(self, *args, **kwargs):
+    def build_entries(self, *args: Any, **kwargs: Any) -> list[tuple[IndexKey, ProcessName]]:
         raise NotImplementedError
 
     @classmethod
@@ -316,7 +316,7 @@ class TaskGroupIndex(Index):
                 value[2:4],
                 value[4:])
 
-    def build_entries(self, *args, **kwargs):
+    def build_entries(self, *args: Any, **kwargs: Any) -> list[tuple[IndexKey, ProcessName]]:
         from . import trypush
         entries = []
         for try_push in trypush.TryPush.load_all(self.repo):
@@ -339,7 +339,7 @@ class TryCommitIndex(Index):
                 value[4:6],
                 value[6:])
 
-    def build_entries(self, *args, **kwargs):
+    def build_entries(self, *args: Any, **kwargs: Any) -> list[tuple[IndexKey, ProcessName]]:
         entries = []
         from . import trypush
         for try_push in trypush.TryPush.load_all(self.repo):
@@ -370,7 +370,7 @@ class SyncIndex(Index):
                 status,
                 str(process_name.obj_id))
 
-    def build_entries(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> list[tuple[IndexKey, ProcessName]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
         from .landing import LandingSync
@@ -456,7 +456,7 @@ class BugIdIndex(Index):
             status = value.status
         return (bug, status)
 
-    def build_entries(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs) -> list[tuple[IndexKey, ProcessName]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
         from .landing import LandingSync

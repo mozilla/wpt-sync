@@ -7,7 +7,7 @@ import urllib.parse
 
 import yaml
 
-from typing import Any, Iterator
+from typing import Any, Iterator, SupportsIndex
 
 """Module for interacting with a web-platform-tests metadata repository"""
 
@@ -19,20 +19,20 @@ class DeleteTrackingList(list):
         self._deleted: list[Any] = []
         super().__init__(*args, **kwargs)
 
-    def __setitem__(self, index, value):
+    def __setitem__(self, index: SupportsIndex, value) -> None:
         self._dirty = True
         super().__setitem__(index, value)
 
-    def __setslice__(self, index0, index1, value):
-        self.deleted.extend(self[index0:index1])
+    def __setslice__(self, index0: SupportsIndex, index1: SupportsIndex, value) -> None:
+        self._deleted.extend(self[index0:index1])
         super().__setslice__(index0, index1, value)
 
-    def __delitem__(self, index):
-        self.deleted.append(self[index]._initial_state)
+    def __delitem__(self, index: SupportsIndex):
+        self._deleted.append(self[index]._initial_state)
         super().__delitem__(index)
 
-    def __delslice__(self, index0, index1):
-        self.deleted.extend(self[index0:index1])
+    def __delslice__(self, index0: SupportsIndex, index1: SupportsIndex) -> None:
+        self._deleted.extend(self[index0:index1])
         super().__delslice__(index0, index1)
 
     def pop(self):
@@ -103,18 +103,18 @@ class Writer(metaclass=ABCMeta):
 class FilesystemReader(Reader):
     """Reader implementation operating on filesystem files"""
 
-    def __init__(self, root):
+    def __init__(self, root: str):
         self.root = root
 
-    def read_path(self, rel_path):
+    def read_path(self, rel_path: str) -> str:
         path = os.path.join(self.root, rel_path)
         with open(path) as f:
             return f.read()
 
-    def exists(self, rel_path):
+    def exists(self, rel_path: str) -> bool:
         return os.path.exists(os.path.join(self.root, rel_path))
 
-    def walk(self, rel_path):
+    def walk(self, rel_path: str) -> Iterator[str]:
         base = os.path.join(self.root, rel_path)
         for dir_path, dir_names, file_names in os.walk(base):
             if "META.yml" in file_names:
@@ -124,16 +124,16 @@ class FilesystemReader(Reader):
 class FilesystemWriter(Writer):
     """Writer implementation operating on filesystem files"""
 
-    def __init__(self, root):
+    def __init__(self, root: str):
         self.root = root
 
-    def write(self, rel_path, data):
+    def write(self, rel_path: str, data: str) -> int:
         path = os.path.join(self.root, rel_path)
         with open(path, "w") as f:
             return f.write(data)
 
 
-def metadata_directory(root):
+def metadata_directory(root: str):
     reader = FilesystemReader(root)
     writer = FilesystemWriter(root)
     return WptMetadata(reader, writer)

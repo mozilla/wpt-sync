@@ -1,6 +1,7 @@
 import os
 import traceback
 import time
+from typing import Any, Callable, Mapping
 
 import filelock
 import newrelic.agent
@@ -24,7 +25,7 @@ _lock = None
 
 
 @settings.configure
-def setup_lock(config):
+def setup_lock(config: settings.Config) -> None:
     global _lock
     if _lock is None:
         path = os.path.join(config["root"], "sync.lock")
@@ -32,10 +33,11 @@ def setup_lock(config):
         _lock = filelock.FileLock(path)
 
 
-def with_lock(f):
-    def inner(*args, **kwargs):
+def with_lock(f: Callable[..., Any]) -> Callable[..., Any]:
+    def inner(*args: Any, **kwargs: Any) -> Any:
         if _lock is None:
             setup_lock()
+        assert _lock is not None
         try:
             with _lock:
                 return f(*args, **kwargs)
@@ -52,7 +54,7 @@ def with_lock(f):
 
 
 @settings.configure
-def get_handlers(config):
+def get_handlers(config: settings.Config) -> Mapping[str, handlers.Handler]:
     global handler_map
     if handler_map is None:
         handler_map = {
@@ -67,7 +69,7 @@ def get_handlers(config):
 
 
 @settings.configure
-def setup(config):
+def setup(config: settings.Config) -> tuple[repos.Repo, repos.Repo]:
     env.set_env(config, None, None)
     gecko_repo = repos.Gecko(config)
     git_gecko = gecko_repo.repo()
@@ -88,7 +90,7 @@ def setup(config):
 
 @worker.task(bind=True, max_retries=6, retry_backoff=60, retry_backoff_max=3840)
 @with_lock
-def handle(self, task, body):
+def handle(self, task: str, body: Any) -> None:
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
@@ -109,7 +111,7 @@ def handle(self, task, body):
 @worker.task(bind=True, max_retries=6, retry_backoff=60, retry_backoff_max=3840)
 @with_lock
 @settings.configure
-def land(self, config):
+def land(self, config: settings.Config) -> None:
     git_gecko, git_wpt = setup()
     try:
         handlers.LandingHandler(config)(git_gecko, git_wpt, {})
@@ -120,7 +122,7 @@ def land(self, config):
 @worker.task
 @with_lock
 @settings.configure
-def cleanup(config):
+def cleanup(config: settings.Config) -> None:
     git_gecko, git_wpt = setup()
     handlers.CleanupHandler(config)(git_gecko, git_wpt, {})
 
@@ -128,7 +130,7 @@ def cleanup(config):
 @worker.task
 @with_lock
 @settings.configure
-def retrigger(config):
+def retrigger(config: settings.Config) -> None:
     git_gecko, git_wpt = setup()
     handlers.RetriggerHandler(config)(git_gecko, git_wpt, {})
 
@@ -136,6 +138,6 @@ def retrigger(config):
 @worker.task
 @with_lock
 @settings.configure
-def update_bugs(config):
+def update_bugs(config: settings.Config) -> None:
     git_gecko, git_wpt = setup()
     handlers.BugUpdateHandler(config)(git_gecko, git_wpt, {})
