@@ -33,8 +33,6 @@ def setup_lock(config):
 
 
 def with_lock(f):
-    global _lock
-
     def inner(*args, **kwargs):
         if _lock is None:
             setup_lock()
