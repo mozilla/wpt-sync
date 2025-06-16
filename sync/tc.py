@@ -16,8 +16,9 @@ from . import log
 from .env import Environment
 from .errors import RetryableError
 from .threadexecutor import ThreadExecutor
+from .types import Json
 
-from typing import Any, Callable, Dict, Iterator
+from typing import Any, Callable, Dict, Iterator, Mapping, Optional
 Task = Dict[str, Dict[str, Any]]
 
 
@@ -41,11 +42,11 @@ env = Environment()
 
 
 class TaskclusterClient:
-    def __init__(self):
-        self._queue = None
+    def __init__(self) -> None:
+        self._queue: Optional[taskcluster.Queue] = None
 
     @property
-    def queue(self):
+    def queue(self) -> taskcluster.Queue:
         # Only used for retriggers which always use the new URL
         if not self._queue:
             self._queue = taskcluster.Queue({
@@ -57,7 +58,7 @@ class TaskclusterClient:
             })
         return self._queue
 
-    def retrigger(self, task_id, count=1, retries=5):
+    def retrigger(self, task_id: str, count: int = 1, retries: int = 5) -> Optional[list[Task]]:
         logger.info("Retriggering task %s" % task_id)
         payload = self.queue.task(task_id)
         now = taskcluster.fromNow("0 days")
@@ -82,9 +83,9 @@ class TaskclusterClient:
                 try:
                     rv.append(self.queue.createTask(new_id, payload))
                     break
-                except Exception as e:
+                except Exception:
                     r -= 1
-                    logger.warning(traceback.format_exc(e))
+                    logger.warning(traceback.format_exc())
             count -= 1
         return rv or None
 
@@ -104,7 +105,7 @@ def normalize_task_id(task_id: str) -> str:
     return slugid.encode(task_uuid)
 
 
-def parse_job_name(job_name):
+def parse_job_name(job_name: str) -> str:
     if job_name.startswith("test-"):
         job_name = job_name[len("test-"):]
     if "web-platform-tests" in job_name:
@@ -114,25 +115,6 @@ def parse_job_name(job_name):
     job_name = job_name.replace("/", "-")
 
     return job_name
-
-
-def result_from_run(run):
-    result_map = {"completed": "success",
-                  "failed": "fail"}
-
-    state = run.get("state")
-
-    if state in result_map:
-        return result_map[state]
-
-    if state == "exception":
-        if run.get("reasonResolved") == "canceled":
-            return "canceled"
-        if run.get("reasonResolved") == "superseded":
-            return "superseded"
-        return "exception"
-
-    return "unknown"
 
 
 class TaskGroup:
@@ -180,7 +162,7 @@ class TaskGroupView:
                                                   else lambda x: bool(x))
         self._tasks: list[Task] | None = None
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.tasks)
 
     def __len__(self) -> int:
@@ -199,7 +181,7 @@ class TaskGroupView:
         assert self._tasks is not None
         return self._tasks
 
-    def refresh(self):
+    def refresh(self) -> list[Task]:
         self._tasks = None
         self.taskgroup.refresh()
         return self.tasks
@@ -239,13 +221,12 @@ class TaskGroupView:
     def download_logs(self, destination: str,
                       file_names: list[str],
                       retry: int = 5
-                      ):
-        # type (...) -> None
+                      ) -> None:
         if not os.path.exists(destination):
             os.makedirs(destination)
 
         if not file_names:
-            return []
+            return
 
         logger.info("Downloading logs to %s" % destination)
         t0 = time.time()
@@ -260,13 +241,13 @@ class TaskGroupView:
         # there is probably some sign of badness less than all the downloads
         # erroring
         for error in errors:
-            logger.warning(traceback.format_exc(error))
+            logger.warning(error)
         if len(errors) == len(self.tasks):
-            raise RetryableError("Downloading logs all failed")
+            raise RetryableError(Exception("Downloading logs all failed"))
         logger.info("Downloading logs took %s" % (time.time() - t0))
 
 
-def start_session():
+def start_session() -> dict[str, requests.Session]:
     return {"session": requests.Session()}
 
 
@@ -275,7 +256,7 @@ def get_task_artifacts(destination: str,
                        file_names: list[str],
                        session: requests.Session | None,
                        retry: int
-                       ):
+                       ) -> None:
     status = task.get("status", {})
     if not status.get("runs"):
         logger.debug("No runs for task %s" % status["taskId"])
@@ -287,6 +268,7 @@ def get_task_artifacts(destination: str,
         artifacts = fetch_json(artifacts_base_url, session=session)
     except requests.HTTPError as e:
         logger.warning(str(e))
+    assert isinstance(artifacts, dict)
     artifact_urls = ["{}/{}".format(artifacts_base_url, item["name"])
                      for item in artifacts["artifacts"]
                      if any(item["name"].endswith("/" + file_name)
@@ -404,7 +386,7 @@ def lookup_index(index_name: str) -> str | None:
 def lookup_treeherder(project: str, revision: str) -> str | None:
     push_data = fetch_json(TREEHERDER_BASE + f"api/project/{project}/push/",
                            params={"revision": revision})
-
+    assert isinstance(push_data, dict)
     pushes = push_data.get("results", [])
     push_id = pushes[0].get("id") if pushes else None
     if push_id is None:
@@ -412,6 +394,7 @@ def lookup_treeherder(project: str, revision: str) -> str | None:
 
     jobs_data = fetch_json(TREEHERDER_BASE + "api/jobs/",
                            {"push_id": push_id})
+    assert isinstance(jobs_data, dict)
     property_names = jobs_data["job_property_names"]
     idx_name = property_names.index("job_type_name")
     idx_task = property_names.index("task_id")
@@ -473,8 +456,7 @@ def download(log_url: str, log_path: str, retry: int,
 def fetch_json(url: str,
                params: dict[str, str] | None = None,
                session: requests.Session | None = None
-               ):
-    # type (...) -> Union[Dict[Text, Any], List[Any]]
+               ) -> Mapping[str, Json]:
     if session is None:
         session = requests.Session()
     t0 = time.time()
@@ -507,7 +489,7 @@ def get_taskgroup_id(project: str, revision: str) -> tuple[str, str, list[dict[s
     return (task_id, state, runs)
 
 
-def cleanup():
+def cleanup() -> None:
     base_path = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
     for repo_dir in os.listdir(base_path):
         repo_path = os.path.join(base_path, repo_dir)

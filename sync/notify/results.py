@@ -400,7 +400,7 @@ def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> TaskGroupView | 
 
 
 class LogFile:
-    def __init__(self, path):
+    def __init__(self, path: os.PathLike[str] | str) -> None:
         self.path = path
 
     def json(self) -> dict[str, Any]:
@@ -469,14 +469,17 @@ def add_wpt_fyi_data(sync: DownstreamSync, results: Results) -> bool:
     logs = []
     for target, run_has_changes in [("base", False),
                                     ("head", True)]:
-        target_results: MutableMapping[str, dict[str, list[Response]]] = defaultdict(
+        target_results: dict[str, dict[str, list[Response]]] = defaultdict(
             dict)
         try:
             runs = wptfyi.get_runs(sha=head_sha1, labels=["pr_%s" % target])
             for run in runs:
-                if run["browser_name"] in browsers:
-                    browser = run["browser_name"]
-                    target_results[browser]["GitHub"] = [requests.get(run["raw_results_url"])]
+                browser_name = run["browser_name"]
+                assert isinstance(browser_name, str)
+                if browser_name in browsers:
+                    results_url = run["raw_results_url"]
+                    assert isinstance(results_url, str)
+                    target_results[browser_name]["GitHub"] = [requests.get(results_url)]
         except requests.HTTPError as e:
             logger.error("Unable to fetch results from wpt.fyi: %s" % e)
             return False

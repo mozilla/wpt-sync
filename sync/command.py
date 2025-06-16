@@ -10,6 +10,7 @@ import traceback
 import git
 
 from . import listen
+from .base import ProcessData
 from .phab import listen as phablisten
 from . import log
 from .tasks import setup
@@ -32,8 +33,7 @@ if "SHELL" not in os.environ:
     os.environ["SHELL"] = "/bin/bash"
 
 
-def get_parser():
-    # type () -> argparse.ArgumentParser
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
     parser.add_argument("--pdb", action="store_true", help="Run in pdb")
@@ -262,7 +262,7 @@ def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: str, error: bool = False,
     from . import upstream
     syncs: list[SyncProcess] = []
 
-    def filter_sync(sync):
+    def filter_sync(sync: SyncProcess) -> bool:
         if error:
             return sync.error is not None and sync.status == "open"
         return True
@@ -319,7 +319,7 @@ def do_landing(git_gecko: Repo,
     from . import update
     current_landing = landing.current(git_gecko, git_wpt)
 
-    def update_landing():
+    def update_landing() -> None:
         landing.update_landing(git_gecko,
                                git_wpt,
                                prev_wpt_head,
@@ -443,18 +443,18 @@ def do_delete(git_gecko: Repo,
               try_push: bool = False,
               delete_all: bool = False,
               seq_id: int | None = None,
-              **kwargs) -> None:
+              **kwargs: Any) -> None:
     from . import trypush
-    objs: Iterable[Any] = []
+    objs: list[ProcessData | SyncProcess] = []
     for obj_id in obj_ids:
         logger.info(f"{sync_type} {obj_id}")
         if try_push:
-            objs = trypush.TryPush.load_by_obj(git_gecko,
-                                               sync_type,
-                                               obj_id,
-                                               seq_id=seq_id)
+            objs = list(trypush.TryPush.load_by_obj(git_gecko,
+                                                    sync_type,
+                                                    obj_id,
+                                                    seq_id=seq_id))
         else:
-            objs = get_syncs(git_gecko, git_wpt, sync_type, obj_id, seq_id=seq_id)
+            objs = list(get_syncs(git_gecko, git_wpt, sync_type, obj_id, seq_id=seq_id))
         if not delete_all and objs:
             objs = sorted(objs, key=lambda x: -int(x.process_name.seq_id))[:1]
         for obj in objs:
@@ -543,7 +543,7 @@ def do_status(git_gecko: Repo,
         with SyncLock.for_process(obj.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with obj.as_mut(lock):
-                obj.status = new_status  # type: ignore
+                obj.status = new_status
 
 
 def do_test(**kwargs: Any) -> None:
@@ -595,7 +595,7 @@ def do_skip(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], **kwargs: Any) ->
         with SyncLock.for_process(sync.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
-                sync.skip = True  # type: ignore
+                sync.skip = True
 
 
 def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], force: bool = False,
@@ -628,8 +628,8 @@ def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], force: bool = F
                     sync.try_notify(force=force)
 
 
-def do_landable(git_gecko,
-                git_wpt,
+def do_landable(git_gecko: Repo,
+                git_wpt: Repo,
                 prev_wpt_head: str | None = None,
                 include_incomplete: bool = False,
                 include_all: bool = True,
@@ -664,7 +664,9 @@ def do_landable(git_gecko,
               (wpt_head, len(commits)))
 
     if include_all or retrigger:
-        unlandable = unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
+        unlandable = [(pr, wpt_commits, status)
+                      for (pr, wpt_commits, status) in unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head)
+                      if pr is not None]
         count = 0
         for pr, _, status in unlandable:
             count += 1
@@ -700,11 +702,11 @@ def do_landable(git_gecko,
 
         print("%i PRs are unlandable:" % count)
 
-        if retrigger:
-            errors = update.retrigger(git_gecko, git_wpt, unlandable)
-            if errors:
-                print("The following PRs have errors:\n%s" % "\n".join(
-                    str(item) for item in errors))
+    if retrigger:
+        errors = update.retrigger(git_gecko, git_wpt, unlandable)
+        if errors:
+            print("The following PRs have errors:\n%s" % "\n".join(
+                str(item) for item in errors))
 
 
 def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstream: bool = False,
@@ -737,7 +739,9 @@ def do_retrigger(git_gecko: Repo, git_wpt: Repo, upstream: bool = False, downstr
             prev_wpt_head = sync_point["upstream"]
         else:
             prev_wpt_head = current_landing.wpt_commits.head.sha1
-        unlandable = unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
+        unlandable = [(pr, wpt_commits, status) for (pr, wpt_commits, status) in
+                      unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
+                      if pr is not None]
 
         pr_errors = update.retrigger(git_gecko, git_wpt, unlandable, rebase=rebase)
         if pr_errors:
@@ -788,16 +792,16 @@ def do_try_push_add(git_gecko: Repo,
         raise ValueError
 
     class FakeTry:
-        def __init__(self, *_args, **_kwargs):
+        def __init__(self, *_args: Any, **_kwargs: Any):
             pass
 
-        def __enter__(self):
+        def __enter__(self) -> FakeTry:
             return self
 
-        def __exit__(self, *args):
+        def __exit__(self, *args: Any) -> None:
             pass
 
-        def push(self):
+        def push(self) -> str:
             return try_rev
 
     with SyncLock.for_process(sync.process_name) as lock:
@@ -856,7 +860,7 @@ def do_build_index(git_gecko: Repo, git_wpt: Repo, index_name: str, **kwargs: An
         idx.build(git_gecko, git_wpt)
 
 
-def do_migrate(git_gecko, git_wpt, **kwargs):
+def do_migrate(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     assert False, "Running this is probably a bad idea"
     # Migrate refs from the refs/<type>/<subtype>/<status>/<obj_id>[/<seq_id>] format
     # to refs/<type>/<subtype>/<obj_id>/<seq_id>
@@ -973,13 +977,13 @@ def do_migrate(git_gecko, git_wpt, **kwargs):
         print("  Moving %s to %s %d/%d" % (ref.name, new_ref, i + 1, len(seen)))
 
         if "/syncs/" in ref.name:
-            ref_obj = ref.peel().id
-            data = json.loads(ref.peel().tree["data"].data)
+            ref_obj = ref.peel(None).id
+            data = json.loads(ref.peel(None).tree["data"].data)
             if data.get("status") != status:
                 with base.CommitBuilder(rev_repo_map[repo], "Add status", ref=ref.name) as commit:
-                    now_ref_obj = ref.peel().id
+                    now_ref_obj = ref.peel(None).id
                     if ref_obj != now_ref_obj:
-                        data = json.loads(ref.peel().tree["data"].data)
+                        data = json.loads(ref.peel(None).tree["data"].data)
                     data["status"] = status
                     commit.add_tree({"data": json.dumps(data)})
                     print("Making commit")
@@ -1072,12 +1076,12 @@ def main() -> None:
     except AttributeError:
         func_name = None
     if func_name == "do_test":
-        def func(**kwargs):
+        def func(**kwargs: Any) -> Any:
             return do_test(**kwargs)
     else:
         git_gecko, git_wpt = setup()
 
-        def func(**kwargs):
+        def func(**kwargs: Any) -> Any:
             return args.func(git_gecko, git_wpt, **kwargs)
 
     try:

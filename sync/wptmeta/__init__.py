@@ -7,44 +7,56 @@ import urllib.parse
 
 import yaml
 
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator, Optional, SupportsIndex, overload
 
 """Module for interacting with a web-platform-tests metadata repository"""
 
 
-class DeleteTrackingList(list):
+class DeleteTrackingList(list["MetaEntry"]):
     """A list that holds a reference to any elements that are removed"""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._deleted: list[Any] = []
+    def __init__(self, *args: MetaEntry, **kwargs: Any) -> None:
+        self._deleted: list[LinkState] = []
         super().__init__(*args, **kwargs)
 
-    def __setitem__(self, index, value):
+    @overload
+    def __setitem__(self, index: SupportsIndex, value: MetaEntry, /) -> None:
+        ...
+    @overload
+    def __setitem__(self, index: slice[Any, Any, Any], value: Iterable[MetaEntry], /) -> None:
+        ...
+    def __setitem__(self, index: SupportsIndex | slice[Any, Any, Any], value: MetaEntry | Iterable[MetaEntry], /) -> None:
         self._dirty = True
-        super().__setitem__(index, value)
+        if isinstance(index, slice) and isinstance(value, Iterable):
+            super().__setitem__(index, value)
+        elif isinstance(index, SupportsIndex) and isinstance(value, MetaEntry):
+            super().__setitem__(index, value)
+        else:
+            raise TypeError("Invalid index/value types")
 
-    def __setslice__(self, index0, index1, value):
-        self.deleted.extend(self[index0:index1])
-        super().__setslice__(index0, index1, value)
-
-    def __delitem__(self, index):
-        self.deleted.append(self[index]._initial_state)
+    def __delitem__(self, index: SupportsIndex | slice[Any, Any, Any], /) -> None:
+        if isinstance(index, slice):
+            self._deleted.extend(item._initial_state for item in self[index]
+                                 if item._initial_state is not None)
+        else:
+            _initial_state = self[index]._initial_state
+            if _initial_state is not None:
+                self._deleted.append(_initial_state)
         super().__delitem__(index)
 
-    def __delslice__(self, index0, index1):
-        self.deleted.extend(self[index0:index1])
-        super().__delslice__(index0, index1)
-
-    def pop(self):
-        rv = super().pop()
-        self._deleted.append(rv)
+    def pop(self, index: SupportsIndex = -1) -> MetaEntry:
+        rv = super().pop(index)
+        if rv._initial_state is not None:
+            self._deleted.append(rv._initial_state)
         return rv
 
-    def remove(self, item: Any) -> Any:
+    def remove(self, item: MetaEntry) -> None:
         try:
             return super().remove(item)
         finally:
-            self._deleted.append(item)
+            _initial_state = item._initial_state
+            if _initial_state is not None:
+                self._deleted.append(_initial_state)
 
 
 def parse_test(test_id: str) -> tuple[str, str]:
@@ -103,18 +115,18 @@ class Writer(metaclass=ABCMeta):
 class FilesystemReader(Reader):
     """Reader implementation operating on filesystem files"""
 
-    def __init__(self, root):
+    def __init__(self, root: str):
         self.root = root
 
-    def read_path(self, rel_path):
+    def read_path(self, rel_path: str) -> bytes:
         path = os.path.join(self.root, rel_path)
-        with open(path) as f:
+        with open(path, "rb") as f:
             return f.read()
 
-    def exists(self, rel_path):
+    def exists(self, rel_path: str) -> bool:
         return os.path.exists(os.path.join(self.root, rel_path))
 
-    def walk(self, rel_path):
+    def walk(self, rel_path: str) -> Iterator[str]:
         base = os.path.join(self.root, rel_path)
         for dir_path, dir_names, file_names in os.walk(base):
             if "META.yml" in file_names:
@@ -124,16 +136,16 @@ class FilesystemReader(Reader):
 class FilesystemWriter(Writer):
     """Writer implementation operating on filesystem files"""
 
-    def __init__(self, root):
+    def __init__(self, root: str):
         self.root = root
 
-    def write(self, rel_path, data):
+    def write(self, rel_path: str, data: bytes) -> None:
         path = os.path.join(self.root, rel_path)
-        with open(path, "w") as f:
-            return f.write(data)
+        with open(path, "wb") as f:
+            f.write(data)
 
 
-def metadata_directory(root):
+def metadata_directory(root: str) -> "WptMetadata":
     reader = FilesystemReader(root)
     writer = FilesystemWriter(root)
     return WptMetadata(reader, writer)
@@ -303,7 +315,7 @@ class MetaFile:
     def _update_data(self,
                      data: dict[str, Any],
                      ) -> dict[str, Any]:
-        links_by_state = OrderedDict()
+        links_by_state: dict[LinkState, LinkState] = OrderedDict()
 
         for item in data.get("links", []):
             label = item.get("label")
@@ -318,11 +330,12 @@ class MetaFile:
 
         # Remove deletions first so that delete and readd works
         for item in self.links._deleted:
-            if item._initial_state in links_by_state:
-                del links_by_state[item._initial_state]
+            if item in links_by_state:
+                del links_by_state[item]
 
         for item in self.links:
             if item._initial_state in links_by_state:
+                assert item._initial_state is not None
                 links_by_state[item._initial_state] = item.state
             else:
                 links_by_state[item.state] = item.state
@@ -347,7 +360,7 @@ class MetaFile:
         links = []
 
         for (label, url, product), results in by_link.items():
-            link_data = {"results": results}
+            link_data: dict[str, str | list[dict[str, Any]]] = {"results": results}
             for link_key, value in [("label", label), ("url", url), ("product", product)]:
                 if value is not None:
                     link_data[link_key] = value
@@ -369,6 +382,8 @@ class MetaEntry:
         self.meta_file = meta_file
         self.test_id = test_id
         self._initial_state: LinkState | None = None
+        self.product: Optional[str] = None
+        self.status: Optional[str] = None
 
     @staticmethod
     def from_file_data(meta_file: MetaFile, link: dict[str, Any],
@@ -380,7 +395,7 @@ class MetaEntry:
         else:
             raise ValueError("Unable to load metadata entry")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<{self.__class__.__name__} test_id: {self.test_id}>"
 
     @property
@@ -421,7 +436,7 @@ class MetaLabel(MetaEntry):
         self._initial_state = self.state
         return self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         base = super().__repr__()
         return (f"{base[:-1]} label: {self.label} url: {self.url} "
                 f"product: {self.product} status: {self.status}>")
@@ -464,7 +479,7 @@ class MetaLink(MetaEntry):
         self._initial_state = self.state
         return self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         base = super().__repr__()
         return (f"{base[:-1]} url: {self.url} product: {self.product} "
                 f"status: {self.status} subtest: {self.subtest}>")

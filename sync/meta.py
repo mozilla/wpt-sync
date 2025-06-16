@@ -15,7 +15,7 @@ from .env import Environment
 from .base import CommitBuilder, iter_tree
 from .lock import mut, MutGuard
 
-from typing import Iterable, Iterator, TYPE_CHECKING
+from typing import Iterable, Iterator, Optional, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
@@ -35,7 +35,7 @@ class GitReader(wptmeta.Reader):
         self.repo = repo
         self.repo.remotes.origin.fetch()
         self.pygit2_repo = repos.pygit2_get(repo)
-        self.rev = self.pygit2_repo.revparse_single(ref)
+        self.rev = self.pygit2_repo.revparse_single(ref).peel(pygit2.Commit)
 
     def exists(self, rel_path: str) -> bool:
         return rel_path in self.rev.tree
@@ -44,7 +44,7 @@ class GitReader(wptmeta.Reader):
         entry = self.rev.tree[rel_path]
         return self.pygit2_repo[entry.id].read_raw()
 
-    def walk(self, rel_path):
+    def walk(self, rel_path: str) -> Iterator[str]:
         for path, obj in iter_tree(self.pygit2_repo, rel_path, rev=self.rev):
             if isinstance(obj, pygit2.Blob) and obj.name == "META.yml":
                 yield "/".join(path[:-1])
@@ -61,7 +61,7 @@ class GitWriter(wptmeta.Writer):
 
 
 class NullWriter(wptmeta.Writer):
-    def write(self, rel_path):
+    def write(self, rel_path: str, data: bytes) -> None:
         raise NotImplementedError
 
 
@@ -106,9 +106,6 @@ class Metadata:
 
         self.worktree = worktree.Worktree(self.repo, self.process_name)
         self.git_work = None
-
-    def _push(self):
-        raise NotImplementedError
 
     def as_mut(self, lock: SyncLock) -> MutGuard:
         return MutGuard(lock, self)
@@ -211,12 +208,13 @@ class Metadata:
                                   status=status)
 
     def iter_bug_links(self,
-                       test_id: str,
+                       test_id: Optional[str],
                        product: str = "firefox",
                        prefixes: Iterable[str] | None = None,
                        subtest: str | None = None,
                        status: str | None = None) -> Iterator[MetaLink]:
         if prefixes is None:
+            assert env.bz.bz_url is not None
             prefixes = (env.bz.bz_url,
                         "https://github.com/wpt/web-platform-tests")
         for item in self.metadata.iterlinks(test_id=test_id,

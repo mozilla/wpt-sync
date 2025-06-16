@@ -15,6 +15,7 @@ from .load import get_pr_sync
 from .lock import SyncLock
 from .notify import bugupdate
 from .repos import cinnabar
+from .settings import Config
 
 from git.repo.base import Repo
 from typing import Any, Dict
@@ -25,7 +26,7 @@ logger = log.get_logger(__name__)
 
 
 class Handler:
-    def __init__(self, config):
+    def __init__(self, config: Config) -> None:
         self.config = config
 
     def __call__(self, git_gecko: Repo, git_wpt: Repo, body: Dict[str, Any]) -> None:
@@ -226,7 +227,7 @@ class DecisionTaskHandler(Handler):
             logger.debug(f"No try push for SHA1 {sha1} taskId {task_id}")
             # This could be a race condition if the decision task completes before this
             # task is in the index
-            raise RetryableError("Got a wptsync task with no corresponding try push")
+            raise RetryableError(Exception("Got a wptsync task with no corresponding try push"))
 
         with SyncLock.for_process(try_push.process_name) as lock:
             assert isinstance(lock, SyncLock)
@@ -239,8 +240,11 @@ class DecisionTaskHandler(Handler):
                     try_push.taskgroup_id = taskgroup_id
                 elif state in ("failed", "exception"):
                     sync = try_push.sync(git_gecko, git_wpt)
+                    if sync is None:
+                        logger.error(f"Try push for {sha1} is not associated with a sync")
+                        return
                     message = ("Decision task got status %s for task %s%s" %
-                               (state, sha1, " PR %s" % sync.pr if sync and sync.pr else ""))
+                               (state, sha1, " PR %s" % sync.pr if sync.pr else ""))
                     logger.error(message)
                     taskgroup = tc.TaskGroup(task["taskGroupId"])
                     if len(taskgroup.view(
@@ -289,7 +293,7 @@ class TryTaskHandler(Handler):
                 with try_push.as_mut(lock):
                     try_push.taskgroup_id = taskgroup_id
         tasks = try_push.tasks()
-        if tasks.complete(allow_unscheduled=True):
+        if tasks is not None and tasks.complete(allow_unscheduled=True):
             taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
 
 
@@ -327,7 +331,7 @@ def taskgroup_complete(git_gecko: Repo, git_wpt: Repo, taskgroup_id: str,
             if try_push.taskgroup_id is None:
                 logger.info("Try push for taskgroup %s does not have its ID set, setting now" %
                             taskgroup_id)
-                try_push.taskgroup_id = taskgroup_id  # type: ignore
+                try_push.taskgroup_id = taskgroup_id
                 newrelic.agent.record_custom_event("taskgroup_id_missing", params={
                     "taskgroup-id": taskgroup_id,
                     "try_push": try_push,
@@ -370,7 +374,10 @@ class RetriggerHandler(Handler):
         update_repositories(git_gecko, git_wpt)
         sync_point = landing.load_sync_point(git_gecko, git_wpt)
         prev_wpt_head = sync_point["upstream"]
-        unlanded = landing.unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
+        unlanded = [(pr, wpt_commits, status)
+                    for (pr, wpt_commits, status) in
+                    landing.unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
+                    if pr is not None]
         update.retrigger(git_gecko, git_wpt, unlanded)
 
 

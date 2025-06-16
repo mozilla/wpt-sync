@@ -1,24 +1,23 @@
-from __future__ import annotations
 from . import downstream
 from . import landing
 from . import log
 from . import tc
 from . import trypush
 from . import upstream
+from .commit import WptCommit
 from .env import Environment
+from .landing import LandableStatus
 from .load import get_bug_sync, get_pr_sync
 from .lock import SyncLock
 from .gitutils import update_repositories
 from .errors import AbortError
 from .repos import cinnabar
-
+from .sync import SyncProcess
+from .trypush import TryPush
 
 from git import Repo
 from github.PullRequest import PullRequest
-from typing import Any, Iterable, TYPE_CHECKING
-if TYPE_CHECKING:
-    from sync.sync import SyncProcess
-    from sync.trypush import TryPush
+from typing import Any, Iterable, Mapping
 
 env = Environment()
 logger = log.get_logger(__name__)
@@ -55,9 +54,9 @@ def schedule_pr_task(action: str, pr: PullRequest, repo_update: bool = True) -> 
     handle_sync(*args)
 
 
-def schedule_check_run_task(head_sha: str, name: str, check_run: dict[str, Any],
+def schedule_check_run_task(head_sha: str, name: str, check_run: Mapping[str, Any],
                             repo_update: bool = True) -> None:
-    check_run_data = check_run.copy()
+    check_run_data = {**check_run}
     del check_run_data["required"]
     check_run_data["name"] = name
     check_run_data["head_sha"] = head_sha
@@ -224,7 +223,7 @@ def update_pr(git_gecko: Repo, git_wpt: Repo, pr: PullRequest, force_rebase: boo
                         sync.finish()
                     else:
                         if sync.status != "complete":
-                            sync.status = "wpt-merged"  # type: ignore
+                            sync.status = "wpt-merged"
 
 
 def update_bug(git_gecko: Repo, git_wpt: Repo, bug: int) -> None:
@@ -271,7 +270,7 @@ def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo,
     if try_push is None:
         try_pushes = trypush.TryPush.load_all(git_gecko)
     else:
-        try_pushes = [try_push]
+        try_pushes = iter([try_push])
 
     # Make this invalid so it's obvious if we try to use it below
     try_push = None
@@ -314,9 +313,9 @@ def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int | None = None,
             syncs = [pr_syncs.pop()]
         else:
             current_landing = landing.current(git_gecko, git_wpt)
-            syncs = downstream.DownstreamSync.load_by_status(git_gecko, git_wpt, "open")
+            syncs = list(downstream.DownstreamSync.load_by_status(git_gecko, git_wpt, "open"))
             if current_landing is not None:
-                syncs.add(current_landing)
+                syncs.append(current_landing)
     else:
         syncs = [sync]
 
@@ -329,7 +328,7 @@ def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int | None = None,
                 pass
 
 
-def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: list[tuple[int, list[Any], str]],
+def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: list[tuple[int, list[WptCommit], LandableStatus]],
               rebase: bool = False) -> list[int]:
     from .sync import LandableStatus
 
@@ -349,7 +348,7 @@ def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: list[tuple[int, li
     return errors
 
 
-def do_retrigger(git_gecko: Repo, git_wpt: Repo, pr_data: tuple[int, list[Any], str],
+def do_retrigger(git_gecko: Repo, git_wpt: Repo, pr_data: tuple[int, list[WptCommit], LandableStatus],
                  rebase: bool = False) -> int | None:
     pr_id, commits, status = pr_data
     try:

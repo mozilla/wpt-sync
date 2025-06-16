@@ -2,10 +2,14 @@ from __future__ import annotations
 from . import log
 from .env import Environment
 
-from typing import Iterable, TYPE_CHECKING
+from typing import Iterable, Mapping, Optional, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.sync import SyncProcess
+    from . import downstream
+    from . import landing
+    from . import upstream
+
 
 env = Environment()
 
@@ -16,10 +20,11 @@ def get_pr_sync(git_gecko: Repo,
                 git_wpt: Repo,
                 pr_id: int,
                 log: bool = True,
-                ) -> SyncProcess | None:
+                ) -> Optional[upstream.UpstreamSync | downstream.DownstreamSync]:
     from . import downstream
     from . import upstream
 
+    sync: Optional[upstream.UpstreamSync | downstream.DownstreamSync]
     sync = downstream.DownstreamSync.for_pr(git_gecko, git_wpt, pr_id)
     if not sync:
         sync = upstream.UpstreamSync.for_pr(git_gecko, git_wpt, pr_id)
@@ -35,11 +40,12 @@ def get_bug_sync(git_gecko: Repo,
                  git_wpt: Repo,
                  bug_number: int,
                  statuses: Iterable[str] | None = None
-                 ) -> dict[str, set[SyncProcess]]:
+                 ) -> Mapping[str, set[downstream.DownstreamSync] | set[landing.LandingSync] | set[upstream.UpstreamSync]]:
     from . import downstream
     from . import landing
     from . import upstream
 
+    syncs: Mapping[str, set[downstream.DownstreamSync] | set[landing.LandingSync] | set[upstream.UpstreamSync]]
     syncs = landing.LandingSync.for_bug(git_gecko,
                                         git_wpt,
                                         bug_number,

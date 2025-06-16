@@ -15,9 +15,11 @@ from .lock import MutGuard, RepoLock, mut, constructor
 from .repos import pygit2_get
 
 from typing import (Any,
+                    Callable,
                     DefaultDict,
                     Iterator,
                     Optional,
+                    Self,
                     Set,
                     Tuple,
                     TYPE_CHECKING)
@@ -25,9 +27,8 @@ from git.refs.reference import Reference
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from pygit2.repository import Repository
-    from pygit2 import Commit as PyGit2Commit, TreeEntry
+    from pygit2 import Commit as PyGit2Commit, Object, Oid
     from sync.commit import Commit
-    from sync.landing import LandingSync
     from sync.lock import SyncLock
     from sync.sync import SyncPointName
 
@@ -72,20 +73,21 @@ class IdentityMap(type):
 
     _cache: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
 
-    def __init__(cls, name, bases, cls_dict):
+    def __init__(cls: type, name: str, bases: tuple[type, ...], cls_dict: dict[str, Any]) -> None:
         if not hasattr(cls, "_cache_key"):
             raise ValueError("Class is missing _cache_key method")
-        super().__init__(name, bases, cls_dict)
+        super().__init__(name, bases, cls_dict)  # type: ignore
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls: type, *args: Any, **kwargs: Any) -> Any:
         cache = IdentityMap._cache
+        assert hasattr(cls, "_cache_key")
         cache_key = cls._cache_key(*args, **kwargs)
         if cache_key is None:
             raise ValueError
         key = (cls, cache_key)
         value = cache.get(key)
         if value is None:
-            value = super().__call__(*args, **kwargs)
+            value = super().__call__(*args, **kwargs)  # type: ignore
             cache[key] = value
         if hasattr(value, "_cache_verify") and not value._cache_verify(*args, **kwargs):
             raise ValueError("Cached instance didn't match non-key arguments")
@@ -95,12 +97,12 @@ class IdentityMap(type):
 def iter_tree(pygit2_repo: Repository,
               root_path: str = "",
               rev: PyGit2Commit | None = None,
-              ) -> Iterator[tuple[tuple[str, ...], TreeEntry]]:
+              ) -> Iterator[tuple[tuple[str, ...], Object]]:
     """Iterator over all paths in a tree"""
     if rev is None:
         ref_name = env.config["sync"]["ref"]
         ref = pygit2_repo.references[ref_name]
-        rev_obj = ref.peel()
+        rev_obj = ref.peel(None)
     else:
         rev_obj = pygit2_repo[rev.id]
 
@@ -133,7 +135,7 @@ def iter_process_names(pygit2_repo: Repository,
                        ) -> Iterator[ProcessName]:
     """Iterator over all ProcessName objects"""
     ref = pygit2_repo.references[env.config["sync"]["ref"]]
-    root = ref.peel().tree
+    root = ref.peel(None).tree
     stack = []
     for root_path in kind:
         try:
@@ -194,6 +196,7 @@ class ProcessNameIndex(metaclass=IdentityMap):
             obj_id: str | None = None) -> set[ProcessName]:
         if not self._built:
             self.build()
+
 
         target = self._data
         for key in [obj_type, subtype, obj_id]:
@@ -405,15 +408,15 @@ class VcsRefObject(metaclass=IdentityMap):
             return commit
         return None
 
-    @commit.setter  # type: ignore
+    @commit.setter
     @mut()
     def commit(self, commit: Commit | str) -> None:
         if isinstance(commit, sync_commit.Commit):
             sha1 = commit.sha1
         else:
             sha1 = commit
-        sha1 = self.pygit2_repo.revparse_single(sha1).id
-        self.pygit2_repo.references[self.path].set_target(sha1)
+        oid = self.pygit2_repo.revparse_single(sha1).id
+        self.pygit2_repo.references[self.path].set_target(oid)
 
 
 class BranchRefObject(VcsRefObject):
@@ -469,9 +472,9 @@ class CommitBuilder:
 
         # State set for the life of the context manager
         self.lock = RepoLock(repo)
-        self.parents: list[str] | None = None
+        self.parents: list[str | Oid] | None = None
         self.commit = None
-        self.index: pygit2.Index = None
+        self.index: Optional[pygit2.Index] = None
         self.has_changes = False
 
     def __enter__(self) -> CommitBuilder:
@@ -490,14 +493,16 @@ class CommitBuilder:
             except KeyError:
                 self.parents = []
             else:
-                self.parents = [ref.peel().id]
+                self.parents = [ref.peel(None).id]
                 if not self.initial_empty:
-                    self.index.read_tree(ref.peel().tree)
+                    self.index.read_tree(ref.peel(None).tree)
         else:
             self.parents = []
         return self
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        assert self.index is not None
+        assert self.parents is not None
         self._count -= 1
         if self._count != 0:
             return
@@ -520,13 +525,15 @@ class CommitBuilder:
         self.commit = self.commit_cls(self.repo, sha1)
 
     def add_tree(self, tree: dict[str, bytes]) -> None:
+        assert self.index is not None
         self.has_changes = True
         for path, data in tree.items():
             blob = self.pygit2_repo.create_blob(data)
-            index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
+            index_entry = pygit2.IndexEntry(path, blob, pygit2.enums.FileMode.BLOB)
             self.index.add(index_entry)
 
     def delete(self, delete: list[str]) -> None:
+        assert self.index is not None
         self.has_changes = True
         if delete:
             for path in delete:
@@ -635,8 +642,8 @@ class ProcessData(metaclass=IdentityMap):
                     repo: Repo,
                     subtype: str,
                     obj_id: int,
-                    seq_id=None  # Type: Optional[int]
-                    ) -> set[ProcessData]:
+                    seq_id: Optional[int] = None
+                    ) -> set[Self]:
         process_names = ProcessNameIndex(repo).get(cls.obj_type,
                                                    subtype,
                                                    str(obj_id))
@@ -646,7 +653,7 @@ class ProcessData(metaclass=IdentityMap):
         return {cls(repo, process_name) for process_name in process_names}
 
     @classmethod
-    def load_by_status(cls, repo, subtype, status):
+    def load_by_status(cls: type[ProcessData], repo: Repo, subtype: str, status: str) -> set[ProcessData]:
         from . import index
         process_names = index.SyncIndex(repo).get((cls.obj_type,
                                                    subtype,
@@ -677,7 +684,7 @@ class ProcessData(metaclass=IdentityMap):
         ref = self.pygit2_repo.references[self.ref.path]
         repo = self.pygit2_repo
         try:
-            data = repo[repo[ref.peel().tree.id][self.path].id].data
+            data = repo[repo[ref.peel(None).tree.id][self.path].id].data
         except KeyError:
             return {}
         return json.loads(data)
@@ -744,11 +751,11 @@ class FrozenDict(Mapping):
 
 
 class entry_point:
-    def __init__(self, task):
+    def __init__(self, task: str) -> None:
         self.task = task
 
-    def __call__(self, f):
-        def inner(*args: Any, **kwargs: Any) -> LandingSync | None:
+    def __call__(self, f: Callable[..., Any]) -> Callable[..., Any]:
+        def inner(*args: Any, **kwargs: Any) -> Any:
             logger.info(f"Called entry point {f.__module__}.{f.__name__}")
             logger.debug(f"Called args {args!r} kwargs {kwargs!r}")
 

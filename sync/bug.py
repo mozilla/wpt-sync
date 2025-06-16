@@ -11,7 +11,7 @@ import newrelic
 from . import log
 from .env import Environment
 
-from typing import Any
+from typing import Any, Optional, Mapping
 from bugsy import Bug
 
 env = Environment()
@@ -30,7 +30,7 @@ if "cc_detail" in bugsy.bug.ARRAY_TYPES:
     bugsy.bug.ARRAY_TYPES.remove("cc_detail")
 
 
-def bz_url_from_api_url(api_url):
+def bz_url_from_api_url(api_url: Optional[str]) -> Optional[str]:
     if api_url is None:
         return None
     parts = urllib.parse.urlparse(api_url)
@@ -38,7 +38,7 @@ def bz_url_from_api_url(api_url):
     return urllib.parse.urlunparse(bz_url)
 
 
-def bug_number_from_url(url: str) -> str | None:
+def bug_number_from_url(url: Optional[str]) -> str | None:
     if url is None:
         return None
     bugs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("id")
@@ -75,7 +75,7 @@ def set_sync_data(whiteboard: str, subtype: str | None, status: str | None) -> s
     return new
 
 
-def check_valid_comment(text):
+def check_valid_comment(text: str) -> str:
     if len(text) > max_comment_length:
         # The maximum comment length is in "characters", not bytes
         text = text[:max_comment_length - 3] + "[\u2026]"
@@ -86,7 +86,7 @@ def check_valid_comment(text):
 class Bugzilla:
     bug_cache: dict[int, Bug] = {}
 
-    def __init__(self, config):
+    def __init__(self, config: Mapping[str, Any]) -> None:
         self.api_url = config["bugzilla"]["url"]
         self.bz_url = bz_url_from_api_url(self.api_url)
         self.bugzilla = bugsy.Bugsy(bugzilla_url=self.api_url,
@@ -100,9 +100,10 @@ class Bugzilla:
     def bugzilla_url(self, bug_id: int) -> str:
         return f"{self.bz_url}/show_bug.cgi?id={bug_id}"
 
-    def id_from_url(self, url, bz_url=None):
+    def id_from_url(self, url: str, bz_url: Optional[str] = None) -> Optional[str]:
         if bz_url is None:
             bz_url = self.bz_url
+        assert bz_url is not None
         if not url.startswith(bz_url):
             return None
         parts = urllib.parse.urlsplit(url)
@@ -152,8 +153,7 @@ class Bugzilla:
             url: str | None = None,
             bug_type: str = "task",
             assign_to_sync: bool = True
-            ):
-        # type (...) -> int
+            ) -> int:
         bug = bugsy.Bug(self.bugzilla,
                         type=bug_type,
                         summary=summary,
@@ -180,10 +180,9 @@ class Bugzilla:
 
     def set_component(self,
                       bug: Bug | int,
-                      product: str | None = None,
-                      component: str | None = None
-                      ):
-        # type (...) -> None
+                      product: Optional[str] = None,
+                      component: Optional[str] = None
+                      ) -> None:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if bug is None:
@@ -205,7 +204,7 @@ class Bugzilla:
     def set_whiteboard(self,
                        bug: Bug | int,
                        whiteboard: str
-                       ):
+                       ) -> None:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if not bug:
@@ -219,14 +218,14 @@ class Bugzilla:
             logger.warning(f"Problem setting Bug {bug.id} Whiteboard: {e}")
             newrelic.agent.record_exception()
 
-    def get_whiteboard(self, bug: Bug | int) -> str | None:
+    def get_whiteboard(self, bug: Bug | int) -> Optional[str]:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug, True)
         if not bug:
             return None
         return bug._bug.get("whiteboard", "")
 
-    def get_status(self, bug: Bug | int) -> tuple[str, str] | None:
+    def get_status(self, bug: Bug | int) -> Optional[tuple[str, str]]:
         if not isinstance(bug, bugsy.Bug):
             bug = self._get_bug(bug)
         if not bug:
@@ -308,9 +307,10 @@ class BugContext:
     def __setitem__(self,
                     name: str,
                     value: Any
-                    ):
+                    ) -> None:
         if name == "comment":
-            return self.add_comment(value)
+            self.add_comment(value)
+            return None
         self.bug._bug[name] = value
         self.dirty.add(name)
 
@@ -320,7 +320,7 @@ class BugContext:
                     comment_tags: list[str] | None = None,
                     is_private: bool = False,
                     is_markdown: bool = False
-                    ):
+                    ) -> bool:
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
         comment = check_valid_comment(comment)
@@ -337,10 +337,10 @@ class BugContext:
         self.dirty.add("comment")
         return True
 
-    def get_comments(self):
-        # type () -> List[bugsy.Comment]
+    def get_comments(self) -> list[bugsy.Comment]:
         if self._comments is None:
             self._comments = self.bug.get_comments()
+        assert self._comments is not None
         return self._comments
 
     def needinfo(self, *requestees: str) -> None:
@@ -366,12 +366,12 @@ class BugContext:
                        file_name: str,
                        summary: str,
                        content_type: str = "text/plain",
-                       comment=None,  # type Optional[Text]
+                       comment: Optional[str] = None,
                        is_patch: bool = False,
                        is_private: bool = False,
                        is_markdown: bool = False,
-                       flags: list[str] | None = None
-                       ):
+                       flags: Optional[list[str]] = None
+                       ) -> None:
         body: dict[str, Any] = {
             "data": base64.encodebytes(data).decode("ascii"),
             "file_name": file_name,
@@ -410,12 +410,12 @@ class BugContext:
 
 
 class MockBugzilla(Bugzilla):
-    def __init__(self, config):
+    def __init__(self, config: Mapping[str, Any]):
         self.api_url = config["bugzilla"]["url"]
         self.bz_url = bz_url_from_api_url(self.api_url)
         self.output = sys.stdout
-        self.known_bugs = []
-        self.dupes = {}
+        self.known_bugs: list[int] = []
+        self.dupes: dict[Bug | int, int] = {}
 
     def _log(self, data: str | bytes) -> None:
         data = str(data)
@@ -507,7 +507,7 @@ class MockBugContext(BugContext):
                     comment_tags: list[str] | None = None,
                     is_private: bool = False,
                     is_markdown: bool = False
-                    ) -> None:
+                    ) -> bool:
         if self.comment is not None:
             raise ValueError("Can only set one comment per bug")
         self.comment = {"comment": comment,
@@ -515,9 +515,9 @@ class MockBugContext(BugContext):
                         "is_private": is_private}
         if comment_tags is not None:
             self.comment["comment_tags"] = comment_tags
+        return True
 
-    def get_comments(self):
-        # type () -> List[bugsy.Comment]
+    def get_comments(self) -> list[bugsy.Comment]:
         return []
 
     def needinfo(self, *requestees: str) -> None:
@@ -529,12 +529,12 @@ class MockBugContext(BugContext):
                        file_name: str,
                        summary: str,
                        content_type: str = "text/plain",
-                       comment=None,  # type Optional[Text]
+                       comment: Optional[str] = None,
                        is_patch: bool = False,
                        is_private: bool = False,
                        is_markdown: bool = False,
                        flags: list[str] | None = None
-                       ):
+                       ) -> None:
         body: dict[str, Any] = {
             "data": base64.encodebytes(data),
             "file_name": file_name,

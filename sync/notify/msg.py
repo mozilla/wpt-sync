@@ -77,6 +77,7 @@ def summary_value(result_data: Mapping[str, int]) -> str:
 
 def bug_str(url: str) -> str:
     """Create a bug string for a given bug url"""
+    assert env.bz.bz_url is not None
     if url.startswith(env.bz.bz_url):
         return "Bug %s" % bug_number_from_url(url)
     elif url.startswith("https://github.com"):
@@ -211,6 +212,7 @@ def detail_part(details_type: str | None,
 
     :returns: A text string containing the message
     """
+    assert env.bz.bz_url is not None
     bug_prefixes = {"bugzilla": env.bz.bz_url,
                     "github": "https://github.com/"}
 

@@ -28,7 +28,7 @@ from .projectutil import Mach
 from .repos import cinnabar, pygit2_get
 from .sync import LandableStatus, SyncProcess
 
-from typing import Any, IO, List, Tuple, Union, cast, TYPE_CHECKING
+from typing import Any, IO, Iterable, Iterator, Optional, Sequence, Union, cast, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.base import ProcessName
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from sync.trypush import TryPush, TryPushTasks
     from sync.upstream import UpstreamSync
 
-    LandableCommits = List[Tuple[int, Union[DownstreamSync, UpstreamSync], List[WptCommit]]]
+    LandableCommits = list[tuple[int, Union[DownstreamSync, UpstreamSync], list[WptCommit]]]
 
 env = Environment()
 
@@ -57,9 +57,9 @@ class SyncPoint:
     def __setitem__(self, key: str, value: str) -> None:
         self._items[key] = value
 
-    def load(self, fp):
+    def load(self, fp: str) -> None:
         with open(fp, "rb") as f:
-            self.loads(f)
+            self.loads(f.read())
 
     def loads(self, data: bytes) -> None:
         for line in data.split(b"\n"):
@@ -97,7 +97,7 @@ class LandingSync(SyncProcess):
 
     def __init__(self, git_gecko: Repo, git_wpt: Repo, process_name: ProcessName) -> None:
         super().__init__(git_gecko, git_wpt, process_name)
-        self._unlanded_gecko_commits = None
+        self._unlanded_gecko_commits: Optional[list[sync_commit.GeckoCommit]] = None
 
     @classmethod
     @constructor(lambda args: ("landing", None))
@@ -140,7 +140,7 @@ class LandingSync(SyncProcess):
         return (all(item in metadata for item in required_keys) and
                 metadata.get("wpt-type") == "landing")
 
-    def unlanded_gecko_commits(self):
+    def unlanded_gecko_commits(self) -> Sequence[sync_commit.GeckoCommit]:
         """Get a list of gecko commits that correspond to commits which have
         landed on the gecko integration branch, but are not yet merged into the
         upstream commit we are updating to.
@@ -155,12 +155,13 @@ class LandingSync(SyncProcess):
         if self._unlanded_gecko_commits is None:
             commits = []
 
-            def on_integration_branch(commit):
+            def on_integration_branch(commit: sync_commit.Commit) -> bool:
                 # Calling this continually is O(N*M) where N is the number of unlanded commits
                 # and M is the average depth of the commit in the gecko tree
                 # If we need a faster implementation one approach would be to store all the
                 # commits not on the integration branch and check if this commit is in that set
-                return self.git_gecko.is_ancestor(commit,
+                assert isinstance(commit, sync_commit.GeckoCommit)
+                return self.git_gecko.is_ancestor(commit.commit,
                                                   self.git_gecko.rev_parse(
                                                       self.gecko_integration_branch()))
 
@@ -188,32 +189,33 @@ class LandingSync(SyncProcess):
             seen_bugs = set()
             for commit in unlanded_commits:
                 wpt_commit = sync_commit.WptCommit(self.git_wpt, commit)
-                gecko_commit = wpt_commit.metadata.get("gecko-commit")
-                if gecko_commit:
-                    git_sha = cinnabar(self.git_gecko).hg2git(gecko_commit)
-                    commit = sync_commit.GeckoCommit(self.git_gecko, git_sha)
-                    bug_number = bug.bug_number_from_url(commit.metadata.get("bugzilla-url"))
-                    if on_integration_branch(commit):
+                gecko_commit_sha = wpt_commit.metadata.get("gecko-commit")
+                if gecko_commit_sha:
+                    git_sha = cinnabar(self.git_gecko).hg2git(gecko_commit_sha)
+                    gecko_commit = sync_commit.GeckoCommit(self.git_gecko, git_sha)
+                    bugzilla_url = gecko_commit.metadata.get("bugzilla-url")
+                    bug_number = bug.bug_number_from_url(bugzilla_url)
+                    if on_integration_branch(gecko_commit):
                         if bug_number and bug_number not in seen_bugs:
                             logger.info("Commits from landed sync for bug %s will be reapplied" %
                                         bug_number)
                             seen_bugs.add(bug_number)
-                        commits.append(commit.sha1)
+                        commits.append(gecko_commit.sha1)
 
-            commits = set(commits)
+            commit_shas = set(commits)
 
             # Order the commits according to the order in which they landed in gecko
             ordered_commits = []
             for commit in self.git_gecko.iter_commits(self.gecko_integration_branch(),
                                                       paths=env.config["gecko"]["path"]["wpt"]):
-                if commit.hexsha in commits:
+                if commit.hexsha in commit_shas:
                     ordered_commits.append(commit.hexsha)
-                    commits.remove(commit.hexsha)
+                    commit_shas.remove(commit.hexsha)
                 if not commits:
                     break
 
-            self._unlanded_gecko_commits = list(reversed(
-                [sync_commit.GeckoCommit(self.git_gecko, item) for item in ordered_commits]))
+            self._unlanded_gecko_commits = list(reversed([
+                sync_commit.GeckoCommit(self.git_gecko, item) for item in ordered_commits]))
         return self._unlanded_gecko_commits
 
     def has_metadata_for_sync(self, sync: DownstreamSync) -> bool:
@@ -305,12 +307,19 @@ Automatic update from web-platform-tests\n%s
                                   message, author, prev_wpt_head, metadata)
 
         if commit is not None:
-            self.gecko_commits.head = commit  # type: ignore
+            self.gecko_commits.head = commit
 
         return commit
 
     @mut()
-    def copy_pr(self, git_work_gecko, git_work_wpt, pr, wpt_commits, message, author, metadata):
+    def copy_pr(self,
+                git_work_gecko: Repo,
+                git_work_wpt: Repo,
+                pr: AttrDict,
+                wpt_commits: Sequence[sync_commit.WptCommit],
+                message: bytes,
+                author: str,
+                metadata: dict[str, str]) -> sync_commit.GeckoCommit:
         # Ensure we have anything in a wpt submodule
         git_work_wpt.git.submodule("update", "--init", "--recursive")
 
@@ -324,8 +333,9 @@ Automatic update from web-platform-tests\n%s
         ignore_files = {".git"}
 
         logger.info("Setting wpt HEAD to %s" % wpt_commits[-1].sha1)
-        git_work_wpt.head.reference = wpt_commits[-1].commit
-        git_work_wpt.head.reset(index=True, working_tree=True)
+        git_work_wpt.head.reset(wpt_commits[-1].commit,
+                                index=True,
+                                working_tree=True)
 
         # First remove all files so we handle deletion correctly
         shutil.rmtree(dest_path)
@@ -335,7 +345,7 @@ Automatic update from web-platform-tests\n%s
             src, name = os.path.split(os.path.join(src_path, name))
             ignore_paths[src].add(name)
 
-        def ignore_names(src, names):
+        def ignore_names(src: str, names: Iterable[str]) -> list[str]:
             rv = []
             for item in names:
                 if item in ignore_files:
@@ -361,14 +371,11 @@ Automatic update from web-platform-tests\n%s
         git_work_gecko.git.add(env.config["gecko"]["path"]["wpt"],
                                no_ignore_removal=True)
 
-        message = sync_commit.Commit.make_commit_msg(message, metadata)
-
-        commit = git_work_gecko.index.commit(message=message,
-                                             author=git.Actor._from_string(author))
-        logger.debug("Gecko files changed: \n%s" % "\n".join(list(commit.stats.files.keys())))
-        gecko_commit = sync_commit.GeckoCommit(self.git_gecko,
-                                               commit.hexsha,
-                                               allow_empty=allow_empty)
+        gecko_commit = sync_commit.GeckoCommit.create(self.git_gecko,
+                                                      message,
+                                                      metadata,
+                                                      author=author.encode("utf8"),
+                                                      allow_empty=allow_empty)
 
         return gecko_commit
 
@@ -412,7 +419,7 @@ Automatic update from web-platform-tests\n%s
                                         allow_empty=True)
 
     @mut()
-    def reapply_local_commits(self, gecko_commits_landed):
+    def reapply_local_commits(self, gecko_commits_landed: set[str]) -> None:
         # The local commits to apply are everything that hasn't been landed at this
         # point in the process
         commits = [item for item in self.unlanded_gecko_commits()
@@ -426,9 +433,9 @@ Automatic update from web-platform-tests\n%s
         if not commits:
             return
 
-        already_applied = landing_commit.metadata.get("reapplied-commits")
-        if already_applied:
-            already_applied = [item.strip() for item in already_applied.split(",")]
+        already_applied_meta = landing_commit.metadata.get("reapplied-commits")
+        if already_applied_meta:
+            already_applied = [item.strip() for item in already_applied_meta.split(",")]
         else:
             already_applied = []
         already_applied_set = set(already_applied)
@@ -438,30 +445,31 @@ Automatic update from web-platform-tests\n%s
 
         try:
             for i, commit in enumerate(unapplied_gecko_commits):
-                def msg_filter(_):
+                def msg_filter(_: Any) -> tuple[bytes, dict[str, str]]:
                     msg = landing_commit.msg
                     reapplied_commits = (already_applied +
                                          [commit.canonical_rev for commit in commits[:i + 1]])
                     metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
                     return msg, metadata
-                logger.info(f"Reapplying {commit.sha1} - {commit.msg}")
+                logger.info(f"Reapplying {commit.sha1} - {commit.msg.decode('utf8')}")
                 # Passing in a src_prefix here means that we only generate a patch for the
                 # part of the commit that affects wpt, but then we need to undo it by adding
                 # the same dest prefix
-                commit = commit.move(git_work_gecko,
-                                     msg_filter=msg_filter,
-                                     src_prefix=env.config["gecko"]["path"]["wpt"],
-                                     dest_prefix=env.config["gecko"]["path"]["wpt"],
-                                     three_way=True,
-                                     amend=True)
-                if commit is None:
+                new_commit = commit.move(git_work_gecko,
+                                         msg_filter=msg_filter,
+                                         src_prefix=env.config["gecko"]["path"]["wpt"],
+                                         dest_prefix=env.config["gecko"]["path"]["wpt"],
+                                         three_way=True,
+                                         amend=True)
+                if new_commit is None:
                     break
 
         except AbortError as e:
             err_msg = (
                 f"Landing wpt failed because reapplying commits failed:\n{e.message}"
             )
-            env.bz.comment(self.bug, err_msg)
+            if self.bug is not None:
+                env.bz.comment(self.bug, err_msg)
             raise AbortError(err_msg)
 
     @mut()
@@ -850,7 +858,7 @@ def push(landing: LandingSync) -> None:
     # The landing is marked as finished when it reaches central
 
 
-def push_with_lando(landing):
+def push_with_lando(landing: LandingSync) -> bytes:
     logger.info("Pushing landing")
     cmd = [
         "lando",
@@ -867,7 +875,10 @@ def push_with_lando(landing):
     return subprocess.check_output(cmd)
 
 
-def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
+def unlanded_with_type(git_gecko: Repo,
+                       git_wpt: Repo,
+                       wpt_head: Optional[str],
+                       prev_wpt_head: str) -> Iterator[tuple[Optional[int], list[WptCommit], LandableStatus]]:
     pr_commits = unlanded_wpt_commits_by_pr(git_gecko,
                                             git_wpt,
                                             wpt_head or prev_wpt_head,
@@ -968,10 +979,11 @@ def landable_commits(git_gecko: Repo,
             # If we only have a merge commit just use that; it doesn't come from gecko anyway
             first_commit = commits[-1]
 
-        def upstream_sync(bug_number):
+        def upstream_sync(bug_number: int) -> Optional[UpstreamSync]:
             syncs = upstream.UpstreamSync.for_bug(git_gecko,
                                                   git_wpt,
                                                   bug_number,
+                                                  statuses=None,
                                                   flat=True)
             for sync in syncs:
                 if sync.merge_sha == commits[-1].sha1 and not sync.wpt_commits:
@@ -1152,7 +1164,7 @@ def update_landing(git_gecko: Repo,
                     raise AbortError(message)
 
                 with landing.latest_try_push.as_mut(lock):
-                    landing.latest_try_push.status = "complete"  # type: ignore
+                    landing.latest_try_push.status = "complete"
                 landing.next_try_push(retry=True)
             else:
                 try_push = landing.latest_try_push
@@ -1216,7 +1228,7 @@ def try_push_complete(git_gecko: Repo,
         return None
 
     if accept_failures:
-        try_push.accept_failures = True  # type: ignore
+        try_push.accept_failures = True
 
     if tasks is None:
         tasks = try_push.tasks()
@@ -1235,7 +1247,7 @@ def try_push_complete(git_gecko: Repo,
         if try_result.is_failure():
             if try_result == TryPushResult.infra_fail:
                 message = record_build_failures(sync, try_push)
-                try_push.infra_fail = True  # type: ignore
+                try_push.infra_fail = True
                 raise AbortError(message)
             elif try_result == TryPushResult.too_many_failures and not try_push.stability:
                 message = record_too_many_failures(sync, try_push)
@@ -1248,7 +1260,7 @@ def try_push_complete(git_gecko: Repo,
             if not retriggered:
                 if try_result == TryPushResult.too_many_failures:
                     record_too_many_failures(sync, try_push)
-                    try_push.status = "complete"  # type: ignore
+                    try_push.status = "complete"
                     return None
                 num_new_jobs = tasks.retrigger_failures()
                 logger.info(f"{num_new_jobs} new tasks scheduled on try for {sync.bug}")
@@ -1261,7 +1273,7 @@ def try_push_complete(git_gecko: Repo,
 
             update_metadata(sync, try_push, tasks)
 
-    try_push.status = "complete"  # type: ignore
+    try_push.status = "complete"
 
     if try_result == TryPushResult.infra_fail:
         record_infra_fail(sync, try_push)
@@ -1283,7 +1295,7 @@ def record_failure(sync: LandingSync, log_msg: str, bug_msg: str,
     if fixup_msg is None:
         fixup_msg = "Run `wptsync landing` with either --accept-failures or --retry"
     logger.error(f"Bug {sync.bug}:{log_msg}\n{fixup_msg}")
-    sync.error = log_msg  # type: ignore
+    sync.error = log_msg
     assert sync.bug is not None
     with env.bz.bug_ctx(sync.bug) as bug:
         bug.add_comment(f"{bug_msg}\nThis requires fixup from a wpt sync admin.")
@@ -1291,7 +1303,7 @@ def record_failure(sync: LandingSync, log_msg: str, bug_msg: str,
     return log_msg
 
 
-def record_build_failures(sync, try_push):
+def record_build_failures(sync: LandingSync, try_push: TryPush) -> str:
     log_msg = f"build failures in try push {try_push.treeherder_url}"
     bug_msg = f"Landing failed due to build failures in try push {try_push.treeherder_url}"
     return record_failure(sync, log_msg, bug_msg)
@@ -1304,14 +1316,14 @@ def record_too_many_failures(sync: LandingSync, try_push: TryPush) -> str:
     return record_failure(sync, log_msg, bug_msg)
 
 
-def record_infra_fail(sync, try_push):
+def record_infra_fail(sync: LandingSync, try_push: TryPush) -> str:
     log_msg = "infra failures in try push %s. " % (try_push.treeherder_url)
     bug_msg = "Landing failed due to infra failures in try push {}.".format(
         try_push.treeherder_url)
     return record_failure(sync, log_msg, bug_msg)
 
 
-def record_rebase_failure(sync):
+def record_rebase_failure(sync: LandingSync) -> str:
     log_msg = "rebase failed"
     bug_msg = "Landing failed due to conficts during rebase"
     fixup_msg = "Resolve the conflicts in the worktree and run `wptsync landing`"
@@ -1430,7 +1442,7 @@ def gecko_push(git_gecko: Repo,
                     with SyncLock("landing", None) as lock:
                         assert isinstance(lock, SyncLock)
                         with sync.as_mut(lock):
-                            sync.error = "Landing was backed out"  # type: ignore
+                            sync.error = "Landing was backed out"
                 else:
                     logger.error("Failed to find sync for commit")
         elif gecko_commit.is_downstream:
@@ -1452,12 +1464,12 @@ def gecko_push(git_gecko: Repo,
         with last_sync_point.as_mut(lock):
             assert last_sync_point.commit is not None
             if not git_gecko.is_ancestor(rev, last_sync_point.commit.commit):
-                last_sync_point.commit = rev.hexsha  # type: ignore
+                last_sync_point.commit = rev.hexsha
 
     if landing_sync and landing_sync.status == "complete":
         start_next_landing()
 
 
-def start_next_landing():
+def start_next_landing() -> None:
     from . import tasks
     tasks.land.apply_async()

@@ -1,10 +1,12 @@
 import time
 import re
+from typing import Any, Iterable, Mapping, MutableMapping, Optional
+
 from phabricator import Phabricator
 import newrelic.agent
 
-
 from .. import log
+from ..settings import Config
 from ..tasks import handle
 
 
@@ -49,16 +51,16 @@ class PhabEventListener:
         "reopened D": "commit",  # This may need its own event type
     }
 
-    def __init__(self, config):
+    def __init__(self, config: Config) -> None:
         self.running = True
         self.timer_in_seconds = config['phabricator']['listener']['interval']
-        self.latest = None
+        self.latest: Optional[Mapping[str, Any]] = None
 
         self.phab = Phabricator(host='https://phabricator.services.mozilla.com/api/',
                                 token=config['phabricator']['token'])
         self.phab.update_interfaces()
 
-    def run(self):
+    def run(self) -> None:
         # Run until told to stop.
         while self.running:
             feed = self.get_feed()
@@ -66,14 +68,14 @@ class PhabEventListener:
             time.sleep(self.timer_in_seconds)
 
     @newrelic.agent.background_task(name='feed-fetching', group='Phabricator')
-    def get_feed(self, before=None):
+    def get_feed(self, before: Optional[int] = None) -> list[Mapping[str, Any]]:
         """ """
         if self.latest and before is None:
             before = int(self.latest['chronologicalKey'])
 
         feed = []
 
-        def chrono_key(feed_story_tuple):
+        def chrono_key(feed_story_tuple: tuple[Any, Mapping[str, Any]]) -> int:
             return int(feed_story_tuple[1]["chronologicalKey"])
 
         # keep fetching stories from Phabricator until there are no more stories to fetch
@@ -91,7 +93,7 @@ class PhabEventListener:
         return feed
 
     @newrelic.agent.background_task(name='feed-parsing', group='Phabricator')
-    def parse(self, feed):
+    def parse(self, feed: Iterable[MutableMapping[str, Any]]) -> None:
         # Go through rows in reverse order, and ignore first row as it has the table headers
         for event in feed:
 
@@ -116,7 +118,7 @@ class PhabEventListener:
             self.latest = event
 
     @staticmethod
-    def map_event_type(event_text, event):
+    def map_event_type(event_text: str, event: Mapping[str, Any]) -> Optional[str]:
         # Could use compiled regex expression instead
         for event_type, mapping in PhabEventListener.event_mapping.items():
             if event_type in event_text:
@@ -127,15 +129,16 @@ class PhabEventListener:
             "event_text": event_text,
             "event": event,
         }, application=newrelic.agent.application())
+        return None
 
     @staticmethod
-    def map_feed_tuple(feed_tuple):
+    def map_feed_tuple(feed_tuple: tuple[str, MutableMapping[str, Any]]) -> Mapping[str, Any]:
         story_phid, feed_story = feed_tuple
         feed_story.update({"storyPHID": story_phid})
         return feed_story
 
 
-def run_phabricator_listener(config):
+def run_phabricator_listener(config: Config) -> None:
     logger.info("Starting Phabricator listener")
     listener = PhabEventListener(config)
     listener.run()
@@ -143,9 +146,9 @@ def run_phabricator_listener(config):
 
 class MockPhabricator(Phabricator):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         self.feed = None
         pass
 
-    def update_interfaces(self):
+    def update_interfaces(self) -> None:
         pass

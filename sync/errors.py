@@ -15,8 +15,8 @@ class AbortError(Exception):
 
 
 class RetryableError(Exception):
-    def __init__(self, wrapped):
+    def __init__(self, wrapped: Exception):
         self.wrapped = wrapped
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self.wrapped, name)

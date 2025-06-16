@@ -16,21 +16,22 @@ from github.Branch import Branch
 from github.Commit import Commit
 from github.PullRequest import PullRequest
 from github.Repository import Repository
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Iterator, Mapping, Optional, Union
 
 logger = log.get_logger(__name__)
 env = Environment()
 
 
 class CheckRun(github.GithubObject.NonCompletableGithubObject):
-    def _initAttributes(self):
-        self._id = github.GithubObject.NotSet
-        self._status = github.GithubObject.NotSet
-        self._name = github.GithubObject.NotSet
-        self._conclusion = github.GithubObject.NotSet
-        self._url = github.GithubObject.NotSet
+    def _initAttributes(self) -> None:
+        self._id: github.GithubObject._NotSetType | github.GithubObject.Attribute[int] = github.GithubObject.NotSet
+        self._status: github.GithubObject._NotSetType | github.GithubObject.Attribute[str] = github.GithubObject.NotSet
+        self._name: github.GithubObject._NotSetType | github.GithubObject.Attribute[str] = github.GithubObject.NotSet
+        self._conclusion: github.GithubObject._NotSetType | github.GithubObject.Attribute[str] = github.GithubObject.NotSet
+        self._url: github.GithubObject._NotSetType | github.GithubObject.Attribute[str] = github.GithubObject.NotSet
+        self._head_sha: github.GithubObject._NotSetType | github.GithubObject.Attribute[str] = github.GithubObject.NotSet
 
-    def _useAttributes(self, attributes):
+    def _useAttributes(self, attributes: Mapping[str, Any]) -> None:
         if "id" in attributes:
             self._id = self._makeIntAttribute(attributes["id"])
         if "status" in attributes:
@@ -45,27 +46,27 @@ class CheckRun(github.GithubObject.NonCompletableGithubObject):
             self._head_sha = self._makeStringAttribute(attributes["head_sha"])
 
     @property
-    def id(self):
+    def id(self) -> int:
         return self._id.value
 
     @property
-    def status(self):
+    def status(self) -> str:
         return self._status.value
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name.value
 
     @property
-    def conclusion(self):
+    def conclusion(self) -> str:
         return self._conclusion.value
 
     @property
-    def url(self):
+    def url(self) -> str:
         return self._url.value
 
     @property
-    def head_sha(self):
+    def head_sha(self) -> str:
         return self._head_sha.value
 
 
@@ -73,7 +74,7 @@ class GitHub:
     def __init__(self, token: str, url: str) -> None:
         self.gh = github.Github(token)
         self.repo_name = urllib.parse.urlsplit(url).path.lstrip("/")
-        self.pr_cache: Dict[int, PullRequest] = {}
+        self.pr_cache: dict[int, PullRequest] = {}
         self._repo: Optional[Repository] = None
 
     def pr_url(self, pr_id: int) -> str:
@@ -81,7 +82,7 @@ class GitHub:
                 (env.config["web-platform-tests"]["repo"]["url"],
                  pr_id))
 
-    def load_pull(self, data: Dict[str, Any]) -> None:
+    def load_pull(self, data: dict[str, Any]) -> None:
         pr = self.gh.create_from_raw_data(github.PullRequest.PullRequest, data)
         self.pr_cache[pr.number] = pr
 
@@ -152,7 +153,7 @@ class GitHub:
                    target_url: Optional[str],
                    description: Optional[str],
                    context: str
-                   ):
+                   ) -> None:
         pr = self.get_pull(pr_id)
         head_commit = self.repo.get_commit(pr.head.ref)
         kwargs = {}
@@ -167,7 +168,7 @@ class GitHub:
     def add_labels(self,
                    pr_id: int,
                    *labels: str
-                   ):
+                   ) -> None:
         logger.debug("Adding labels {} to PR {}".format(", ".join(labels), pr_id))
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
@@ -176,7 +177,7 @@ class GitHub:
     def remove_labels(self,
                       pr_id: int,
                       *labels: str
-                      ):
+                      ) -> None:
         logger.debug(f"Removing labels {labels} from PR {pr_id}")
         pr_id = self._convert_pr_id(pr_id)
         issue = self.repo.get_issue(pr_id)
@@ -194,8 +195,7 @@ class GitHub:
 
     def _convert_pr_id(self,
                        pr_id: Union[str, int]
-                       ):
-        # (...) -> int
+                       ) -> int:
         if not isinstance(pr_id, int):
             try:
                 pr_id = int(pr_id)
@@ -203,7 +203,7 @@ class GitHub:
                 raise ValueError('PR ID is not a valid number')
         return pr_id
 
-    def required_checks(self, branch_name: str) -> List[str]:
+    def required_checks(self, branch_name: str) -> list[str]:
         branch = self._get_branch(branch_name)
         if branch is None:
             # TODO: Maybe raise an exception here
@@ -213,12 +213,12 @@ class GitHub:
                 .get("required_status_checks", {})
                 .get("contexts", []))
 
-    def get_check_runs(self, pr_id: int) -> Dict[str, Dict[str, Any]]:
+    def get_check_runs(self, pr_id: int) -> Mapping[str, Mapping[str, Any]]:
         pr = self.get_pull(pr_id)
         check_runs = list(self._get_check_runs(pr.head.sha))
         required_contexts = self.required_checks(pr.base.ref)
-        rv: Dict[str, Dict[str, Any]] = {}
-        id_by_name: Dict[str, int] = {}
+        rv: dict[str, dict[str, Any]] = {}
+        id_by_name: dict[str, int] = {}
         for item in check_runs:
             if item.name in id_by_name and item.id < id_by_name[item.name]:
                 continue
@@ -232,10 +232,12 @@ class GitHub:
             }
         return rv
 
-    def _get_check_runs(self, sha1, check_name=None):
-        query = []
+    def _get_check_runs(self,
+                        sha1: str,
+                        check_name: Optional[str] = None) -> github.PaginatedList.PaginatedList:
+        query = {}
         if check_name:
-            query.append(("check_name", check_name))
+            query["check_name"] = check_name
         commit = self.repo.get_commit(sha1)
         url = commit._parentUrl(commit.url) + "/" + commit.sha + "/check-runs"
         headers = {"Accept": "application/vnd.github.antiope-preview+json"}
@@ -311,7 +313,7 @@ class GitHub:
 
         return prs[0].number
 
-    def get_commits(self, pr_id: int) -> List[Commit]:
+    def get_commits(self, pr_id: int) -> list[Commit]:
         return list(self.get_pull(pr_id).get_commits())
 
     def cleanup_pr_body(self, text: Optional[str]) -> Optional[str]:
@@ -331,9 +333,9 @@ class GitHub:
                               started_at: Optional[datetime] = None,
                               conclusion: Optional[str] = None,
                               completed_at: Optional[datetime] = None,
-                              output: Optional[Dict[str, str]] = None,
+                              output: Optional[dict[str, str]] = None,
                               actions: Optional[Any] = None,
-                              ) -> Tuple[str, Dict[str, Any]]:
+                              ) -> tuple[str, dict[str, Any]]:
         if check_id is not None and commit_sha is not None:
             raise ValueError("Only one of check_id and commit_sha may be supplied")
 
@@ -366,7 +368,7 @@ class GitHub:
             if "summary" not in output:
                 raise ValueError("Output requires a summary")
 
-        req_data: Dict[str, Any] = {
+        req_data: dict[str, Any] = {
             "name": name,
         }
 
@@ -396,9 +398,9 @@ class GitHub:
                   started_at: Optional[datetime] = None,
                   conclusion: Optional[str] = None,
                   completed_at: Optional[datetime] = None,
-                  output: Optional[Dict[str, str]] = None,
-                  actions: Optional[List[str]] = None
-                  ) -> Dict[str, Any]:
+                  output: Optional[dict[str, str]] = None,
+                  actions: Optional[list[str]] = None
+                  ) -> dict[str, Any]:
         req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
                                                           url, external_id, status,
                                                           started_at, conclusion, completed_at,
@@ -410,7 +412,7 @@ class GitHub:
         if check_id is not None:
             req_url += ("/%s" % check_id)
 
-        headers, data = self.repo._requester.requestJsonAndCheck(  # type: ignore
+        headers, data = self.repo._requester.requestJsonAndCheck(
             req_method,
             req_url,
             input=req_data,
@@ -430,19 +432,19 @@ class AttrDict(dict):
 
 
 class MockGitHub(GitHub):
-    def __init__(self):
-        self.prs = {}
-        self.commit_prs = {}
+    def __init__(self) -> None:
+        self.prs: dict[int, AttrDict] = {}
+        self.commit_prs: dict[str, int] = {}
         self._id = itertools.count(1)
         self.output = StringIO()
-        self.checks = {}
+        self.checks: dict[str, tuple[int, str, dict[str, Any]]] = {}
 
     def _log(self, data: str) -> None:
         self.output.write(data)
         self.output.write("\n")
 
     @property
-    def repo(self):
+    def repo(self) -> Repository:
         raise NotImplementedError
 
     def get_pull(self, id: int) -> Any:
@@ -454,7 +456,7 @@ class MockGitHub(GitHub):
                     body: str,
                     base: str,
                     head: str,
-                    _commits: Optional[List[AttrDict]] = None,
+                    _commits: Optional[list[AttrDict]] = None,
                     _id: Optional[int] = None,
                     _user: Optional[str] = None,
                     ) -> int:
@@ -504,15 +506,15 @@ class MockGitHub(GitHub):
         pr = self.get_pull(pr_id)
         pr["labels"] = [item for item in pr["labels"] if item not in labels]
 
-    def load_pull(self, data: Dict[str, Any]) -> None:
+    def load_pull(self, data: Mapping[str, Any]) -> None:
         pr = self.get_pull(data["number"])
         pr.merged = data["merged"]
         pr.state = data["state"]
 
-    def required_checks(self, branch_name: str) -> List[str]:
+    def required_checks(self, branch_name: str) -> list[str]:
         return ["wpt-decision-task", "sink-task"]
 
-    def get_check_runs(self, pr_id: int) -> Dict[str, Dict[str, Any]]:
+    def get_check_runs(self, pr_id: int) -> Mapping[str, Mapping[str, Any]]:
         pr = self.get_pull(pr_id)
         rv = {}
         if pr:
@@ -564,7 +566,7 @@ class MockGitHub(GitHub):
     def pr_for_commit(self, sha: str) -> Optional[int]:
         return self.commit_prs.get(sha)
 
-    def get_pulls(self, minimum_id=None):
+    def get_pulls(self, minimum_id: Optional[int] = None) -> Iterator[Any]:
         for number in self.prs:
             if minimum_id and number >= minimum_id:
                 yield self.get_pull(number)
@@ -572,8 +574,7 @@ class MockGitHub(GitHub):
     def get_status(self,
                    pr_id: int,
                    context: str
-                   ):
-        # type (...) -> Optional[Text]
+                   ) -> Optional[str]:
         pr = self.get_pull(pr_id)
         statuses = [item for item in pr._commits[-1]._statuses
                     if item.context == context]
@@ -588,7 +589,7 @@ class MockGitHub(GitHub):
                    target_url: Optional[str],
                    description: Optional[str],
                    context: str
-                   ):
+                   ) -> None:
         pr = self.get_pull(pr_id)
         head_commit = pr._commits[-1]
         kwargs = {
@@ -612,9 +613,9 @@ class MockGitHub(GitHub):
                   started_at: Optional[datetime] = None,
                   conclusion: Optional[str] = None,
                   completed_at: Optional[datetime] = None,
-                  output: Optional[Dict[str, str]] = None,
-                  actions: Optional[List[str]] = None,
-                  ) -> Dict[str, Any]:
+                  output: Optional[dict[str, str]] = None,
+                  actions: Optional[list[str]] = None,
+                  ) -> dict[str, Any]:
 
         req_method, req_data = self._construct_check_data(name, commit_sha, check_id,
                                                           url, external_id, status,
