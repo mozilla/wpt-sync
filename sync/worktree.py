@@ -51,8 +51,8 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
             unprunable.append(worktree_data)
             continue
 
-        pygit2_repo = pygit2.Repository(worktree.path)
-        head_branch = pygit2_repo.head.name
+        worktree_pygit2_repo = pygit2.Repository(worktree.path)
+        head_branch = worktree_pygit2_repo.head.name
 
         if not head_branch or head_branch == "HEAD":
             logger.warning("No branch associated with worktree %s" % worktree.path)

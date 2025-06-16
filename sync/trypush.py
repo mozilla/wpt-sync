@@ -20,9 +20,10 @@ from .load import get_syncs
 from .lock import constructor, mut
 from .projectutil import Mach
 from .repos import cinnabar
+from .sync import SyncProcess
 from .tc import TaskGroupView
 
-from typing import Any, Mapping, MutableMapping, Text, TYPE_CHECKING
+from typing import Any, Iterator, Mapping, MutableMapping, Optional, Self, Text, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
@@ -63,7 +64,7 @@ class TryCommit:
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self.cleanup()
 
-    def create(self):
+    def create(self) -> None:
         pass
 
     def cleanup(self) -> None:
@@ -288,26 +289,28 @@ class TryPush(base.ProcessData):
         return rv
 
     @classmethod
-    def load_all(cls, git_gecko):
+    def load_all(cls, git_gecko: Repo) -> Iterator[Self]:
         process_names = base.ProcessNameIndex(git_gecko).get("try")
         for process_name in process_names:
             yield cls(git_gecko, process_name)
 
     @classmethod
-    def for_commit(cls, git_gecko, sha1):
+    def for_commit(cls, git_gecko: Repo, sha1: str) -> Optional[Self]:
         idx = TryCommitIndex(git_gecko)
         process_name = idx.get(idx.make_key(sha1))
         if process_name:
             logger.info(f"Found try push {process_name!r} for rev {sha1}")
             return cls(git_gecko, process_name)
         logger.info(f"No try push for rev {sha1}")
+        return None
 
     @classmethod
-    def for_taskgroup(cls, git_gecko, taskgroup_id):
+    def for_taskgroup(cls, git_gecko: Repo, taskgroup_id: str) -> Optional[Self]:
         idx = TaskGroupIndex(git_gecko)
         process_name = idx.get(idx.make_key(taskgroup_id))
         if process_name:
             return cls(git_gecko, process_name)
+        return None
 
     @property
     def treeherder_url(self) -> str:
@@ -317,7 +320,7 @@ class TryPush(base.ProcessData):
     def created(self) -> Any | None:
         return self.get("created")
 
-    @created.setter  # type: ignore
+    @created.setter
     @mut()
     def created(self, value: str) -> None:
         self["created"] = value
@@ -326,7 +329,7 @@ class TryPush(base.ProcessData):
     def try_rev(self) -> str | None:
         return self.get("try-rev")
 
-    @try_rev.setter  # type: ignore
+    @try_rev.setter
     @mut()
     def try_rev(self, value: str) -> None:
         idx = TryCommitIndex(self.repo)
@@ -340,7 +343,7 @@ class TryPush(base.ProcessData):
     def taskgroup_id(self) -> str | None:
         return self.get("taskgroup-id")
 
-    @taskgroup_id.setter  # type: ignore
+    @taskgroup_id.setter
     @mut()
     def taskgroup_id(self, value: str) -> None:
         self["taskgroup-id"] = value
@@ -352,7 +355,7 @@ class TryPush(base.ProcessData):
     def status(self) -> str:
         return self.get("status")
 
-    @status.setter  # type: ignore
+    @status.setter
     @mut()
     def status(self, value: str) -> None:
         if value not in self.statuses:
@@ -372,12 +375,12 @@ class TryPush(base.ProcessData):
     def gecko_head(self) -> Text:
         return self.get("gecko-head")
 
-    def sync(self, git_gecko, git_wpt):
+    def sync(self, git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
         process_name = self.process_name
         syncs = get_syncs(git_gecko,
                           git_wpt,
                           process_name.subtype,
-                          process_name.obj_id)
+                          int(process_name.obj_id))
         if len(syncs) == 0:
             return None
         if len(syncs) == 1:
@@ -400,11 +403,11 @@ class TryPush(base.ProcessData):
     def infra_fail(self) -> bool:
         """Does this push have infrastructure failures"""
         if self.status == "infra-fail":
-            self.status = "complete"  # type: ignore
-            self.infra_fail = True  # type: ignore
+            self.status = "complete"
+            self.infra_fail = True
         return self.get("infra-fail", False)
 
-    @infra_fail.setter  # type: ignore
+    @infra_fail.setter
     @mut()
     def infra_fail(self, value: bool) -> None:
         """Set the status of this push's infrastructure failure state"""
@@ -440,12 +443,12 @@ class TryPush(base.ProcessData):
     def accept_failures(self) -> bool:
         return self.get("accept-failures", False)
 
-    @accept_failures.setter  # type: ignore
+    @accept_failures.setter
     @mut()
     def accept_failures(self, value: bool) -> None:
         self["accept-failures"] = value
 
-    def tasks(self) -> TryPushTasks | None:
+    def tasks(self) -> Optional[TryPushTasks]:
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
@@ -455,7 +458,7 @@ class TryPush(base.ProcessData):
             return None
         task_id = tc.normalize_task_id(self.taskgroup_id)
         if task_id != self.taskgroup_id:
-            self.taskgroup_id = task_id  # type: ignore
+            self.taskgroup_id = task_id
 
         tasks = tc.TaskGroup(self.taskgroup_id)
         tasks.refresh()
@@ -506,7 +509,7 @@ class TryPush(base.ProcessData):
                            .get("env", {})
                            .get("GECKO_HEAD_REV"))
                 if try_rev:
-                    self.try_rev = try_rev  # type: ignore
+                    self.try_rev = try_rev
                 else:
                     raise ValueError("Unknown try rev for %s" % self.process_name)
 
@@ -517,7 +520,7 @@ class TryPush(base.ProcessData):
         return include_tasks
 
     @mut()
-    def cleanup_logs(self):
+    def cleanup_logs(self) -> None:
         logger.info("Removing downloaded for try push %s" % self.process_name)
         try:
             shutil.rmtree(self.log_path())
@@ -526,7 +529,7 @@ class TryPush(base.ProcessData):
                            (self.log_path(), traceback.format_exc()))
 
     @mut()
-    def delete(self):
+    def delete(self) -> None:
         super().delete()
         for (idx_cls, data) in [(TaskGroupIndex, self.taskgroup_id),
                                 (TryCommitIndex, self.try_rev)]:
@@ -552,7 +555,7 @@ class TryPushTasks:
     def complete(self, allow_unscheduled: bool = False) -> bool:
         return self.wpt_tasks.is_complete(allow_unscheduled)
 
-    def validate(self):
+    def validate(self) -> bool:
         err = None
         if not len(self.wpt_tasks):
             err = ("No wpt tests found. Check decision task %s" %
@@ -610,7 +613,7 @@ class TryPushTasks:
         """Return the builds that failed"""
         return self.wpt_tasks.failed_builds()
 
-    def successful_builds(self):
+    def successful_builds(self) -> TaskGroupView:
         """Return the builds that were successful"""
         builds = self.wpt_tasks.filter(tc.is_build)
         return builds.filter(tc.is_status_fn({tc.SUCCESS}))
@@ -630,7 +633,7 @@ class TryPushTasks:
             return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
         return False
 
-    def has_failures(self):
+    def has_failures(self) -> bool:
         """Check if any of the wpt tasks in a try push ended with a failure status"""
         wpt_tasks = self.wpt_tasks
         if wpt_tasks:

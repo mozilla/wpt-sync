@@ -45,9 +45,7 @@ def match(path: str, pattern: str) -> bool:
 
 
 def remove_obsolete(path: str, moves: Optional[Dict[str, str]] = None) -> str:
-    from lib2to3 import (pygram,  # type: ignore
-                         pytree,
-                         patcomp)
+    from lib2to3 import pygram, pytree, patcomp  # type: ignore
     from lib2to3.pgen2 import driver
 
     files_pattern = ("with_stmt< 'with' power< 'Files' "

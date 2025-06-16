@@ -75,7 +75,6 @@ disallow_untyped_defs = true
 ignore_missing_imports = true
 module = "bugsy.*,newrelic.*,lib2to3.*,pygit2.*,kombu.*,mozautomation.*,phabricator.*,slugid.*,taskcluster.*"
 
-
 [tool.pytest.ini_options]
 env = [
     "WPTSYNC_ROOT=/app/testdata",

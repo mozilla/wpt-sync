@@ -36,7 +36,7 @@ from .trypush import TryPush
 
 from git.objects.tree import Tree
 from git.repo.base import Repo
-from typing import Any, List, Mapping, MutableMapping, cast, TYPE_CHECKING
+from typing import Any, Iterable, Optional, Mapping, MutableMapping, cast, TYPE_CHECKING
 
 logger = log.get_logger(__name__)
 env = Environment()
@@ -52,8 +52,7 @@ class DownstreamAction(enum.Enum):
     wait_upstream = 5
     try_rebase = 6
 
-    def reason_str(self):
-        # type () -> Text
+    def reason_str(self) -> str:
         return {DownstreamAction.ready: "",
                 DownstreamAction.manual_fix: "",
                 DownstreamAction.try_push: "valid try push required",
@@ -141,30 +140,30 @@ class DownstreamSync(SyncProcess):
         merged unless it happens to be a fast-forward"""
         return sync_commit.WptCommit(self.git_wpt, "origin/pr/%s" % self.pr)
 
-    @SyncProcess.error.setter  # type: ignore
+    @SyncProcess.error.setter
     @mut()
-    def error(self, value: str | None) -> Any | None:
+    def error(self, value: Optional[str]) -> Optional[Any]:
         if self.pr:
             if value is not None:
                 env.gh_wpt.add_labels(self.pr, "mozilla:gecko-blocked")
             elif self.error is not None:
                 env.gh_wpt.remove_labels(self.pr, "mozilla:gecko-blocked")
-        return SyncProcess.error.fset(self, value)  # type: ignore
+        return SyncProcess.error.fset(self, value)
 
     @property
-    def pr_status(self):
+    def pr_status(self) -> str:
         return self.data.get("pr-status", "open")
 
-    @pr_status.setter  # type: ignore
+    @pr_status.setter
     @mut()
-    def pr_status(self, value):
+    def pr_status(self, value: str) -> None:
         self.data["pr-status"] = value
 
     @property
     def notify_bugs(self) -> FrozenDict:
         return FrozenDict(**self.data.get("notify-bugs", {}))
 
-    @notify_bugs.setter  # type: ignore
+    @notify_bugs.setter
     @mut()
     def notify_bugs(self, value: FrozenDict) -> None:
         self.data["notify-bugs"] = value.as_dict()
@@ -237,16 +236,16 @@ class DownstreamSync(SyncProcess):
     def results_notified(self) -> bool:
         return self.data.get("results-notified", False)
 
-    @results_notified.setter  # type: ignore
+    @results_notified.setter
     @mut()
-    def results_notified(self, value):
+    def results_notified(self, value: bool) -> None:
         self.data["results-notified"] = value
 
     @property
     def skip(self) -> bool:
         return self.data.get("skip", False)
 
-    @skip.setter  # type: ignore
+    @skip.setter
     @mut()
     def skip(self, value: bool) -> None:
         self.data["skip"] = value
@@ -255,7 +254,7 @@ class DownstreamSync(SyncProcess):
     def tried_to_rebase(self) -> bool:
         return self.data.get("tried_to_rebase", False)
 
-    @tried_to_rebase.setter  # type: ignore
+    @tried_to_rebase.setter
     @mut()
     def tried_to_rebase(self, value: bool) -> None:
         self.data["tried_to_rebase"] = value
@@ -416,13 +415,13 @@ class DownstreamSync(SyncProcess):
                          whiteboard="[wptsync downstream]",
                          priority="P4",
                          url=env.gh_wpt.pr_url(pr_id))
-        self.bug = bug  # type: ignore
+        self.bug = bug
 
     @mut()
     def update_wpt_commits(self) -> None:
         """Update the set of commits in the PR from the latest upstream."""
         if not self.wpt_commits.head or self.wpt_commits.head.sha1 != self.pr_head.sha1:
-            self.wpt_commits.head = self.pr_head  # type: ignore
+            self.wpt_commits.head = self.pr_head
 
         if (len(self.wpt_commits) == 0 and
             self.git_wpt.is_ancestor(self.wpt_commits.head.commit,
@@ -439,7 +438,7 @@ class DownstreamSync(SyncProcess):
                     break
             assert base_commit is not None
             self.data["wpt-base"] = base_commit.sha1
-            self.wpt_commits.base = base_commit  # type: ignore
+            self.wpt_commits.base = base_commit
 
     @mut()
     def update_github_check(self) -> None:
@@ -635,13 +634,13 @@ class DownstreamSync(SyncProcess):
                         with SyncLock.for_process(revert_sync.process_name) as revert_lock:
                             assert isinstance(revert_lock, SyncLock)
                             with revert_sync.as_mut(revert_lock):
-                                revert_sync.skip = True  # type: ignore
+                                revert_sync.skip = True
                 # TODO: If this commit reverts some closed syncs, then set the metadata
                 # commit of this commit to the revert of the metadata commit from that
                 # sync
                 if all_open:
                     logger.info("Sync was a revert of other open syncs, skipping")
-                    self.skip = True  # type: ignore
+                    self.skip = True
                     return False
 
             old_gecko_head = self.gecko_commits.head.sha1
@@ -763,7 +762,7 @@ class DownstreamSync(SyncProcess):
             if commit.metadata.get("wpt-commit") and
             commit.metadata.get("wpt-type") in ("dependency", None)]
         if TYPE_CHECKING:
-            existing_commits = cast(List[GeckoCommit], existing)
+            existing_commits = cast(list[GeckoCommit], existing)
         else:
             existing_commits = existing
 
@@ -813,7 +812,7 @@ class DownstreamSync(SyncProcess):
         gecko_work = self.gecko_worktree.get()
 
         if reset_head:
-            self.gecko_commits.head = reset_head  # type: ignore
+            self.gecko_commits.head = reset_head
         gecko_work.git.reset(hard=True)
 
         for _, wpt_commit, is_dependency in add_commits:
@@ -916,7 +915,7 @@ class DownstreamSync(SyncProcess):
         return bool(self.data["affected-tests"])
 
     @mut()
-    def update_metadata(self, log_files, stability=False):
+    def update_metadata(self, log_files: Iterable[str], stability: bool = False) -> list[str]:
         meta_path = env.config["gecko"]["path"]["meta"]
         gecko_work = self.gecko_worktree.get()
 
@@ -997,7 +996,7 @@ class DownstreamSync(SyncProcess):
         bugs = notify.bugs.for_sync(self, results)
         notify.bugs.update_metadata(self, bugs)
 
-        self.results_notified = True  # type: ignore
+        self.results_notified = True
 
         with SyncLock.for_process(self.process_name) as lock:
             assert isinstance(lock, SyncLock)
@@ -1087,15 +1086,21 @@ def new_wpt_pr(git_gecko: Repo, git_wpt: Repo, pr_data: Mapping[str, Any],
 
 @entry_point("downstream")
 @mut("try_push", "sync")
-def try_push_complete(git_gecko, git_wpt, try_push, sync):
+def try_push_complete(git_gecko: Repo, git_wpt: Repo, try_push: TryPush, sync: DownstreamSync) -> None:
     if not try_push.taskgroup_id:
         logger.error("No taskgroup id set for try push")
+        return
+    if not sync.bug:
+        logger.error(f"No bug set for sync {sync}")
         return
 
     if not try_push.status == "complete":
         # Ensure we don't have some old set of tasks
 
         tasks = try_push.tasks()
+        if tasks is None:
+            logger.warning("Didn't get any try push tasks")
+            return
         if not tasks.complete(allow_unscheduled=True):
             logger.info("Try push %s is not complete" % try_push.treeherder_url)
             return
@@ -1177,7 +1182,7 @@ def update_pr(git_gecko: Repo,
               ) -> None:
     try:
         if action == "closed" and not merge_sha:
-            sync.pr_status = "closed"  # type: ignore
+            sync.pr_status = "closed"
             if sync.bug:
                 env.bz.set_status(sync.bug, "RESOLVED", "INVALID")
             sync.finish()
@@ -1186,8 +1191,8 @@ def update_pr(git_gecko: Repo,
             sync.data["wpt-base"] = base_sha
             sync.next_try_push()
         elif action == "reopened" or action == "open":
-            sync.status = "open"  # type: ignore
-            sync.pr_status = "open"  # type: ignore
+            sync.status = "open"
+            sync.pr_status = "open"
             sync.next_try_push()
             assert sync.bug is not None
             if sync.bug:

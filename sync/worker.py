@@ -1,10 +1,12 @@
+from typing import Any
+
 import celery
 from celery.schedules import crontab
 from celery.signals import after_setup_logger
 
 
 @after_setup_logger.connect
-def config_loggers(*args, **kwags):
+def config_loggers(*args: Any, **kwags: Any) -> None:
     # This prevents celery reconfiguring the logging
     from . import log
     log.setup(force=True)

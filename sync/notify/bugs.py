@@ -214,7 +214,7 @@ def for_sync(sync: DownstreamSync,
                 if sync.bug:
                     depends = [sync.bug]
                 bug_id = make_bug(summary, comment, product, component, depends)
-                sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})  # type: ignore
+                sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})
                 newrelic.agent.record_custom_event("sync_bug_filing", params={
                     "sync_bug": sync.bug,
                     "component": component
@@ -303,7 +303,7 @@ def get_common_prefix(test_ids: Iterable[str]
             continue
         seen_names.add(split_name)
         split_names.append(split_name)
-    common_prefix = os.path.commonprefix([item[:-1] for item in split_names])  # type: ignore
+    common_prefix = tuple(os.path.commonprefix([item[:-1] for item in split_names]))
     return split_names, common_prefix
 
 

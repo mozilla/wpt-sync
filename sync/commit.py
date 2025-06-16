@@ -15,9 +15,7 @@ from .repos import cinnabar, cinnabar_map, pygit2_get
 
 from typing import Dict
 from git.repo.base import Repo
-from typing import Any
-from typing import Callable
-from typing import Tuple
+from typing import Any, Callable, Self, Tuple
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sync.upstream import UpstreamSync
@@ -157,7 +155,7 @@ class Commit:
             sha1 = str(commit_obj.id)
         elif hasattr(commit, "id"):
             assert isinstance(commit, PyGit2Commit)
-            sha1 = commit.id
+            sha1 = str(commit.id)
             _pygit2_commit = commit
         else:
             raise ValueError("Unrecognised commit %r (type %s)" % (commit, type(commit)))
@@ -237,7 +235,7 @@ class Commit:
                author: bytes | None = None,
                amend: bool = False,
                allow_empty: bool = False
-               ) -> Commit:
+               ) -> Self:
         msg = Commit.make_commit_msg(msg, metadata)
         commit_kwargs: dict[str, Any] = {}
         if amend:

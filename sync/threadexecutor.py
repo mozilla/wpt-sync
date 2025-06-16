@@ -1,10 +1,15 @@
 import threading
-
 import queue
+from collections.abc import Callable
+from typing import Any, Iterable, Optional
 
 
 class Worker(threading.Thread):
-    def __init__(self, queue, init_fn, work_fn, errors):
+    def __init__(self,
+                 queue: queue.Queue,
+                 init_fn: Optional[Callable[..., Any]],
+                 work_fn: Callable[..., Any],
+                 errors: list[Exception]):
         super().__init__()
         self.daemon = True
         self.queue = queue
@@ -12,7 +17,7 @@ class Worker(threading.Thread):
         self.work_fn = work_fn
         self.errors = errors
 
-    def run(self):
+    def run(self) -> None:
         if self.init_fn:
             init_data = self.init_fn()
         else:
@@ -47,22 +52,25 @@ class ThreadExecutor:
     :param init_fn: Optional function that's called once per thread. The return value can
                     be a dict of values to pass in to the work_fn."""
 
-    def __init__(self, thread_count, work_fn, init_fn=None):
+    def __init__(self,
+                 thread_count: int,
+                 work_fn: Callable[..., Any],
+                 init_fn: Optional[Callable[..., Any]] = None):
         self.thread_count = thread_count
         self.work_fn = work_fn
         self.init_fn = init_fn
 
-    def run(self, data):
+    def run(self, data: Iterable[Any]) -> list[Exception]:
         """Run the executor with the given data. Returns a list of exceptions that
         occured
 
         :param data: List of (args, kwargs) to pass to the work_fn, where args is a
         tuple and kwargs is a dict."""
-        work_queue = queue.Queue()
+        work_queue: queue.Queue[Any] = queue.Queue()
         for item in data:
             work_queue.put(item)
 
-        errors = []
+        errors: list[Exception] = []
 
         workers = []
         for i in range(self.thread_count):

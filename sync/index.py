@@ -11,7 +11,7 @@ from .base import ProcessName, CommitBuilder, iter_tree, iter_process_names
 from .env import Environment
 from .repos import pygit2_get
 
-from typing import Any, Callable, Iterator, Tuple, Union, TYPE_CHECKING
+from typing import Any, Callable, Iterator, Optional, Tuple, Union, TYPE_CHECKING
 from git.repo.base import Repo
 from pygit2.repository import Repository
 if TYPE_CHECKING:
@@ -291,7 +291,7 @@ class Index(metaclass=abc.ABCMeta):
         for error in errors:
             logger.warning(error)
 
-    def build_entries(self, *args, **kwargs):
+    def build_entries(self, *args: Any, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         raise NotImplementedError
 
     @classmethod
@@ -316,7 +316,7 @@ class TaskGroupIndex(Index):
                 value[2:4],
                 value[4:])
 
-    def build_entries(self, *args, **kwargs):
+    def build_entries(self, *args: Any, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from . import trypush
         entries = []
         for try_push in trypush.TryPush.load_all(self.repo):
@@ -339,7 +339,7 @@ class TryCommitIndex(Index):
                 value[4:6],
                 value[6:])
 
-    def build_entries(self, *args, **kwargs):
+    def build_entries(self, *args: Any, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         entries = []
         from . import trypush
         for try_push in trypush.TryPush.load_all(self.repo):
@@ -370,7 +370,7 @@ class SyncIndex(Index):
                 status,
                 str(process_name.obj_id))
 
-    def build_entries(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
         from .landing import LandingSync
@@ -379,7 +379,7 @@ class SyncIndex(Index):
         errors = []
 
         for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
-            sync_cls = None
+            sync_cls: Optional[type[UpstreamSync] | type[DownstreamSync] | type[LandingSync]] = None
             if process_name.subtype == "upstream":
                 sync_cls = UpstreamSync
             elif process_name.subtype == "downstream":
@@ -412,7 +412,7 @@ class PrIdIndex(Index):
             assert pr_id is not None
         return (pr_id,)
 
-    def build_entries(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
 
@@ -420,7 +420,7 @@ class PrIdIndex(Index):
         errors = []
 
         for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
-            cls = None
+            cls: Optional[type[UpstreamSync] | type[DownstreamSync]] = None
             if process_name.subtype == "downstream":
                 cls = DownstreamSync
             elif process_name.subtype == "upstream":
@@ -456,7 +456,7 @@ class BugIdIndex(Index):
             status = value.status
         return (bug, status)
 
-    def build_entries(self, git_gecko, git_wpt, **kwargs):
+    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
         from .landing import LandingSync
@@ -465,7 +465,7 @@ class BugIdIndex(Index):
         errors = []
 
         for process_name in iter_process_names(self.pygit2_repo, kind=["sync"]):
-            sync_cls = None
+            sync_cls: Optional[type[UpstreamSync] | type[DownstreamSync] | type[LandingSync]] = None
             if process_name.subtype == "upstream":
                 sync_cls = UpstreamSync
             elif process_name.subtype == "downstream":
@@ -491,7 +491,7 @@ def iter_blobs(repo: Repository, path: str) -> Iterator[pygit2.Blob]:
     :param path: path to use as the root, or None for the root path
     """
     ref = repo.references[env.config["sync"]["ref"]]
-    root = ref.peel().tree
+    root = ref.peel(None).tree
     if path is not None:
         if path not in root:
             return

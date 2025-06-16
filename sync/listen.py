@@ -11,14 +11,16 @@ from . import log
 from . import handlers
 from . import tasks
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Iterable, Optional
 
 here = os.path.dirname(__file__)
 
 logger = log.get_logger(__name__)
 
+MsgBody = dict[str, Any]
 
-def get_listen_logger(config):
+
+def get_listen_logger(config: dict[str, Any]) -> logging.Logger:
     logger = logging.getLogger(__name__)
 
     log_dir = os.path.join(config["root"],
@@ -43,27 +45,33 @@ def get_listen_logger(config):
 
 class Listener(ConsumerMixin):
     """Manages a single kombu.Consumer."""
-    def __init__(self, conn, exchanges, queues, logger):
+    def __init__(self,
+                 conn: kombu.Connection,
+                 exchanges: Iterable[kombu.Exchange],
+                 queues: list[kombu.Queue],
+                 logger: logging.Logger) -> None:
         self.connection = conn
-        self._callbacks = {item: [] for item in exchanges}
+        self._callbacks: dict[kombu.Exchange, list[Callable[[MsgBody], Any]]] = {item: [] for item in exchanges}
         self._queues = queues
         self.connect_max_retries = 10
         self.logger = logger
 
-    def get_consumers(self, Consumer, channel):
-        consumer = Consumer(self._queues, callbacks=[self.on_message], auto_declare=False)
+    def get_consumers(self,
+                      consumer_cls: kombu.Consumer,
+                      channel: kombu.Connection) -> list[kombu.Consumer]:
+        consumer = consumer_cls(self._queues, callbacks=[self.on_message], auto_declare=False)
         return [consumer]
 
-    def on_connection_revived(self):
+    def on_connection_revived(self) -> None:
         logger.debug("Connection to %s revived." % self.connection.hostname)
 
-    def add_callback(self, exchange, func):
+    def add_callback(self, exchange: str, func: Callable[[MsgBody], Any]) -> None:
         if exchange is None:
             raise ValueError("Expected string, got None")
 
         self._callbacks[exchange].append(func)
 
-    def on_message(self, body, message):
+    def on_message(self, body: MsgBody, message: kombu.Message) -> None:
         exchange = message.delivery_info['exchange']
         callbacks = self._callbacks.get(exchange)
         try:
@@ -77,7 +85,11 @@ class Listener(ConsumerMixin):
             message.ack()
 
 
-def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
+def get_listener(conn: kombu.Connection,
+                 userid: str,
+                 exchanges: Optional[Iterable[tuple[str, str, str]]],
+                 logger: logging.Logger,
+                 extra_data: Optional[dict[str, Any]] = None) -> Listener:
     """Obtain a Pulse consumer that can handle received messages.
 
     Returns a ``Listener`` instance bound to listen to the requested exchanges.
@@ -115,7 +127,7 @@ def get_listener(conn, userid, exchanges=None, extra_data=None, logger=None):
     return Listener(conn, [item[1] for item in exchanges], queues, logger)
 
 
-def run_pulse_listener(config: Dict[str, Any]) -> None:
+def run_pulse_listener(config: dict[str, Any]) -> None:
     """
     Configures Pulse connection and triggers events from Pulse messages.
 
@@ -175,17 +187,17 @@ class Filter(metaclass=abc.ABCMeta):
     name: Optional[str] = None
     task = tasks.handle
 
-    def __init__(self, config, logger):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger):
         self.config = config
         self.logger = logger
 
-    def __call__(self, body):
+    def __call__(self, body: MsgBody) -> None:
         if self.accept(body):
             self.logger.info("Message accepted %s" % self.name)
             self.logger.debug(json.dumps(body))
             self.task.apply_async((self.name, body))
 
-    def accept(self, body: Dict[str, Any]) -> bool:
+    def accept(self, body: MsgBody) -> bool:
         raise NotImplementedError
 
 
@@ -196,12 +208,12 @@ class GitHubFilter(Filter):
     event_filters["check_run"] = lambda x: x["payload"]["action"] == "completed"
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
-    def __init__(self, config, logger):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger):
         super().__init__(config, logger)
         repo_path = urllib.parse.urlparse(config["web-platform-tests"]["repo"]["url"]).path
         self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
-    def accept(self, body):
+    def accept(self, body: MsgBody) -> bool:
         return (body["_meta"]["routing_key"].startswith(self.key_filter) and
                 body["event"] in self.event_filters and
                 self.event_filters[body["event"]](body))
@@ -210,11 +222,11 @@ class GitHubFilter(Filter):
 class PushFilter(Filter):
     name = "push"
 
-    def __init__(self, config, logger):
+    def __init__(self, config: dict[str, Any], logger: logging.Logger):
         super().__init__(config, logger)
         self.repos = set(config["gecko"]["repo"].keys())
 
-    def accept(self, body):
+    def accept(self, body: MsgBody) -> bool:
         # Check that this has some commits pushed
         if not body["payload"].get("data", {}).get("pushlog_pushes"):
             return False
@@ -228,25 +240,25 @@ class PushFilter(Filter):
 class TaskGroupFilter(Filter):
     name = "taskgroup"
 
-    def accept(self, body):
+    def accept(self, body: MsgBody) -> bool:
         return body.get("taskGroupId") is not None
 
 
 class DecisionTaskFilter(Filter):
     name = "decision-task"
 
-    def accept(self, body):
+    def accept(self, body: MsgBody) -> bool:
         return is_decision_task(body)
 
 
 class TryTaskFilter(Filter):
     name = "try-task"
 
-    def accept(self, body):
+    def accept(self, body: MsgBody) -> bool:
         return not is_decision_task(body)
 
 
-def is_decision_task(body):
+def is_decision_task(body: MsgBody) -> bool:
     tags = body.get("task", {}).get("tags", {})
     return (tags.get("kind") == "decision-task" and
             tags.get("createdForUser") == "wptsync@mozilla.com")
