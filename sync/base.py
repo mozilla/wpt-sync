@@ -266,6 +266,11 @@ class ProcessName(metaclass=IdentityMap):
             return False
         return self.as_tuple() == other.as_tuple()
 
+    def __lt__(self, other: Any) -> bool:
+        if not isinstance(other, self.__class__):
+            raise ValueError(f"Cannot compare {self.__class__} and {other.__class__}")
+        return self.as_tuple() < other.as_tuple()
+
     def __hash__(self) -> int:
         return hash(self.key())
 
