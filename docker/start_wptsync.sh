@@ -18,7 +18,7 @@ CELERYBEAT_PID_FILE=${WPTSYNC_ROOT}/celerybeat.pid
 
 cleanup() {
     echo "Stopping celery..."
-    celery multi stopwait ${CELERY_WORKER} \
+    uv run celery multi stopwait ${CELERY_WORKER} \
         --pidfile=${CELERY_PID_FILE} \
         --logfile=${CELERY_LOG_FILE}
     echo "Stopping celery beat..."
@@ -58,8 +58,6 @@ clean_pid() {
     fi
 }
 
-pip3 install --no-deps -e /app/wpt-sync
-
 if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
     eval "$(ssh-agent -s)"
     # Install ssh keys
@@ -96,6 +94,7 @@ elif [ "$1" == "--worker" ]; then
     # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
 
     newrelic-admin run-program \
+                   uv run \
                    celery \
                      --app sync.worker \
                      beat \
@@ -108,6 +107,7 @@ elif [ "$1" == "--worker" ]; then
     echo "Starting celery worker"
 
     newrelic-admin run-program \
+                   uv run \
                    celery \
                      --app sync.worker \
                      worker \
@@ -138,7 +138,9 @@ elif [ "$1" == "--worker" ]; then
 
 elif [ "$1" == "--test" ]; then
     shift 1;
-    wptsync test "$@"
+    cd /app/wpt-sync
+    uv sync
+    uv run --extra=test wptsync test "$@"
 else
-    wptsync "$@"
+    uv run wptsync "$@"
 fi

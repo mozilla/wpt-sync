@@ -549,13 +549,13 @@ def do_status(git_gecko: Repo,
 def do_test(**kwargs: Any) -> None:
     if kwargs.pop("flake8", True):
         logger.info("Running flake8")
-        cmd = ["flake8"]
+        cmd = ["uv", "run", "flake8"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/sync/")
         subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
 
     if kwargs.pop("mypy", True):
         logger.info("Running mypy")
-        cmd = ["mypy", "sync"]
+        cmd = ["uv", "run", "mypy", "sync"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
     if kwargs.pop("pytest", True):
@@ -564,7 +564,7 @@ def do_test(**kwargs: Any) -> None:
             args.append("test")
 
         logger.info("Running pytest")
-        cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
+        cmd = ["uv", "run", "pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
