@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch, ANY, DEFAULT
 
 import pytest
 
-from sync import landing, downstream, tc, tree, trypush, upstream
+from sync import landing, downstream, tc, trypush, upstream
 from sync import commit as sync_commit
 from sync.errors import AbortError
 from sync.gitutils import update_repositories
@@ -47,7 +47,6 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
         with sync.as_mut(downstream_lock):
             sync.data["force-metadata-ready"] = True
 
-    tree.is_open = lambda x: True
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
@@ -100,7 +99,6 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
         with downstream_sync.as_mut(downstream_lock):
             downstream_sync.data["force-metadata-ready"] = True
 
-    tree.is_open = lambda x: True
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
@@ -340,7 +338,6 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
                                        raise_on_error=True)
 
     # Now start a landing
-    tree.is_open = lambda x: True
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
@@ -409,7 +406,6 @@ def test_landing_pr_on_central(env, git_gecko, git_wpt, git_wpt_upstream, pull_r
     upstream_gecko_commit(test_changes=test_changes, bug=1234,
                           message=b"Change README")
 
-    tree.is_open = lambda x: True
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
@@ -452,7 +448,6 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
 
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    tree.is_open = lambda x: True
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
@@ -627,7 +622,6 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
         with downstream_sync.as_mut(downstream_lock):
             downstream_sync.data["force-metadata-ready"] = True
 
-    tree.is_open = lambda x: True
     with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)

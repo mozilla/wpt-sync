@@ -14,7 +14,6 @@ from . import commit as sync_commit
 from . import downstream
 from . import gitutils
 from . import log
-from . import tree
 from . import load
 from . import repos
 from . import trypush
@@ -24,7 +23,7 @@ from .commit import GeckoCommit, first_non_merge
 from .env import Environment
 from .gitutils import update_repositories
 from .lock import SyncLock, constructor, mut
-from .errors import AbortError, RetryableError
+from .errors import AbortError
 from .projectutil import Mach
 from .repos import cinnabar, pygit2_get
 from .sync import LandableStatus, SyncProcess
@@ -818,8 +817,6 @@ def push(landing: LandingSync) -> None:
     """Push from git_work_gecko to inbound."""
     success = False
 
-    landing_tree = env.config["gecko"]["landing"]
-
     old_head = None
     err = None
     assert landing.bug is not None
@@ -839,10 +836,6 @@ def push(landing: LandingSync) -> None:
             env.bz.comment(landing.bug, err)
             raise AbortError(err)
         old_head = landing.gecko_commits.head.sha1
-
-        if not tree.is_open(landing_tree):
-            logger.info("%s is closed" % landing_tree)
-            raise RetryableError(AbortError("Tree is closed"))
 
         try:
             output = push_with_lando(landing)
