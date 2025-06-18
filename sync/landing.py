@@ -866,6 +866,8 @@ def push_with_lando(landing):
         landing.gecko_worktree.path,
         "--lando-repo",
         "firefox-autoland",
+        "--base-commit",
+        landing.gecko_commits.base.sha1,
         "--yes"
     ]
     logger.info(" ".join(cmd))
