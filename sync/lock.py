@@ -8,7 +8,7 @@ import filelock
 from . import log
 from .env import Environment
 
-from typing import Any, MutableMapping, TYPE_CHECKING
+from typing import Any, Callable, MutableMapping, TYPE_CHECKING
 from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.base import ProcessName
@@ -284,7 +284,7 @@ class MutGuard:
 
 
 class mut:
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:
         """Mark a function as requiring given arguments are mutable.
 
         When entering the function the decorator checks that the specified
@@ -297,7 +297,7 @@ class mut:
             args = ("self",)
         self.args = args
 
-    def __call__(self, f):
+    def __call__(self, f: Callable[..., Any]) -> Any:
         def inner(*args: Any, **kwargs: Any) -> Any:
             arg_values = inspect.getcallargs(f, *args, **kwargs)
 
@@ -314,7 +314,7 @@ class mut:
 
 
 class constructor:
-    def __init__(self, arg_func):
+    def __init__(self, arg_func: Callable[..., Any]) -> None:
         """Mark a classmethod as a constructor for an object which uses the
         mutation system.
 

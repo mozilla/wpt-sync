@@ -32,8 +32,7 @@ if "SHELL" not in os.environ:
     os.environ["SHELL"] = "/bin/bash"
 
 
-def get_parser():
-    # type () -> argparse.ArgumentParser
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
     parser.add_argument("--pdb", action="store_true", help="Run in pdb")
@@ -262,7 +261,7 @@ def do_list(git_gecko: Repo, git_wpt: Repo, sync_type: str, error: bool = False,
     from . import upstream
     syncs: list[SyncProcess] = []
 
-    def filter_sync(sync):
+    def filter_sync(sync: SyncProcess) -> bool:
         if error:
             return sync.error is not None and sync.status == "open"
         return True
@@ -319,7 +318,7 @@ def do_landing(git_gecko: Repo,
     from . import update
     current_landing = landing.current(git_gecko, git_wpt)
 
-    def update_landing():
+    def update_landing() -> None:
         landing.update_landing(git_gecko,
                                git_wpt,
                                prev_wpt_head,
@@ -443,7 +442,7 @@ def do_delete(git_gecko: Repo,
               try_push: bool = False,
               delete_all: bool = False,
               seq_id: int | None = None,
-              **kwargs) -> None:
+              **kwargs: Any) -> None:
     from . import trypush
     objs: Iterable[Any] = []
     for obj_id in obj_ids:
@@ -549,13 +548,13 @@ def do_status(git_gecko: Repo,
 def do_test(**kwargs: Any) -> None:
     if kwargs.pop("flake8", True):
         logger.info("Running flake8")
-        cmd = ["flake8"]
+        cmd = ["uv", "run", "flake8"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/sync/")
         subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
 
     if kwargs.pop("mypy", True):
         logger.info("Running mypy")
-        cmd = ["mypy", "sync"]
+        cmd = ["uv", "run", "mypy", "sync"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
     if kwargs.pop("pytest", True):
@@ -564,7 +563,7 @@ def do_test(**kwargs: Any) -> None:
             args.append("test")
 
         logger.info("Running pytest")
-        cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
+        cmd = ["uv", "run", "pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
@@ -628,8 +627,8 @@ def do_notify(git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], force: bool = F
                     sync.try_notify(force=force)
 
 
-def do_landable(git_gecko,
-                git_wpt,
+def do_landable(git_gecko: Repo,
+                git_wpt: Repo,
                 prev_wpt_head: str | None = None,
                 include_incomplete: bool = False,
                 include_all: bool = True,
@@ -788,16 +787,16 @@ def do_try_push_add(git_gecko: Repo,
         raise ValueError
 
     class FakeTry:
-        def __init__(self, *_args, **_kwargs):
+        def __init__(self, *_args: Any, **_kwargs: Any):
             pass
 
-        def __enter__(self):
+        def __enter__(self) -> FakeTry:
             return self
 
-        def __exit__(self, *args):
+        def __exit__(self, *args: Any) -> None:
             pass
 
-        def push(self):
+        def push(self) -> str:
             return try_rev
 
     with SyncLock.for_process(sync.process_name) as lock:
@@ -856,7 +855,7 @@ def do_build_index(git_gecko: Repo, git_wpt: Repo, index_name: str, **kwargs: An
         idx.build(git_gecko, git_wpt)
 
 
-def do_migrate(git_gecko, git_wpt, **kwargs):
+def do_migrate(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     assert False, "Running this is probably a bad idea"
     # Migrate refs from the refs/<type>/<subtype>/<status>/<obj_id>[/<seq_id>] format
     # to refs/<type>/<subtype>/<obj_id>/<seq_id>
@@ -1072,12 +1071,12 @@ def main() -> None:
     except AttributeError:
         func_name = None
     if func_name == "do_test":
-        def func(**kwargs):
+        def func(**kwargs: Any) -> Any:
             return do_test(**kwargs)
     else:
         git_gecko, git_wpt = setup()
 
-        def func(**kwargs):
+        def func(**kwargs: Any) -> Any:
             return args.func(git_gecko, git_wpt, **kwargs)
 
     try:

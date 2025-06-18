@@ -32,11 +32,11 @@ def update_repositories(git_gecko: Optional[Repo], git_wpt: Optional[Repo],
     if git_gecko is not None:
         if wait_gecko_commit is not None:
 
-            def wait_fn():
+            def wait_fn() -> bool:
                 assert wait_gecko_commit is not None
                 return have_gecko_hg_commit(git_gecko, wait_gecko_commit)
 
-            def _update():
+            def _update() -> None:
                 assert git_gecko is not None
                 return _update_gecko(git_gecko)
 
@@ -62,8 +62,8 @@ def until(func: Callable, cond: Callable, max_tries: int = 5) -> bool:
     return True
 
 
-def _fetch(git_gecko, remote):
-    cmd = ["git", "--git-dir", git_gecko.git_dir, "fetch", remote]
+def _fetch(git_gecko: Repo, remote: str) -> None:
+    cmd = ["git", "--git-dir", str(git_gecko.git_dir), "fetch", remote]
     logger.info(" ".join(cmd))
     subprocess.check_call(cmd)
 
@@ -131,7 +131,7 @@ def status(repo: Repo) -> Dict[str, Dict[str, Any]]:
     return rv
 
 
-def handle_empty_commit(worktree, e):
+def handle_empty_commit(worktree: Repo, e: git.GitCommandError) -> bool:
     # If git exits with return code 1 and mentions an empty
     # cherry pick, then we tried to cherry pick something
     # that results in an empty commit so reset the index and
