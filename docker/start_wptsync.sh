@@ -88,10 +88,8 @@ elif [ "$1" == "--worker" ]; then
     echo "Starting celerybeat"
 
     set +x
-    export LANDO_HEADLESS_API_TOKEN=$(/app/get_ini.py /app/config/prod/credentials.ini lando api_token)
     export NEW_RELIC_LICENSE_KEY=$(/app/get_ini.py /app/config/prod/credentials.ini newrelic license_key)
     set -x
-    export LANDO_USER_EMAIL="wptsync@mozilla.com"
     export NEW_RELIC_CONFIG_FILE=/app/config/newrelic.ini
 
     # TODO: need to configure the API key correctly to record deploys
