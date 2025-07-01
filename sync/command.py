@@ -139,8 +139,8 @@ def get_parser() -> argparse.ArgumentParser:
     parser_status.set_defaults(func=do_status)
 
     parser_test = subparsers.add_parser("test", help="Run the tests with pytest")
-    parser_test.add_argument("--no-flake8", dest="flake8", action="store_false",
-                             default=True, help="Don't run flake8")
+    parser_test.add_argument("--no-ruff", dest="ruff", action="store_false",
+                             default=True, help="Don't run ruff")
     parser_test.add_argument("--no-pytest", dest="pytest", action="store_false",
                              default=True, help="Don't run pytest")
     parser_test.add_argument("--no-mypy", dest="mypy", action="store_false",
@@ -547,11 +547,12 @@ def do_status(git_gecko: Repo,
 
 
 def do_test(**kwargs: Any) -> None:
-    if kwargs.pop("flake8", True):
-        logger.info("Running flake8")
-        cmd = ["uv", "run", "flake8"]
-        subprocess.check_call(cmd, cwd="/app/wpt-sync/sync/")
-        subprocess.check_call(cmd, cwd="/app/wpt-sync/test/")
+    if kwargs.pop("ruff", True):
+        logger.info("Running ruff")
+        cmd = ["uv", "run", "ruff", "check"]
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/")
+        cmd = ["uv", "run", "ruff", "format", "--check"]
+        subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
     if kwargs.pop("mypy", True):
         logger.info("Running mypy")

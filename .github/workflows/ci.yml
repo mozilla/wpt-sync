@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
-      - name: Run flake8
+      - name: Run ruff
         run: ./bin/run_docker_dev.sh test --no-pytest --no-mypy
   test:
     name: Unit Tests
@@ -23,7 +23,7 @@ jobs:
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
       - name: Run pytest
-        run: ./bin/run_docker_dev.sh test --no-flake8 --no-mypy
+        run: ./bin/run_docker_dev.sh test --no-ruff --no-mypy
   typing:
     name: mypy
     runs-on: ubuntu-latest
@@ -32,7 +32,7 @@ jobs:
       - name: Build containers
         run: ./bin/run_docker_dev.sh build --test
       - name: Run mypy
-        run: ./bin/run_docker_dev.sh test --no-flake8 --no-pytest
+        run: ./bin/run_docker_dev.sh test --no-ruff --no-pytest
   security:
     name: Static Analysis
     runs-on: ubuntu-latest

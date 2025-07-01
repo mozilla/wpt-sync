@@ -334,7 +334,7 @@ class VcsRefObject(metaclass=IdentityMap):
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
 
-        if not self.get_path(name) in self.pygit2_repo.references:
+        if self.get_path(name) not in self.pygit2_repo.references:
             raise ValueError("No ref found in %s with path %s" %
                              (repo.working_dir, self.get_path(name)))
         self.name = name
