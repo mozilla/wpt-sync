@@ -31,18 +31,18 @@ class Url:
         self.query.append((name, value))
 
     def build(self) -> str:
-        return parse.urlunsplit((self.scheme,
-                                 self.host,
-                                 self.path,
-                                 parse.urlencode(self.query),
-                                 self.fragment))
+        return parse.urlunsplit(
+            (self.scheme, self.host, self.path, parse.urlencode(self.query), self.fragment)
+        )
 
 
-def get_runs(sha: Optional[str] = None,
-             pr: Optional[str] = None,
-             max_count: Optional[str] = None,
-             labels: Optional[list[str]] = None,
-             staging: bool = False) -> list[Mapping[str, Json]]:
+def get_runs(
+    sha: Optional[str] = None,
+    pr: Optional[str] = None,
+    max_count: Optional[str] = None,
+    labels: Optional[list[str]] = None,
+    staging: bool = False,
+) -> list[Mapping[str, Json]]:
     url = Url(WPT_FYI_BASE + "runs")
     if staging:
         url.host = STAGING_HOST
@@ -59,22 +59,20 @@ def get_runs(sha: Optional[str] = None,
     return resp.json()
 
 
-def get_results(run_ids: list[str],
-                query: Optional[Json] = None,
-                staging: bool = False) -> dict[str, Any]:
+def get_results(
+    run_ids: list[str], query: Optional[Json] = None, staging: bool = False
+) -> dict[str, Any]:
     url = Url(WPT_FYI_BASE + "search")
     if staging:
         url.host = STAGING_HOST
 
-    body: dict[str, Json] = {
-        "run_ids": run_ids
-    }
+    body: dict[str, Json] = {"run_ids": run_ids}
     if query is not None:
         body["q"] = query
 
     # A 422 status means that the data isn't in the cache, so retry
     retry = 0
-    timeout = 10.
+    timeout = 10.0
 
     while retry < 5:
         resp = requests.post(url.build(), json=body)
@@ -88,9 +86,9 @@ def get_results(run_ids: list[str],
     return resp.json()
 
 
-def get_metadata(products: list[str],
-                 link: Optional[Iterable[str]],
-                 staging: bool = False) -> dict[str, Any]:
+def get_metadata(
+    products: list[str], link: Optional[Iterable[str]], staging: bool = False
+) -> dict[str, Any]:
     url = Url(WPT_FYI_BASE + "metadata")
     if staging:
         url.host = STAGING_HOST

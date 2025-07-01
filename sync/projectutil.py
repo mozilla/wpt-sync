@@ -4,7 +4,6 @@
 
 """Utility functions for performing various Git functionality."""
 
-
 import logging
 import os
 import subprocess
@@ -16,7 +15,6 @@ import newrelic
 
 from sync import repos
 from sync.env import Environment
-
 
 
 env = Environment()
@@ -37,7 +35,7 @@ class Command:
         self.logger = logger
 
     def get(self, *subcommand: str, **opts: Any) -> bytes:
-        """ Run the specified subcommand with `command` and return the result.
+        """Run the specified subcommand with `command` and return the result.
 
         eg. r = mach.get('test-info', 'path/to/test')
         """
@@ -47,10 +45,9 @@ class Command:
         try:
             return subprocess.check_output(command, cwd=self.path, **opts)
         except subprocess.CalledProcessError as e:
-            newrelic.agent.record_exception(params={
-                "command": self.name,
-                "exit_code": e.returncode,
-                "command_output": e.output})
+            newrelic.agent.record_exception(
+                params={"command": self.name, "exit_code": e.returncode, "command_output": e.output}
+            )
             raise e
 
     def __getattr__(self, name: str) -> Callable:
@@ -59,6 +56,7 @@ class Command:
 
         def call(self: Any, *args: str, **kwargs: Any) -> str:
             return self.get(name.replace("_", "-"), *args, **kwargs)
+
         call.__name__ = name
         args: Tuple[Any, ...] = (call, self)
         self.__dict__[name] = types.MethodType(*args)
@@ -108,11 +106,9 @@ def create_mock(name: str) -> type[Command]:
             if callable(data):
                 data = data(*args[1:], **kwargs)
 
-            self._log.append({"command": self.name,
-                              "cwd": self.path,
-                              "args": args,
-                              "kwargs": kwargs,
-                              "rv": data})
+            self._log.append(
+                {"command": self.name, "cwd": self.path, "args": args, "kwargs": kwargs, "rv": data}
+            )
 
             return data
 

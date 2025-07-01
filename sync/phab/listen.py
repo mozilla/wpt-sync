@@ -17,30 +17,31 @@ RE_COMMIT = re.compile("(committed|accepted|added a reverting change for) r[A-Z]
 
 
 class PhabEventListener:
-
-    ignore_list = ["added inline comments to D",
-                   "added a comment to D",
-                   "added a reviewer for D",
-                   "added reviewers for D",
-                   "removed a reviewer for D",
-                   "removed reviewers for D",
-                   "requested review of D",
-                   "requested changes to D",
-                   "added a subscriber to D",
-                   "added a project to D",
-                   "edited reviewers for D",
-                   "updated the summary of D",  # Maybe useful to upstream info?
-                   "accepted D",  # Maybe useful to upstream info?
-                   "retitled D",  # Maybe useful to upstream info?
-                   "blocking reviewer(s) for D",
-                   "planned changes to D",
-                   "updated subscribers of D",
-                   "resigned from D",
-                   "changed the edit policy for D",
-                   "removed a project from D",
-                   "updated D",
-                   "changed the visibility for D",
-                   "updated the test plan for D"]
+    ignore_list = [
+        "added inline comments to D",
+        "added a comment to D",
+        "added a reviewer for D",
+        "added reviewers for D",
+        "removed a reviewer for D",
+        "removed reviewers for D",
+        "requested review of D",
+        "requested changes to D",
+        "added a subscriber to D",
+        "added a project to D",
+        "edited reviewers for D",
+        "updated the summary of D",  # Maybe useful to upstream info?
+        "accepted D",  # Maybe useful to upstream info?
+        "retitled D",  # Maybe useful to upstream info?
+        "blocking reviewer(s) for D",
+        "planned changes to D",
+        "updated subscribers of D",
+        "resigned from D",
+        "changed the edit policy for D",
+        "removed a project from D",
+        "updated D",
+        "changed the visibility for D",
+        "updated the test plan for D",
+    ]
 
     event_mapping = {
         "updated the diff for D": "commit",
@@ -53,11 +54,13 @@ class PhabEventListener:
 
     def __init__(self, config: Config) -> None:
         self.running = True
-        self.timer_in_seconds = config['phabricator']['listener']['interval']
+        self.timer_in_seconds = config["phabricator"]["listener"]["interval"]
         self.latest: Optional[Mapping[str, Any]] = None
 
-        self.phab = Phabricator(host='https://phabricator.services.mozilla.com/api/',
-                                token=config['phabricator']['token'])
+        self.phab = Phabricator(
+            host="https://phabricator.services.mozilla.com/api/",
+            token=config["phabricator"]["token"],
+        )
         self.phab.update_interfaces()
 
     def run(self) -> None:
@@ -67,11 +70,11 @@ class PhabEventListener:
             self.parse(feed)
             time.sleep(self.timer_in_seconds)
 
-    @newrelic.agent.background_task(name='feed-fetching', group='Phabricator')
+    @newrelic.agent.background_task(name="feed-fetching", group="Phabricator")
     def get_feed(self, before: Optional[int] = None) -> list[Mapping[str, Any]]:
         """ """
         if self.latest and before is None:
-            before = int(self.latest['chronologicalKey'])
+            before = int(self.latest["chronologicalKey"])
 
         feed = []
 
@@ -80,7 +83,7 @@ class PhabEventListener:
 
         # keep fetching stories from Phabricator until there are no more stories to fetch
         while True:
-            result = self.phab.feed.query(before=before, view='text')
+            result = self.phab.feed.query(before=before, view="text")
             if result.response:
                 results = sorted(list(result.response.items()), key=chrono_key)
                 results = list(map(self.map_feed_tuple, results))
@@ -92,25 +95,24 @@ class PhabEventListener:
             break
         return feed
 
-    @newrelic.agent.background_task(name='feed-parsing', group='Phabricator')
+    @newrelic.agent.background_task(name="feed-parsing", group="Phabricator")
     def parse(self, feed: Iterable[MutableMapping[str, Any]]) -> None:
         # Go through rows in reverse order, and ignore first row as it has the table headers
         for event in feed:
-
-            if RE_COMMIT.search(event['text']):
+            if RE_COMMIT.search(event["text"]):
                 # This is a commit event, ignore it
                 continue
 
             # Split the text to get the part that describes the event type
-            event_text = RE_EVENT.split(event['text'])[0]
+            event_text = RE_EVENT.split(event["text"])[0]
 
             # Check if this is an event we wish to ignore
             if any(event_type in event_text for event_type in PhabEventListener.ignore_list):
                 continue
 
             # Map the event text to an event type so we know how to handle it
-            event['type'] = self.map_event_type(event_text, event)
-            if event['type'] is None:
+            event["type"] = self.map_event_type(event_text, event)
+            if event["type"] is None:
                 continue
 
             # Add the event to the queue, and set this as the latest parsed
@@ -125,10 +127,14 @@ class PhabEventListener:
                 return mapping
 
         logger.warning("Unknown phabricator event type: %s" % event_text)
-        newrelic.agent.record_custom_event("unknown_phabricator_event", params={
-            "event_text": event_text,
-            "event": event,
-        }, application=newrelic.agent.application())
+        newrelic.agent.record_custom_event(
+            "unknown_phabricator_event",
+            params={
+                "event_text": event_text,
+                "event": event,
+            },
+            application=newrelic.agent.application(),
+        )
         return None
 
     @staticmethod
@@ -145,7 +151,6 @@ def run_phabricator_listener(config: Config) -> None:
 
 
 class MockPhabricator(Phabricator):
-
     def __init__(self, *args: Any, **kwargs: Any):
         self.feed = None
         pass

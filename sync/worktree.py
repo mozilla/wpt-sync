@@ -42,9 +42,11 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
 
         process_name = ProcessName.from_tuple(worktree.name.split("-"))
 
-        worktree_data = (datetime.fromtimestamp(os.stat(worktree.path).st_mtime),
-                         process_name,
-                         worktree)
+        worktree_data = (
+            datetime.fromtimestamp(os.stat(worktree.path).st_mtime),
+            process_name,
+            worktree,
+        )
 
         if process_name is None:
             logger.warning("Worktree doesn't correspond to a sync %s" % worktree.path)
@@ -60,7 +62,7 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
             continue
 
         if head_branch.startswith("refs/heads/"):
-            head_branch = head_branch[len("refs/heads/"):]
+            head_branch = head_branch[len("refs/heads/") :]
 
         branch_process_name = ProcessName.from_path(head_branch)
         if branch_process_name is None:
@@ -85,7 +87,7 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
 
     prunable.sort()
     maybe_prunable.sort()
-    for time, process_name, worktree in (prunable + maybe_prunable):
+    for time, process_name, worktree in prunable + maybe_prunable:
         assert process_name is not None
         if time < (now - timedelta(days=2)):
             logger.info("Removing worktree without recent activity %s" % worktree.path)
@@ -100,15 +102,17 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
 
 
 def delete_worktree(repo: Repo, process_name: ProcessName, worktree: PyGit2Worktree) -> None:
-    assert worktree.path.startswith(os.path.join(env.config["root"],
-                                                 env.config["paths"]["worktrees"]))
+    assert worktree.path.startswith(
+        os.path.join(env.config["root"], env.config["paths"]["worktrees"])
+    )
     with SyncLock.for_process(process_name):
         try:
             logger.info("Deleting path %s" % worktree.path)
             shutil.rmtree(worktree.path)
         except Exception:
-            logger.warning("Failed to remove worktree %s:%s" %
-                           (worktree.path, traceback.format_exc()))
+            logger.warning(
+                "Failed to remove worktree %s:%s" % (worktree.path, traceback.format_exc())
+            )
         else:
             logger.info(f"Removed worktree {worktree.path}")
         worktree.prune(True)
@@ -160,11 +164,13 @@ class Worktree:
         self.worktree_name = "-".join(str(item) for item in self.process_name.as_tuple())
         working_dir = repo.working_dir
         assert working_dir is not None
-        self.path = os.path.join(env.config["root"],
-                                 env.config["paths"]["worktrees"],
-                                 os.path.basename(working_dir),
-                                 process_name.subtype,
-                                 process_name.obj_id)
+        self.path = os.path.join(
+            env.config["root"],
+            env.config["paths"]["worktrees"],
+            os.path.basename(working_dir),
+            process_name.subtype,
+            process_name.obj_id,
+        )
         self._lock = None
 
     def as_mut(self, lock: SyncLock) -> MutGuard:
@@ -203,16 +209,18 @@ class Worktree:
 
             if self.worktree_name not in all_worktrees:
                 if path_exists:
-                    logger.warning("Found existing content in worktree path %s, removing" %
-                                   self.path)
+                    logger.warning(
+                        "Found existing content in worktree path %s, removing" % self.path
+                    )
                     shutil.rmtree(self.path)
                 logger.info(f"Creating worktree {self.worktree_name} at {self.path}")
                 if not os.path.exists(os.path.dirname(self.path)):
                     os.makedirs(os.path.dirname(self.path))
-                worktree = self.pygit2_repo.add_worktree(self.worktree_name,
-                                                         os.path.abspath(self.path),
-                                                         self.pygit2_repo.lookup_reference(
-                                                             "refs/heads/%s" % self.process_name))
+                worktree = self.pygit2_repo.add_worktree(
+                    self.worktree_name,
+                    os.path.abspath(self.path),
+                    self.pygit2_repo.lookup_reference("refs/heads/%s" % self.process_name),
+                )
                 wrapper = wrapper_get(self.repo)
                 assert wrapper is not None
                 wrapper.after_worktree_create(self.path)

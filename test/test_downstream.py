@@ -10,12 +10,14 @@ from sync.lock import SyncLock
 
 
 def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 
-    mock_mach.set_data("file-info", b"""Testing :: web-platform-tests
+    mock_mach.set_data(
+        "file-info",
+        b"""Testing :: web-platform-tests
   testing/web-platform/tests/README
-""")
+""",
+    )
 
     mock_wpt.set_data("files-changed", b"README\n")
 
@@ -32,17 +34,19 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     assert len(data_commits) == len(initial_data_commits) + 3
 
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
-    env.gh_wpt.set_status(pr["number"], "success", "http://test/", "description",
-                          "continuous-integration/travis-ci/pr")
+    env.gh_wpt.set_status(
+        pr["number"],
+        "success",
+        "http://test/",
+        "description",
+        "continuous-integration/travis-ci/pr",
+    )
     assert sync is not None
     assert sync.status == "open"
     assert len(sync.gecko_commits) == 1
     assert len(sync.wpt_commits) == 1
 
-    assert sync.gecko_commits[0].metadata == {
-        "wpt-pr": str(pr["number"]),
-        "wpt-commit": pr["head"]
-    }
+    assert sync.gecko_commits[0].metadata == {"wpt-pr": str(pr["number"]), "wpt-commit": pr["head"]}
     assert sync.data["check"] == {"id": 0, "sha1": pr["head"]}
     assert len(env.gh_wpt.checks) == 1
     assert len(env.gh_wpt.checks[pr["head"]])
@@ -50,12 +54,14 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
 
 
 def test_new_pr_existing_branch(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 
-    mock_mach.set_data("file-info", b"""Testing :: web-platform-tests
+    mock_mach.set_data(
+        "file-info",
+        b"""Testing :: web-platform-tests
   testing/web-platform/tests/README
-""")
+""",
+    )
 
     mock_wpt.set_data("files-changed", b"README\n")
 
@@ -78,26 +84,50 @@ def test_new_pr_existing_branch(env, git_gecko, git_wpt, pull_request, mock_mach
     assert sync.process_name == process_name
 
 
-def test_downstream_move(git_gecko, git_wpt, pull_request, set_pr_status,
-                         hg_gecko_try, local_gecko_commit,
-                         sample_gecko_metadata, initial_wpt_content, mock_mach):
+def test_downstream_move(
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    hg_gecko_try,
+    local_gecko_commit,
+    sample_gecko_metadata,
+    initial_wpt_content,
+    mock_mach,
+):
     local_gecko_commit(message=b"Add wpt metadata", meta_changes=sample_gecko_metadata)
-    pr = pull_request([(b"Test commit",
-                        {"example/test.html": None,
-                         "example/test1.html": initial_wpt_content["example/test.html"]})],
-                      "Test PR")
+    pr = pull_request(
+        [
+            (
+                b"Test commit",
+                {
+                    "example/test.html": None,
+                    "example/test1.html": initial_wpt_content["example/test.html"],
+                },
+            )
+        ],
+        "Test PR",
+    )
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)
         sync = set_pr_status(pr.number, "success")
     assert sync.gecko_commits[-1].metadata["wpt-type"] == "metadata"
 
 
-def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
-                         hg_gecko_try, mock_wpt, mock_tasks, mock_mach):
+def test_wpt_pr_approved(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    hg_gecko_try,
+    mock_wpt,
+    mock_tasks,
+    mock_mach,
+):
     mock_wpt.set_data("tests-affected", "")
 
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
     pr._approved = False
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)
@@ -114,26 +144,40 @@ def test_wpt_pr_approved(env, git_gecko, git_wpt, pull_request, set_pr_status,
         assert sync.latest_try_push is None
 
         # If we 'merge' the PR, then we will see a stability try push
-        with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+        with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
             mock_read.return_value = "0000000000000000"
-            handlers.handle_pr(git_gecko, git_wpt,
-                               {"action": "closed",
-                                "number": pr.number,
-                                "pull_request": {
-                                    "number": pr.number,
-                                    "merge_commit_sha": "a" * 25,
-                                    "base": {"sha": "b" * 25},
-                                    "merged": True,
-                                    "state": "closed",
-                                    "merged_by": {"login": "test_user"}}})
+            handlers.handle_pr(
+                git_gecko,
+                git_wpt,
+                {
+                    "action": "closed",
+                    "number": pr.number,
+                    "pull_request": {
+                        "number": pr.number,
+                        "merge_commit_sha": "a" * 25,
+                        "base": {"sha": "b" * 25},
+                        "merged": True,
+                        "state": "closed",
+                        "merged_by": {"login": "test_user"},
+                    },
+                },
+            )
         try_push = sync.latest_try_push
         assert try_push.stability
 
 
-def test_revert_pr(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, pull_request_fn,
-                   set_pr_status, wpt_worktree, mock_mach):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+def test_revert_pr(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    pull_request_fn,
+    set_pr_status,
+    wpt_worktree,
+    mock_mach,
+):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
@@ -163,10 +207,18 @@ def test_revert_pr(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, pull
     assert sync_revert.skip
 
 
-def test_revert_pr_with_squash(env, git_gecko, git_wpt, git_wpt_upstream, pull_request,
-                               pull_request_fn, set_pr_status, wpt_worktree, mock_mach):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+def test_revert_pr_with_squash(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    pull_request_fn,
+    set_pr_status,
+    wpt_worktree,
+    mock_mach,
+):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
@@ -177,8 +229,8 @@ def test_revert_pr_with_squash(env, git_gecko, git_wpt, git_wpt_upstream, pull_r
             sync.wpt_commits.base = sync.data["wpt-base"] = git_wpt_upstream.head.commit.hexsha
             git_wpt_upstream.git.merge(commit.sha1, squash=True)
             git_wpt_upstream.index.commit(commit.msg.decode())
-            pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
-            commit_to_revert = pr['merge_commit_sha']
+            pr["merge_commit_sha"] = str(git_wpt_upstream.active_branch.commit.hexsha)
+            commit_to_revert = pr["merge_commit_sha"]
             env.gh_wpt.get_pull(sync.pr).merged = True
 
     git_wpt.remotes.origin.fetch()
@@ -204,10 +256,17 @@ def test_revert_pr_with_squash(env, git_gecko, git_wpt, git_wpt_upstream, pull_r
     assert sync_revert.skip
 
 
-def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryCls,
-                       hg_gecko_try, pull_request_commit, mock_mach):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+def test_next_try_push(
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    MockTryCls,
+    hg_gecko_try,
+    pull_request_commit,
+    mock_mach,
+):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
         sync = set_pr_status(pr.number, "success")
@@ -244,14 +303,21 @@ def test_next_try_push(git_gecko, git_wpt, pull_request, set_pr_status, MockTryC
                 assert not sync.next_try_push()
 
 
-def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
-                                  set_pr_status, MockTryCls, hg_gecko_try,
-                                  mock_mach, mock_taskgroup):
+def test_next_try_push_infra_fail(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    MockTryCls,
+    hg_gecko_try,
+    mock_mach,
+    mock_taskgroup,
+):
     taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
     try_tasks = trypush.TryPushTasks(taskgroup)
 
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
 
     try_patch = patch("sync.trypush.TryPush.tasks", Mock(return_value=try_tasks))
@@ -280,7 +346,10 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
                 assert sync.next_try_push(try_cls=MockTryCls) is None
 
                 # There should be a comment to flag failed builds
-                msg = "There were infrastructure failures for the Try push (%s):\nbuild-win32/opt\nbuild-win32/debug\nbuild-win64/opt\nbuild-win64/debug\n" % try_push.treeherder_url  # noqa: E501
+                msg = (
+                    "There were infrastructure failures for the Try push (%s):\nbuild-win32/opt\nbuild-win32/debug\nbuild-win64/opt\nbuild-win64/debug\n"
+                    % try_push.treeherder_url
+                )  # noqa: E501
                 assert msg in env.bz.output.getvalue()
 
                 # Replace the taskgroup with one where there were no completed tests
@@ -291,14 +360,21 @@ def test_next_try_push_infra_fail(env, git_gecko, git_wpt, pull_request,
                 assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
-def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_request,
-                                             set_pr_status, MockTryCls, mock_mach,
-                                             mock_taskgroup, upstream_gecko_commit):
+def test_next_try_push_infra_fail_try_rebase(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    MockTryCls,
+    mock_mach,
+    mock_taskgroup,
+    upstream_gecko_commit,
+):
     taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
     try_tasks = trypush.TryPushTasks(taskgroup)
 
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
 
     try_patch = patch("sync.trypush.TryPush.tasks", Mock(return_value=try_tasks))
@@ -316,8 +392,11 @@ def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_reque
 
                 commit_hash_before_rebase = sync.gecko_commits.base.sha1
 
-                rev = upstream_gecko_commit(test_changes={"OTHER_CHANGES": b"TEST"},
-                                            message=b"Other changes", bookmarks="mozilla/central")
+                rev = upstream_gecko_commit(
+                    test_changes={"OTHER_CHANGES": b"TEST"},
+                    message=b"Other changes",
+                    bookmarks="mozilla/central",
+                )
                 downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
                 upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
 
@@ -342,14 +421,21 @@ def test_next_try_push_infra_fail_try_rebase(env, git_gecko, git_wpt, pull_reque
                 assert try_push["stability"] is True
 
 
-def test_next_try_push_infra_fail_try_rebase_failed(env, git_gecko, git_wpt, pull_request,
-                                                    set_pr_status, MockTryCls, mock_mach,
-                                                    mock_taskgroup, upstream_gecko_commit):
+def test_next_try_push_infra_fail_try_rebase_failed(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    MockTryCls,
+    mock_mach,
+    mock_taskgroup,
+    upstream_gecko_commit,
+):
     taskgroup = mock_taskgroup("taskgroup-complete-build-failed.json")
     try_tasks = trypush.TryPushTasks(taskgroup)
 
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
 
     try_patch = patch("sync.trypush.TryPush.tasks", Mock(return_value=try_tasks))
@@ -383,8 +469,11 @@ def test_next_try_push_infra_fail_try_rebase_failed(env, git_gecko, git_wpt, pul
                 # was not considered successful, and we have to try to rebase again.
                 assert sync.next_action == downstream.DownstreamAction.try_rebase
 
-                rev = upstream_gecko_commit(test_changes={"OTHER_CHANGES": b"TEST"},
-                                            message=b"Other changes", bookmarks="mozilla/central")
+                rev = upstream_gecko_commit(
+                    test_changes={"OTHER_CHANGES": b"TEST"},
+                    message=b"Other changes",
+                    bookmarks="mozilla/central",
+                )
                 downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
                 upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
 
@@ -398,12 +487,12 @@ def test_next_try_push_infra_fail_try_rebase_failed(env, git_gecko, git_wpt, pul
                 assert sync.next_action == downstream.DownstreamAction.manual_fix
 
 
-def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_commit,
-                          pull_request_commit):
+def test_dependent_commit(
+    env, git_gecko, git_wpt, pull_request, upstream_wpt_commit, pull_request_commit
+):
     upstream_wpt_commit(b"First change", {"README": b"Example change\n"})
 
-    pr = pull_request([(b"Test change", {"README": b"Example change 1\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Test change", {"README": b"Example change 1\n"})], "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
@@ -418,24 +507,26 @@ def test_dependent_commit(env, git_gecko, git_wpt, pull_request, upstream_wpt_co
             old_gecko_commits = sync.gecko_commits[:]
             # Check that rerunning doesn't affect anything
             sync.update_commits()
-            assert ([item.sha1 for item in sync.gecko_commits] ==
-                    [item.sha1 for item in old_gecko_commits])
+            assert [item.sha1 for item in sync.gecko_commits] == [
+                item.sha1 for item in old_gecko_commits
+            ]
 
-            head_sha = pull_request_commit(pr.number,
-                                           [(b"fixup! Test change",
-                                             {"README": b"Example change 2\n"})])
+            head_sha = pull_request_commit(
+                pr.number, [(b"fixup! Test change", {"README": b"Example change 2\n"})]
+            )
             downstream.update_repositories(git_gecko, git_wpt)
             sync.update_commits()
             assert len(sync.gecko_commits) == 3
-            assert ([item.sha1 for item in sync.gecko_commits[:2]] ==
-                    [item.sha1 for item in old_gecko_commits])
+            assert [item.sha1 for item in sync.gecko_commits[:2]] == [
+                item.sha1 for item in old_gecko_commits
+            ]
             assert sync.gecko_commits[-1].metadata["wpt-commit"] == head_sha
 
 
 def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_commit):
     from conftest import gecko_changes, git_commit
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      "Test PR")
+
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
@@ -446,19 +537,24 @@ def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_com
         with sync.as_mut(lock):
             gecko_work = sync.gecko_worktree.get()
             changes = gecko_changes(env, meta_changes={"example.ini": b"Example change"})
-            git_commit(gecko_work, b"""Update metadata
+            git_commit(
+                gecko_work,
+                b"""Update metadata
 
         wpt-pr: %s
         wpt-type: metadata
-        """ % str(pr.number).encode("utf8"), changes)
+        """
+                % str(pr.number).encode("utf8"),
+                changes,
+            )
 
             assert len(sync.gecko_commits) == 2
             assert sync.gecko_commits[-1].metadata.get("wpt-type") == "metadata"
             metadata_commit = sync.gecko_commits[-1]
 
-            head_sha = pull_request_commit(pr.number,
-                                           [(b"fixup! Test commit",
-                                             {"README": b"Example change 1\n"})])
+            head_sha = pull_request_commit(
+                pr.number, [(b"fixup! Test commit", {"README": b"Example change 1\n"})]
+            )
 
             downstream.update_repositories(git_gecko, git_wpt)
             sync.update_commits()
@@ -469,8 +565,7 @@ def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_com
 
 
 def test_gecko_rebase(env, git_gecko, git_wpt, pull_request):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})],
-                      b"Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], b"Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
@@ -498,24 +593,29 @@ Cq-Include-Trybots: luci.chromium.try:android_optional_gpu_tests_rel;"""
         b"luci.chromium.try:mac_optional_gpu_tests_rel;"
         b"master.tryserver.chromium.linux:linux_mojo;"
         b"master.tryserver.chromium.mac:ios-simulator-cronet;"
-        b"master.tryserver.chromium.mac:ios-simulator-full-configs")
+        b"master.tryserver.chromium.mac:ios-simulator-full-configs",
+    )
 
-    assert msg == ("""Bug 1234 [wpt PR 7] - Upstream summary, a=testonly
+    assert (
+        msg
+        == (
+            """Bug 1234 [wpt PR 7] - Upstream summary, a=testonly
 
 SKIP_BMO_CHECK
 
 Upstream message
 
-Cq-Include-Trybots: luci.chromium.try\u200B:android_optional_gpu_tests_rel;"""
-                   "luci.chromium.try\u200B:mac_optional_gpu_tests_rel;"
-                   "master.tryserver.chromium.linux:linux_mojo;"
-                   "master.tryserver.chromium.mac:ios-simulator-cronet;"
-                   "master.tryserver.chromium.mac:ios-simulator-full-configs").encode()
+Cq-Include-Trybots: luci.chromium.try\u200b:android_optional_gpu_tests_rel;"""
+            "luci.chromium.try\u200b:mac_optional_gpu_tests_rel;"
+            "master.tryserver.chromium.linux:linux_mojo;"
+            "master.tryserver.chromium.mac:ios-simulator-cronet;"
+            "master.tryserver.chromium.mac:ios-simulator-full-configs"
+        ).encode()
+    )
 
 
 def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
-    pr = pull_request([(b"Testing", {"README": b"Example change\n"})],
-                      "Test PR")
+    pr = pull_request([(b"Testing", {"README": b"Example change\n"})], "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
@@ -532,15 +632,23 @@ def test_github_label_on_error(env, git_gecko, git_wpt, pull_request):
     assert env.gh_wpt.get_pull(pr["number"])["labels"] == []
 
 
-def test_github_next_action_on_error(env, git_gecko, git_wpt, pull_request, git_wpt_upstream,
-                                     upstream_gecko_commit, upstream_wpt_commit):
+def test_github_next_action_on_error(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    git_wpt_upstream,
+    upstream_gecko_commit,
+    upstream_wpt_commit,
+):
     # Local conflict
-    upstream_gecko_commit(test_changes={"new file": b"gecko data\n"},
-                          bookmarks=["mozilla/central", "mozilla/autoland"])
+    upstream_gecko_commit(
+        test_changes={"new file": b"gecko data\n"},
+        bookmarks=["mozilla/central", "mozilla/autoland"],
+    )
     update_repositories(git_gecko, git_wpt)
     # PR that doesn't apply
-    pr = pull_request([(b"Testing", {"new file": b"upstream data"})],
-                      "Test PR")
+    pr = pull_request([(b"Testing", {"new file": b"upstream data"})], "Test PR")
 
     with pytest.raises(AbortError):
         downstream.new_wpt_pr(git_gecko, git_wpt, pr)

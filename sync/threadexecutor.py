@@ -5,11 +5,13 @@ from typing import Any, Iterable, Optional
 
 
 class Worker(threading.Thread):
-    def __init__(self,
-                 queue: queue.Queue,
-                 init_fn: Optional[Callable[..., Any]],
-                 work_fn: Callable[..., Any],
-                 errors: list[Exception]):
+    def __init__(
+        self,
+        queue: queue.Queue,
+        init_fn: Optional[Callable[..., Any]],
+        work_fn: Callable[..., Any],
+        errors: list[Exception],
+    ):
         super().__init__()
         self.daemon = True
         self.queue = queue
@@ -52,10 +54,12 @@ class ThreadExecutor:
     :param init_fn: Optional function that's called once per thread. The return value can
                     be a dict of values to pass in to the work_fn."""
 
-    def __init__(self,
-                 thread_count: int,
-                 work_fn: Callable[..., Any],
-                 init_fn: Optional[Callable[..., Any]] = None):
+    def __init__(
+        self,
+        thread_count: int,
+        work_fn: Callable[..., Any],
+        init_fn: Optional[Callable[..., Any]] = None,
+    ):
         self.thread_count = thread_count
         self.work_fn = work_fn
         self.init_fn = init_fn
@@ -74,10 +78,7 @@ class ThreadExecutor:
 
         workers = []
         for i in range(self.thread_count):
-            workers.append(Worker(work_queue,
-                                  self.init_fn,
-                                  self.work_fn,
-                                  errors))
+            workers.append(Worker(work_queue, self.init_fn, self.work_fn, errors))
             workers[-1].start()
         for item in workers:
             item.join()

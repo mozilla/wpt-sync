@@ -14,6 +14,7 @@ from .repos import pygit2_get
 from typing import Any, Callable, Iterator, Optional, Tuple, Union, TYPE_CHECKING
 from git.repo.base import Repo
 from pygit2.repository import Repository
+
 if TYPE_CHECKING:
     from sync.sync import SyncProcess
 ChangeEntry = Tuple[str, str, str]
@@ -45,24 +46,24 @@ class Index(metaclass=abc.ABCMeta):
     def reset(self) -> None:
         constructors: list[Callable[[], Any]] = [list]
         for _ in self.key_fields[:-1]:
+
             def fn() -> Callable:
                 idx = len(constructors) - 1
                 constructors.append(lambda: defaultdict(constructors[idx]))
                 return constructors[-1]
+
             fn()
         self.__class__.changes = defaultdict(constructors[-1])
 
     @classmethod
     def create(cls, repo: Repo) -> Index:
         logger.info("Creating index %s" % cls.name)
-        data = {"name": cls.name,
-                "fields": list(cls.key_fields),
-                "unique": cls.unique}
+        data = {"name": cls.name, "fields": list(cls.key_fields), "unique": cls.unique}
         meta_path = "index/%s/_metadata" % cls.name
         tree = {meta_path: json.dumps(data, indent=0).encode("utf8")}
-        with CommitBuilder(repo,
-                           message="Create index %s" % cls.name,
-                           ref=env.config["sync"]["ref"]) as commit:
+        with CommitBuilder(
+            repo, message="Create index %s" % cls.name, ref=env.config["sync"]["ref"]
+        ) as commit:
             commit.add_tree(tree)
         return cls(repo)
 
@@ -98,10 +99,11 @@ class Index(metaclass=abc.ABCMeta):
             return rv.pop() if rv else None
         return rv
 
-    def _read(self,
-              key: IndexKey,
-              include_local: bool = True,
-              ) -> set[str]:
+    def _read(
+        self,
+        key: IndexKey,
+        include_local: bool = True,
+    ) -> set[str]:
         path = "{}/{}".format(self.get_root_path(), "/".join(key))
         data = set()
         for obj in iter_blobs(self.pygit2_repo, path):
@@ -132,10 +134,11 @@ class Index(metaclass=abc.ABCMeta):
                         stack.append((key + (key_part,), values))
         return changes
 
-    def _update_changes(self,
-                        key: IndexKey,
-                        data: set[str],
-                        ) -> None:
+    def _update_changes(
+        self,
+        key: IndexKey,
+        data: set[str],
+    ) -> None:
         changes = self._read_changes(key)
         for key_changes in changes.values():
             for old_value, new_value, _ in key_changes:
@@ -150,10 +153,12 @@ class Index(metaclass=abc.ABCMeta):
             return set(rv)
         return {rv}
 
-    def save(self,
-             commit_builder: CommitBuilder | None = None,
-             message: str | None = None,
-             overwrite: bool = False) -> None:
+    def save(
+        self,
+        commit_builder: CommitBuilder | None = None,
+        message: str | None = None,
+        overwrite: bool = False,
+    ) -> None:
         changes = self._read_changes(None)
         if not changes:
             return
@@ -168,10 +173,9 @@ class Index(metaclass=abc.ABCMeta):
         if commit_builder is None:
             # TODO: @overload could help here
             assert message is not None
-            commit_builder = CommitBuilder(self.repo,
-                                           message,
-                                           ref=env.config["sync"]["ref"],
-                                           initial_empty=overwrite)
+            commit_builder = CommitBuilder(
+                self.repo, message, ref=env.config["sync"]["ref"], initial_empty=overwrite
+            )
         else:
             assert commit_builder.initial_empty == overwrite
             commit_builder.message += message
@@ -181,10 +185,11 @@ class Index(metaclass=abc.ABCMeta):
                 self._update_key(commit, key, key_changes)
         self.reset()
 
-    def insert(self,
-               key: IndexKey,
-               value: IndexValue,
-               ) -> Index:
+    def insert(
+        self,
+        key: IndexKey,
+        value: IndexValue,
+    ) -> Index:
         if len(key) != len(self.key_fields):
             raise ValueError
 
@@ -200,10 +205,11 @@ class Index(metaclass=abc.ABCMeta):
         target.append((None, value, msg))
         return self
 
-    def delete(self,
-               key: IndexKey,
-               value: IndexValue,
-               ) -> Index:
+    def delete(
+        self,
+        key: IndexKey,
+        value: IndexValue,
+    ) -> Index:
         if len(key) != len(self.key_fields):
             raise ValueError
 
@@ -219,11 +225,12 @@ class Index(metaclass=abc.ABCMeta):
         target.append((value, None, msg))
         return self
 
-    def move(self,
-             old_key: IndexKey | None,
-             new_key: IndexKey,
-             value: IndexValue,
-             ) -> Index:
+    def move(
+        self,
+        old_key: IndexKey | None,
+        new_key: IndexKey,
+        value: IndexValue,
+    ) -> Index:
         assert old_key != new_key
 
         if old_key is not None:
@@ -232,11 +239,12 @@ class Index(metaclass=abc.ABCMeta):
             self.insert(new_key, value)
         return self
 
-    def _update_key(self,
-                    commit: CommitBuilder,
-                    key: IndexKey,
-                    key_changes: list[ChangeEntry],
-                    ) -> None:
+    def _update_key(
+        self,
+        commit: CommitBuilder,
+        key: IndexKey,
+        key_changes: list[ChangeEntry],
+    ) -> None:
         existing = self._read(key, False)
         new = existing.copy()
 
@@ -291,7 +299,9 @@ class Index(metaclass=abc.ABCMeta):
         for error in errors:
             logger.warning(error)
 
-    def build_entries(self, *args: Any, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
+    def build_entries(
+        self, *args: Any, **kwargs: Any
+    ) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         raise NotImplementedError
 
     @classmethod
@@ -299,9 +309,11 @@ class Index(metaclass=abc.ABCMeta):
         return (value,)
 
     def keys(self) -> set[IndexKey]:
-        return {key for key, _ in
-                iter_tree(self.pygit2_repo, root_path=self.get_root_path())
-                if not key[-1] == "_metadata"}
+        return {
+            key
+            for key, _ in iter_tree(self.pygit2_repo, root_path=self.get_root_path())
+            if not key[-1] == "_metadata"
+        }
 
 
 class TaskGroupIndex(Index):
@@ -312,17 +324,17 @@ class TaskGroupIndex(Index):
 
     @classmethod
     def make_key(cls, value: str) -> IndexKey:
-        return (value[:2],
-                value[2:4],
-                value[4:])
+        return (value[:2], value[2:4], value[4:])
 
-    def build_entries(self, *args: Any, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
+    def build_entries(
+        self, *args: Any, **kwargs: Any
+    ) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from . import trypush
+
         entries = []
         for try_push in trypush.TryPush.load_all(self.repo):
             if try_push.taskgroup_id is not None:
-                entries.append((self.make_key(try_push.taskgroup_id),
-                                try_push.process_name))
+                entries.append((self.make_key(try_push.taskgroup_id), try_push.process_name))
         return entries, []
 
 
@@ -334,18 +346,17 @@ class TryCommitIndex(Index):
 
     @classmethod
     def make_key(cls, value: str) -> IndexKey:
-        return (value[:2],
-                value[2:4],
-                value[4:6],
-                value[6:])
+        return (value[:2], value[2:4], value[4:6], value[6:])
 
-    def build_entries(self, *args: Any, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
+    def build_entries(
+        self, *args: Any, **kwargs: Any
+    ) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         entries = []
         from . import trypush
+
         for try_push in trypush.TryPush.load_all(self.repo):
             if try_push.try_rev:
-                entries.append((self.make_key(try_push.try_rev),
-                                try_push.process_name))
+                entries.append((self.make_key(try_push.try_rev), try_push.process_name))
         return entries, []
 
 
@@ -356,21 +367,21 @@ class SyncIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls,
-                 value: Union[SyncProcess, Tuple[ProcessName, str]],
-                 ) -> IndexKey:
+    def make_key(
+        cls,
+        value: Union[SyncProcess, Tuple[ProcessName, str]],
+    ) -> IndexKey:
         if isinstance(value, tuple):
             process_name, status = value
         else:
             process_name = value.process_name
             status = value.status
 
-        return (process_name.obj_type,
-                process_name.subtype,
-                status,
-                str(process_name.obj_id))
+        return (process_name.obj_type, process_name.subtype, status, str(process_name.obj_id))
 
-    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
+    def build_entries(
+        self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any
+    ) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
         from .landing import LandingSync
@@ -412,7 +423,9 @@ class PrIdIndex(Index):
             assert pr_id is not None
         return (pr_id,)
 
-    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
+    def build_entries(
+        self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any
+    ) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
 
@@ -444,9 +457,10 @@ class BugIdIndex(Index):
     value_cls = ProcessName
 
     @classmethod
-    def make_key(cls,
-                 value: Union[SyncProcess, Tuple[ProcessName, str]],
-                 ) -> IndexKey:
+    def make_key(
+        cls,
+        value: Union[SyncProcess, Tuple[ProcessName, str]],
+    ) -> IndexKey:
         if isinstance(value, tuple):
             process_name, status = value
             bug = process_name.obj_id
@@ -456,7 +470,9 @@ class BugIdIndex(Index):
             status = value.status
         return (bug, status)
 
-    def build_entries(self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
+    def build_entries(
+        self, git_gecko: Repo, git_wpt: Repo, **kwargs: Any
+    ) -> tuple[list[tuple[IndexKey, ProcessName]], list[str]]:
         from .downstream import DownstreamSync
         from .upstream import UpstreamSync
         from .landing import LandingSync
@@ -511,7 +527,8 @@ def iter_blobs(repo: Repository, path: str) -> Iterator[pygit2.Blob]:
                 stack.append(item)
 
 
-indicies = {item for item in globals().values()
-            if type(item) is type(Index) and
-            issubclass(item, Index) and
-            item != Index}
+indicies = {
+    item
+    for item in globals().values()
+    if type(item) is type(Index) and issubclass(item, Index) and item != Index
+}

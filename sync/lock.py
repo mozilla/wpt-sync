@@ -10,6 +10,7 @@ from .env import Environment
 
 from typing import Any, Callable, MutableMapping, Self, TYPE_CHECKING, cast
 from git.repo.base import Repo
+
 if TYPE_CHECKING:
     from sync.base import ProcessName
 env = Environment()
@@ -148,11 +149,12 @@ class RepoLock(Lock):
     @staticmethod
     def lock_path(*args: Any) -> str:
         # This is annoying but otherwise mypy complains
-        repo, = args
+        (repo,) = args
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
-            "{}.lock".format(repo.working_dir.replace(os.path.sep, "_")))
+            "{}.lock".format(repo.working_dir.replace(os.path.sep, "_")),
+        )
 
 
 class ProcessLock(Lock):
@@ -190,16 +192,12 @@ class ProcessLock(Lock):
         """Check that the current lock is valid for the provided sync_type and obj_id"""
         if sync_type in self.lock_per_type:
             obj_id = None
-        if not (sync_type == self.sync_type and
-                obj_id == self.obj_id and
-                self.lock.is_locked):
-            raise ValueError("""Got wrong lock, expected sync_type:%s obj_id:%s locked:True,
-                got: sync_type:%s obj_id:%s locked:%s""" %
-                             (sync_type,
-                              obj_id,
-                              self.sync_type,
-                              self.obj_id,
-                              self.lock.is_locked))
+        if not (sync_type == self.sync_type and obj_id == self.obj_id and self.lock.is_locked):
+            raise ValueError(
+                """Got wrong lock, expected sync_type:%s obj_id:%s locked:True,
+                got: sync_type:%s obj_id:%s locked:%s"""
+                % (sync_type, obj_id, self.sync_type, self.obj_id, self.lock.is_locked)
+            )
 
     @staticmethod
     def lock_path(*args: Any) -> str:
@@ -208,10 +206,7 @@ class ProcessLock(Lock):
             filename = f"{obj_type}_{sync_type}.lock"
         else:
             filename = f"{obj_type}_{sync_type}_{obj_id}.lock"
-        return os.path.join(
-            env.config["root"],
-            env.config["paths"]["locks"],
-            filename)
+        return os.path.join(env.config["root"], env.config["paths"]["locks"], filename)
 
 
 class SyncLock(ProcessLock):
@@ -233,11 +228,12 @@ class ProcLock(ProcessLock):
 
 
 class MutGuard:
-    def __init__(self,
-                 lock: ProcessLock,
-                 instance: Any,
-                 props: list[Any] | None = None,
-                 ) -> None:
+    def __init__(
+        self,
+        lock: ProcessLock,
+        instance: Any,
+        props: list[Any] | None = None,
+    ) -> None:
         """Context Manager wrapping an object that is to be accessed for mutation.
 
         Mutability is re-entrant in the sense that if we already have a certain object
@@ -308,6 +304,7 @@ class mut:
                 arg_value._lock.check(*arg_value.lock_key)
 
             return f(*args, **kwargs)
+
         inner.__name__ = f.__name__
         inner.__doc__ = f.__doc__
         return inner
@@ -335,6 +332,7 @@ class constructor:
 
             lock.check(sync_type, obj_id)
             return f(cls, lock, *args, **kwargs)
+
         inner.__name__ = f.__name__
         inner.__doc__ = f.__doc__
         return inner

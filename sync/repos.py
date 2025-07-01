@@ -22,7 +22,6 @@ cinnabar_map: dict[Repo, "Cinnabar"] = {}
 
 
 class GitSettings(metaclass=abc.ABCMeta):
-
     name: str = ""
     cinnabar = False
 
@@ -31,9 +30,7 @@ class GitSettings(metaclass=abc.ABCMeta):
 
     @property
     def root(self) -> str:
-        return os.path.join(self.config["repo_root"],
-                            self.config["paths"]["repos"],
-                            self.name)
+        return os.path.join(self.config["repo_root"], self.config["paths"]["repos"], self.name)
 
     @property
     def remotes(self) -> list[tuple[str, str]]:
@@ -62,7 +59,9 @@ class GitSettings(metaclass=abc.ABCMeta):
             git.Repo.init(self.root, bare=True)
         r = self.repo()
         shutil.copyfile(config_path, os.path.normpath(os.path.join(r.git_dir, "config")))
-        logger.debug("Config from {} copied to {}".format(config_path, os.path.join(r.git_dir, "config")))
+        logger.debug(
+            "Config from {} copied to {}".format(config_path, os.path.join(r.git_dir, "config"))
+        )
 
     def after_worktree_create(self, path: str) -> None:
         pass
@@ -80,23 +79,27 @@ class Gecko(GitSettings):
         data_ref = git.Reference(repo, self.config["sync"]["ref"])
         if not data_ref.is_valid():
             from . import base
-            with base.CommitBuilder(repo, "Create initial sync metadata",
-                                    ref=data_ref.path) as commit:
+
+            with base.CommitBuilder(
+                repo, "Create initial sync metadata", ref=data_ref.path
+            ) as commit:
                 path = "_metadata"
                 data = json.dumps({"name": "wptsync"})
                 commit.add_tree({path: data.encode("utf8")})
         from . import index
+
         for idx in index.indicies:
             idx.get_or_create(repo)
 
     @staticmethod
     def get_state_path(config: Mapping[str, Any], path: str | PathLike[str]) -> str:
-        return os.path.join(config["root"],
-                            config["paths"]["state"],
-                            os.path.relpath(path, config["root"]))
+        return os.path.join(
+            config["root"], config["paths"]["state"], os.path.relpath(path, config["root"])
+        )
 
     def after_worktree_create(self, path: str) -> None:
         from sync.projectutil import Mach
+
         state_path = self.get_state_path(self.config, path)
         if not os.path.exists(state_path):
             os.makedirs(state_path)

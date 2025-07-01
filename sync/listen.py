@@ -23,18 +23,18 @@ MsgBody = dict[str, Any]
 def get_listen_logger(config: dict[str, Any]) -> logging.Logger:
     logger = logging.getLogger(__name__)
 
-    log_dir = os.path.join(config["root"],
-                           config["paths"]["logs"])
+    log_dir = os.path.join(config["root"], config["paths"]["logs"])
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
-    basic_formatter = logging.Formatter('[%(asctime)s] %(levelname)s:%(name)s:%(message)s')
+    basic_formatter = logging.Formatter("[%(asctime)s] %(levelname)s:%(name)s:%(message)s")
 
-    file_handler = logging.handlers.TimedRotatingFileHandler(os.path.join(log_dir, "listen.log"),
-                                                             when="D", utc=True)
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        os.path.join(log_dir, "listen.log"), when="D", utc=True
+    )
     file_handler.setFormatter(basic_formatter)
 
     logger.addHandler(file_handler)
@@ -45,20 +45,25 @@ def get_listen_logger(config: dict[str, Any]) -> logging.Logger:
 
 class Listener(ConsumerMixin):
     """Manages a single kombu.Consumer."""
-    def __init__(self,
-                 conn: kombu.Connection,
-                 exchanges: Iterable[kombu.Exchange],
-                 queues: list[kombu.Queue],
-                 logger: logging.Logger) -> None:
+
+    def __init__(
+        self,
+        conn: kombu.Connection,
+        exchanges: Iterable[kombu.Exchange],
+        queues: list[kombu.Queue],
+        logger: logging.Logger,
+    ) -> None:
         self.connection = conn
-        self._callbacks: dict[kombu.Exchange, list[Callable[[MsgBody], Any]]] = {item: [] for item in exchanges}
+        self._callbacks: dict[kombu.Exchange, list[Callable[[MsgBody], Any]]] = {
+            item: [] for item in exchanges
+        }
         self._queues = queues
         self.connect_max_retries = 10
         self.logger = logger
 
-    def get_consumers(self,
-                      consumer_cls: kombu.Consumer,
-                      channel: kombu.Connection) -> list[kombu.Consumer]:
+    def get_consumers(
+        self, consumer_cls: kombu.Consumer, channel: kombu.Connection
+    ) -> list[kombu.Consumer]:
         consumer = consumer_cls(self._queues, callbacks=[self.on_message], auto_declare=False)
         return [consumer]
 
@@ -72,24 +77,25 @@ class Listener(ConsumerMixin):
         self._callbacks[exchange].append(func)
 
     def on_message(self, body: MsgBody, message: kombu.Message) -> None:
-        exchange = message.delivery_info['exchange']
+        exchange = message.delivery_info["exchange"]
         callbacks = self._callbacks.get(exchange)
         try:
             if callbacks:
                 for cb in callbacks:
                     cb(body)
             else:
-                raise Exception('received message from unknown exchange: %s' %
-                                exchange)
+                raise Exception("received message from unknown exchange: %s" % exchange)
         finally:
             message.ack()
 
 
-def get_listener(conn: kombu.Connection,
-                 userid: str,
-                 exchanges: Optional[Iterable[tuple[str, str, str]]],
-                 logger: logging.Logger,
-                 extra_data: Optional[dict[str, Any]] = None) -> Listener:
+def get_listener(
+    conn: kombu.Connection,
+    userid: str,
+    exchanges: Optional[Iterable[tuple[str, str, str]]],
+    logger: logging.Logger,
+    extra_data: Optional[dict[str, Any]] = None,
+) -> Listener:
     """Obtain a Pulse consumer that can handle received messages.
 
     Returns a ``Listener`` instance bound to listen to the requested exchanges.
@@ -104,20 +110,21 @@ def get_listener(conn: kombu.Connection,
         raise ValueError("No exchanges supplied")
 
     for queue_name, exchange_name, key_name in exchanges:
-        queue_name = f'queue/{userid}/{queue_name}'
+        queue_name = f"queue/{userid}/{queue_name}"
 
-        exchange = kombu.Exchange(exchange_name, type='topic',
-                                  channel=conn)
+        exchange = kombu.Exchange(exchange_name, type="topic", channel=conn)
         exchange.declare(passive=True)
 
-        queue = kombu.Queue(name=queue_name,
-                            exchange=exchange,
-                            durable=True,
-                            routing_key=key_name,
-                            exclusive=False,
-                            auto_delete=False,
-                            channel=conn,
-                            extra_data=extra_data)
+        queue = kombu.Queue(
+            name=queue_name,
+            exchange=exchange,
+            durable=True,
+            routing_key=key_name,
+            exclusive=False,
+            auto_delete=False,
+            channel=conn,
+            extra_data=extra_data,
+        )
         queues.append(queue)
         # queue.declare() declares the exchange, which isn't allowed by the
         # server. So call the low-level APIs to only declare the queue itself.
@@ -135,47 +142,51 @@ def run_pulse_listener(config: dict[str, Any]) -> None:
     """
     exchanges = []
     queues = {}
-    for queue_name, queue_props in config['pulse'].items():
-        if (isinstance(queue_props, dict) and
-            set(queue_props.keys()) == {"queue", "exchange", "routing_key"}):
+    for queue_name, queue_props in config["pulse"].items():
+        if isinstance(queue_props, dict) and set(queue_props.keys()) == {
+            "queue",
+            "exchange",
+            "routing_key",
+        }:
             queues[queue_name] = queue_props
 
     for queue in queues.values():
-        logger.info("Connecting to pulse queue:%(queue)s exchange:%(exchange)s"
-                    " route:%(routing_key)s" % queue)
-        exchanges.append((queue['queue'],
-                          queue['exchange'],
-                          queue['routing_key']))
+        logger.info(
+            "Connecting to pulse queue:%(queue)s exchange:%(exchange)s"
+            " route:%(routing_key)s" % queue
+        )
+        exchanges.append((queue["queue"], queue["exchange"], queue["routing_key"]))
 
-    conn = kombu.Connection(hostname=config['pulse']['host'],
-                            port=config['pulse']['port'],
-                            ssl=config['pulse']['ssl'],
-                            userid=config['pulse']['username'],
-                            password=config['pulse']['password'])
+    conn = kombu.Connection(
+        hostname=config["pulse"]["host"],
+        port=config["pulse"]["port"],
+        ssl=config["pulse"]["ssl"],
+        userid=config["pulse"]["username"],
+        password=config["pulse"]["password"],
+    )
 
     listen_logger = get_listen_logger(config)
 
     filter_map = {
-        'github': GitHubFilter,
-        'hgmo': PushFilter,
-        'taskcluster-taskgroup': TaskGroupFilter,
-        'taskcluster-try-completed': DecisionTaskFilter,
-        'taskcluster-try-failed': DecisionTaskFilter,
-        'taskcluster-try-exception': DecisionTaskFilter,
-        'taskcluster-wptsync-completed': TryTaskFilter,
-        'taskcluster-wptsync-failed': TryTaskFilter,
-        'taskcluster-wptsync-exception': TryTaskFilter,
+        "github": GitHubFilter,
+        "hgmo": PushFilter,
+        "taskcluster-taskgroup": TaskGroupFilter,
+        "taskcluster-try-completed": DecisionTaskFilter,
+        "taskcluster-try-failed": DecisionTaskFilter,
+        "taskcluster-try-exception": DecisionTaskFilter,
+        "taskcluster-wptsync-completed": TryTaskFilter,
+        "taskcluster-wptsync-failed": TryTaskFilter,
+        "taskcluster-wptsync-exception": TryTaskFilter,
     }
 
     with conn:
         try:
-            listener = get_listener(conn,
-                                    userid=config['pulse']['username'],
-                                    exchanges=exchanges,
-                                    logger=listen_logger)
+            listener = get_listener(
+                conn, userid=config["pulse"]["username"], exchanges=exchanges, logger=listen_logger
+            )
             for queue_name, queue in queues.items():
                 queue_filter = filter_map[queue_name](config, listen_logger)
-                listener.add_callback(queue['exchange'], queue_filter)
+                listener.add_callback(queue["exchange"], queue_filter)
 
             listener.run()
         except KeyboardInterrupt:
@@ -203,8 +214,7 @@ class Filter(metaclass=abc.ABCMeta):
 
 class GitHubFilter(Filter):
     name = "github"
-    event_filters = {item: lambda x: True
-                     for item in handlers.GitHubHandler.dispatch_event.keys()}
+    event_filters = {item: lambda x: True for item in handlers.GitHubHandler.dispatch_event.keys()}
     event_filters["check_run"] = lambda x: x["payload"]["action"] == "completed"
     event_filters["push"] = lambda x: x["payload"]["ref"] == "refs/heads/master"
 
@@ -214,9 +224,11 @@ class GitHubFilter(Filter):
         self.key_filter = "%s/" % repo_path.split("/", 2)[1]
 
     def accept(self, body: MsgBody) -> bool:
-        return (body["_meta"]["routing_key"].startswith(self.key_filter) and
-                body["event"] in self.event_filters and
-                self.event_filters[body["event"]](body))
+        return (
+            body["_meta"]["routing_key"].startswith(self.key_filter)
+            and body["event"] in self.event_filters
+            and self.event_filters[body["event"]](body)
+        )
 
 
 class PushFilter(Filter):
@@ -260,5 +272,6 @@ class TryTaskFilter(Filter):
 
 def is_decision_task(body: MsgBody) -> bool:
     tags = body.get("task", {}).get("tags", {})
-    return (tags.get("kind") == "decision-task" and
-            tags.get("createdForUser") == "wptsync@mozilla.com")
+    return (
+        tags.get("kind") == "decision-task" and tags.get("createdForUser") == "wptsync@mozilla.com"
+    )

@@ -24,22 +24,16 @@ from .lock import MutGuard, mut, constructor
 from .repos import cinnabar
 from .worktree import Worktree
 
-from typing import (Any,
-                    Iterable,
-                    Iterator,
-                    Sequence,
-                    cast,
-                    TYPE_CHECKING)
+from typing import Any, Iterable, Iterator, Sequence, cast, TYPE_CHECKING
 from git.repo.base import Repo
 from os import PathLike
 from typing_extensions import Literal
+
 if TYPE_CHECKING:
     from sync.commit import Commit
     from sync.index import Index
     from sync.lock import SyncLock
     from sync.trypush import TryPush
-
-
 
 
 env = Environment()
@@ -130,15 +124,11 @@ class CommitRange:
         return (self._head_ref.name.subtype, self._head_ref.name.obj_id)
 
     @overload
-    def __getitem__(
-        self, index: int
-    ) -> Commit:
+    def __getitem__(self, index: int) -> Commit:
         pass
 
     @overload  # noqa: F811
-    def __getitem__(
-        self, index: slice
-    ) -> Sequence[Commit]:
+    def __getitem__(self, index: slice) -> Sequence[Commit]:
         pass
 
     def __getitem__(
@@ -332,8 +322,9 @@ class SyncProcess(metaclass=IdentityMap):
         self._indexes = {ProcessNameIndex(git_gecko)}
 
     @classmethod
-    def _cache_key(cls, git_gecko: Repo, git_wpt: Repo,
-                   process_name: ProcessName) -> tuple[str, str, str, str]:
+    def _cache_key(
+        cls, git_gecko: Repo, git_wpt: Repo, process_name: ProcessName
+    ) -> tuple[str, str, str, str]:
         return process_name.key()
 
     def as_mut(self, lock: SyncLock) -> MutGuard:
@@ -354,9 +345,7 @@ class SyncProcess(metaclass=IdentityMap):
         return (self.process_name.subtype, self.process_name.obj_id)
 
     def __repr__(self) -> str:
-        return "<{} {} {}>".format(
-            self.__class__.__name__, self.sync_type, self.process_name
-        )
+        return "<{} {} {}>".format(self.__class__.__name__, self.sync_type, self.process_name)
 
     @classmethod
     def for_pr(
@@ -437,11 +426,10 @@ class SyncProcess(metaclass=IdentityMap):
         return rv
 
     @classmethod
-    def load_by_obj(cls, git_gecko: Repo, git_wpt: Repo, obj_id: int,
-                    seq_id: int | None = None) -> set[Self]:
-        process_names = ProcessNameIndex(git_gecko).get(
-            cls.obj_type, cls.sync_type, str(obj_id)
-        )
+    def load_by_obj(
+        cls, git_gecko: Repo, git_wpt: Repo, obj_id: int, seq_id: int | None = None
+    ) -> set[Self]:
+        process_names = ProcessNameIndex(git_gecko).get(cls.obj_type, cls.sync_type, str(obj_id))
         if seq_id is not None:
             process_names = {item for item in process_names if item.seq_id == seq_id}
         return {cls(git_gecko, git_wpt, process_name) for process_name in process_names}
@@ -507,14 +495,10 @@ class SyncProcess(metaclass=IdentityMap):
             "gecko range: {}..{}".format(
                 self.gecko_commits.base.sha1, self.gecko_commits.head.sha1
             ),
-            "wpt range: {}..{}".format(
-                self.wpt_commits.base.sha1, self.wpt_commits.head.sha1
-            ),
+            "wpt range: {}..{}".format(self.wpt_commits.base.sha1, self.wpt_commits.head.sha1),
         ]
         if self.error:
-            rv.extend(
-                ["ERROR:", self.error["message"] or "", self.error["stack"] or ""]
-            )
+            rv.extend(["ERROR:", self.error["message"] or "", self.error["stack"] or ""])
         landable_status = self.landable_status
         if landable_status:
             rv.append("Landable status: %s" % landable_status.reason_str())
@@ -577,25 +561,15 @@ class SyncProcess(metaclass=IdentityMap):
         if current == value:
             return
         if (current, value) not in self.status_transitions:
-            raise ValueError(
-                f"Tried to change status from {current} to {value}"
-            )
+            raise ValueError(f"Tried to change status from {current} to {value}")
 
         from . import index
 
-        index.SyncIndex(self.git_gecko).delete(
-            index.SyncIndex.make_key(self), self.process_name
-        )
-        index.BugIdIndex(self.git_gecko).delete(
-            index.BugIdIndex.make_key(self), self.process_name
-        )
+        index.SyncIndex(self.git_gecko).delete(index.SyncIndex.make_key(self), self.process_name)
+        index.BugIdIndex(self.git_gecko).delete(index.BugIdIndex.make_key(self), self.process_name)
         self.data["status"] = value
-        index.SyncIndex(self.git_gecko).insert(
-            index.SyncIndex.make_key(self), self.process_name
-        )
-        index.BugIdIndex(self.git_gecko).insert(
-            index.BugIdIndex.make_key(self), self.process_name
-        )
+        index.SyncIndex(self.git_gecko).insert(index.SyncIndex.make_key(self), self.process_name)
+        index.BugIdIndex(self.git_gecko).insert(index.BugIdIndex.make_key(self), self.process_name)
 
     @property
     def bug(self) -> int | None:
@@ -660,7 +634,6 @@ class SyncProcess(metaclass=IdentityMap):
             self.data["last-pr-check"] = value
         else:
             del self.data["last-pr-check"]
-
 
     def _get_error(self) -> dict[str, str | None] | None:
         return self.data.get("error")
@@ -784,9 +757,7 @@ class SyncProcess(metaclass=IdentityMap):
         }
 
         # This is pretty ugly
-        process_name = ProcessName.with_seq_id(
-            git_gecko, cls.obj_type, cls.sync_type, obj_id
-        )
+        process_name = ProcessName.with_seq_id(git_gecko, cls.obj_type, cls.sync_type, obj_id)
         if not cls.multiple_syncs and process_name.seq_id != 0:
             raise ValueError(
                 "Tried to create new {} sync for {} {} but one already exists".format(
@@ -794,38 +765,28 @@ class SyncProcess(metaclass=IdentityMap):
                 )
             )
 
-        commit_builder = CommitBuilder(git_gecko,
-                                       f"Create sync {process_name}\n",
-                                       env.config["sync"]["ref"])
+        commit_builder = CommitBuilder(
+            git_gecko, f"Create sync {process_name}\n", env.config["sync"]["ref"]
+        )
 
-        refs = [BranchRefObject.create(lock,
-                                       git_gecko,
-                                       process_name,
-                                       gecko_head,
-                                       GeckoCommit,
-                                       force=True),
-                BranchRefObject.create(lock,
-                                       git_wpt,
-                                       process_name,
-                                       wpt_head,
-                                       WptCommit,
-                                       force=True)]
+        refs = [
+            BranchRefObject.create(
+                lock, git_gecko, process_name, gecko_head, GeckoCommit, force=True
+            ),
+            BranchRefObject.create(lock, git_wpt, process_name, wpt_head, WptCommit, force=True),
+        ]
 
         try:
             # This will commit all the data in a single commit when we exit the "with" block
             with commit_builder:
-                SyncData.create(lock,
-                                git_gecko,
-                                process_name,
-                                data,
-                                commit_builder=commit_builder)
+                SyncData.create(lock, git_gecko, process_name, data, commit_builder=commit_builder)
                 sync_idx_key = (process_name, status)
                 idxs: list[tuple[Any, type[Index]]] = [(sync_idx_key, index.SyncIndex)]
                 if cls.obj_id == "bug":
                     idxs.append(((process_name, status), index.BugIdIndex))
                 elif cls.obj_id == "pr":
                     idxs.append((process_name, index.PrIdIndex))
-                for (key, idx_cls) in idxs:
+                for key, idx_cls in idxs:
                     idx = idx_cls(git_gecko)
                     idx.insert(idx.make_key(key), process_name).save(commit_builder)
         except Exception:

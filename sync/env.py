@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any, Optional, TYPE_CHECKING
+
 if TYPE_CHECKING:
     from sync.bug import Bugzilla
     from sync.gh import GitHub
@@ -26,10 +27,7 @@ class Environment:
         return _gh_wpt
 
 
-def set_env(config: dict,
-            bz: Optional[Bugzilla],
-            gh_wpt: Optional[GitHub]
-            ) -> None:
+def set_env(config: dict, bz: Optional[Bugzilla], gh_wpt: Optional[GitHub]) -> None:
     global _config
     global _bz
     global _gh_wpt

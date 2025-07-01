@@ -19,7 +19,7 @@ re_cache = {}
 
 
 def match(path: str, pattern: str) -> bool:
-    '''
+    """
     Return whether the given path matches the given pattern.
     An asterisk can be used to match any string, including the null string, in
     one part of the path:
@@ -32,14 +32,14 @@ def match(path: str, pattern: str) -> bool:
     Two adjacent asterisks can be used to match files and zero or more
     directories and subdirectories.
         'foo/bar' matches 'foo/**/bar', or '**/bar'
-    '''
+    """
     if not pattern:
         return True
     if pattern not in re_cache:
         p = re.escape(pattern)
-        p = re.sub(r'(^|\\\/)\\\*\\\*\\\/', r'\1(?:.+/)?', p)
-        p = re.sub(r'(^|\\\/)\\\*\\\*$', r'(?:\1.+)?', p)
-        p = p.replace(r'\*', '[^/]*') + '(?:/.*)?$'
+        p = re.sub(r"(^|\\\/)\\\*\\\*\\\/", r"\1(?:.+/)?", p)
+        p = re.sub(r"(^|\\\/)\\\*\\\*$", r"(?:\1.+)?", p)
+        p = p.replace(r"\*", "[^/]*") + "(?:/.*)?$"
         re_cache[pattern] = re.compile(p)
     return re_cache[pattern].match(path) is not None
 
@@ -48,11 +48,9 @@ def remove_obsolete(path: str, moves: Optional[Dict[str, str]] = None) -> str:
     from lib2to3 import pygram, pytree, patcomp  # type: ignore
     from lib2to3.pgen2 import driver
 
-    files_pattern = ("with_stmt< 'with' power< 'Files' "
-                     "trailer< '(' arg=any any* ')' > any* > any* >")
+    files_pattern = "with_stmt< 'with' power< 'Files' trailer< '(' arg=any any* ')' > any* > any* >"
     base_dir = os.path.dirname(path) or "."
-    d = driver.Driver(pygram.python_grammar,
-                      convert=pytree.convert)
+    d = driver.Driver(pygram.python_grammar, convert=pytree.convert)
     tree = d.parse_file(path)
     pc = patcomp.PatternCompiler()
     pat = pc.compile_pattern(files_pattern)
@@ -63,7 +61,7 @@ def remove_obsolete(path: str, moves: Optional[Dict[str, str]] = None) -> str:
     for node in tree.children:
         match_values: Dict[Any, Any] = {}
         if pat.match(node, match_values):
-            path_pat = literal_eval(match_values['arg'].value)
+            path_pat = literal_eval(match_values["arg"].value)
             unmatched_patterns.add(path_pat)
             node_patterns[path_pat] = (node, match_values)
 
@@ -72,13 +70,11 @@ def remove_obsolete(path: str, moves: Optional[Dict[str, str]] = None) -> str:
             full_path = os.path.join(base_path, filename)
             path = os.path.relpath(full_path, base_dir)
             try:
-                assert ("../" not in path and
-                        not path.endswith("/..")), "Path {} is outside {}".format(full_path,
-                                                                                  base_dir)
+                assert "../" not in path and not path.endswith("/.."), (
+                    "Path {} is outside {}".format(full_path, base_dir)
+                )
             except AssertionError:
-                newrelic.agent.record_exception(params={
-                    "path": full_path
-                })
+                newrelic.agent.record_exception(params={"path": full_path})
                 continue
 
             if path[:2] == "./":
@@ -133,8 +129,9 @@ def compute_moves(moves: Dict[str, str], unmatched_patterns: Set[str]) -> Dict[s
     return updated_patterns
 
 
-def components_for_wpt_paths(git_gecko: Repo,
-                             wpt_paths: Union[Set[str], Set[str]]) -> Mapping[str, List[str]]:
+def components_for_wpt_paths(
+    git_gecko: Repo, wpt_paths: Union[Set[str], Set[str]]
+) -> Mapping[str, List[str]]:
     path_prefix = env.config["gecko"]["path"]["wpt"]
     paths = [os.path.join(path_prefix, item) for item in wpt_paths]
 
@@ -156,10 +153,11 @@ def components_for_wpt_paths(git_gecko: Repo,
     return components
 
 
-def get(git_gecko: Repo,
-        files_changed: Union[Set[str], Set[str]],
-        default: Tuple[str, str],
-        ) -> Tuple[str, str]:
+def get(
+    git_gecko: Repo,
+    files_changed: Union[Set[str], Set[str]],
+    default: Tuple[str, str],
+) -> Tuple[str, str]:
     if not files_changed:
         return default
 
@@ -182,10 +180,7 @@ def get(git_gecko: Repo,
 def mozbuild_path(repo_work: Repo) -> str:
     working_dir = repo_work.working_dir
     assert working_dir is not None
-    return os.path.join(working_dir,
-                        env.config["gecko"]["path"]["wpt"],
-                        os.pardir,
-                        "moz.build")
+    return os.path.join(working_dir, env.config["gecko"]["path"]["wpt"], os.pardir, "moz.build")
 
 
 def update(repo_work: Repo, renames: Dict[str, str]) -> None:
@@ -195,12 +190,12 @@ def update(repo_work: Repo, renames: Dict[str, str]) -> None:
     def tests_rel_path(path: str) -> str:
         return os.path.join(tests_base, path)
 
-    mozbuild_rel_renames = {tests_rel_path(old): tests_rel_path(new)
-                            for old, new in renames.items()}
+    mozbuild_rel_renames = {
+        tests_rel_path(old): tests_rel_path(new) for old, new in renames.items()
+    }
 
     if os.path.exists(mozbuild_file_path):
-        new_data = remove_obsolete(mozbuild_file_path,
-                                   moves=mozbuild_rel_renames)
+        new_data = remove_obsolete(mozbuild_file_path, moves=mozbuild_rel_renames)
         with open(mozbuild_file_path, "w", encoding="utf8") as f:
             f.write(new_data)
     else:

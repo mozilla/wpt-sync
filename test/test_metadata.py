@@ -29,12 +29,12 @@ def test_add(env, git_wpt_metadata):
 
     with SyncLock.for_process(process_name) as lock:
         with meta.as_mut(lock):
-            meta.link_bug("/example/test.html",
-                          "%s/show_bug.cgi?id=2345" % env.bz.bz_url,
-                          product="firefox")
-            meta.link_bug("/example-1/test.html",
-                          "%s/show_bug.cgi?id=3456" % env.bz.bz_url,
-                          product="firefox")
+            meta.link_bug(
+                "/example/test.html", "%s/show_bug.cgi?id=2345" % env.bz.bz_url, product="firefox"
+            )
+            meta.link_bug(
+                "/example-1/test.html", "%s/show_bug.cgi?id=3456" % env.bz.bz_url, product="firefox"
+            )
 
     assert len(list(meta.iter_bug_links("/example/test.html"))) == 2
     assert len(list(meta.iter_bug_links("/example-1/test.html"))) == 1

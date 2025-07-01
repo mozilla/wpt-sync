@@ -49,8 +49,9 @@ def handle_pr(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> None:
         # TODO: maybe want to create a new sync here irrespective of the event
         # type because we missed some events.
         if event["action"] == "opened":
-            downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"],
-                                  repo_update=repo_update)
+            downstream.new_wpt_pr(
+                git_gecko, git_wpt, event["pull_request"], repo_update=repo_update
+            )
     else:
         if isinstance(sync, downstream.DownstreamSync):
             update_func = downstream.update_pr
@@ -59,19 +60,22 @@ def handle_pr(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> None:
         else:
             return
 
-        merge_sha = (event["pull_request"]["merge_commit_sha"]
-                     if event["pull_request"]["merged"] else None)
-        merged_by = (event["pull_request"]["merged_by"]["login"] if merge_sha else None)
+        merge_sha = (
+            event["pull_request"]["merge_commit_sha"] if event["pull_request"]["merged"] else None
+        )
+        merged_by = event["pull_request"]["merged_by"]["login"] if merge_sha else None
         with SyncLock.for_process(sync.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
-                update_func(git_gecko,
-                            git_wpt,
-                            sync,
-                            event["action"],
-                            merge_sha,
-                            event["pull_request"]["base"]["sha"],
-                            merged_by)
+                update_func(
+                    git_gecko,
+                    git_wpt,
+                    sync,
+                    event["action"],
+                    merge_sha,
+                    event["pull_request"]["base"]["sha"],
+                    merged_by,
+                )
 
 
 def handle_check_run(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> None:
@@ -108,9 +112,7 @@ def handle_check_run(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> N
     with SyncLock.for_process(sync.process_name) as lock:
         assert isinstance(lock, SyncLock)
         with sync.as_mut(lock):
-            upstream.commit_check_changed(git_gecko,
-                                          git_wpt,
-                                          sync)
+            upstream.commit_check_changed(git_gecko, git_wpt, sync)
 
 
 def handle_push(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> None:
@@ -213,13 +215,16 @@ class DecisionTaskHandler(Handler):
             runs = body.get("status", {}).get("runs", [])
             if 0 <= run_id < len(runs):
                 reason = runs[run_id].get("reasonResolved")
-                if reason in ["superseded",
-                              "claim-expired",
-                              "worker-shutdown",
-                              "intermittent-task"]:
-                    logger.info("Task %s had an exception for reason %s, "
-                                "assuming taskcluster will retry" %
-                                (task_id, reason))
+                if reason in [
+                    "superseded",
+                    "claim-expired",
+                    "worker-shutdown",
+                    "intermittent-task",
+                ]:
+                    logger.info(
+                        "Task %s had an exception for reason %s, "
+                        "assuming taskcluster will retry" % (task_id, reason)
+                    )
                     return
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
@@ -235,30 +240,40 @@ class DecisionTaskHandler(Handler):
                 # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
                 # But the retriggered decision task itself is still in the original taskgroup
                 if state == "completed":
-                    logger.info("Setting taskgroup id for try push %r to %s" %
-                                (try_push, taskgroup_id))
+                    logger.info(
+                        "Setting taskgroup id for try push %r to %s" % (try_push, taskgroup_id)
+                    )
                     try_push.taskgroup_id = taskgroup_id
                 elif state in ("failed", "exception"):
                     sync = try_push.sync(git_gecko, git_wpt)
                     if sync is None:
                         logger.error(f"Try push for {sha1} is not associated with a sync")
                         return
-                    message = ("Decision task got status %s for task %s%s" %
-                               (state, sha1, " PR %s" % sync.pr if sync.pr else ""))
+                    message = "Decision task got status %s for task %s%s" % (
+                        state,
+                        sha1,
+                        " PR %s" % sync.pr if sync.pr else "",
+                    )
                     logger.error(message)
                     taskgroup = tc.TaskGroup(task["taskGroupId"])
-                    if len(taskgroup.view(
-                            lambda x: x["task"]["metadata"]["name"] == "Gecko Decision Task")) > 5:
+                    if (
+                        len(
+                            taskgroup.view(
+                                lambda x: x["task"]["metadata"]["name"] == "Gecko Decision Task"
+                            )
+                        )
+                        > 5
+                    ):
                         try_push.status = "complete"
                         try_push.infra_fail = True
                         try_push.taskgroup_id = taskgroup_id
                         if sync and sync.bug:
                             env.bz.comment(
                                 sync.bug,
-                                "Try push failed: decision task %s returned error" % task_id)
+                                "Try push failed: decision task %s returned error" % task_id,
+                            )
                     else:
-                        logger.info("Retriggering decision task for sync %s" %
-                                    (sync.process_name,))
+                        logger.info("Retriggering decision task for sync %s" % (sync.process_name,))
                         client = tc.TaskclusterClient()
                         client.retrigger(task_id)
 
@@ -313,14 +328,18 @@ class TaskGroupHandler(Handler):
         taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
 
 
-def taskgroup_complete(git_gecko: Repo, git_wpt: Repo, taskgroup_id: str,
-                       try_push: trypush.TryPush) -> None:
+def taskgroup_complete(
+    git_gecko: Repo, git_wpt: Repo, taskgroup_id: str, try_push: trypush.TryPush
+) -> None:
     sync = try_push.sync(git_gecko, git_wpt)
     if not sync:
-        newrelic.agent.record_custom_event("taskgroup_sync_missing", params={
-            "taskgroup-id": taskgroup_id,
-            "try_push": try_push,
-        })
+        newrelic.agent.record_custom_event(
+            "taskgroup_sync_missing",
+            params={
+                "taskgroup-id": taskgroup_id,
+                "try_push": try_push,
+            },
+        )
         return
 
     with SyncLock.for_process(sync.process_name) as lock:
@@ -329,17 +348,24 @@ def taskgroup_complete(git_gecko: Repo, git_wpt: Repo, taskgroup_id: str,
             # We sometimes see the taskgroup ID being None. If it isn't set but found via its
             # taskgroup ID, it is safe to set it here.
             if try_push.taskgroup_id is None:
-                logger.info("Try push for taskgroup %s does not have its ID set, setting now" %
-                            taskgroup_id)
+                logger.info(
+                    "Try push for taskgroup %s does not have its ID set, setting now" % taskgroup_id
+                )
                 try_push.taskgroup_id = taskgroup_id
-                newrelic.agent.record_custom_event("taskgroup_id_missing", params={
-                    "taskgroup-id": taskgroup_id,
-                    "try_push": try_push,
-                    "sync": sync,
-                })
+                newrelic.agent.record_custom_event(
+                    "taskgroup_id_missing",
+                    params={
+                        "taskgroup-id": taskgroup_id,
+                        "try_push": try_push,
+                        "sync": sync,
+                    },
+                )
             elif try_push.taskgroup_id != taskgroup_id:
-                msg = ("TryPush %s, expected taskgroup ID %s, found %s instead" %
-                       (try_push, taskgroup_id, try_push.taskgroup_id))
+                msg = "TryPush %s, expected taskgroup ID %s, found %s instead" % (
+                    try_push,
+                    taskgroup_id,
+                    try_push.taskgroup_id,
+                )
                 logger.error(msg)
                 exc = ValueError(msg)
                 newrelic.agent.record_exception(exc=exc)
@@ -374,17 +400,20 @@ class RetriggerHandler(Handler):
         update_repositories(git_gecko, git_wpt)
         sync_point = landing.load_sync_point(git_gecko, git_wpt)
         prev_wpt_head = sync_point["upstream"]
-        unlanded = [(pr, wpt_commits, status)
-                    for (pr, wpt_commits, status) in
-                    landing.unlanded_with_type(git_gecko, git_wpt, None, prev_wpt_head)
-                    if pr is not None]
+        unlanded = [
+            (pr, wpt_commits, status)
+            for (pr, wpt_commits, status) in landing.unlanded_with_type(
+                git_gecko, git_wpt, None, prev_wpt_head
+            )
+            if pr is not None
+        ]
         update.retrigger(git_gecko, git_wpt, unlanded)
 
 
 class PhabricatorHandler(Handler):
     def __call__(self, git_gecko: Repo, git_wpt: Repo, body: Dict[str, Any]) -> None:
         newrelic.agent.set_transaction_name("PhabricatorHandler")
-        logger.info('Got phab event, doing nothing: %s' % body)
+        logger.info("Got phab event, doing nothing: %s" % body)
 
 
 class BugUpdateHandler(Handler):

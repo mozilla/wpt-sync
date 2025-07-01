@@ -27,8 +27,9 @@ def have_gecko_hg_commit(git_gecko: Repo, hg_rev: str) -> bool:
     return True
 
 
-def update_repositories(git_gecko: Optional[Repo], git_wpt: Optional[Repo],
-                        wait_gecko_commit: Optional[str] = None) -> None:
+def update_repositories(
+    git_gecko: Optional[Repo], git_wpt: Optional[Repo], wait_gecko_commit: Optional[str] = None
+) -> None:
     if git_gecko is not None:
         if wait_gecko_commit is not None:
 
@@ -43,7 +44,8 @@ def update_repositories(git_gecko: Optional[Repo], git_wpt: Optional[Repo],
             success = until(_update, wait_fn)
             if not success:
                 raise RetryableError(
-                    ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit))
+                    ValueError("Failed to fetch gecko commit %s" % wait_gecko_commit)
+                )
         else:
             _update_gecko(git_gecko)
 
@@ -100,14 +102,14 @@ def pr_for_commit(git_wpt: Repo, rev: str) -> Optional[int]:
     prefix = "refs/remotes/origin/pr/"
     pr_refs = refs(git_wpt, prefix)
     if rev in pr_refs:
-        return int(pr_refs[rev][len(prefix):])
+        return int(pr_refs[rev][len(prefix) :])
     return None
 
 
 def gecko_repo(git_gecko: Repo, head: Commit) -> Optional[str]:
-    repos = ([("central", env.config["gecko"]["refs"]["central"])] +
-             [(name, ref) for name, ref in env.config["gecko"]["refs"].items()
-              if name != "central"])
+    repos = [("central", env.config["gecko"]["refs"]["central"])] + [
+        (name, ref) for name, ref in env.config["gecko"]["refs"].items() if name != "central"
+    ]
 
     for name, ref in repos:
         if git_gecko.is_ancestor(head, git_gecko.rev_parse(ref)):
@@ -138,9 +140,11 @@ def handle_empty_commit(worktree: Repo, e: git.GitCommandError) -> bool:
     # continue. gitpython doesn't really enforce anything about
     # the type of status, so just convert it to a string to be
     # sure
-    if (str(e.status) == "1" and
-        "The previous cherry-pick is now empty" in e.stderr or
-        "nothing to commit" in e.stdout):
+    if (
+        str(e.status) == "1"
+        and "The previous cherry-pick is now empty" in e.stderr
+        or "nothing to commit" in e.stdout
+    ):
         logger.info("Cherry pick resulted in an empty commit")
         # If the cherry pick would result in an empty commit,
         # just reset and continue
