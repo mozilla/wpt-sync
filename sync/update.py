@@ -46,24 +46,28 @@ def construct_event(name: str, payload: dict[str, Any], **kwargs: Any) -> dict[s
 
 
 def schedule_pr_task(action: str, pr: PullRequest, repo_update: bool = True) -> None:
-    event = construct_event("pull_request",
-                            {"action": action, "number": pr.number, "pull_request": pr.raw_data},
-                            _wptsync={"repo_update": repo_update})
+    event = construct_event(
+        "pull_request",
+        {"action": action, "number": pr.number, "pull_request": pr.raw_data},
+        _wptsync={"repo_update": repo_update},
+    )
     logger.info(f"Action {action} for pr {pr.number}")
     args = ("github", event)
     handle_sync(*args)
 
 
-def schedule_check_run_task(head_sha: str, name: str, check_run: Mapping[str, Any],
-                            repo_update: bool = True) -> None:
+def schedule_check_run_task(
+    head_sha: str, name: str, check_run: Mapping[str, Any], repo_update: bool = True
+) -> None:
     check_run_data = {**check_run}
     del check_run_data["required"]
     check_run_data["name"] = name
     check_run_data["head_sha"] = head_sha
-    event = construct_event("check_run",
-                            {"action": "completed",
-                             "check_run": check_run_data},
-                            _wptsync={"repo_update": repo_update})
+    event = construct_event(
+        "check_run",
+        {"action": "completed", "check_run": check_run_data},
+        _wptsync={"repo_update": repo_update},
+    )
     logger.info("Status changed for commit %s" % head_sha)
     args = ("github", event)
     handle_sync(*args)
@@ -77,12 +81,15 @@ def update_for_status(pr: PullRequest, repo_update: bool = True) -> None:
 
 
 def update_for_action(pr: PullRequest, action: str, repo_update: bool = True) -> None:
-    event = construct_event("pull_request",
-                            {"action": action,
-                             "number": pr.number,
-                             "pull_request": pr.raw_data,
-                             },
-                            _wptsync={"repo_update": repo_update})
+    event = construct_event(
+        "pull_request",
+        {
+            "action": action,
+            "number": pr.number,
+            "pull_request": pr.raw_data,
+        },
+        _wptsync={"repo_update": repo_update},
+    )
     logger.info(f"Running action {action} for PR {pr.number}")
     handle_sync("github", event)
 
@@ -101,8 +108,13 @@ def convert_rev(git_gecko: Repo, rev: str) -> tuple[str, str]:
     return git_rev, hg_rev
 
 
-def update_push(git_gecko: Repo, git_wpt: Repo, rev: str, base_rev: str | None = None,
-                processes: list[str] | None = None) -> None:
+def update_push(
+    git_gecko: Repo,
+    git_wpt: Repo,
+    rev: str,
+    base_rev: str | None = None,
+    processes: list[str] | None = None,
+) -> None:
     git_rev, hg_rev = convert_rev(git_gecko, rev)
     git_rev_commit = git_gecko.rev_parse(git_rev)
 
@@ -110,11 +122,11 @@ def update_push(git_gecko: Repo, git_wpt: Repo, rev: str, base_rev: str | None =
     if base_rev is not None:
         _, hg_rev_base = convert_rev(git_gecko, base_rev)
 
-    if git_gecko.is_ancestor(git_rev_commit,
-                             git_gecko.rev_parse(env.config["gecko"]["refs"]["central"])):
+    if git_gecko.is_ancestor(
+        git_rev_commit, git_gecko.rev_parse(env.config["gecko"]["refs"]["central"])
+    ):
         routing_key = "mozilla-central"
-    elif git_gecko.is_ancestor(git_rev_commit,
-                               env.config["gecko"]["refs"]["autoland"]):
+    elif git_gecko.is_ancestor(git_rev_commit, env.config["gecko"]["refs"]["autoland"]):
         routing_key = "integration/autoland"
 
     kwargs: dict[str, Any] = {"_wptsync": {}}
@@ -125,16 +137,21 @@ def update_push(git_gecko: Repo, git_wpt: Repo, rev: str, base_rev: str | None =
     if processes is not None:
         kwargs["_wptsync"]["processes"] = processes
 
-    event = construct_event("push", {"data": {"heads": [hg_rev]}},
-                            _meta={"routing_key": routing_key},
-                            **kwargs)
+    event = construct_event(
+        "push", {"data": {"heads": [hg_rev]}}, _meta={"routing_key": routing_key}, **kwargs
+    )
 
     args = ("push", event)
     handle_sync(*args)
 
 
-def update_pr(git_gecko: Repo, git_wpt: Repo, pr: PullRequest, force_rebase: bool = False,
-              repo_update: bool = True) -> None:
+def update_pr(
+    git_gecko: Repo,
+    git_wpt: Repo,
+    pr: PullRequest,
+    force_rebase: bool = False,
+    repo_update: bool = True,
+) -> None:
     sync = get_pr_sync(git_gecko, git_wpt, pr.number)
 
     if sync and sync.status == "complete":
@@ -149,19 +166,13 @@ def update_pr(git_gecko: Repo, git_wpt: Repo, pr: PullRequest, force_rebase: boo
         # a corresponding sync
         with SyncLock("upstream", None) as lock:
             assert isinstance(lock, SyncLock)
-            upstream_sync = upstream.UpstreamSync.from_pr(lock,
-                                                          git_gecko,
-                                                          git_wpt,
-                                                          pr.number,
-                                                          pr.body)
+            upstream_sync = upstream.UpstreamSync.from_pr(
+                lock, git_gecko, git_wpt, pr.number, pr.body
+            )
             if upstream_sync is not None:
                 with upstream_sync.as_mut(lock):
                     assert isinstance(lock, SyncLock)
-                    upstream.update_pr(git_gecko,
-                                       git_wpt,
-                                       upstream_sync,
-                                       pr.state,
-                                       pr.merged)
+                    upstream.update_pr(git_gecko, git_wpt, upstream_sync, pr.state, pr.merged)
             else:
                 if pr.state != "open" and not pr.merged:
                     return
@@ -194,11 +205,12 @@ def update_pr(git_gecko: Repo, git_wpt: Repo, pr: PullRequest, force_rebase: boo
                     elif sync.latest_valid_try_push:
                         logger.info("Treeherder url %s" % sync.latest_valid_try_push.treeherder_url)
                         if not sync.latest_valid_try_push.taskgroup_id:
-                            update_taskgroup_ids(git_gecko, git_wpt,
-                                                 sync.latest_valid_try_push)
+                            update_taskgroup_ids(git_gecko, git_wpt, sync.latest_valid_try_push)
 
-                        if (sync.latest_valid_try_push.taskgroup_id and
-                            not sync.latest_valid_try_push.status == "complete"):
+                        if (
+                            sync.latest_valid_try_push.taskgroup_id
+                            and not sync.latest_valid_try_push.status == "complete"
+                        ):
                             update_tasks(git_gecko, git_wpt, sync=sync)
 
                         if not sync.latest_valid_try_push.taskgroup_id:
@@ -217,8 +229,9 @@ def update_pr(git_gecko: Repo, git_wpt: Repo, pr: PullRequest, force_rebase: boo
                 upstream.update_pr(git_gecko, git_wpt, sync, pr.state, merge_sha)
                 sync.try_land_pr()
                 if merge_sha:
-                    if git_wpt.is_ancestor(git_wpt.rev_parse(merge_sha),
-                                           git_wpt.rev_parse(sync_point["upstream"])):
+                    if git_wpt.is_ancestor(
+                        git_wpt.rev_parse(merge_sha), git_wpt.rev_parse(sync_point["upstream"])
+                    ):
                         # This sync already landed, so it should be finished
                         sync.finish()
                     else:
@@ -245,8 +258,12 @@ def update_bug(git_gecko: Repo, git_wpt: Repo, bug: int) -> None:
                     logger.warning("Can't update sync %s" % sync)
 
 
-def update_from_github(git_gecko: Repo, git_wpt: Repo, sync_classes: list[type[SyncProcess]],
-                       statuses: list[str] | None = None) -> None:
+def update_from_github(
+    git_gecko: Repo,
+    git_wpt: Repo,
+    sync_classes: list[type[SyncProcess]],
+    statuses: list[str] | None = None,
+) -> None:
     if statuses is None:
         statuses = ["*"]
     update_repositories(git_gecko, git_wpt)
@@ -254,9 +271,7 @@ def update_from_github(git_gecko: Repo, git_wpt: Repo, sync_classes: list[type[S
         for status in statuses:
             if status != "*" and status not in cls.statuses:
                 continue
-            syncs = cls.load_by_status(git_gecko,
-                                       git_wpt,
-                                       status)
+            syncs = cls.load_by_status(git_gecko, git_wpt, status)
             for sync in syncs:
                 if not sync.pr:
                     continue
@@ -265,8 +280,7 @@ def update_from_github(git_gecko: Repo, git_wpt: Repo, sync_classes: list[type[S
                 update_pr(git_gecko, git_wpt, pr)
 
 
-def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo,
-                         try_push: TryPush | None = None) -> None:
+def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo, try_push: TryPush | None = None) -> None:
     if try_push is None:
         try_pushes = trypush.TryPush.load_all(git_gecko)
     else:
@@ -279,27 +293,34 @@ def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo,
         if not try_push_item.taskgroup_id:
             logger.info("Setting taskgroup id for try push %s" % try_push_item)
             if try_push_item.try_rev is None:
-                logger.warning("Try push %s has no associated revision" %
-                               try_push_item.process_name)
+                logger.warning(
+                    "Try push %s has no associated revision" % try_push_item.process_name
+                )
                 continue
             taskgroup_id, state, runs = tc.get_taskgroup_id("try", try_push_item.try_rev)
             logger.info("Got taskgroup id %s" % taskgroup_id)
             if state in ("completed", "failed", "exception"):
-                msg = {"status": {"taskId": taskgroup_id,
-                                  "taskGroupId": taskgroup_id,
-                                  "state": state,
-                                  "runs": runs},
-                       "task": {"tags": {"kind": "decision-task"}},
-                       "runId": len(runs) - 1,
-                       "version": 1}
+                msg = {
+                    "status": {
+                        "taskId": taskgroup_id,
+                        "taskGroupId": taskgroup_id,
+                        "state": state,
+                        "runs": runs,
+                    },
+                    "task": {"tags": {"kind": "decision-task"}},
+                    "runId": len(runs) - 1,
+                    "version": 1,
+                }
                 handle_sync("decision-task", msg)
             else:
-                logger.warning("Not setting taskgroup id because decision task is in state %s" %
-                               state)
+                logger.warning(
+                    "Not setting taskgroup id because decision task is in state %s" % state
+                )
 
 
-def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int | None = None,
-                 sync: SyncProcess | None = None) -> None:
+def update_tasks(
+    git_gecko: Repo, git_wpt: Repo, pr_id: int | None = None, sync: SyncProcess | None = None
+) -> None:
     logger.info("Running update_tasks%s" % ("for PR %s" % pr_id if pr_id else ""))
 
     syncs: Iterable[SyncProcess] = []
@@ -328,16 +349,25 @@ def update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int | None = None,
                 pass
 
 
-def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: list[tuple[int, list[WptCommit], LandableStatus]],
-              rebase: bool = False) -> list[int]:
+def retrigger(
+    git_gecko: Repo,
+    git_wpt: Repo,
+    unlandable_prs: list[tuple[int, list[WptCommit], LandableStatus]],
+    rebase: bool = False,
+) -> list[int]:
     from .sync import LandableStatus
 
-    retriggerable_prs = [(pr_id, commits, status)
-                         for (pr_id, commits, status) in unlandable_prs
-                         if status not in (LandableStatus.ready,
-                                           LandableStatus.skip,
-                                           LandableStatus.upstream,
-                                           LandableStatus.no_pr)]
+    retriggerable_prs = [
+        (pr_id, commits, status)
+        for (pr_id, commits, status) in unlandable_prs
+        if status
+        not in (
+            LandableStatus.ready,
+            LandableStatus.skip,
+            LandableStatus.upstream,
+            LandableStatus.no_pr,
+        )
+    ]
 
     errors = []
     for pr_data in retriggerable_prs:
@@ -348,8 +378,12 @@ def retrigger(git_gecko: Repo, git_wpt: Repo, unlandable_prs: list[tuple[int, li
     return errors
 
 
-def do_retrigger(git_gecko: Repo, git_wpt: Repo, pr_data: tuple[int, list[WptCommit], LandableStatus],
-                 rebase: bool = False) -> int | None:
+def do_retrigger(
+    git_gecko: Repo,
+    git_wpt: Repo,
+    pr_data: tuple[int, list[WptCommit], LandableStatus],
+    rebase: bool = False,
+) -> int | None:
     pr_id, commits, status = pr_data
     try:
         logger.info(f"Retriggering {pr_id} (status {status})")

@@ -20,8 +20,7 @@ bugzilla_url = "https://bugzilla.mozilla.org"
 
 
 def from_iso_str(datetime_str: str) -> datetime:
-    return datetime.strptime(datetime_str,
-                             '%Y-%m-%dT%H:%M:%S.%f')
+    return datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%f")
 
 
 class ProcData(ProcessData):
@@ -39,13 +38,11 @@ class TriageBugs:
         self._last_update: Optional[datetime] = None
 
     def as_mut(self, lock: ProcLock) -> MutGuard:
-        return MutGuard(lock, self, [self.data,
-                                     self.wpt_metadata])
+        return MutGuard(lock, self, [self.data, self.wpt_metadata])
 
     @property
     def lock_key(self) -> tuple[str, str]:
-        return (self.process_name.subtype,
-                self.process_name.obj_id)
+        return (self.process_name.subtype, self.process_name.obj_id)
 
     @property
     def last_update(self) -> Optional[datetime]:
@@ -61,9 +58,9 @@ class TriageBugs:
 
     def meta_links(self) -> Mapping[int, list[MetaLink]]:
         rv = defaultdict(list)
-        for link in self.wpt_metadata.iter_bug_links(test_id=None,
-                                                     product="firefox",
-                                                     prefixes=(bugzilla_url,)):
+        for link in self.wpt_metadata.iter_bug_links(
+            test_id=None, product="firefox", prefixes=(bugzilla_url,)
+        ):
             bz_id = env.bz.id_from_url(link.url, bugzilla_url)
             if bz_id is not None:
                 bug = int(bz_id)
@@ -89,8 +86,7 @@ class TriageBugs:
             # into multiple queries
             params["bug_id"] = ",".join(str(item) for item in bug_ids)
 
-        search_resp = env.bz.bugzilla.session.get("%s/rest/bug" % bugzilla_url,
-                                                  params=params)
+        search_resp = env.bz.bugzilla.session.get("%s/rest/bug" % bugzilla_url, params=params)
         search_resp.raise_for_status()
         search_data = search_resp.json()
         if self.last_update:
@@ -98,12 +94,10 @@ class TriageBugs:
         else:
             history_params = {}
         for bug in search_data.get("bugs", []):
-            if (not self.last_update or
-                from_iso_str(bug["last_change_time"]) > self.last_update):
-
+            if not self.last_update or from_iso_str(bug["last_change_time"]) > self.last_update:
                 history_resp = env.bz.bugzilla.session.get(
-                    "{}/rest/bug/{}/history".format(bugzilla_url, bug["id"]),
-                    params=history_params)
+                    "{}/rest/bug/{}/history".format(bugzilla_url, bug["id"]), params=history_params
+                )
                 history_resp.raise_for_status()
                 history_data = history_resp.json()
                 bugs = history_data.get("bugs")
@@ -118,7 +112,9 @@ class TriageBugs:
         return rv
 
 
-def update_triage_bugs(git_gecko: Repo, comment: bool = True) -> tuple[Mapping[int, Optional[int]], Mapping[int, str]]:
+def update_triage_bugs(
+    git_gecko: Repo, comment: bool = True
+) -> tuple[Mapping[int, Optional[int]], Mapping[int, str]]:
     triage_bugs = TriageBugs(git_gecko)
 
     run_time = datetime.now()

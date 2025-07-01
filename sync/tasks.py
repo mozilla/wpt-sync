@@ -49,6 +49,7 @@ def with_lock(f: Callable[..., Any]) -> Callable[..., Any]:
         except Exception:
             logger.error("".join(traceback.format_exc()))
             raise
+
     inner.__name__ = f.__name__
     inner.__doc__ = f.__doc__
     return inner
@@ -76,8 +77,9 @@ def setup(config: settings.Config) -> tuple[repos.Repo, repos.Repo]:
     git_gecko = gecko_repo.repo()
     wpt_repo = repos.WebPlatformTests(config)
     git_wpt = wpt_repo.repo()
-    gh_wpt = gh.GitHub(config["web-platform-tests"]["github"]["token"],
-                       config["web-platform-tests"]["repo"]["url"])
+    gh_wpt = gh.GitHub(
+        config["web-platform-tests"]["github"]["token"], config["web-platform-tests"]["repo"]["url"]
+    )
 
     bz = bug.Bugzilla(config)
 

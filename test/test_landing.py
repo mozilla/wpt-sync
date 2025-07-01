@@ -15,8 +15,8 @@ from conftest import git_commit
 
 def mock_push(landing):
     landing.git_gecko.remotes.mozilla.push(
-        "{}:{}".format(landing.branch_name,
-                       landing.gecko_integration_branch().split("/", 1)[1]))
+        "{}:{}".format(landing.branch_name, landing.gecko_integration_branch().split("/", 1)[1])
+    )
 
 
 def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request):
@@ -25,14 +25,22 @@ def test_upstream_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
     git_wpt_upstream.head.commit = head_rev
     git_wpt.remotes.origin.fetch()
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
-    assert sync_commit.WptCommit(git_wpt_upstream,
-                                 git_wpt_upstream.head.commit).pr() == pr["number"]
+    assert (
+        sync_commit.WptCommit(git_wpt_upstream, git_wpt_upstream.head.commit).pr() == pr["number"]
+    )
 
 
-def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                  hg_gecko_try, mock_mach):
-    pr = pull_request([(b"Test commit", {"README": b"example_change",
-                                         "resources/testdriver_vendor.js": b"Some change"})])
+def test_land_try(
+    env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status, hg_gecko_try, mock_mach
+):
+    pr = pull_request(
+        [
+            (
+                b"Test commit",
+                {"README": b"example_change", "resources/testdriver_vendor.js": b"Some change"},
+            )
+        ]
+    )
     head_rev = pr._commits[0]["sha"]
 
     trypush.Mach = mock_mach
@@ -47,7 +55,7 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
         with sync.as_mut(downstream_lock):
             sync.data["force-metadata-ready"] = True
 
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -56,33 +64,49 @@ def test_land_try(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_p
         with landing_sync.as_mut(lock):
             worktree = landing_sync.gecko_worktree.get()
             # Check that files we shouldn't move aren't
-            assert not os.path.exists(os.path.join(worktree.working_dir,
-                                                   env.config["gecko"]["path"]["wpt"],
-                                                   ".git"))
-            with open(os.path.join(worktree.working_dir,
-                                   env.config["gecko"]["path"]["wpt"],
-                                   "resources/testdriver_vendor.js"), "rb") as f:
+            assert not os.path.exists(
+                os.path.join(worktree.working_dir, env.config["gecko"]["path"]["wpt"], ".git")
+            )
+            with open(
+                os.path.join(
+                    worktree.working_dir,
+                    env.config["gecko"]["path"]["wpt"],
+                    "resources/testdriver_vendor.js",
+                ),
+                "rb",
+            ) as f:
                 assert f.read() == b"Initial testdriver_vendor\n"
 
     try_push = sync.latest_try_push
     assert try_push is None
     mach_command = mock_mach.get_log()[-1]
     assert mach_command["command"] == "mach"
-    assert mach_command["args"] == ("try",
-                                    "fuzzy",
-                                    "-q",
-                                    "web-platform-tests !ccov !shippable",
-                                    "-q",
-                                    "web-platform-tests linux-32 shippable",
-                                    "-q",
-                                    "web-platform-tests mac !debug shippable",
-                                    "--disable-target-task-filter",
-                                    "--artifact",
-                                    "--push-to-vcs")
+    assert mach_command["args"] == (
+        "try",
+        "fuzzy",
+        "-q",
+        "web-platform-tests !ccov !shippable",
+        "-q",
+        "web-platform-tests linux-32 shippable",
+        "-q",
+        "web-platform-tests mac !debug shippable",
+        "--disable-target-task-filter",
+        "--artifact",
+        "--push-to-vcs",
+    )
 
 
-def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                     hg_gecko_try, mock_mach, mock_tasks):
+def test_land_commit(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    set_pr_status,
+    hg_gecko_try,
+    mock_mach,
+    mock_tasks,
+):
     pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
 
@@ -99,22 +123,25 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
         with downstream_sync.as_mut(downstream_lock):
             downstream_sync.data["force-metadata-ready"] = True
 
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
-    assert (f"Setting bug {sync.bug} add_blocks {downstream_sync.bug}"
-            in env.bz.output.getvalue())
+    assert f"Setting bug {sync.bug} add_blocks {downstream_sync.bug}" in env.bz.output.getvalue()
 
     try_push = sync.latest_try_push
     with SyncLock.for_process(sync.process_name) as lock:
         with sync.as_mut(lock), try_push.as_mut(lock):
             try_push.taskgroup_id = "abcdef"
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
-                with patch.object(tc.TaskGroup, "tasks", property(Mock(
-                        return_value=mock_tasks(completed=["foo"])))):
-                    with patch.object(trypush.TryCommit, 'read_treeherder',
-                                      autospec=True) as mock_read:
+                with patch.object(
+                    tc.TaskGroup,
+                    "tasks",
+                    property(Mock(return_value=mock_tasks(completed=["foo"]))),
+                ):
+                    with patch.object(
+                        trypush.TryCommit, "read_treeherder", autospec=True
+                    ) as mock_read:
                         mock_read.return_value = "0000000000000001"
                         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
@@ -127,28 +154,34 @@ def test_land_commit(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, se
         with sync.as_mut(lock), try_push.as_mut(lock):
             try_push.taskgroup_id = "abcdef2"
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
-                with patch.object(tc.TaskGroup, "tasks",
-                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                with patch.object(
+                    tc.TaskGroup,
+                    "tasks",
+                    property(Mock(return_value=mock_tasks(completed=["foo"]))),
+                ):
                     with patch.object(landing, "push_with_lando", Mock(side_effect=mock_push)):
                         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     new_head = git_gecko.remotes.mozilla.refs["bookmarks/mozilla/autoland"].commit
     assert "Update web-platform-tests to %s" % head_rev in new_head.message
-    assert (new_head.tree["testing/web-platform/tests/README"].data_stream.read() ==
-            b"example_change")
+    assert (
+        new_head.tree["testing/web-platform/tests/README"].data_stream.read() == b"example_change"
+    )
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["upstream"] == head_rev
     # Update central to contain the landing
     git_gecko.refs["mozilla/bookmarks/mozilla/central"].commit = new_head
     with patch("sync.landing.start_next_landing") as start_next_landing:
-        landing.gecko_push(git_gecko, git_wpt, "mozilla-central",
-                           cinnabar(git_gecko).git2hg(new_head))
+        landing.gecko_push(
+            git_gecko, git_wpt, "mozilla-central", cinnabar(git_gecko).git2hg(new_head)
+        )
         assert start_next_landing.call_count == 1
     assert sync.status == "complete"
 
 
-def test_landable_skipped(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                          mock_mach):
+def test_landable_skipped(
+    env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status, mock_mach
+):
     prev_wpt_head = git_wpt_upstream.head.commit
     pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
@@ -176,9 +209,11 @@ def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, landing_with_try
     # 2/3 failure rate, too high
     sync = landing_with_try_push
     try_push = sync.latest_try_push
-    with patch.object(tc.TaskGroup, "tasks",
-                      property(Mock(return_value=mock_tasks(failed=["foo", "foobar"],
-                                                            completed=["bar"])))):
+    with patch.object(
+        tc.TaskGroup,
+        "tasks",
+        property(Mock(return_value=mock_tasks(failed=["foo", "foobar"], completed=["bar"]))),
+    ):
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.as_mut(lock), try_push.as_mut(lock):
                 with pytest.raises(AbortError):
@@ -187,19 +222,20 @@ def test_try_push_exceeds_failure_threshold(git_gecko, git_wpt, landing_with_try
     assert "too many test failures" in sync.error["message"]
 
 
-def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push, mock_tasks, env,
-                                      mock_mach):
+def test_try_push_retriggers_failures(
+    git_gecko, git_wpt, landing_with_try_push, mock_tasks, env, mock_mach
+):
     # 20% failure rate, okay
-    tasks = Mock(return_value=mock_tasks(
-        failed=["foo"], completed=["bar", "baz", "boo", "faz"])
-    )
+    tasks = Mock(return_value=mock_tasks(failed=["foo"], completed=["bar", "baz", "boo", "faz"]))
     sync = landing_with_try_push
     try_push = sync.latest_try_push
     with SyncLock("landing", None) as lock:
         with sync.as_mut(lock), try_push.as_mut(lock):
             with patch.object(tc.TaskGroup, "tasks", property(tasks)):
-                with patch('sync.trypush.auth_tc.retrigger',
-                           return_value=["job"] * trypush.TryPushTasks._retrigger_count):
+                with patch(
+                    "sync.trypush.auth_tc.retrigger",
+                    return_value=["job"] * trypush.TryPushTasks._retrigger_count,
+                ):
                     try_push.Mach = mock_mach
                     with try_push.as_mut(lock):
                         try_push["stability"] = True
@@ -209,22 +245,37 @@ def test_try_push_retriggers_failures(git_gecko, git_wpt, landing_with_try_push,
                     assert try_push.status != "complete"
 
 
-def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_with_try_push,
-                                                 mock_tasks, env):
+def test_download_logs_after_retriggers_complete(
+    git_gecko, git_wpt, landing_with_try_push, mock_tasks, env
+):
     # > 80% of retriggered "foo" tasks pass, so we consider the "foo" failure intermittent
-    tasks = Mock(return_value=mock_tasks(
-        failed=["foo", "foo", "bar"],
-        completed=["bar", "bar", "bar" "baz", "boo", "foo", "foo", "foo", "foo", "foo",
-                   "foobar", "foobar", "foobar"])
+    tasks = Mock(
+        return_value=mock_tasks(
+            failed=["foo", "foo", "bar"],
+            completed=[
+                "bar",
+                "bar",
+                "barbaz",
+                "boo",
+                "foo",
+                "foo",
+                "foo",
+                "foo",
+                "foo",
+                "foobar",
+                "foobar",
+                "foobar",
+            ],
+        )
     )
     sync = landing_with_try_push
     try_push = sync.latest_try_push
     with SyncLock.for_process(sync.process_name) as lock:
         with try_push.as_mut(lock), sync.as_mut(lock):
-            with patch.object(tc.TaskGroup,
-                              "tasks",
-                              property(tasks)), patch(
-                                  'sync.landing.push_to_gecko'):
+            with (
+                patch.object(tc.TaskGroup, "tasks", property(tasks)),
+                patch("sync.landing.push_to_gecko"),
+            ):
                 try_push.download_logs = Mock(return_value=[])
                 try_push["stability"] = True
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
@@ -232,17 +283,18 @@ def test_download_logs_after_retriggers_complete(git_gecko, git_wpt, landing_wit
         assert try_push.status == "complete"
 
 
-def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, landing_with_try_push,
-                                                      mock_tasks, env):
+def test_no_download_logs_after_all_try_tasks_success(
+    git_gecko, git_wpt, landing_with_try_push, mock_tasks, env
+):
     tasks = Mock(return_value=mock_tasks(completed=["bar", "baz", "boo"]))
     sync = landing_with_try_push
     try_push = sync.latest_try_push
     with SyncLock.for_process(sync.process_name) as lock:
         with try_push.as_mut(lock), sync.as_mut(lock):
-            with patch.object(tc.TaskGroup,
-                              "tasks",
-                              property(tasks)), patch(
-                                  'sync.landing.push_to_gecko'):
+            with (
+                patch.object(tc.TaskGroup, "tasks", property(tasks)),
+                patch("sync.landing.push_to_gecko"),
+            ):
                 try_push.download_logs = Mock(return_value=[])
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
                 # no intermittents in the try push
@@ -250,9 +302,20 @@ def test_no_download_logs_after_all_try_tasks_success(git_gecko, git_wpt, landin
                 assert try_push.status == "complete"
 
 
-def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                         hg_gecko_upstream, upstream_gecko_commit, upstream_wpt_commit,
-                         hg_gecko_try, mock_mach, mock_tasks):
+def test_landing_reapply(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    set_pr_status,
+    hg_gecko_upstream,
+    upstream_gecko_commit,
+    upstream_wpt_commit,
+    hg_gecko_try,
+    mock_mach,
+    mock_tasks,
+):
     # Test that we reapply the correct commits when landing patches on upstream
     # First we need to create 3 gecko commits:
     # Two that are landed
@@ -265,12 +328,10 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     # Add first gecko change
     test_changes = {"change1": b"CHANGE1\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug=1111,
-                                message=b"Add change1 file")
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1111, message=b"Add change1 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
-                                       raise_on_error=True)
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync_1 = pushed.pop()
 
     # Update central
@@ -289,12 +350,10 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     # Add second gecko change
     test_changes = {"change2": b"CHANGE2\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug=1112,
-                                message=b"Add change2 file")
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1112, message=b"Add change2 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
-                                       raise_on_error=True)
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync_2 = pushed.pop()
 
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
@@ -330,15 +389,13 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
 
     # Add third gecko change
     test_changes = {"change3": b"CHANGE3\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug=1113,
-                                message=b"Add change3 file")
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=1113, message=b"Add change3 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev,
-                                       raise_on_error=True)
+    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     # Now start a landing
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -350,38 +407,49 @@ def test_landing_reapply(env, git_gecko, git_wpt, git_wpt_upstream, pull_request
             with sync.as_mut(lock), try_push.as_mut(lock):
                 try_push.taskgroup_id = "abcde" + str(i)
                 try_push.download_logs = Mock(return_value=[])
-                with patch.object(tc.TaskGroup, "tasks",
-                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
-                    with patch.object(trypush.TryCommit,
-                                      'read_treeherder',
-                                      autospec=True) as mock_read:
+                with patch.object(
+                    tc.TaskGroup,
+                    "tasks",
+                    property(Mock(return_value=mock_tasks(completed=["foo"]))),
+                ):
+                    with patch.object(
+                        trypush.TryCommit, "read_treeherder", autospec=True
+                    ) as mock_read:
                         mock_read.return_value = "0000000000000001"
                         with patch.object(landing, "push_with_lando", Mock(side_effect=mock_push)):
                             landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
     hg_gecko_upstream.update()
     gecko_root = hg_gecko_upstream.root().strip().decode("utf8")
-    assert (hg_gecko_upstream
-            .log("-l1", "--template={desc|firstline}")
-            .strip()
-            .endswith(b"[wpt-sync] Update web-platform-tests to %s, a=testonly" %
-                      landing_rev.encode("utf8")))
+    assert (
+        hg_gecko_upstream.log("-l1", "--template={desc|firstline}")
+        .strip()
+        .endswith(
+            b"[wpt-sync] Update web-platform-tests to %s, a=testonly" % landing_rev.encode("utf8")
+        )
+    )
     for file in ["change1", "change2", "change3", "upstream1"]:
-        path = os.path.join(gecko_root,
-                            env.config["gecko"]["path"]["wpt"],
-                            file)
+        path = os.path.join(gecko_root, env.config["gecko"]["path"]["wpt"], file)
         assert os.path.exists(path)
         with open(path) as f:
             assert f.read() == file.upper() + "\n"
-    assert not os.path.exists(os.path.join(gecko_root,
-                                           env.config["gecko"]["path"]["wpt"],
-                                           "upstream2"))
+    assert not os.path.exists(
+        os.path.join(gecko_root, env.config["gecko"]["path"]["wpt"], "upstream2")
+    )
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["upstream"] == landing_rev
 
 
-def test_landing_pr_on_central(env, git_gecko, git_wpt, git_wpt_upstream, pull_request,
-                               set_pr_status, upstream_gecko_commit, mock_mach):
+def test_landing_pr_on_central(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    set_pr_status,
+    upstream_gecko_commit,
+    mock_mach,
+):
     # Ensure we handle the case where a PR already identical changes on central
 
     trypush.Mach = mock_mach
@@ -403,10 +471,9 @@ def test_landing_pr_on_central(env, git_gecko, git_wpt, git_wpt_upstream, pull_r
                 downstream_sync.data["force-metadata-ready"] = True
 
     # Repeat the changes in m-c
-    upstream_gecko_commit(test_changes=test_changes, bug=1234,
-                          message=b"Change README")
+    upstream_gecko_commit(test_changes=test_changes, bug=1234, message=b"Change README")
 
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -416,8 +483,9 @@ def test_landing_pr_on_central(env, git_gecko, git_wpt, git_wpt_upstream, pull_r
     assert sync.gecko_commits[-1].is_landing
 
 
-def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                          hg_gecko_try, mock_mach):
+def test_landing_metadata(
+    env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status, hg_gecko_try, mock_mach
+):
     from conftest import create_file_data, gecko_changes
 
     trypush.Mach = mock_mach
@@ -433,8 +501,9 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
         with downstream_sync.as_mut(downstream_lock):
             git_work = downstream_sync.gecko_worktree.get()
 
-            changes = gecko_changes(env, meta_changes={"example/test1.html":
-                                                       b"[test1.html]\n  expected: FAIL"})
+            changes = gecko_changes(
+                env, meta_changes={"example/test1.html": b"[test1.html]\n  expected: FAIL"}
+            )
             file_data, _ = create_file_data(changes, git_work.working_dir)
             downstream_sync.ensure_metadata_commit()
             git_work.index.add(file_data)
@@ -448,7 +517,7 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
 
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -459,17 +528,16 @@ def test_landing_metadata(env, git_gecko, git_wpt, git_wpt_upstream, pull_reques
         assert item in landing_sync.gecko_commits[-2].commit.stats.files
 
 
-def create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                  upstream_gecko_commit):
+def create_and_upstream_gecko_bug(
+    env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit
+):
     # Create gecko bug and upstream it
     bug = 1234
     test_changes = {"README": b"Change README\n"}
-    upstream_gecko_commit(test_changes=test_changes, bug=bug,
-                          message=b"Change README")
+    upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     test_changes = {"CONFIG": b"Change CONFIG\n"}
-    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug,
-                                message=b"Change CONFIG")
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change CONFIG")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
@@ -486,21 +554,30 @@ def create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
     return sync
 
 
-def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                           pull_request, upstream_gecko_commit, mock_mach,
-                                           set_pr_status, git_wpt_upstream):
+def test_relanding_unchanged_upstreamed_pr(
+    env,
+    git_gecko,
+    git_wpt,
+    hg_gecko_upstream,
+    pull_request,
+    upstream_gecko_commit,
+    mock_mach,
+    set_pr_status,
+    git_wpt_upstream,
+):
     trypush.Mach = mock_mach
 
     # Create an unrelated PR that didn't come from Gecko
     pr0 = pull_request([(b"Non Gecko PR", {"SOMEFILE": b"Made changes"})])
     unrelated_rev = pr0._commits[0]["sha"]
     downstream.new_wpt_pr(git_gecko, git_wpt, pr0)
-    downstream_sync = set_pr_status(pr0.number, 'success')
+    downstream_sync = set_pr_status(pr0.number, "success")
     git_wpt_upstream.head.commit = unrelated_rev
     git_wpt.remotes.origin.fetch()
 
-    sync = create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                         upstream_gecko_commit)
+    sync = create_and_upstream_gecko_bug(
+        env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit
+    )
 
     # 'Merge' this upstream PR
     pr = env.gh_wpt.get_pull(sync.pr)
@@ -510,27 +587,28 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
             sync.push_commits()
 
     assert str(git_wpt_upstream.active_branch) == "master"
-    git_wpt_upstream.git.merge('gecko/1234')  # TODO avoid hardcoding?
+    git_wpt_upstream.git.merge("gecko/1234")  # TODO avoid hardcoding?
 
     # Create a ref on the upstream to simulate the pr than GH would setup
     git_wpt_upstream.create_head(
-        'pr/%d' % pr['number'],
-        commit=git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+        "pr/%d" % pr["number"], commit=git_wpt_upstream.refs["gecko/1234"].commit.hexsha
     )
     git_wpt.remotes.origin.fetch()
-    pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
-    pr['base'] = {'sha': unrelated_rev}
-    env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
+    pr["merge_commit_sha"] = str(git_wpt_upstream.active_branch.commit.hexsha)
+    pr["base"] = {"sha": unrelated_rev}
+    env.gh_wpt.commit_prs[pr["merge_commit_sha"]] = pr["number"]
 
     # Update landing, the Non Gecko PR should be applied but not the Gecko one we upstreamed
     def mock_create(repo, msg, metadata, author=None, amend=False, allow_empty=False):
         # This commit should not be making it this far, should've been dropped earlier
-        assert b'Bug 1234 [wpt PR 2] - [Gecko Bug 1234]' not in msg
+        assert b"Bug 1234 [wpt PR 2] - [Gecko Bug 1234]" not in msg
         return DEFAULT
 
     m = Mock(side_effect=mock_create, wraps=sync_commit.Commit.create)
-    with patch('sync.commit.Commit.create', m), patch.object(
-            trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with (
+        patch("sync.commit.Commit.create", m),
+        patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read,
+    ):
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
 
@@ -543,13 +621,21 @@ def test_relanding_unchanged_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_ups
 
 
 @pytest.mark.parametrize("delete_reflog", [False, True])
-def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                         upstream_gecko_commit, mock_mach, git_wpt_upstream,
-                                         delete_reflog):
+def test_relanding_changed_upstreamed_pr(
+    env,
+    git_gecko,
+    git_wpt,
+    hg_gecko_upstream,
+    upstream_gecko_commit,
+    mock_mach,
+    git_wpt_upstream,
+    delete_reflog,
+):
     trypush.Mach = mock_mach
 
-    sync = create_and_upstream_gecko_bug(env, git_gecko, git_wpt, hg_gecko_upstream,
-                                         upstream_gecko_commit)
+    sync = create_and_upstream_gecko_bug(
+        env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_commit
+    )
 
     # 'Merge' this upstream PR
     pr = env.gh_wpt.get_pull(sync.pr)
@@ -559,44 +645,45 @@ def test_relanding_changed_upstreamed_pr(env, git_gecko, git_wpt, hg_gecko_upstr
         with sync.as_mut(upstream_sync_lock):
             sync.push_commits()
 
-    git_wpt_upstream.branches['gecko/1234'].checkout()
-    extra_commit = git_commit(git_wpt_upstream,
-                              b"Fixed pr before merge",
-                              {"EXTRA": b"This fixes it"})
+    git_wpt_upstream.branches["gecko/1234"].checkout()
+    extra_commit = git_commit(
+        git_wpt_upstream, b"Fixed pr before merge", {"EXTRA": b"This fixes it"}
+    )
     git_wpt_upstream.branches.master.checkout()
     assert str(git_wpt_upstream.active_branch) == "master"
-    git_wpt_upstream.git.merge('gecko/1234')  # TODO avoid hardcoding?
+    git_wpt_upstream.git.merge("gecko/1234")  # TODO avoid hardcoding?
 
     # Create a ref on the upstream to simulate the pr than GH would setup
     git_wpt_upstream.create_head(
-        'pr/%d' % pr['number'],
-        commit=git_wpt_upstream.refs['gecko/1234'].commit.hexsha
+        "pr/%d" % pr["number"], commit=git_wpt_upstream.refs["gecko/1234"].commit.hexsha
     )
     git_wpt.remotes.origin.fetch()
-    pr['merge_commit_sha'] = str(git_wpt_upstream.active_branch.commit.hexsha)
-    env.gh_wpt.commit_prs[pr['merge_commit_sha']] = pr['number']
+    pr["merge_commit_sha"] = str(git_wpt_upstream.active_branch.commit.hexsha)
+    env.gh_wpt.commit_prs[pr["merge_commit_sha"]] = pr["number"]
 
     if delete_reflog:
         for _ in git_wpt.references[sync.branch_name].log():
             git_wpt.git.reflog("delete", f"{sync.branch_name}@{{0}}")
 
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
     commits = landing_sync.gecko_commits._commits
 
     assert len(commits) == 2
     # Check that the first commit is our "fix commit" which didn't come from Gecko
-    assert commits[0].metadata['wpt-commits'] == extra_commit.hexsha
+    assert commits[0].metadata["wpt-commits"] == extra_commit.hexsha
     # Check that the other commit is the bot's push commit
-    assert commits[1].metadata['MANUAL PUSH'] == "wpt sync bot"
+    assert commits[1].metadata["MANUAL PUSH"] == "wpt sync bot"
 
 
 def test_accept_failures(landing_with_try_push, mock_tasks):
     sync = landing_with_try_push
-    with patch.object(tc.TaskGroup, "tasks",
-                      property(Mock(return_value=mock_tasks(failed=["foo", "foobar"],
-                                                            completed=["bar"])))):
+    with patch.object(
+        tc.TaskGroup,
+        "tasks",
+        property(Mock(return_value=mock_tasks(failed=["foo", "foobar"], completed=["bar"]))),
+    ):
         assert sync.try_result() == landing.TryPushResult.too_many_failures
         with SyncLock.for_process(sync.process_name) as lock:
             with sync.latest_try_push.as_mut(lock):
@@ -604,8 +691,18 @@ def test_accept_failures(landing_with_try_push, mock_tasks):
         assert sync.try_result() == landing.TryPushResult.acceptable_failures
 
 
-def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status,
-                             upstream_gecko_commit, mock_mach, mock_tasks, hg_gecko_upstream):
+def test_landing_push_failed(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    set_pr_status,
+    upstream_gecko_commit,
+    mock_mach,
+    mock_tasks,
+    hg_gecko_upstream,
+):
     pr = pull_request([(b"Test commit", {"README": b"example_change"})])
     head_rev = pr._commits[0]["sha"]
 
@@ -622,22 +719,25 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
         with downstream_sync.as_mut(downstream_lock):
             downstream_sync.data["force-metadata-ready"] = True
 
-    with patch.object(trypush.TryCommit, 'read_treeherder', autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
-    assert (f"Setting bug {sync.bug} add_blocks {downstream_sync.bug}"
-            in env.bz.output.getvalue())
+    assert f"Setting bug {sync.bug} add_blocks {downstream_sync.bug}" in env.bz.output.getvalue()
 
     try_push = sync.latest_try_push
     with SyncLock.for_process(sync.process_name) as lock:
         with sync.as_mut(lock), try_push.as_mut(lock):
             try_push.taskgroup_id = "abcdef"
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
-                with patch.object(tc.TaskGroup, "tasks", property(Mock(
-                        return_value=mock_tasks(completed=["foo"])))):
-                    with patch.object(trypush.TryCommit, 'read_treeherder',
-                                      autospec=True) as mock_read:
+                with patch.object(
+                    tc.TaskGroup,
+                    "tasks",
+                    property(Mock(return_value=mock_tasks(completed=["foo"]))),
+                ):
+                    with patch.object(
+                        trypush.TryCommit, "read_treeherder", autospec=True
+                    ) as mock_read:
                         mock_read.return_value = "0000000000000001"
                         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
 
@@ -653,8 +753,7 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
         if rebase_counter == 0:
             sync_gecko_rebase(branch)
             test_changes = {"change1": b"CHANGE1\n"}
-            upstream_gecko_commit(test_changes=test_changes, bug=1111,
-                                  message=b"Add change1 file")
+            upstream_gecko_commit(test_changes=test_changes, bug=1111, message=b"Add change1 file")
             rebase_counter += 1
 
     try_push = sync.latest_try_push
@@ -662,8 +761,11 @@ def test_landing_push_failed(env, git_gecko, git_wpt, git_wpt_upstream, pull_req
         with sync.as_mut(lock), try_push.as_mut(lock):
             try_push.taskgroup_id = "abcdef2"
             with patch.object(try_push, "download_logs", Mock(return_value=[])):
-                with patch.object(tc.TaskGroup, "tasks",
-                                  property(Mock(return_value=mock_tasks(completed=["foo"])))):
+                with patch.object(
+                    tc.TaskGroup,
+                    "tasks",
+                    property(Mock(return_value=mock_tasks(completed=["foo"]))),
+                ):
                     # Mock rebasing method to let landing fail on push
                     with patch.object(sync, "gecko_rebase", Mock(side_effect=mock_rebase)):
                         with pytest.raises(AbortError):

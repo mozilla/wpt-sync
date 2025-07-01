@@ -17,6 +17,7 @@ from ..projectutil import Mach
 
 from typing import Iterable, Mapping, MutableMapping, Optional, Tuple, TYPE_CHECKING
 from git.repo.base import Repo
+
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.notify.results import Result, Results
@@ -50,7 +51,7 @@ def test_ids_to_paths(git_work: Repo, test_ids: list[str]) -> dict[str, list[str
     group = 100
     try:
         while min_idx < len(test_ids):
-            data_str = mach.wpt_test_paths("--json", *test_ids[min_idx:min_idx + group])
+            data_str = mach.wpt_test_paths("--json", *test_ids[min_idx : min_idx + group])
             data.update(json.loads(data_str))
             min_idx += group
     except subprocess.CalledProcessError:
@@ -71,8 +72,9 @@ def fallback_test_ids_to_paths(test_ids: list[str]) -> dict:
 
         if test_id.startswith("/_mozilla/"):
             prefix = os.path.normpath(
-                os.path.join(env.config["gecko"]["path"]["wpt"], "..", "mozilla", "tests"))
-            suffix = suffix[len("/_mozilla"):]
+                os.path.join(env.config["gecko"]["path"]["wpt"], "..", "mozilla", "tests")
+            )
+            suffix = suffix[len("/_mozilla") :]
         m = any_re.match(test_id)
         if m:
             suffix = m.groups()[0] + ".any.js"
@@ -106,10 +108,11 @@ def filter_test_failures(test: str, subtest: str, result: TestResult) -> bool:
     return False
 
 
-@mut('sync')
-def for_sync(sync: DownstreamSync,
-             results: Results,
-             ) -> Mapping[int, list[ResultsEntryStatus]]:
+@mut("sync")
+def for_sync(
+    sync: DownstreamSync,
+    results: Results,
+) -> Mapping[int, list[ResultsEntryStatus]]:
     """Create the bugs for followup work for test problems found in a sync.
 
     This creates bugs that will be owned by the triage owner of the component
@@ -122,20 +125,30 @@ def for_sync(sync: DownstreamSync,
               (test_id, subtest, results, status)"""
     rv: MutableMapping[int, list[ResultsEntryStatus]] = {}
 
-    newrelic.agent.record_custom_event("sync_bug", params={
-        "sync_bug": sync.bug,
-    })
+    newrelic.agent.record_custom_event(
+        "sync_bug",
+        params={
+            "sync_bug": sync.bug,
+        },
+    )
 
-    new_crashes = list(results.iter_filter(lambda _test, _subtest, result:
-                                           (result.has_crash("firefox") and
-                                            not result.has_link(status="CRASH"))))
+    new_crashes = list(
+        results.iter_filter(
+            lambda _test, _subtest, result: (
+                result.has_crash("firefox") and not result.has_link(status="CRASH")
+            )
+        )
+    )
 
     new_failures = list(results.iter_filter(filter_test_failures))
 
     if not new_failures and not new_crashes:
-        newrelic.agent.record_custom_event("sync_bug_nothing_relevant", params={
-            "sync_bug": sync.bug,
-        })
+        newrelic.agent.record_custom_event(
+            "sync_bug_nothing_relevant",
+            params={
+                "sync_bug": sync.bug,
+            },
+        )
         return rv
 
     existing = sync.notify_bugs
@@ -146,12 +159,11 @@ def for_sync(sync: DownstreamSync,
     seen = set()
 
     for key, test_results, bug_data, link_status, require_opt_in in [
-            ("crash", new_crashes, bug_data_crash, "CRASH", False),
-            ("failure", new_failures, bug_data_failure, None, True)]:
-
+        ("crash", new_crashes, bug_data_crash, "CRASH", False),
+        ("failure", new_failures, bug_data_failure, None, True),
+    ]:
         # Tests excluding those for which we already generated a bug
-        test_results = [item for item in test_results
-                        if (item[0], item[1]) not in seen]
+        test_results = [item for item in test_results if (item[0], item[1]) not in seen]
 
         if not test_results:
             continue
@@ -185,9 +197,9 @@ def for_sync(sync: DownstreamSync,
             component = components_by_path[test_path]
             test_results_by_component[component].append((test_id, subtest, test_result))
 
-        opt_in_components = {item.strip()
-                             for item in
-                             env.config["notify"].get("components", "").split(";")}
+        opt_in_components = {
+            item.strip() for item in env.config["notify"].get("components", "").split(";")
+        }
 
         for component, test_results in test_results_by_component.items():
             if component == "UNKNOWN":
@@ -198,32 +210,28 @@ def for_sync(sync: DownstreamSync,
 
             if require_opt_in and component not in opt_in_components:
                 logger.info("Not filing bugs for component %s" % component)
-                newrelic.agent.record_custom_event("sync_bug_not_enabled", params={
-                    "sync_bug": sync.bug,
-                    "component": component
-                })
+                newrelic.agent.record_custom_event(
+                    "sync_bug_not_enabled", params={"sync_bug": sync.bug, "component": component}
+                )
                 continue
 
             if component_key not in existing:
                 product, component = component.split(" :: ")
-                summary, comment = bug_data(sync,
-                                            test_results,
-                                            results.treeherder_url,
-                                            results.wpt_sha)
+                summary, comment = bug_data(
+                    sync, test_results, results.treeherder_url, results.wpt_sha
+                )
                 depends = []
                 if sync.bug:
                     depends = [sync.bug]
                 bug_id = make_bug(summary, comment, product, component, depends)
                 sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})
-                newrelic.agent.record_custom_event("sync_bug_filing", params={
-                    "sync_bug": sync.bug,
-                    "component": component
-                })
+                newrelic.agent.record_custom_event(
+                    "sync_bug_filing", params={"sync_bug": sync.bug, "component": component}
+                )
             else:
-                newrelic.agent.record_custom_event("sync_bug_existing", params={
-                    "sync_bug": sync.bug,
-                    "component": component
-                })
+                newrelic.agent.record_custom_event(
+                    "sync_bug_existing", params={"sync_bug": sync.bug, "component": component}
+                )
                 bug_id = existing[component_key]
 
             rv[bug_id] = [item + (link_status,) for item in test_results]
@@ -283,8 +291,7 @@ def split_id(test_id: str) -> tuple[str, ...]:
     return tuple(parts)
 
 
-def get_common_prefix(test_ids: Iterable[str]
-                      ) -> tuple[list[tuple[str, ...]], tuple[str, ...]]:
+def get_common_prefix(test_ids: Iterable[str]) -> tuple[list[tuple[str, ...]], tuple[str, ...]]:
     """Given a list of test ids, return the paths split into directory parts,
     and the longest common prefix directory shared by all the inputs.
 
@@ -307,11 +314,12 @@ def get_common_prefix(test_ids: Iterable[str]
     return split_names, common_prefix
 
 
-def make_summary(test_results: list[ResultsEntry],
-                 prefix: str,
-                 max_length: int = 255,
-                 max_tests: int = 3,
-                 ) -> str:
+def make_summary(
+    test_results: list[ResultsEntry],
+    prefix: str,
+    max_length: int = 255,
+    max_tests: int = 3,
+) -> str:
     """Construct a summary for the bugs based on the test results.
 
     The approach here is to start building the string up using the
@@ -345,7 +353,7 @@ def make_summary(test_results: list[ResultsEntry],
         if not summary.append("%s/" % path_part):
             return summary.get()
 
-    test_names = ["/".join(item[len(common_test_prefix):]) for item in split_names]
+    test_names = ["/".join(item[len(common_test_prefix) :]) for item in split_names]
 
     # If there's a single test name add that and we're done
     if len(test_names) == 1:
@@ -377,13 +385,13 @@ def make_summary(test_results: list[ResultsEntry],
     return summary.get()
 
 
-def bug_data_crash(sync: DownstreamSync,
-                   test_results: list[ResultsEntry],
-                   treeherder_url: str | None,
-                   wpt_sha: str | None,
-                   ) -> tuple[str, str]:
-    summary = make_summary(test_results,
-                           "New wpt crashes")
+def bug_data_crash(
+    sync: DownstreamSync,
+    test_results: list[ResultsEntry],
+    treeherder_url: str | None,
+    wpt_sha: str | None,
+) -> tuple[str, str]:
+    summary = make_summary(test_results, "New wpt crashes")
 
     if treeherder_url is not None:
         treeherder_text = "[Gecko CI (Treeherder)](%s)" % treeherder_url
@@ -414,26 +422,28 @@ Getting the crash signature into these bug reports is a TODO; sorry
 
 These updates will be on mozilla-central once bug {sync_bug_id} lands.
 
-{postscript}""".format(pr_id=sync.pr,
-                       details=detail_part(None, test_results, None, "head", False),
-                       treeherder_text=treeherder_text,
-                       wpt_text=wpt_text,
-                       sync_bug_id=sync.bug,
-                       postscript=postscript)
+{postscript}""".format(
+        pr_id=sync.pr,
+        details=detail_part(None, test_results, None, "head", False),
+        treeherder_text=treeherder_text,
+        wpt_text=wpt_text,
+        sync_bug_id=sync.bug,
+        postscript=postscript,
+    )
 
     return summary, comment
 
 
-def bug_data_failure(sync: DownstreamSync,
-                     test_results: list[ResultsEntry],
-                     treeherder_url: str | None,
-                     wpt_sha: str | None,
-                     ) -> tuple[str, str]:
-    summary = make_summary(test_results,
-                           "New wpt failures")
+def bug_data_failure(
+    sync: DownstreamSync,
+    test_results: list[ResultsEntry],
+    treeherder_url: str | None,
+    wpt_sha: str | None,
+) -> tuple[str, str]:
+    summary = make_summary(test_results, "New wpt failures")
 
     by_type = defaultdict(list)
-    for (test, subtest, result) in test_results:
+    for test, subtest, result in test_results:
         if result.is_browser_only_failure("firefox"):
             by_type["firefox-only"].append((test, subtest, result))
         elif result.has_regression("firefox"):
@@ -442,14 +452,14 @@ def bug_data_failure(sync: DownstreamSync,
             by_type["new-non-passing"].append((test, subtest, result))
 
     detail_msg = []
-    for (details_type, test_results, include_other_browser) in [
-            ("Firefox-only failures", by_type["firefox-only"], False),
-            ("Tests with a Worse Result After Changes", by_type["regression"], True),
-            ("New Tests That Don't Pass", by_type["new-non-passing"], True)]:
+    for details_type, test_results, include_other_browser in [
+        ("Firefox-only failures", by_type["firefox-only"], False),
+        ("Tests with a Worse Result After Changes", by_type["regression"], True),
+        ("New Tests That Don't Pass", by_type["new-non-passing"], True),
+    ]:
         if not test_results:
             continue
-        part = detail_part(details_type, test_results, None, "head",
-                           include_other_browser)
+        part = detail_part(details_type, test_results, None, "head", include_other_browser)
         if part is not None:
             detail_msg.append(part)
 
@@ -480,34 +490,43 @@ found new untriaged test failures in CI
 
 These updates will be on mozilla-central once bug {sync_bug_id} lands.
 
-{postscript}""".format(pr_id=sync.pr,
-                       details="\n".join(detail_msg),
-                       treeherder_text=treeherder_text,
-                       wpt_text=wpt_text,
-                       sync_bug_id=sync.bug,
-                       postscript=postscript)
+{postscript}""".format(
+        pr_id=sync.pr,
+        details="\n".join(detail_msg),
+        treeherder_text=treeherder_text,
+        wpt_text=wpt_text,
+        sync_bug_id=sync.bug,
+        postscript=postscript,
+    )
 
     return summary, comment
 
 
-def make_bug(summary: str, comment: str, product: str, component: str,
-             depends: list[int]) -> int:
-    bug_id = env.bz.new(summary, comment, product, component,
-                        whiteboard="[wpt]", bug_type="defect", assign_to_sync=False)
+def make_bug(summary: str, comment: str, product: str, component: str, depends: list[int]) -> int:
+    bug_id = env.bz.new(
+        summary,
+        comment,
+        product,
+        component,
+        whiteboard="[wpt]",
+        bug_type="defect",
+        assign_to_sync=False,
+    )
     with env.bz.bug_ctx(bug_id) as bug:
         for item in depends:
             bug.add_depends(item)
     return bug_id
 
 
-@mut('sync')
-def update_metadata(sync: DownstreamSync,
-                    bugs: dict[int, list[ResultsEntryStatus]],
-                    ) -> None:
-    newrelic.agent.record_custom_event("sync_bug_metadata", params={
-        "sync_bug": sync.bug,
-        "bugs": [bug_id for bug_id, _ in bugs.items()]
-    })
+@mut("sync")
+def update_metadata(
+    sync: DownstreamSync,
+    bugs: dict[int, list[ResultsEntryStatus]],
+) -> None:
+    newrelic.agent.record_custom_event(
+        "sync_bug_metadata",
+        params={"sync_bug": sync.bug, "bugs": [bug_id for bug_id, _ in bugs.items()]},
+    )
     # TODO: Ensure that the metadata is added to the meta repo
     if not bugs:
         return
@@ -516,9 +535,11 @@ def update_metadata(sync: DownstreamSync,
     assert sync._lock is not None
     with metadata.as_mut(sync._lock):
         for bug_id, test_results in bugs.items():
-            for (test_id, subtest, results, status) in test_results:
-                metadata.link_bug(test_id,
-                                  env.bz.bugzilla_url(bug_id),
-                                  product="firefox",
-                                  subtest=subtest,
-                                  status=status)
+            for test_id, subtest, results, status in test_results:
+                metadata.link_bug(
+                    test_id,
+                    env.bz.bugzilla_url(bug_id),
+                    product="firefox",
+                    subtest=subtest,
+                    status=status,
+                )

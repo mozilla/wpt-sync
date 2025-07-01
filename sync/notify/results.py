@@ -15,17 +15,20 @@ from ..meta import Metadata
 from ..repos import cinnabar
 from .. import wptfyi
 
-from typing import (Any,
-                    Callable,
-                    Iterable,
-                    Iterator,
-                    List,
-                    Mapping,
-                    MutableMapping,
-                    Optional,
-                    Tuple,
-                    TYPE_CHECKING)
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+)
 from requests import Response
+
 if TYPE_CHECKING:
     from sync.repos import Repo
     from sync.downstream import DownstreamSync
@@ -40,8 +43,9 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 passing_statuses = frozenset(["PASS", "OK"])
-statuses = frozenset(["OK", "PASS", "CRASH", "FAIL", "TIMEOUT", "ERROR", "NOTRUN",
-                      "PRECONDITION_FAILED"])
+statuses = frozenset(
+    ["OK", "PASS", "CRASH", "FAIL", "TIMEOUT", "ERROR", "NOTRUN", "PRECONDITION_FAILED"]
+)
 browsers = ["firefox", "chrome", "safari"]
 
 
@@ -70,12 +74,15 @@ class StatusResult:
         # Regression if we go from a pass to a fail or a fail to a worse
         # failure and the result isn't marked as a known intermittent
 
-        return ((self.base in passing_statuses and
-                 self.head not in passing_statuses and
-                 self.head not in self.head_expected) or
-                (self.base == "FAIL" and
-                 self.head in ("TIMEOUT", "ERROR", "CRASH", "NOTRUN") and
-                 self.head not in self.head_expected))
+        return (
+            self.base in passing_statuses
+            and self.head not in passing_statuses
+            and self.head not in self.head_expected
+        ) or (
+            self.base == "FAIL"
+            and self.head in ("TIMEOUT", "ERROR", "CRASH", "NOTRUN")
+            and self.head not in self.head_expected
+        )
 
     def is_disabled(self) -> bool:
         return self.head == "SKIP"
@@ -85,38 +92,40 @@ class Result:
     def __init__(self) -> None:
         # Mapping {browser: {platform: StatusResult}}
         self.statuses: MutableMapping[str, MutableMapping[str, StatusResult]] = defaultdict(
-            lambda: defaultdict(
-                StatusResult))
+            lambda: defaultdict(StatusResult)
+        )
         self.bug_links: list[MetaLink] = []
 
-    def iter_filter_status(self,
-                           fn: Callable,
-                           ) -> Iterator[tuple[str, str, StatusResult]]:
+    def iter_filter_status(
+        self,
+        fn: Callable,
+    ) -> Iterator[tuple[str, str, StatusResult]]:
         for browser, by_platform in self.statuses.items():
             for platform, status in by_platform.items():
                 if fn(browser, platform, status):
                     yield browser, platform, status
 
-    def set_status(self, browser: str, job_name: str, run_has_changes: bool, status: str,
-                   expected: list[str]) -> None:
+    def set_status(
+        self, browser: str, job_name: str, run_has_changes: bool, status: str, expected: list[str]
+    ) -> None:
         self.statuses[browser][job_name].set(run_has_changes, status, expected)
 
     def is_consistent(self, browser: str, target: str = "head") -> bool:
         assert target in ["base", "head"]
-        browser_results: Mapping[str, StatusResult] | None = self.statuses.get(
-            browser)
+        browser_results: Mapping[str, StatusResult] | None = self.statuses.get(browser)
         if not browser_results:
             return True
         first_result = getattr(next(iter(browser_results.values())), target)
 
-        return all(getattr(result, target) == first_result
-                   for result in browser_results.values())
+        return all(getattr(result, target) == first_result for result in browser_results.values())
 
     def is_browser_only_failure(self, target_browser: str = "firefox") -> bool:
         gh_target = self.statuses[target_browser].get("GitHub")
-        gh_other = [self.statuses.get(browser, {}).get("GitHub")
-                    for browser in browsers
-                    if browser != target_browser]
+        gh_other = [
+            self.statuses.get(browser, {}).get("GitHub")
+            for browser in browsers
+            if browser != target_browser
+        ]
         if gh_target is None:
             # We don't have enough information to determine GH-only failures
             return False
@@ -129,11 +138,14 @@ class Result:
 
         # If it's passing on all internal platforms, assume a pref has to be
         # set or something. We could do better than this
-        gecko_ci_statuses = [status
-                             for job_name, status in self.statuses[target_browser].items()
-                             if job_name != "GitHub"]
-        if (gecko_ci_statuses and
-            all(status.head in passing_statuses for status in gecko_ci_statuses)):
+        gecko_ci_statuses = [
+            status
+            for job_name, status in self.statuses[target_browser].items()
+            if job_name != "GitHub"
+        ]
+        if gecko_ci_statuses and all(
+            status.head in passing_statuses for status in gecko_ci_statuses
+        ):
             return False
 
         return True
@@ -147,43 +159,64 @@ class Result:
             return False
 
         # Check if any non-GitHub status is a pass
-        if any(self.iter_filter_status(
-                lambda browser, platform, status: (browser == target_browser and
-                                                   platform != "GitHub" and
-                                                   status.head in passing_statuses))):
+        if any(
+            self.iter_filter_status(
+                lambda browser, platform, status: (
+                    browser == target_browser
+                    and platform != "GitHub"
+                    and status.head in passing_statuses
+                )
+            )
+        ):
             return False
 
         return True
 
     def has_crash(self, target_browser: str = "firefox") -> bool:
-        return any(self.iter_filter_status(
-            lambda browser, _, status: (browser == target_browser and
-                                        status.is_crash())))
+        return any(
+            self.iter_filter_status(
+                lambda browser, _, status: (browser == target_browser and status.is_crash())
+            )
+        )
 
     def has_new_non_passing(self, target_browser: str = "firefox") -> bool:
-        return any(self.iter_filter_status(
-            lambda browser, _, status: (browser == target_browser and
-                                        status.is_new_non_passing())))
+        return any(
+            self.iter_filter_status(
+                lambda browser, _, status: (
+                    browser == target_browser and status.is_new_non_passing()
+                )
+            )
+        )
 
     def has_regression(self, target_browser: str = "firefox") -> bool:
-        return any(self.iter_filter_status(
-            lambda browser, _, status: (browser == target_browser and
-                                        status.is_regression())))
+        return any(
+            self.iter_filter_status(
+                lambda browser, _, status: (browser == target_browser and status.is_regression())
+            )
+        )
 
     def has_disabled(self, target_browser: str = "firefox") -> bool:
-        return any(self.iter_filter_status(
-            lambda browser, _, status: (browser == target_browser and
-                                        status.is_disabled())))
+        return any(
+            self.iter_filter_status(
+                lambda browser, _, status: (browser == target_browser and status.is_disabled())
+            )
+        )
 
     def has_non_disabled(self, target_browser: str = "firefox") -> bool:
-        return any(self.iter_filter_status(
-            lambda browser, platform, status: (browser == target_browser and
-                                               platform != "GitHub" and
-                                               not status.is_disabled())))
+        return any(
+            self.iter_filter_status(
+                lambda browser, platform, status: (
+                    browser == target_browser and platform != "GitHub" and not status.is_disabled()
+                )
+            )
+        )
 
     def has_passing(self) -> bool:
-        return any(self.iter_filter_status(
-            lambda _browser, _platform, status: status.head in passing_statuses))
+        return any(
+            self.iter_filter_status(
+                lambda _browser, _platform, status: status.head in passing_statuses
+            )
+        )
 
     def has_link(self, status: str | None = None) -> bool:
         if status is None:
@@ -207,8 +240,8 @@ class ResultsSummary:
         self.parent_tests = 0
         self.subtests = 0
         self.job_results: JobResultsSummary = defaultdict(
-            lambda: defaultdict(
-                lambda: defaultdict(int)))
+            lambda: defaultdict(lambda: defaultdict(int))
+        )
 
 
 class Results:
@@ -231,8 +264,7 @@ class Results:
                 yield test_name, subtest_name, result
 
     def add_jobs_from_log_files(self, logs_no_changes: Logs, logs_with_changes: Logs) -> None:
-        for (browser_logs, run_has_changes) in [(logs_with_changes, True),
-                                                (logs_no_changes, False)]:
+        for browser_logs, run_has_changes in [(logs_with_changes, True), (logs_no_changes, False)]:
             for browser, browser_job_logs in browser_logs.items():
                 for job_name, job_logs in browser_job_logs.items():
                     if not run_has_changes and job_name not in self.test_results:
@@ -242,31 +274,34 @@ class Results:
                         try:
                             json_data = log_data.json()
                         except ValueError:
-                            self.errors.append(("Failed to parse data for %s %s" %
-                                                (browser, job_name), False))
+                            self.errors.append(
+                                ("Failed to parse data for %s %s" % (browser, job_name), False)
+                            )
                             continue
                         self.add_log(json_data, browser, job_name, run_has_changes)
 
-    def add_log(self, data: dict[str, Any], browser: str, job_name: str,
-                run_has_changes: bool) -> None:
+    def add_log(
+        self, data: dict[str, Any], browser: str, job_name: str, run_has_changes: bool
+    ) -> None:
         for test in data["results"]:
             use_result = run_has_changes or test["test"] in self.test_results
             if use_result:
                 status = test["status"]
                 expected = [test.get("expected", status)] + test.get("known_intermittent", [])
-                self.test_results[test["test"]].set_status(browser,
-                                                           job_name,
-                                                           run_has_changes,
-                                                           status,
-                                                           expected)
+                self.test_results[test["test"]].set_status(
+                    browser, job_name, run_has_changes, status, expected
+                )
                 for subtest in test["subtests"]:
                     status = subtest["status"]
-                    expected = ([subtest.get("expected", status)] +
-                                subtest.get("known_intermittent", []))
+                    expected = [subtest.get("expected", status)] + subtest.get(
+                        "known_intermittent", []
+                    )
 
-                    (self.test_results[test["test"]]
-                     .subtests[subtest["name"]]
-                     .set_status(browser, job_name, run_has_changes, status, expected))
+                    (
+                        self.test_results[test["test"]]
+                        .subtests[subtest["name"]]
+                        .set_status(browser, job_name, run_has_changes, status, expected)
+                    )
 
     def add_metadata(self, metadata: Metadata) -> None:
         for test, result in self.test_results.items():
@@ -313,32 +348,34 @@ class Results:
         return summary
 
     def iter_crashes(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
-        return self.iter_filter(lambda _test, _subtest, result:
-                                result.has_crash(target_browser))
+        return self.iter_filter(lambda _test, _subtest, result: result.has_crash(target_browser))
 
     def iter_new_non_passing(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
-        return self.iter_filter(lambda _test, _subtest, result:
-                                result.has_new_non_passing(target_browser))
+        return self.iter_filter(
+            lambda _test, _subtest, result: result.has_new_non_passing(target_browser)
+        )
 
     def iter_regressions(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
-        return self.iter_filter(lambda _test, _subtest, result:
-                                result.has_regression(target_browser))
+        return self.iter_filter(
+            lambda _test, _subtest, result: result.has_regression(target_browser)
+        )
 
     def iter_disabled(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
-        return self.iter_filter(lambda _test, _subtest, result:
-                                result.has_disabled(target_browser))
+        return self.iter_filter(lambda _test, _subtest, result: result.has_disabled(target_browser))
 
     def iter_browser_only(self, target_browser: str = "firefox") -> Iterator[ResultsEntry]:
         def is_browser_only(_test: str, _subtest: str | None, result: Result) -> bool:
             return result.is_browser_only_failure(target_browser)
+
         return self.iter_filter(is_browser_only)
 
 
 def get_push_changeset(commit: sync_commit.GeckoCommit) -> str | None:
-    url = ("https://hg.mozilla.org/mozilla-central/json-pushes?changeset=%s&version=2&tipsonly=1" %
-           commit.canonical_rev)
-    headers = {"Accept": "application/json",
-               "User-Agent": "wpt-sync"}
+    url = (
+        "https://hg.mozilla.org/mozilla-central/json-pushes?changeset=%s&version=2&tipsonly=1"
+        % commit.canonical_rev
+    )
+    headers = {"Accept": "application/json", "User-Agent": "wpt-sync"}
     resp = requests.get(url, headers=headers)
     try:
         resp.raise_for_status()
@@ -356,8 +393,10 @@ def get_push_changeset(commit: sync_commit.GeckoCommit) -> str | None:
 def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> TaskGroupView | None:
     merge_base_commit = sync_commit.GeckoCommit(
         git_gecko,
-        git_gecko.merge_base(sync.gecko_commits.head.sha1,
-                             env.config["gecko"]["refs"]["central"])[0])
+        git_gecko.merge_base(sync.gecko_commits.head.sha1, env.config["gecko"]["refs"]["central"])[
+            0
+        ],
+    )
 
     hg_push_sha = get_push_changeset(merge_base_commit)
     if hg_push_sha is None:
@@ -371,8 +410,7 @@ def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> TaskGroupView | 
     if push_commit is None:
         return None
 
-    taskgroup_id, state, _ = tc.get_taskgroup_id("mozilla-central",
-                                                 push_commit.canonical_rev)
+    taskgroup_id, state, _ = tc.get_taskgroup_id("mozilla-central", push_commit.canonical_rev)
     if taskgroup_id is None:
         return None
 
@@ -391,8 +429,9 @@ def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> TaskGroupView | 
     if not wpt_tasks.is_complete(allow_unscheduled=True):
         return None
 
-    dest = os.path.join(env.config["root"], env.config["paths"]["try_logs"],
-                        "central", push_commit.sha1)
+    dest = os.path.join(
+        env.config["root"], env.config["paths"]["try_logs"], "central", push_commit.sha1
+    )
 
     wpt_tasks.download_logs(dest, ["wptreport.json"])
 
@@ -408,12 +447,14 @@ class LogFile:
             return json.load(f)
 
 
-def get_logs(tasks: Iterable[dict[str, Any]],
-             job_prefix: str = "Gecko-") -> Mapping[str, Mapping[str, list[LogFile]]]:
+def get_logs(
+    tasks: Iterable[dict[str, Any]], job_prefix: str = "Gecko-"
+) -> Mapping[str, Mapping[str, list[LogFile]]]:
     logs = defaultdict(list)
     for task in tasks:
         job_name = job_prefix + tc.parse_job_name(
-            task.get("task", {}).get("metadata", {}).get("name", "unknown"))
+            task.get("task", {}).get("metadata", {}).get("name", "unknown")
+        )
         runs = task.get("status", {}).get("runs", [])
         if not runs:
             continue
@@ -467,10 +508,8 @@ def add_wpt_fyi_data(sync: DownstreamSync, results: Results) -> bool:
     head_sha1 = sync.wpt_commits.head.sha1
 
     logs = []
-    for target, run_has_changes in [("base", False),
-                                    ("head", True)]:
-        target_results: dict[str, dict[str, list[Response]]] = defaultdict(
-            dict)
+    for target, run_has_changes in [("base", False), ("head", True)]:
+        target_results: dict[str, dict[str, list[Response]]] = defaultdict(dict)
         try:
             runs = wptfyi.get_runs(sha=head_sha1, labels=["pr_%s" % target])
             for run in runs:

@@ -17,6 +17,7 @@ from typing import Dict
 from git.repo.base import Repo
 from typing import Any, Callable, Self, Tuple
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from sync.upstream import UpstreamSync
 
@@ -26,7 +27,7 @@ MsgFilterFunc = Callable[[bytes], Tuple[bytes, Dict[str, str]]]
 env = Environment()
 logger = log.get_logger(__name__)
 
-METADATA_RE = re.compile(br"([^:]+): (.*)")
+METADATA_RE = re.compile(rb"([^:]+): (.*)")
 
 
 def get_metadata(msg: bytes) -> dict[str, str]:
@@ -46,8 +47,8 @@ def try_filter(msg: bytes) -> bytes:
     # because we (mistakenly) think that this always means it's a try string. So we insert
     # a ZWSP which means that the try syntax regexp doesn't match, but the printable
     # representation of the commit message doesn't change
-    try_re = re.compile(br"(\b)try:")
-    msg, _ = try_re.subn("\\1try\u200B:".encode(), msg)
+    try_re = re.compile(rb"(\b)try:")
+    msg, _ = try_re.subn("\\1try\u200b:".encode(), msg)
     return msg
 
 
@@ -121,17 +122,20 @@ class GitNotes:
     def __setitem__(self, key: str, value: str) -> None:
         self._data[key] = value
         data = "\n".join("%s: %s" % item for item in self._data.items())
-        self.pygit2_repo.create_note(data,
-                                     self.pygit2_repo.default_signature,
-                                     self.pygit2_repo.default_signature,
-                                     self.commit.sha1,
-                                     "refs/notes/commits",
-                                     True)
+        self.pygit2_repo.create_note(
+            data,
+            self.pygit2_repo.default_signature,
+            self.pygit2_repo.default_signature,
+            self.commit.sha1,
+            "refs/notes/commits",
+            True,
+        )
 
 
 class Commit:
-    def __init__(self, repo: Repo,
-                 commit: str | Commit | GitPythonCommit | PyGit2Commit | Oid) -> None:
+    def __init__(
+        self, repo: Repo, commit: str | Commit | GitPythonCommit | PyGit2Commit | Oid
+    ) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
         self.cinnabar = cinnabar_map.get(repo)
@@ -228,14 +232,15 @@ class Commit:
         return len(self.pygit2_commit.parent_ids) > 1
 
     @classmethod
-    def create(cls,
-               repo: Repo,
-               msg: bytes,
-               metadata: dict[str, str] | None,
-               author: bytes | None = None,
-               amend: bool = False,
-               allow_empty: bool = False
-               ) -> Self:
+    def create(
+        cls,
+        repo: Repo,
+        msg: bytes,
+        metadata: dict[str, str] | None,
+        author: bytes | None = None,
+        amend: bool = False,
+        allow_empty: bool = False,
+    ) -> Self:
         msg = Commit.make_commit_msg(msg, metadata)
         commit_kwargs: dict[str, Any] = {}
         if amend:
@@ -262,44 +267,52 @@ class Commit:
     def is_empty(self, prefix: str | None = None) -> bool:
         if len(self.pygit2_commit.parents) == 1:
             # Fast-path for non-merge commits
-            diff = self.pygit2_repo.diff(self.pygit2_commit,
-                                         self.pygit2_commit.parents[0])
+            diff = self.pygit2_repo.diff(self.pygit2_commit, self.pygit2_commit.parents[0])
             if not prefix:
                 # Empty if there are no deltas in the diff
                 return not any(diff.deltas)
 
             for delta in diff.deltas:
-                if (delta.old_file.path.startswith(prefix) or
-                    delta.new_file.path.startswith(prefix)):
+                if delta.old_file.path.startswith(prefix) or delta.new_file.path.startswith(prefix):
                     return False
             return True
 
-        return self.show(src_prefix=prefix,
-                         format="",
-                         patch=True).strip() == ""
+        return self.show(src_prefix=prefix, format="", patch=True).strip() == ""
 
     def tags(self) -> list[str]:
-        return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n")
-                if item.strip()]
+        return [item for item in self.repo.git.tag(points_at=self.sha1).split("\n") if item.strip()]
 
-    def move(self,
-             dest_repo: Repo,
-             skip_empty: bool = True,
-             msg_filter: MsgFilterFunc | None = None,
-             metadata: dict[str, str] | None = None,
-             src_prefix: str | None = None,
-             dest_prefix: str | None = None,
-             amend: bool = False,
-             three_way: bool = True,
-             exclude: Any | None = None,
-             patch_fallback: bool = False,
-             allow_empty: bool = False,
-             ) -> Commit | None:
-
-        return _apply_patch(self.show(src_prefix), self.msg, self.canonical_rev, dest_repo,
-                            skip_empty, msg_filter, metadata, src_prefix, dest_prefix, amend,
-                            three_way, author=self.author, exclude=exclude,
-                            patch_fallback=patch_fallback, allow_empty=allow_empty)
+    def move(
+        self,
+        dest_repo: Repo,
+        skip_empty: bool = True,
+        msg_filter: MsgFilterFunc | None = None,
+        metadata: dict[str, str] | None = None,
+        src_prefix: str | None = None,
+        dest_prefix: str | None = None,
+        amend: bool = False,
+        three_way: bool = True,
+        exclude: Any | None = None,
+        patch_fallback: bool = False,
+        allow_empty: bool = False,
+    ) -> Commit | None:
+        return _apply_patch(
+            self.show(src_prefix),
+            self.msg,
+            self.canonical_rev,
+            dest_repo,
+            skip_empty,
+            msg_filter,
+            metadata,
+            src_prefix,
+            dest_prefix,
+            amend,
+            three_way,
+            author=self.author,
+            exclude=exclude,
+            patch_fallback=patch_fallback,
+            allow_empty=allow_empty,
+        )
 
     def show(self, src_prefix: str | None = None, **kwargs: Any) -> bytes:
         show_args: tuple[str, ...] = ()
@@ -313,60 +326,88 @@ class Commit:
             raise AbortError("git show failed") from e
 
 
-def move_commits(repo: Repo,
-                 revish: str,
-                 message: bytes,
-                 dest_repo: Repo,
-                 skip_empty: bool = True,
-                 msg_filter: MsgFilterFunc | None = None,
-                 metadata: dict[str, str] | None = None,
-                 src_prefix: str | None = None,
-                 dest_prefix: str | None = None,
-                 amend: bool = False,
-                 three_way: bool = True,
-                 rev_name: str | None = None,
-                 author: bytes | None = None,
-                 exclude: set[str] | None = None,
-                 patch_fallback: bool = False,
-                 allow_empty: bool = False,
-                 ) -> Commit | None:
+def move_commits(
+    repo: Repo,
+    revish: str,
+    message: bytes,
+    dest_repo: Repo,
+    skip_empty: bool = True,
+    msg_filter: MsgFilterFunc | None = None,
+    metadata: dict[str, str] | None = None,
+    src_prefix: str | None = None,
+    dest_prefix: str | None = None,
+    amend: bool = False,
+    three_way: bool = True,
+    rev_name: str | None = None,
+    author: bytes | None = None,
+    exclude: set[str] | None = None,
+    patch_fallback: bool = False,
+    allow_empty: bool = False,
+) -> Commit | None:
     if rev_name is None:
         rev_name = revish
     diff_args: tuple[str, ...] = ()
     if src_prefix:
         diff_args = ("--", src_prefix)
     try:
-        patch = repo.git.diff(revish, binary=True, submodule="diff",
-                              pretty="email", stdout_as_string=False, *diff_args) + b"\n"
+        patch = (
+            repo.git.diff(
+                revish,
+                binary=True,
+                submodule="diff",
+                pretty="email",
+                stdout_as_string=False,
+                *diff_args,
+            )
+            + b"\n"
+        )
         logger.info("Created patch")
     except git.GitCommandError as e:
         raise AbortError("git diff failed") from e
 
-    return _apply_patch(patch, message, rev_name, dest_repo, skip_empty, msg_filter, metadata,
-                        src_prefix, dest_prefix, amend, three_way, author=author, exclude=exclude,
-                        patch_fallback=patch_fallback, allow_empty=allow_empty)
+    return _apply_patch(
+        patch,
+        message,
+        rev_name,
+        dest_repo,
+        skip_empty,
+        msg_filter,
+        metadata,
+        src_prefix,
+        dest_prefix,
+        amend,
+        three_way,
+        author=author,
+        exclude=exclude,
+        patch_fallback=patch_fallback,
+        allow_empty=allow_empty,
+    )
 
 
-def _apply_patch(patch: bytes,
-                 message: bytes,
-                 rev_name: str,
-                 dest_repo: Repo,
-                 skip_empty: bool = True,
-                 msg_filter: MsgFilterFunc | None = None,
-                 metadata: dict[str, str] | None = None,
-                 src_prefix: str | None = None,
-                 dest_prefix: str | None = None,
-                 amend: bool = False,
-                 three_way: bool = True,
-                 author: bytes | None = None,
-                 exclude: set[str] | None = None,
-                 patch_fallback: bool = False,
-                 allow_empty: bool = False,
-                 ) -> Commit | None:
+def _apply_patch(
+    patch: bytes,
+    message: bytes,
+    rev_name: str,
+    dest_repo: Repo,
+    skip_empty: bool = True,
+    msg_filter: MsgFilterFunc | None = None,
+    metadata: dict[str, str] | None = None,
+    src_prefix: str | None = None,
+    dest_prefix: str | None = None,
+    amend: bool = False,
+    three_way: bool = True,
+    author: bytes | None = None,
+    exclude: set[str] | None = None,
+    patch_fallback: bool = False,
+    allow_empty: bool = False,
+) -> Commit | None:
     assert isinstance(patch, bytes)
 
-    if skip_empty and (not patch or patch.isspace() or
-                       not any(line.startswith(b"diff ") for line in patch.splitlines())):
+    if skip_empty and (
+        not patch
+        or patch.isspace()
+        or not any(line.startswith(b"diff ") for line in patch.splitlines())
+    ):
         return None
 
     if metadata is None:
@@ -402,8 +443,9 @@ def _apply_patch(patch: bytes,
             err_msg: str | None = None
             try:
                 logger.info("Trying to apply patch")
-                dest_repo.git.apply(patch_path, index=True, binary=True,
-                                    p=strip_dirs, **apply_kwargs)
+                dest_repo.git.apply(
+                    patch_path, index=True, binary=True, p=strip_dirs, **apply_kwargs
+                )
                 logger.info("Patch applied")
             except git.GitCommandError as e:
                 err_msg = """git apply failed
@@ -413,26 +455,26 @@ def _apply_patch(patch: bytes,
          {}""".format(e.command, e.status, patch_path, message_path, e.stderr)
                 if patch_fallback and not dest_repo.is_dirty():
                     dest_repo.git.reset(hard=True)
-                    cmd = ["patch", "-p%s" % strip_dirs, "-f", "-r=-",
-                           "--no-backup-if-mismatch"]
+                    cmd = ["patch", "-p%s" % strip_dirs, "-f", "-r=-", "--no-backup-if-mismatch"]
                     if dest_prefix:
                         cmd.append("--directory=%s" % dest_prefix)
                     logger.info(" ".join(cmd))
                     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
                     (stdout, stderr) = proc.communicate(patch)
                     if not proc.returncode == 0:
-                        err_msg = ("%s\n\nPatch failed (status %i):\nstdout:\n%s\nstderr:\n%s" %
-                                   (err_msg,
-                                    proc.returncode,
-                                    stdout.decode("utf8", "replace") if stdout else "",
-                                    stderr.decode("utf8", "replace") if stderr else ""))
+                        err_msg = "%s\n\nPatch failed (status %i):\nstdout:\n%s\nstderr:\n%s" % (
+                            err_msg,
+                            proc.returncode,
+                            stdout.decode("utf8", "replace") if stdout else "",
+                            stderr.decode("utf8", "replace") if stderr else "",
+                        )
                     else:
                         err_msg = None
                         prefix = b"+++ "
                         paths = []
                         for line in patch.splitlines():
                             if line.startswith(prefix):
-                                path_parts_bytes = line[len(prefix):].split(b"/")[strip_dirs:]
+                                path_parts_bytes = line[len(prefix) :].split(b"/")[strip_dirs:]
                                 path_parts = [item.decode("utf8") for item in path_parts_bytes]
                                 if dest_prefix:
                                     path = os.path.join(dest_prefix, *path_parts)
@@ -444,19 +486,24 @@ def _apply_patch(patch: bytes,
                     raise AbortError(err_msg)
 
             if exclude:
-                exclude_paths = [os.path.join(dest_prefix, exclude_path)
-                                 if dest_prefix else exclude_path
-                                 for exclude_path in exclude]
-                exclude_paths = [item for item in exclude_paths
-                                 if os.path.exists(os.path.join(working_dir, item))]
+                exclude_paths = [
+                    os.path.join(dest_prefix, exclude_path) if dest_prefix else exclude_path
+                    for exclude_path in exclude
+                ]
+                exclude_paths = [
+                    item
+                    for item in exclude_paths
+                    if os.path.exists(os.path.join(working_dir, item))
+                ]
                 try:
                     dest_repo.git.checkout("HEAD", *exclude_paths)
                 except git.GitCommandError as e:
                     logger.info(e)
             try:
                 logger.info("Creating commit")
-                return Commit.create(dest_repo, msg, None, amend=amend, author=author,
-                                     allow_empty=allow_empty)
+                return Commit.create(
+                    dest_repo, msg, None, amend=amend, author=author, allow_empty=allow_empty
+                )
             except git.GitCommandError as e:
                 if amend and e.status == 1 and "--allow-empty" in e.stdout:
                     logger.warning("Amending commit made it empty, resetting")
@@ -475,9 +522,10 @@ class GeckoCommit(Commit):
     def bug(self) -> int | None:
         bugs = commitparser.parse_bugs(self.msg.splitlines()[0])
         if len(bugs) > 1:
-            logger.warning("Got multiple bugs for commit %s: %s" %
-                           (self.canonical_rev,
-                            ", ".join(str(item) for item in bugs)))
+            logger.warning(
+                "Got multiple bugs for commit %s: %s"
+                % (self.canonical_rev, ", ".join(str(item) for item in bugs))
+            )
         if not bugs:
             return None
         assert isinstance(bugs[0], int)
@@ -494,11 +542,13 @@ class GeckoCommit(Commit):
     @property
     def is_downstream(self) -> bool:
         from . import downstream
+
         return downstream.DownstreamSync.has_metadata(self.msg)
 
     @property
     def is_landing(self) -> bool:
         from . import landing
+
         return landing.LandingSync.has_metadata(self.msg)
 
     def commits_backed_out(self) -> tuple[list[GeckoCommit], set[int]]:
@@ -521,8 +571,9 @@ class GeckoCommit(Commit):
 
         return commits, set(bugs)
 
-    def wpt_commits_backed_out(self, exclude_downstream: bool = True,
-                               exclude_landing: bool = True) -> tuple[list[GeckoCommit], set[int]]:
+    def wpt_commits_backed_out(
+        self, exclude_downstream: bool = True, exclude_landing: bool = True
+    ) -> tuple[list[GeckoCommit], set[int]]:
         """Get a list of all the wpt commits backed out by the current commit.
 
         :param exclude_downstream: Exclude commits that were downstreamed
@@ -531,9 +582,11 @@ class GeckoCommit(Commit):
         all_commits, bugs = self.commits_backed_out()
         commits = []
         for commit in all_commits:
-            if (commit.has_wpt_changes() and
-                not (exclude_downstream and commit.is_downstream) and
-                not (exclude_landing and commit.is_landing)):
+            if (
+                commit.has_wpt_changes()
+                and not (exclude_downstream and commit.is_downstream)
+                and not (exclude_landing and commit.is_landing)
+            ):
                 commits.append(commit)
         return commits, set(bugs)
 
@@ -547,6 +600,7 @@ class GeckoCommit(Commit):
 
     def upstream_sync(self, git_gecko: Repo, git_wpt: Repo) -> UpstreamSync | None:
         from . import upstream
+
         if "upstream-sync" in self.notes:
             seq_id: int | None = None
             bug_str, seq_id_str = self.notes["upstream-sync"].split(":", 1)
@@ -566,6 +620,7 @@ class GeckoCommit(Commit):
 
     def set_upstream_sync(self, sync: UpstreamSync) -> None:
         from . import upstream
+
         if not isinstance(sync, upstream.UpstreamSync):
             raise ValueError
         seq_id = sync.seq_id
@@ -577,8 +632,7 @@ class GeckoCommit(Commit):
 class WptCommit(Commit):
     def pr(self) -> int | None:
         if "wpt_pr" not in self.notes:
-            tags = [item.rsplit("_", 1)[1] for item in self.tags()
-                    if item.startswith("merge_pr_")]
+            tags = [item.rsplit("_", 1)[1] for item in self.tags() if item.startswith("merge_pr_")]
             if tags and len(tags) == 1:
                 logger.info("Using tagged PR for commit %s" % self.sha1)
                 pr = tags[0]
@@ -612,10 +666,11 @@ class Store:
         self.data = None
         return self.path
 
-    def __exit__(self,
-                 type: type | None,
-                 value: Exception | None,
-                 traceback: Any | None,
-                 ) -> None:
+    def __exit__(
+        self,
+        type: type | None,
+        value: Exception | None,
+        traceback: Any | None,
+    ) -> None:
         if not type:
             os.unlink(self.path)

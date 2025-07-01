@@ -33,8 +33,7 @@ def get_root() -> tuple[str, str]:
     if wptsync_root is not None:
         root = os.path.abspath(os.path.normpath(wptsync_root))
     else:
-        root = os.path.abspath(os.path.normpath(
-            os.path.join(os.path.dirname(__file__), os.pardir)))
+        root = os.path.abspath(os.path.normpath(os.path.join(os.path.dirname(__file__), os.pardir)))
 
     # In production, we want to store the repos in a different volume
     if wptsync_repo_root:
@@ -48,10 +47,10 @@ def load() -> Config:
     global _config
     if _config is None:
         root, _ = get_root()
-        ini_path = os.environ.get("WPTSYNC_CONFIG",
-                                  os.path.join(root, "config", "dev", "sync.ini"))
-        creds_path = os.environ.get("WPTSYNC_CREDS",
-                                    os.path.join(root, "config", "dev", "credentials.ini"))
+        ini_path = os.environ.get("WPTSYNC_CONFIG", os.path.join(root, "config", "dev", "sync.ini"))
+        creds_path = os.environ.get(
+            "WPTSYNC_CREDS", os.path.join(root, "config", "dev", "credentials.ini")
+        )
         ini_sync = read_ini(ini_path)
         ini_credentials = read_ini(creds_path)
         _config = load_files(ini_sync, ini_credentials)
@@ -95,11 +94,9 @@ def configure(f: Callable[[Config, *tuple[Any, ...]], Any]) -> Callable[..., Any
     return inner
 
 
-def set_value(config: Config,
-              section: str,
-              name: str,
-              value: str,
-              ini_credentials: RawConfigParser) -> None:
+def set_value(
+    config: Config, section: str, name: str, value: str, ini_credentials: RawConfigParser
+) -> None:
     target = config[section]
 
     parts = name.split(".")
