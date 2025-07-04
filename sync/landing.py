@@ -852,6 +852,12 @@ def push(landing: LandingSync) -> None:
 
 def push_with_lando(landing):
     logger.info("Pushing landing")
+
+    # Add lando credentials to env variables
+    env_obj = os.environ
+    env_obj["LANDO_HEADLESS_API_TOKEN"] = env.config["lando"]["api_token"]
+    env_obj["LANDO_USER_EMAIL"] = env.config["lando"]["user_email"]
+
     cmd = [
         "lando",
         "push-commits",
@@ -864,7 +870,10 @@ def push_with_lando(landing):
         "--yes"
     ]
     logger.info(" ".join(cmd))
-    return subprocess.check_output(cmd)
+    return subprocess.check_output(
+        cmd,
+        env=env_obj,
+    )
 
 
 def unlanded_with_type(git_gecko, git_wpt, wpt_head, prev_wpt_head):
