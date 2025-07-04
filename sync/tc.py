@@ -16,8 +16,10 @@ from . import log
 from .env import Environment
 from .errors import RetryableError
 from .threadexecutor import ThreadExecutor
+from .types import Json
 
-from typing import Any, Callable, Dict, Iterator
+from typing import Any, Callable, Dict, Iterator, Mapping, Optional
+
 Task = Dict[str, Dict[str, Any]]
 
 
@@ -41,23 +43,25 @@ env = Environment()
 
 
 class TaskclusterClient:
-    def __init__(self):
-        self._queue = None
+    def __init__(self) -> None:
+        self._queue: Optional[taskcluster.Queue] = None
 
     @property
-    def queue(self):
+    def queue(self) -> taskcluster.Queue:
         # Only used for retriggers which always use the new URL
         if not self._queue:
-            self._queue = taskcluster.Queue({
-                "credentials": {
-                    "clientId": env.config["taskcluster"]["client_id"],
-                    "accessToken": env.config["taskcluster"]["token"]
-                },
-                "rootUrl": TASKCLUSTER_ROOT_URL,
-            })
+            self._queue = taskcluster.Queue(
+                {
+                    "credentials": {
+                        "clientId": env.config["taskcluster"]["client_id"],
+                        "accessToken": env.config["taskcluster"]["token"],
+                    },
+                    "rootUrl": TASKCLUSTER_ROOT_URL,
+                }
+            )
         return self._queue
 
-    def retrigger(self, task_id, count=1, retries=5):
+    def retrigger(self, task_id: str, count: int = 1, retries: int = 5) -> Optional[list[Task]]:
         logger.info("Retriggering task %s" % task_id)
         payload = self.queue.task(task_id)
         now = taskcluster.fromNow("0 days")
@@ -82,9 +86,9 @@ class TaskclusterClient:
                 try:
                     rv.append(self.queue.createTask(new_id, payload))
                     break
-                except Exception as e:
+                except Exception:
                     r -= 1
-                    logger.warning(traceback.format_exc(e))
+                    logger.warning(traceback.format_exc())
             count -= 1
         return rv or None
 
@@ -104,35 +108,16 @@ def normalize_task_id(task_id: str) -> str:
     return slugid.encode(task_uuid)
 
 
-def parse_job_name(job_name):
+def parse_job_name(job_name: str) -> str:
     if job_name.startswith("test-"):
-        job_name = job_name[len("test-"):]
+        job_name = job_name[len("test-") :]
     if "web-platform-tests" in job_name:
-        job_name = job_name[:job_name.index("web-platform-tests")]
+        job_name = job_name[: job_name.index("web-platform-tests")]
     job_name = job_name.rstrip("-")
 
     job_name = job_name.replace("/", "-")
 
     return job_name
-
-
-def result_from_run(run):
-    result_map = {"completed": "success",
-                  "failed": "fail"}
-
-    state = run.get("state")
-
-    if state in result_map:
-        return result_map[state]
-
-    if state == "exception":
-        if run.get("reasonResolved") == "canceled":
-            return "canceled"
-        if run.get("reasonResolved") == "superseded":
-            return "superseded"
-        return "exception"
-
-    return "unknown"
 
 
 class TaskGroup:
@@ -147,16 +132,13 @@ class TaskGroup:
 
         list_url = QUEUE_BASE + "task-group/" + self.taskgroup_id + "/list"
 
-        r = requests.get(list_url, params={
-            "limit": 200
-        })
+        r = requests.get(list_url, params={"limit": 200})
         reply = r.json()
         tasks = reply["tasks"]
         while "continuationToken" in reply:
-            r = requests.get(list_url, params={
-                "limit": 200,
-                "continuationToken": reply["continuationToken"]
-            })
+            r = requests.get(
+                list_url, params={"limit": 200, "continuationToken": reply["continuationToken"]}
+            )
             reply = r.json()
             tasks += reply["tasks"]
         self._tasks = tasks
@@ -176,11 +158,12 @@ class TaskGroup:
 class TaskGroupView:
     def __init__(self, taskgroup: TaskGroup, filter_fn: Callable[[Task], bool] | None) -> None:
         self.taskgroup = taskgroup
-        self.filter_fn: Callable[[Task], bool] = (filter_fn if filter_fn is not None
-                                                  else lambda x: bool(x))
+        self.filter_fn: Callable[[Task], bool] = (
+            filter_fn if filter_fn is not None else lambda x: bool(x)
+        )
         self._tasks: list[Task] | None = None
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.tasks)
 
     def __len__(self) -> int:
@@ -194,19 +177,19 @@ class TaskGroupView:
         if self._tasks:
             return self._tasks
 
-        self._tasks = [item for item in self.taskgroup.tasks
-                       if self.filter_fn(item)]
+        self._tasks = [item for item in self.taskgroup.tasks if self.filter_fn(item)]
         assert self._tasks is not None
         return self._tasks
 
-    def refresh(self):
+    def refresh(self) -> list[Task]:
         self._tasks = None
         self.taskgroup.refresh()
         return self.tasks
 
-    def incomplete_tasks(self,
-                         allow_unscheduled: bool = False,
-                         ) -> Iterator[Task]:
+    def incomplete_tasks(
+        self,
+        allow_unscheduled: bool = False,
+    ) -> Iterator[Task]:
         tasks_by_id = self.taskgroup.tasks_by_id()
         for task in self.tasks:
             if task_is_incomplete(task, tasks_by_id, allow_unscheduled):
@@ -218,8 +201,7 @@ class TaskGroupView:
         return builds.filter(is_status_fn({FAIL, EXCEPTION}))
 
     def filter(self, filter_fn: Callable[[Task], bool]) -> TaskGroupView:
-        def combined_filter(task: Task
-                            ) -> bool:
+        def combined_filter(task: Task) -> bool:
             return self.filter_fn(task) and filter_fn(task)
 
         return self.taskgroup.view(combined_filter)
@@ -236,46 +218,51 @@ class TaskGroupView:
         return rv
 
     @newrelic.agent.function_trace()
-    def download_logs(self, destination: str,
-                      file_names: list[str],
-                      retry: int = 5
-                      ):
-        # type (...) -> None
+    def download_logs(self, destination: str, file_names: list[str], retry: int = 5) -> None:
         if not os.path.exists(destination):
             os.makedirs(destination)
 
         if not file_names:
-            return []
+            return
 
         logger.info("Downloading logs to %s" % destination)
         t0 = time.time()
         executor = ThreadExecutor(8, work_fn=get_task_artifacts, init_fn=start_session)
-        errors = executor.run([((), {
-            "destination": destination,
-            "task": item,
-            "file_names": file_names,
-            "retry": retry
-        }) for item in self.tasks])
+        errors = executor.run(
+            [
+                (
+                    (),
+                    {
+                        "destination": destination,
+                        "task": item,
+                        "file_names": file_names,
+                        "retry": retry,
+                    },
+                )
+                for item in self.tasks
+            ]
+        )
         # TODO: not sure if we can avoid tolerating some errors here, but
         # there is probably some sign of badness less than all the downloads
         # erroring
         for error in errors:
-            logger.warning(traceback.format_exc(error))
+            logger.warning(error)
         if len(errors) == len(self.tasks):
-            raise RetryableError("Downloading logs all failed")
+            raise RetryableError(Exception("Downloading logs all failed"))
         logger.info("Downloading logs took %s" % (time.time() - t0))
 
 
-def start_session():
+def start_session() -> dict[str, requests.Session]:
     return {"session": requests.Session()}
 
 
-def get_task_artifacts(destination: str,
-                       task: Task,
-                       file_names: list[str],
-                       session: requests.Session | None,
-                       retry: int
-                       ):
+def get_task_artifacts(
+    destination: str,
+    task: Task,
+    file_names: list[str],
+    session: requests.Session | None,
+    retry: int,
+) -> None:
     status = task.get("status", {})
     if not status.get("runs"):
         logger.debug("No runs for task %s" % status["taskId"])
@@ -287,19 +274,18 @@ def get_task_artifacts(destination: str,
         artifacts = fetch_json(artifacts_base_url, session=session)
     except requests.HTTPError as e:
         logger.warning(str(e))
-    artifact_urls = ["{}/{}".format(artifacts_base_url, item["name"])
-                     for item in artifacts["artifacts"]
-                     if any(item["name"].endswith("/" + file_name)
-                            for file_name in file_names)]
+    assert isinstance(artifacts, dict)
+    artifact_urls = [
+        "{}/{}".format(artifacts_base_url, item["name"])
+        for item in artifacts["artifacts"]
+        if any(item["name"].endswith("/" + file_name) for file_name in file_names)
+    ]
 
     run = status["runs"][-1]
     if "_log_paths" not in run:
         run["_log_paths"] = {}
     for url in artifact_urls:
-        params = {
-            "task": status["taskId"],
-            "file_name": url.rsplit("/", 1)[1]
-        }
+        params = {"task": status["taskId"], "file_name": url.rsplit("/", 1)[1]}
         log_name = "{task}_{file_name}".format(**params)
         success = False
         logger.debug(f"Trying to download {url}")
@@ -313,10 +299,11 @@ def get_task_artifacts(destination: str,
         run["_log_paths"][params["file_name"]] = log_path
 
 
-def task_is_incomplete(task: Task,
-                       tasks_by_id: dict[str, Task],
-                       allow_unscheduled: bool,
-                       ) -> bool:
+def task_is_incomplete(
+    task: Task,
+    tasks_by_id: dict[str, Task],
+    allow_unscheduled: bool,
+) -> bool:
     status = task.get("status", {}).get("state", PENDING)
     if status in (PENDING, RUNNING):
         return True
@@ -330,21 +317,24 @@ def task_is_incomplete(task: Task,
 
         # A task can depend on its image; it's OK to ignore this for our purposes
         image = task.get("task", {}).get("payload", {}).get("image", {}).get("taskId")
-        dependencies = [item for item in task.get("task", {}).get("dependencies", [])
-                        if item != image]
+        dependencies = [
+            item for item in task.get("task", {}).get("dependencies", []) if item != image
+        ]
         if not dependencies:
             return True
         # Not sure how to handle a case where a dependent doesn't exist,  ignore it
-        return any(task_is_incomplete(tasks_by_id[dependent_id], tasks_by_id,
-                                      allow_unscheduled)
-                   for dependent_id in dependencies
-                   if dependent_id in tasks_by_id)
+        return any(
+            task_is_incomplete(tasks_by_id[dependent_id], tasks_by_id, allow_unscheduled)
+            for dependent_id in dependencies
+            if dependent_id in tasks_by_id
+        )
     return False
 
 
-def is_suite(suite: str,
-             task: dict[str, dict[str, Any]],
-             ) -> bool:
+def is_suite(
+    suite: str,
+    task: dict[str, dict[str, Any]],
+) -> bool:
     t = task.get("task", {}).get("extra", {}).get("suite", {})
     if isinstance(t, dict):
         t = t.get("name", "")
@@ -355,9 +345,10 @@ def is_suite_fn(suite: str) -> Callable:
     return lambda x: is_suite(suite, x)
 
 
-def check_tag(task: Task,
-              tag: str,
-              ) -> bool:
+def check_tag(
+    task: Task,
+    tag: str,
+) -> bool:
     tags = task.get("task", {}).get("tags")
     if tags:
         return tags.get("kind") == tag
@@ -372,9 +363,10 @@ def is_build(task: Task) -> bool:
     return check_tag(task, "build")
 
 
-def is_status(statuses: set[str] | str,
-              task: Task,
-              ) -> bool:
+def is_status(
+    statuses: set[str] | str,
+    task: Task,
+) -> bool:
     state: str | None = task.get("status", {}).get("state")
     return state is not None and state in statuses
 
@@ -402,21 +394,23 @@ def lookup_index(index_name: str) -> str | None:
 
 
 def lookup_treeherder(project: str, revision: str) -> str | None:
-    push_data = fetch_json(TREEHERDER_BASE + f"api/project/{project}/push/",
-                           params={"revision": revision})
-
+    push_data = fetch_json(
+        TREEHERDER_BASE + f"api/project/{project}/push/", params={"revision": revision}
+    )
+    assert isinstance(push_data, dict)
     pushes = push_data.get("results", [])
     push_id = pushes[0].get("id") if pushes else None
     if push_id is None:
         return None
 
-    jobs_data = fetch_json(TREEHERDER_BASE + "api/jobs/",
-                           {"push_id": push_id})
+    jobs_data = fetch_json(TREEHERDER_BASE + "api/jobs/", {"push_id": push_id})
+    assert isinstance(jobs_data, dict)
     property_names = jobs_data["job_property_names"]
     idx_name = property_names.index("job_type_name")
     idx_task = property_names.index("task_id")
-    decision_tasks = [item for item in jobs_data["results"]
-                      if item[idx_name] == "Gecko Decision Task"]
+    decision_tasks = [
+        item for item in jobs_data["results"] if item[idx_name] == "Gecko Decision Task"
+    ]
     return decision_tasks[-1][idx_task]
 
 
@@ -444,8 +438,9 @@ def get_task_status(task_id: str) -> dict[str, Any] | None:
     return None
 
 
-def download(log_url: str, log_path: str, retry: int,
-             session: requests.Session | None = None) -> bool:
+def download(
+    log_url: str, log_path: str, retry: int, session: requests.Session | None = None
+) -> bool:
     if session is None:
         session = requests.Session()
     while retry > 0:
@@ -458,7 +453,7 @@ def download(log_url: str, log_path: str, retry: int,
                 retry -= 1
                 continue
             tmp_path = log_path + ".tmp"
-            with open(tmp_path, 'wb') as f:
+            with open(tmp_path, "wb") as f:
                 resp.raw.decode_content = True
                 shutil.copyfileobj(resp.raw, f)
             os.rename(tmp_path, log_path)
@@ -470,18 +465,16 @@ def download(log_url: str, log_path: str, retry: int,
     return False
 
 
-def fetch_json(url: str,
-               params: dict[str, str] | None = None,
-               session: requests.Session | None = None
-               ):
-    # type (...) -> Union[Dict[Text, Any], List[Any]]
+def fetch_json(
+    url: str, params: dict[str, str] | None = None, session: requests.Session | None = None
+) -> Mapping[str, Json]:
     if session is None:
         session = requests.Session()
     t0 = time.time()
     logger.debug("Getting json from %s" % url)
     headers = {
-        'Accept': 'application/json',
-        'User-Agent': 'wpt-sync',
+        "Accept": "application/json",
+        "User-Agent": "wpt-sync",
     }
     resp = session.get(url=url, params=params, headers=headers, timeout=30)
     resp.raise_for_status()
@@ -507,7 +500,7 @@ def get_taskgroup_id(project: str, revision: str) -> tuple[str, str, list[dict[s
     return (task_id, state, runs)
 
 
-def cleanup():
+def cleanup() -> None:
     base_path = os.path.join(env.config["root"], env.config["paths"]["try_logs"])
     for repo_dir in os.listdir(base_path):
         repo_path = os.path.join(base_path, repo_dir)
@@ -519,7 +512,6 @@ def cleanup():
                 continue
             now = datetime.now()
             # Data hasn't been touched in three days
-            if (datetime.fromtimestamp(os.stat(rev_path).st_mtime) <
-                now - timedelta(days=3)):
+            if datetime.fromtimestamp(os.stat(rev_path).st_mtime) < now - timedelta(days=3):
                 logger.info("Removing downloaded logs without recent activity %s" % rev_path)
                 shutil.rmtree(rev_path)

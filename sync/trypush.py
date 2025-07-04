@@ -20,10 +20,12 @@ from .load import get_syncs
 from .lock import constructor, mut
 from .projectutil import Mach
 from .repos import cinnabar
+from .sync import SyncProcess
 from .tc import TaskGroupView
 
-from typing import Any, Mapping, MutableMapping, Text, TYPE_CHECKING
+from typing import Any, Iterator, Mapping, MutableMapping, Optional, Self, Text, TYPE_CHECKING
 from git.repo.base import Repo
+
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.landing import LandingSync
@@ -39,14 +41,15 @@ rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
 
 
 class TryCommit:
-    def __init__(self,
-                 git_gecko: Repo,
-                 worktree: Repo,
-                 tests_by_type: Mapping[str, list[str]] | None,
-                 rebuild: int,
-                 hacks: bool = True,
-                 **kwargs: Any
-                 ) -> None:
+    def __init__(
+        self,
+        git_gecko: Repo,
+        worktree: Repo,
+        tests_by_type: Mapping[str, list[str]] | None,
+        rebuild: int,
+        hacks: bool = True,
+        **kwargs: Any,
+    ) -> None:
         self.git_gecko = git_gecko
         self.worktree = worktree
         self.tests_by_type = tests_by_type
@@ -63,7 +66,7 @@ class TryCommit:
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
         self.cleanup()
 
-    def create(self):
+    def create(self) -> None:
         pass
 
     def cleanup(self) -> None:
@@ -116,7 +119,7 @@ class TryCommit:
             except ValueError:
                 pass
         else:
-            try_rev = rev_match.group('rev')
+            try_rev = rev_match.group("rev")
         if try_rev is None:
             logger.error(msg)
             raise AbortError(msg)
@@ -124,18 +127,19 @@ class TryCommit:
 
 
 class TryFuzzyCommit(TryCommit):
-    def __init__(self,
-                 git_gecko: Repo,
-                 worktree: Repo,
-                 tests_by_type: Mapping[str, list[str]] | None,
-                 rebuild: int,
-                 hacks: bool = True,
-                 **kwargs: Any
-                 ) -> None:
-        super().__init__(git_gecko, worktree, tests_by_type, rebuild,
-                         hacks=hacks, **kwargs)
-        self.queries = self.extra_args.get("queries",
-                                           ["web-platform-tests !macosx !shippable !asan !tsan"])
+    def __init__(
+        self,
+        git_gecko: Repo,
+        worktree: Repo,
+        tests_by_type: Mapping[str, list[str]] | None,
+        rebuild: int,
+        hacks: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(git_gecko, worktree, tests_by_type, rebuild, hacks=hacks, **kwargs)
+        self.queries = self.extra_args.get(
+            "queries", ["web-platform-tests !macosx !shippable !asan !tsan"]
+        )
         if isinstance(self.queries, str):
             self.queries = [self.queries]
         self.full = self.extra_args.get("full", False)
@@ -160,8 +164,7 @@ class TryFuzzyCommit(TryCommit):
         # Gross hack to create a objdir until we figure out why this is failing
         # from here but not from the shell
         try:
-            if not os.path.exists(os.path.join(working_dir,
-                                               "obj-x86_64-pc-linux-gnu")):
+            if not os.path.exists(os.path.join(working_dir, "obj-x86_64-pc-linux-gnu")):
                 mach.python("-c", "")
         except OSError:
             pass
@@ -196,9 +199,7 @@ class TryFuzzyCommit(TryCommit):
             all_paths = set()
             for values in self.tests_by_type.values():
                 for item in values:
-                    if (item not in all_paths and
-                        os.path.exists(os.path.join(working_dir,
-                                                    item))):
+                    if item not in all_paths and os.path.exists(os.path.join(working_dir, item)):
                         paths.append(item)
                     all_paths.add(item)
             max_tests = env.config["gecko"]["try"].get("max-tests")
@@ -221,26 +222,29 @@ class TryPush(base.ProcessData):
 
     Where id is a number to indicate the Nth try push for this PR.
     """
+
     obj_type = "try"
     statuses = ("open", "complete", "infra-fail")
-    status_transitions = [("open", "complete"),
-                          ("complete", "open"),  # For reopening "failed" landing try pushes
-                          ("infra-fail", "complete")]
+    status_transitions = [
+        ("open", "complete"),
+        ("complete", "open"),  # For reopening "failed" landing try pushes
+        ("infra-fail", "complete"),
+    ]
 
     @classmethod
-    @constructor(lambda args: (args["sync"].process_name.subtype,
-                               args["sync"].process_name.obj_id))
-    def create(cls,
-               lock: SyncLock,
-               sync: DownstreamSync | LandingSync,
-               affected_tests: dict[str, list[str]] | None = None,
-               stability: bool = False,
-               hacks: bool = True,
-               try_cls: type = TryFuzzyCommit,
-               rebuild_count: int | None = None,
-               check_open: bool = True,
-               **kwargs: Any
-               ) -> TryPush:
+    @constructor(lambda args: (args["sync"].process_name.subtype, args["sync"].process_name.obj_id))
+    def create(
+        cls,
+        lock: SyncLock,
+        sync: DownstreamSync | LandingSync,
+        affected_tests: dict[str, list[str]] | None = None,
+        stability: bool = False,
+        hacks: bool = True,
+        try_cls: type = TryFuzzyCommit,
+        rebuild_count: int | None = None,
+        check_open: bool = True,
+        **kwargs: Any,
+    ) -> TryPush:
         logger.info("Creating try push for PR %s" % sync.pr)
         if check_open and not tree.is_open("try"):
             logger.info("try is closed")
@@ -253,12 +257,13 @@ class TryPush(base.ProcessData):
         git_work = sync.gecko_worktree.get()
 
         if rebuild_count is None:
-            rebuild_count = 0 if not stability else env.config['gecko']['try']['stability_count']
+            rebuild_count = 0 if not stability else env.config["gecko"]["try"]["stability_count"]
             if not isinstance(rebuild_count, int):
                 logger.error("Could not find config for Stability rebuild count, using default 5")
                 rebuild_count = 5
-        with try_cls(sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks,
-                     **kwargs) as c:
+        with try_cls(
+            sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks, **kwargs
+        ) as c:
             try_rev = c.push()
 
         data = {
@@ -269,10 +274,9 @@ class TryPush(base.ProcessData):
             "status": "open",
             "bug": sync.bug,
         }
-        process_name = base.ProcessName.with_seq_id(sync.git_gecko,
-                                                    cls.obj_type,
-                                                    sync.sync_type,
-                                                    str(getattr(sync, sync.obj_id)))
+        process_name = base.ProcessName.with_seq_id(
+            sync.git_gecko, cls.obj_type, sync.sync_type, str(getattr(sync, sync.obj_id))
+        )
         rv = super().create(lock, sync.git_gecko, process_name, data)
         try_idx.insert(try_idx.make_key(try_rev), process_name)
 
@@ -280,34 +284,36 @@ class TryPush(base.ProcessData):
             rv.created = taskcluster.fromNowJSON("0 days")
 
         if sync.bug is not None:
-            env.bz.comment(sync.bug,
-                           "Pushed to try%s %s" %
-                           (" (stability)" if stability else "",
-                            rv.treeherder_url))
+            env.bz.comment(
+                sync.bug,
+                "Pushed to try%s %s" % (" (stability)" if stability else "", rv.treeherder_url),
+            )
 
         return rv
 
     @classmethod
-    def load_all(cls, git_gecko):
+    def load_all(cls, git_gecko: Repo) -> Iterator[Self]:
         process_names = base.ProcessNameIndex(git_gecko).get("try")
         for process_name in process_names:
             yield cls(git_gecko, process_name)
 
     @classmethod
-    def for_commit(cls, git_gecko, sha1):
+    def for_commit(cls, git_gecko: Repo, sha1: str) -> Optional[Self]:
         idx = TryCommitIndex(git_gecko)
         process_name = idx.get(idx.make_key(sha1))
         if process_name:
             logger.info(f"Found try push {process_name!r} for rev {sha1}")
             return cls(git_gecko, process_name)
         logger.info(f"No try push for rev {sha1}")
+        return None
 
     @classmethod
-    def for_taskgroup(cls, git_gecko, taskgroup_id):
+    def for_taskgroup(cls, git_gecko: Repo, taskgroup_id: str) -> Optional[Self]:
         idx = TaskGroupIndex(git_gecko)
         process_name = idx.get(idx.make_key(taskgroup_id))
         if process_name:
             return cls(git_gecko, process_name)
+        return None
 
     @property
     def treeherder_url(self) -> str:
@@ -317,7 +323,7 @@ class TryPush(base.ProcessData):
     def created(self) -> Any | None:
         return self.get("created")
 
-    @created.setter  # type: ignore
+    @created.setter
     @mut()
     def created(self, value: str) -> None:
         self["created"] = value
@@ -326,7 +332,7 @@ class TryPush(base.ProcessData):
     def try_rev(self) -> str | None:
         return self.get("try-rev")
 
-    @try_rev.setter  # type: ignore
+    @try_rev.setter
     @mut()
     def try_rev(self, value: str) -> None:
         idx = TryCommitIndex(self.repo)
@@ -340,7 +346,7 @@ class TryPush(base.ProcessData):
     def taskgroup_id(self) -> str | None:
         return self.get("taskgroup-id")
 
-    @taskgroup_id.setter  # type: ignore
+    @taskgroup_id.setter
     @mut()
     def taskgroup_id(self, value: str) -> None:
         self["taskgroup-id"] = value
@@ -352,7 +358,7 @@ class TryPush(base.ProcessData):
     def status(self) -> str:
         return self.get("status")
 
-    @status.setter  # type: ignore
+    @status.setter
     @mut()
     def status(self, value: str) -> None:
         if value not in self.statuses:
@@ -372,12 +378,9 @@ class TryPush(base.ProcessData):
     def gecko_head(self) -> Text:
         return self.get("gecko-head")
 
-    def sync(self, git_gecko, git_wpt):
+    def sync(self, git_gecko: Repo, git_wpt: Repo) -> Optional[SyncProcess]:
         process_name = self.process_name
-        syncs = get_syncs(git_gecko,
-                          git_wpt,
-                          process_name.subtype,
-                          process_name.obj_id)
+        syncs = get_syncs(git_gecko, git_wpt, process_name.subtype, int(process_name.obj_id))
         if len(syncs) == 0:
             return None
         if len(syncs) == 1:
@@ -400,11 +403,11 @@ class TryPush(base.ProcessData):
     def infra_fail(self) -> bool:
         """Does this push have infrastructure failures"""
         if self.status == "infra-fail":
-            self.status = "complete"  # type: ignore
-            self.infra_fail = True  # type: ignore
+            self.status = "complete"
+            self.infra_fail = True
         return self.get("infra-fail", False)
 
-    @infra_fail.setter  # type: ignore
+    @infra_fail.setter
     @mut()
     def infra_fail(self, value: bool) -> None:
         """Set the status of this push's infrastructure failure state"""
@@ -432,20 +435,21 @@ class TryPush(base.ProcessData):
             return
 
         msg = "There were infrastructure failures for the Try push (%s):\n" % self.treeherder_url
-        msg += "\n".join(task.get("task", {}).get("metadata", {}).get("name")
-                         for task in failed.tasks)
+        msg += "\n".join(
+            task.get("task", {}).get("metadata", {}).get("name") for task in failed.tasks
+        )
         env.bz.comment(bug, msg)
 
     @property
     def accept_failures(self) -> bool:
         return self.get("accept-failures", False)
 
-    @accept_failures.setter  # type: ignore
+    @accept_failures.setter
     @mut()
     def accept_failures(self, value: bool) -> None:
         self["accept-failures"] = value
 
-    def tasks(self) -> TryPushTasks | None:
+    def tasks(self) -> Optional[TryPushTasks]:
         """Get a list of all the taskcluster tasks for web-platform-tests
         jobs associated with the current try push.
 
@@ -455,7 +459,7 @@ class TryPush(base.ProcessData):
             return None
         task_id = tc.normalize_task_id(self.taskgroup_id)
         if task_id != self.taskgroup_id:
-            self.taskgroup_id = task_id  # type: ignore
+            self.taskgroup_id = task_id
 
         tasks = tc.TaskGroup(self.taskgroup_id)
         tasks.refresh()
@@ -464,12 +468,14 @@ class TryPush(base.ProcessData):
 
     def log_path(self) -> str:
         assert self.try_rev is not None
-        return os.path.join(env.config["root"], env.config["paths"]["try_logs"],
-                            "try", self.try_rev)
+        return os.path.join(
+            env.config["root"], env.config["paths"]["try_logs"], "try", self.try_rev
+        )
 
     @mut()
-    def download_logs(self, wpt_taskgroup: TaskGroupView | TryPushTasks,
-                      first_only: bool = False) -> TaskGroupView:
+    def download_logs(
+        self, wpt_taskgroup: TaskGroupView | TryPushTasks, first_only: bool = False
+    ) -> TaskGroupView:
         """Download all the wptreport logs for the current try push
 
         :return: List of paths to logs
@@ -500,13 +506,15 @@ class TryPush(base.ProcessData):
         if self.try_rev is None:
             if wpt_tasks:
                 logger.info("Got try push with no rev; setting it from a task")
-                try_rev = (next(iter(wpt_tasks))
-                           .get("task", {})
-                           .get("payload", {})
-                           .get("env", {})
-                           .get("GECKO_HEAD_REV"))
+                try_rev = (
+                    next(iter(wpt_tasks))
+                    .get("task", {})
+                    .get("payload", {})
+                    .get("env", {})
+                    .get("GECKO_HEAD_REV")
+                )
                 if try_rev:
-                    self.try_rev = try_rev  # type: ignore
+                    self.try_rev = try_rev
                 else:
                     raise ValueError("Unknown try rev for %s" % self.process_name)
 
@@ -517,19 +525,19 @@ class TryPush(base.ProcessData):
         return include_tasks
 
     @mut()
-    def cleanup_logs(self):
+    def cleanup_logs(self) -> None:
         logger.info("Removing downloaded for try push %s" % self.process_name)
         try:
             shutil.rmtree(self.log_path())
         except Exception:
-            logger.warning("Failed to remove logs %s:%s" %
-                           (self.log_path(), traceback.format_exc()))
+            logger.warning(
+                "Failed to remove logs %s:%s" % (self.log_path(), traceback.format_exc())
+            )
 
     @mut()
-    def delete(self):
+    def delete(self) -> None:
         super().delete()
-        for (idx_cls, data) in [(TaskGroupIndex, self.taskgroup_id),
-                                (TryCommitIndex, self.try_rev)]:
+        for idx_cls, data in [(TaskGroupIndex, self.taskgroup_id), (TryCommitIndex, self.try_rev)]:
             if data is not None:
                 idx = idx_cls(self.repo)
                 key = idx.make_key(data)
@@ -552,16 +560,19 @@ class TryPushTasks:
     def complete(self, allow_unscheduled: bool = False) -> bool:
         return self.wpt_tasks.is_complete(allow_unscheduled)
 
-    def validate(self):
+    def validate(self) -> bool:
         err = None
         if not len(self.wpt_tasks):
-            err = ("No wpt tests found. Check decision task %s" %
-                   self.wpt_tasks.taskgroup.taskgroup_id)
+            err = (
+                "No wpt tests found. Check decision task %s" % self.wpt_tasks.taskgroup.taskgroup_id
+            )
         else:
             exception_tasks = self.wpt_tasks.filter(tc.is_status_fn(tc.EXCEPTION))
             if float(len(exception_tasks)) / len(self.wpt_tasks) > (1 - self._min_success):
-                err = ("Too many exceptions found among wpt tests. "
-                       "Check decision task %s" % self.wpt_tasks.taskgroup.taskgroup_id)
+                err = (
+                    "Too many exceptions found among wpt tests. "
+                    "Check decision task %s" % self.wpt_tasks.taskgroup.taskgroup_id
+                )
         if err:
             logger.error(err)
             return False
@@ -577,8 +588,11 @@ class TryPushTasks:
         def is_excluded(name: str) -> bool:
             return "-aarch64" in name
 
-        failures = [data["task_id"] for name, data in task_states.items()
-                    if is_failure(data) and not is_excluded(name)]
+        failures = [
+            data["task_id"]
+            for name, data in task_states.items()
+            if is_failure(data) and not is_excluded(name)
+        ]
         retriggered_count = 0
         for task_id in failures:
             jobs = auth_tc.retrigger(task_id, count=count)
@@ -595,8 +609,9 @@ class TryPushTasks:
         #           }
         #       }}
         by_name = self.wpt_tasks.by_name()
-        task_states: MutableMapping[str, Any] = defaultdict(lambda:
-                                                            defaultdict(lambda: defaultdict(int)))
+        task_states: MutableMapping[str, Any] = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(int))
+        )
         for name, tasks in by_name.items():
             for task in tasks:
                 task_id = task.get("status", {}).get("taskId")
@@ -610,7 +625,7 @@ class TryPushTasks:
         """Return the builds that failed"""
         return self.wpt_tasks.failed_builds()
 
-    def successful_builds(self):
+    def successful_builds(self) -> TaskGroupView:
         """Return the builds that were successful"""
         builds = self.wpt_tasks.filter(tc.is_build)
         return builds.filter(tc.is_status_fn({tc.SUCCESS}))
@@ -620,8 +635,11 @@ class TryPushTasks:
         # manual/automatic retriggers made outside of wptsync
         threshold = max(1, self._retrigger_count / 2)
         task_counts = self.wpt_states()
-        return {name: data for name, data in task_counts.items()
-                if sum(data["states"].values()) > threshold}
+        return {
+            name: data
+            for name, data in task_counts.items()
+            if sum(data["states"].values()) > threshold
+        }
 
     def success(self) -> bool:
         """Check if all the wpt tasks in a try push ended with a successful status"""
@@ -630,7 +648,7 @@ class TryPushTasks:
             return all(task.get("status", {}).get("state") == tc.SUCCESS for task in wpt_tasks)
         return False
 
-    def has_failures(self):
+    def has_failures(self) -> bool:
         """Check if any of the wpt tasks in a try push ended with a failure status"""
         wpt_tasks = self.wpt_tasks
         if wpt_tasks:
@@ -641,8 +659,9 @@ class TryPushTasks:
         """Check if all the wpt tasks in a try push completed"""
         wpt_tasks = self.wpt_tasks.filter(tc.is_test)
         if wpt_tasks:
-            return any(task.get("status", {}).get("state") in (tc.SUCCESS, tc.FAIL)
-                       for task in wpt_tasks)
+            return any(
+                task.get("status", {}).get("state") in (tc.SUCCESS, tc.FAIL) for task in wpt_tasks
+            )
         return False
 
     def success_rate(self) -> float:

@@ -8,8 +8,9 @@ import filelock
 from . import log
 from .env import Environment
 
-from typing import Any, MutableMapping, TYPE_CHECKING
+from typing import Any, Callable, MutableMapping, Self, TYPE_CHECKING, cast
 from git.repo.base import Repo
+
 if TYPE_CHECKING:
     from sync.base import ProcessName
 env = Environment()
@@ -119,11 +120,11 @@ class Lock(metaclass=abc.ABCMeta):
         self.path = self.lock_path(*args)
         self.lock = filelock.FileLock(self.path)
 
-    def __enter__(self) -> Lock:
+    def __enter__(self) -> Self:
         if self.path in self.locks:
             # If this is already locked by the current process
             # then locking again is a no-op
-            return self.locks[self.path]
+            return cast(Self, self.locks[self.path])
         self.locks[self.path] = self
         self.lock.acquire()
         return self
@@ -148,11 +149,12 @@ class RepoLock(Lock):
     @staticmethod
     def lock_path(*args: Any) -> str:
         # This is annoying but otherwise mypy complains
-        repo, = args
+        (repo,) = args
         return os.path.join(
             env.config["root"],
             env.config["paths"]["locks"],
-            "{}.lock".format(repo.working_dir.replace(os.path.sep, "_")))
+            "{}.lock".format(repo.working_dir.replace(os.path.sep, "_")),
+        )
 
 
 class ProcessLock(Lock):
@@ -176,7 +178,7 @@ class ProcessLock(Lock):
         super().__init__(self.lock_type, sync_type, obj_id)
 
     @classmethod
-    def for_process(cls, process_name: ProcessName) -> ProcessLock:
+    def for_process(cls, process_name: ProcessName) -> Self:
         """Get the SyncLock for the provided ProcessName."""
         # This is sort of an antipattern because it requires the class to know about consumers.
         # But it also enforces some invariants to ensure that things have the right kind of
@@ -190,16 +192,12 @@ class ProcessLock(Lock):
         """Check that the current lock is valid for the provided sync_type and obj_id"""
         if sync_type in self.lock_per_type:
             obj_id = None
-        if not (sync_type == self.sync_type and
-                obj_id == self.obj_id and
-                self.lock.is_locked):
-            raise ValueError("""Got wrong lock, expected sync_type:%s obj_id:%s locked:True,
-                got: sync_type:%s obj_id:%s locked:%s""" %
-                             (sync_type,
-                              obj_id,
-                              self.sync_type,
-                              self.obj_id,
-                              self.lock.is_locked))
+        if not (sync_type == self.sync_type and obj_id == self.obj_id and self.lock.is_locked):
+            raise ValueError(
+                """Got wrong lock, expected sync_type:%s obj_id:%s locked:True,
+                got: sync_type:%s obj_id:%s locked:%s"""
+                % (sync_type, obj_id, self.sync_type, self.obj_id, self.lock.is_locked)
+            )
 
     @staticmethod
     def lock_path(*args: Any) -> str:
@@ -208,10 +206,7 @@ class ProcessLock(Lock):
             filename = f"{obj_type}_{sync_type}.lock"
         else:
             filename = f"{obj_type}_{sync_type}_{obj_id}.lock"
-        return os.path.join(
-            env.config["root"],
-            env.config["paths"]["locks"],
-            filename)
+        return os.path.join(env.config["root"], env.config["paths"]["locks"], filename)
 
 
 class SyncLock(ProcessLock):
@@ -233,11 +228,12 @@ class ProcLock(ProcessLock):
 
 
 class MutGuard:
-    def __init__(self,
-                 lock: SyncLock,
-                 instance: Any,
-                 props: list[Any] | None = None,
-                 ) -> None:
+    def __init__(
+        self,
+        lock: ProcessLock,
+        instance: Any,
+        props: list[Any] | None = None,
+    ) -> None:
         """Context Manager wrapping an object that is to be accessed for mutation.
 
         Mutability is re-entrant in the sense that if we already have a certain object
@@ -284,7 +280,7 @@ class MutGuard:
 
 
 class mut:
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:
         """Mark a function as requiring given arguments are mutable.
 
         When entering the function the decorator checks that the specified
@@ -297,7 +293,7 @@ class mut:
             args = ("self",)
         self.args = args
 
-    def __call__(self, f):
+    def __call__(self, f: Callable[..., Any]) -> Any:
         def inner(*args: Any, **kwargs: Any) -> Any:
             arg_values = inspect.getcallargs(f, *args, **kwargs)
 
@@ -308,13 +304,14 @@ class mut:
                 arg_value._lock.check(*arg_value.lock_key)
 
             return f(*args, **kwargs)
+
         inner.__name__ = f.__name__
         inner.__doc__ = f.__doc__
         return inner
 
 
 class constructor:
-    def __init__(self, arg_func):
+    def __init__(self, arg_func: Callable[..., Any]) -> None:
         """Mark a classmethod as a constructor for an object which uses the
         mutation system.
 
@@ -325,7 +322,7 @@ class constructor:
 
         self.arg_func = arg_func
 
-    def __call__(self, f):
+    def __call__(self, f: Callable[..., Any]) -> Callable[..., Any]:
         def inner(cls: Any, lock: SyncLock, *args: Any, **kwargs: Any) -> Any:
             if lock is None:
                 raise ValueError("Tried to access constructor %s without locking")
@@ -335,6 +332,7 @@ class constructor:
 
             lock.check(sync_type, obj_id)
             return f(cls, lock, *args, **kwargs)
+
         inner.__name__ = f.__name__
         inner.__doc__ = f.__doc__
         return inner

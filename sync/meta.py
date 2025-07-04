@@ -15,8 +15,9 @@ from .env import Environment
 from .base import CommitBuilder, iter_tree
 from .lock import mut, MutGuard
 
-from typing import Iterable, Iterator, TYPE_CHECKING
+from typing import Iterable, Iterator, Optional, TYPE_CHECKING
 from git.repo.base import Repo
+
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.base import ProcessName
@@ -35,7 +36,7 @@ class GitReader(wptmeta.Reader):
         self.repo = repo
         self.repo.remotes.origin.fetch()
         self.pygit2_repo = repos.pygit2_get(repo)
-        self.rev = self.pygit2_repo.revparse_single(ref)
+        self.rev = self.pygit2_repo.revparse_single(ref).peel(pygit2.Commit)
 
     def exists(self, rel_path: str) -> bool:
         return rel_path in self.rev.tree
@@ -44,7 +45,7 @@ class GitReader(wptmeta.Reader):
         entry = self.rev.tree[rel_path]
         return self.pygit2_repo[entry.id].read_raw()
 
-    def walk(self, rel_path):
+    def walk(self, rel_path: str) -> Iterator[str]:
         for path, obj in iter_tree(self.pygit2_repo, rel_path, rev=self.rev):
             if isinstance(obj, pygit2.Blob) and obj.name == "META.yml":
                 yield "/".join(path[:-1])
@@ -61,16 +62,14 @@ class GitWriter(wptmeta.Writer):
 
 
 class NullWriter(wptmeta.Writer):
-    def write(self, rel_path):
+    def write(self, rel_path: str, data: bytes) -> None:
         raise NotImplementedError
 
 
 class Metadata:
-    def __init__(self,
-                 process_name: ProcessName,
-                 create_pr: bool = False,
-                 branch: str = "master"
-                 ) -> None:
+    def __init__(
+        self, process_name: ProcessName, create_pr: bool = False, branch: str = "master"
+    ) -> None:
         """Object for working with a wpt-metadata repository without requiring
         a worktree.
 
@@ -101,22 +100,20 @@ class Metadata:
 
         self.git_reader = GitReader(self.repo, "origin/%s" % self.branch)
         self.null_writer = NullWriter()
-        self.metadata = wptmeta.WptMetadata(self.git_reader,
-                                            self.null_writer)
+        self.metadata = wptmeta.WptMetadata(self.git_reader, self.null_writer)
 
         self.worktree = worktree.Worktree(self.repo, self.process_name)
         self.git_work = None
-
-    def _push(self):
-        raise NotImplementedError
 
     def as_mut(self, lock: SyncLock) -> MutGuard:
         return MutGuard(lock, self)
 
     @property
     def github(self) -> gh.GitHub:
-        return gh.GitHub(env.config["web-platform-tests"]["github"]["token"],
-                         env.config["metadata"]["repo"]["url"])
+        return gh.GitHub(
+            env.config["web-platform-tests"]["github"]["token"],
+            env.config["metadata"]["repo"]["url"],
+        )
 
     @classmethod
     def for_sync(cls, sync: DownstreamSync, create_pr: bool = False) -> Metadata:
@@ -136,13 +133,10 @@ class Metadata:
             newrelic.agent.record_custom_event("metadata_update", params={})
 
             self.repo.remotes.origin.fetch()
-            self.pygit2_repo.create_reference(ref_name,
-                                              self.pygit2_repo.revparse_single(
-                                                  "origin/%s" % self.branch).id,
-                                              True)
-            commit_builder = CommitBuilder(self.repo,
-                                           message,
-                                           ref=ref_name)
+            self.pygit2_repo.create_reference(
+                ref_name, self.pygit2_repo.revparse_single("origin/%s" % self.branch).id, True
+            )
+            commit_builder = CommitBuilder(self.repo, message, ref=ref_name)
             with commit_builder as builder:
                 self.metadata.writer = GitWriter(builder)
                 self.metadata.write()
@@ -156,10 +150,12 @@ class Metadata:
                     err = sys.exc_info()
                 else:
                     if self.create_pr:
-                        self.github.create_pull(message,
-                                                "Update from bug %s" % self.process_name.obj_id,
-                                                self.branch,
-                                                remote_ref)
+                        self.github.create_pull(
+                            message,
+                            "Update from bug %s" % self.process_name.obj_id,
+                            self.branch,
+                            remote_ref,
+                        )
                     err = None
                     break
                 retry += 1
@@ -167,9 +163,7 @@ class Metadata:
                 break
 
         if err:
-            newrelic.agent.record_exception(*err, params={
-                "ref_name": ref_name
-            })
+            newrelic.agent.record_exception(*err, params={"ref_name": ref_name})
         else:
             self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter()
@@ -190,13 +184,14 @@ class Metadata:
         return ref_name
 
     @mut()
-    def link_bug(self,
-                 test_id: str,
-                 bug_url: str,
-                 product: str = "firefox",
-                 subtest: str | None = None,
-                 status: str | None = None
-                 ) -> None:
+    def link_bug(
+        self,
+        test_id: str,
+        bug_url: str,
+        product: str = "firefox",
+        subtest: str | None = None,
+        status: str | None = None,
+    ) -> None:
         """Add a link to a bug to the metadata
 
         :param test_id: id of the test for which the link applies
@@ -204,24 +199,23 @@ class Metadata:
         "param product: product for which the link applies
         :param subtest: optional subtest for which the link applies
         :param status: optional status for which the link applies"""
-        self.metadata.append_link(bug_url,
-                                  product=product,
-                                  test_id=test_id,
-                                  subtest=subtest,
-                                  status=status)
+        self.metadata.append_link(
+            bug_url, product=product, test_id=test_id, subtest=subtest, status=status
+        )
 
-    def iter_bug_links(self,
-                       test_id: str,
-                       product: str = "firefox",
-                       prefixes: Iterable[str] | None = None,
-                       subtest: str | None = None,
-                       status: str | None = None) -> Iterator[MetaLink]:
+    def iter_bug_links(
+        self,
+        test_id: Optional[str],
+        product: str = "firefox",
+        prefixes: Iterable[str] | None = None,
+        subtest: str | None = None,
+        status: str | None = None,
+    ) -> Iterator[MetaLink]:
         if prefixes is None:
-            prefixes = (env.bz.bz_url,
-                        "https://github.com/wpt/web-platform-tests")
-        for item in self.metadata.iterlinks(test_id=test_id,
-                                            product=product,
-                                            subtest=subtest,
-                                            status=status):
+            assert env.bz.bz_url is not None
+            prefixes = (env.bz.bz_url, "https://github.com/wpt/web-platform-tests")
+        for item in self.metadata.iterlinks(
+            test_id=test_id, product=product, subtest=subtest, status=status
+        ):
             if any(item.url.startswith(prefix) for prefix in prefixes):
                 yield item

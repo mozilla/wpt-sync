@@ -1,7 +1,10 @@
 import requests
 import time
-
+from typing import Any, Iterable, Optional
 from urllib import parse
+from typing import Mapping
+
+from .types import Json
 
 
 WPT_FYI_BASE = "https://wpt.fyi/api/"
@@ -9,7 +12,7 @@ STAGING_HOST = "staging.wpt.fyi"
 
 
 class Url:
-    def __init__(self, initial_url):
+    def __init__(self, initial_url: str):
         if initial_url:
             parts = parse.urlsplit(initial_url)
             self.scheme = parts.scheme
@@ -24,43 +27,22 @@ class Url:
             self.query = []
             self.fragment = ""
 
-    def scheme(self, value):
-        self.scheme = value
-        return self
-
-    def host(self, value):
-        self.host = value
-        return self
-
-    def path(self, value):
-        self.path = value
-        return self
-
-    def add_path(self, value):
-        self.path = parse.urljoin(self.path, value)
-        return self
-
-    def query(self, value):
-        self.query = value
-        return self
-
-    def add_query(self, name, value):
+    def add_query(self, name: str, value: str) -> None:
         self.query.append((name, value))
-        return self
 
-    def fragment(self, value):
-        self.fragment = value
-        return self
-
-    def build(self):
-        return parse.urlunsplit((self.scheme,
-                                 self.host,
-                                 self.path,
-                                 parse.urlencode(self.query),
-                                 self.fragment))
+    def build(self) -> str:
+        return parse.urlunsplit(
+            (self.scheme, self.host, self.path, parse.urlencode(self.query), self.fragment)
+        )
 
 
-def get_runs(sha=None, pr=None, max_count=None, labels=None, staging=False):
+def get_runs(
+    sha: Optional[str] = None,
+    pr: Optional[str] = None,
+    max_count: Optional[str] = None,
+    labels: Optional[list[str]] = None,
+    staging: bool = False,
+) -> list[Mapping[str, Json]]:
     url = Url(WPT_FYI_BASE + "runs")
     if staging:
         url.host = STAGING_HOST
@@ -77,20 +59,20 @@ def get_runs(sha=None, pr=None, max_count=None, labels=None, staging=False):
     return resp.json()
 
 
-def get_results(run_ids, test=None, query=None, staging=False):
+def get_results(
+    run_ids: list[str], query: Optional[Json] = None, staging: bool = False
+) -> dict[str, Any]:
     url = Url(WPT_FYI_BASE + "search")
     if staging:
         url.host = STAGING_HOST
 
-    body = {
-        "run_ids": run_ids
-    }
+    body: dict[str, Json] = {"run_ids": run_ids}
     if query is not None:
         body["q"] = query
 
     # A 422 status means that the data isn't in the cache, so retry
     retry = 0
-    timeout = 10
+    timeout = 10.0
 
     while retry < 5:
         resp = requests.post(url.build(), json=body)
@@ -104,7 +86,9 @@ def get_results(run_ids, test=None, query=None, staging=False):
     return resp.json()
 
 
-def get_metadata(products, link, staging=False):
+def get_metadata(
+    products: list[str], link: Optional[Iterable[str]], staging: bool = False
+) -> dict[str, Any]:
     url = Url(WPT_FYI_BASE + "metadata")
     if staging:
         url.host = STAGING_HOST

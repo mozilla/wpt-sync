@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from logging import handlers
+from typing import Any
 
 from . import settings
 
@@ -9,10 +10,9 @@ root = logging.getLogger()
 
 
 @settings.configure
-def setup(config, force=False):
+def setup(config: dict[str, Any], force: bool = False) -> None:
     # Add a handler for stdout on the root logger
-    log_dir = os.path.join(config["root"],
-                           config["paths"]["logs"])
+    log_dir = os.path.join(config["root"], config["paths"]["logs"])
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -32,12 +32,12 @@ def setup(config, force=False):
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setLevel(logging.INFO)
 
-    basic_formatter = logging.Formatter('[%(asctime)s] %(levelname)s:%(name)s:%(message)s')
+    basic_formatter = logging.Formatter("[%(asctime)s] %(levelname)s:%(name)s:%(message)s")
     stream_handler.setFormatter(basic_formatter)
 
-    file_handler = handlers.TimedRotatingFileHandler(os.path.join(log_dir, "sync.log"),
-                                                     when="midnight",
-                                                     utc=True)
+    file_handler = handlers.TimedRotatingFileHandler(
+        os.path.join(log_dir, "sync.log"), when="midnight", utc=True
+    )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(basic_formatter)
 
@@ -45,7 +45,7 @@ def setup(config, force=False):
     root_logger.addHandler(file_handler)
 
 
-def get_logger(name):
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     return logger
 

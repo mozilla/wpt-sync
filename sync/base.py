@@ -14,20 +14,14 @@ from .env import Environment
 from .lock import MutGuard, RepoLock, mut, constructor
 from .repos import pygit2_get
 
-from typing import (Any,
-                    DefaultDict,
-                    Iterator,
-                    Optional,
-                    Set,
-                    Tuple,
-                    TYPE_CHECKING)
+from typing import Any, Callable, DefaultDict, Iterator, Optional, Self, Set, Tuple, TYPE_CHECKING
 from git.refs.reference import Reference
 from git.repo.base import Repo
+
 if TYPE_CHECKING:
     from pygit2.repository import Repository
-    from pygit2 import Commit as PyGit2Commit, TreeEntry
+    from pygit2 import Commit as PyGit2Commit, Object, Oid
     from sync.commit import Commit
-    from sync.landing import LandingSync
     from sync.lock import SyncLock
     from sync.sync import SyncPointName
 
@@ -72,35 +66,37 @@ class IdentityMap(type):
 
     _cache: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
 
-    def __init__(cls, name, bases, cls_dict):
+    def __init__(cls: type, name: str, bases: tuple[type, ...], cls_dict: dict[str, Any]) -> None:
         if not hasattr(cls, "_cache_key"):
             raise ValueError("Class is missing _cache_key method")
-        super().__init__(name, bases, cls_dict)
+        super().__init__(name, bases, cls_dict)  # type: ignore
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls: type, *args: Any, **kwargs: Any) -> Any:
         cache = IdentityMap._cache
+        assert hasattr(cls, "_cache_key")
         cache_key = cls._cache_key(*args, **kwargs)
         if cache_key is None:
             raise ValueError
         key = (cls, cache_key)
         value = cache.get(key)
         if value is None:
-            value = super().__call__(*args, **kwargs)
+            value = super().__call__(*args, **kwargs)  # type: ignore
             cache[key] = value
         if hasattr(value, "_cache_verify") and not value._cache_verify(*args, **kwargs):
             raise ValueError("Cached instance didn't match non-key arguments")
         return value
 
 
-def iter_tree(pygit2_repo: Repository,
-              root_path: str = "",
-              rev: PyGit2Commit | None = None,
-              ) -> Iterator[tuple[tuple[str, ...], TreeEntry]]:
+def iter_tree(
+    pygit2_repo: Repository,
+    root_path: str = "",
+    rev: PyGit2Commit | None = None,
+) -> Iterator[tuple[tuple[str, ...], Object]]:
     """Iterator over all paths in a tree"""
     if rev is None:
         ref_name = env.config["sync"]["ref"]
         ref = pygit2_repo.references[ref_name]
-        rev_obj = ref.peel()
+        rev_obj = ref.peel(None)
     else:
         rev_obj = pygit2_repo[rev.id]
 
@@ -123,17 +119,17 @@ def iter_tree(pygit2_repo: Repository,
             if isinstance(item, pygit2.Tree):
                 stack.append((item_path, item))
             else:
-                name = tuple(item for item in item_path[len(root_path):].split("/")
-                             if item)
+                name = tuple(item for item in item_path[len(root_path) :].split("/") if item)
                 yield name, item
 
 
-def iter_process_names(pygit2_repo: Repository,
-                       kind: list[str] = ["sync", "try"],
-                       ) -> Iterator[ProcessName]:
+def iter_process_names(
+    pygit2_repo: Repository,
+    kind: list[str] = ["sync", "try"],
+) -> Iterator[ProcessName]:
     """Iterator over all ProcessName objects"""
     ref = pygit2_repo.references[env.config["sync"]["ref"]]
-    root = ref.peel().tree
+    root = ref.peel(None).tree
     stack = []
     for root_path in kind:
         try:
@@ -168,8 +164,8 @@ class ProcessNameIndex(metaclass=IdentityMap):
     def reset(self) -> None:
         self._all: set[ProcessName] = set()
         self._data: ProcessNameIndexData = defaultdict(
-            lambda: defaultdict(
-                lambda: defaultdict(set)))
+            lambda: defaultdict(lambda: defaultdict(set))
+        )
         self._built = False
 
     def build(self) -> None:
@@ -180,18 +176,18 @@ class ProcessNameIndex(metaclass=IdentityMap):
     def insert(self, process_name: ProcessName) -> None:
         self._all.add(process_name)
 
-        self._data[
-            process_name.obj_type][
-                process_name.subtype][
-                    process_name.obj_id].add(process_name)
+        self._data[process_name.obj_type][process_name.subtype][process_name.obj_id].add(
+            process_name
+        )
 
     def has(self, process_name: ProcessName) -> bool:
         if not self._built:
             self.build()
         return process_name in self._all
 
-    def get(self, obj_type: str, subtype: str | None = None,
-            obj_id: str | None = None) -> set[ProcessName]:
+    def get(
+        self, obj_type: str, subtype: str | None = None, obj_id: str | None = None
+    ) -> set[ProcessName]:
         if not self._built:
             self.build()
 
@@ -226,8 +222,7 @@ class ProcessName(metaclass=IdentityMap):
 
     """
 
-    def __init__(self, obj_type: str, subtype: str, obj_id: str,
-                 seq_id: str | int) -> None:
+    def __init__(self, obj_type: str, subtype: str, obj_id: str, seq_id: str | int) -> None:
         assert obj_type is not None
         assert subtype is not None
         assert obj_id is not None
@@ -239,12 +234,13 @@ class ProcessName(metaclass=IdentityMap):
         self._seq_id = str(seq_id)
 
     @classmethod
-    def _cache_key(cls,
-                   obj_type: str,
-                   subtype: str,
-                   obj_id: str,
-                   seq_id: str | int,
-                   ) -> tuple[str, str, str, str]:
+    def _cache_key(
+        cls,
+        obj_type: str,
+        subtype: str,
+        obj_id: str,
+        seq_id: str | int,
+    ) -> tuple[str, str, str, str]:
         return (obj_type, subtype, str(obj_id), str(seq_id))
 
     def __str__(self) -> str:
@@ -310,8 +306,7 @@ class ProcessName(metaclass=IdentityMap):
         existing = ProcessNameIndex(repo).get(obj_type, subtype, obj_id)
         last_id = -1
         for process_name in existing:
-            if (process_name.seq_id is not None and
-                int(process_name.seq_id) > last_id):
+            if process_name.seq_id is not None and int(process_name.seq_id) > last_id:
                 last_id = process_name.seq_id
         seq_id = last_id + 1
         return cls(obj_type, subtype, obj_id, str(seq_id))
@@ -326,14 +321,16 @@ class VcsRefObject(metaclass=IdentityMap):
 
     ref_prefix: str | None = None
 
-    def __init__(self, repo: Repo, name: ProcessName | SyncPointName,
-                 commit_cls: type = sync_commit.Commit) -> None:
+    def __init__(
+        self, repo: Repo, name: ProcessName | SyncPointName, commit_cls: type = sync_commit.Commit
+    ) -> None:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
 
-        if not self.get_path(name) in self.pygit2_repo.references:
-            raise ValueError("No ref found in %s with path %s" %
-                             (repo.working_dir, self.get_path(name)))
+        if self.get_path(name) not in self.pygit2_repo.references:
+            raise ValueError(
+                "No ref found in %s with path %s" % (repo.working_dir, self.get_path(name))
+            )
         self.name = name
         self.commit_cls = commit_cls
         self._lock = None
@@ -346,35 +343,40 @@ class VcsRefObject(metaclass=IdentityMap):
         return (self.name.subtype, self.name.obj_id)
 
     @classmethod
-    def _cache_key(cls,
-                   repo: Repo,
-                   process_name: ProcessName | SyncPointName,
-                   commit_cls: type = sync_commit.Commit,
-                   ) -> tuple[Repo, ProcessNameKey | tuple[str, str]]:
+    def _cache_key(
+        cls,
+        repo: Repo,
+        process_name: ProcessName | SyncPointName,
+        commit_cls: type = sync_commit.Commit,
+    ) -> tuple[Repo, ProcessNameKey | tuple[str, str]]:
         return (repo, process_name.key())
 
-    def _cache_verify(self, repo: Repo, process_name: ProcessName | SyncPointName,
-                      commit_cls: type = sync_commit.Commit) -> bool:
+    def _cache_verify(
+        self,
+        repo: Repo,
+        process_name: ProcessName | SyncPointName,
+        commit_cls: type = sync_commit.Commit,
+    ) -> bool:
         return commit_cls == self.commit_cls
 
     @classmethod
-    @constructor(lambda args: (args["name"].subtype,
-                               args["name"].obj_id))
-    def create(cls,
-               lock: SyncLock,
-               repo: Repo,
-               name: ProcessName, obj: str,
-               commit_cls: type = sync_commit.Commit,
-               force: bool = False) -> VcsRefObject:
+    @constructor(lambda args: (args["name"].subtype, args["name"].obj_id))
+    def create(
+        cls,
+        lock: SyncLock,
+        repo: Repo,
+        name: ProcessName,
+        obj: str,
+        commit_cls: type = sync_commit.Commit,
+        force: bool = False,
+    ) -> VcsRefObject:
         path = cls.get_path(name)
         logger.debug("Creating ref %s" % path)
         pygit2_repo = pygit2_get(repo)
         if path in pygit2_repo.references:
             if not force:
                 raise ValueError(f"Ref {path} exists")
-        pygit2_repo.references.create(path,
-                                      pygit2_repo.revparse_single(obj).id,
-                                      force=force)
+        pygit2_repo.references.create(path, pygit2_repo.revparse_single(obj).id, force=force)
         return cls(repo, name, commit_cls)
 
     def __str__(self) -> str:
@@ -405,15 +407,15 @@ class VcsRefObject(metaclass=IdentityMap):
             return commit
         return None
 
-    @commit.setter  # type: ignore
+    @commit.setter
     @mut()
     def commit(self, commit: Commit | str) -> None:
         if isinstance(commit, sync_commit.Commit):
             sha1 = commit.sha1
         else:
             sha1 = commit
-        sha1 = self.pygit2_repo.revparse_single(sha1).id
-        self.pygit2_repo.references[self.path].set_target(sha1)
+        oid = self.pygit2_repo.revparse_single(sha1).id
+        self.pygit2_repo.references[self.path].set_target(oid)
 
 
 class BranchRefObject(VcsRefObject):
@@ -421,13 +423,14 @@ class BranchRefObject(VcsRefObject):
 
 
 class CommitBuilder:
-    def __init__(self,
-                 repo: Repo,
-                 message: str,
-                 ref: str | None = None,
-                 commit_cls: type = sync_commit.Commit,
-                 initial_empty: bool = False
-                 ) -> None:
+    def __init__(
+        self,
+        repo: Repo,
+        message: str,
+        ref: str | None = None,
+        commit_cls: type = sync_commit.Commit,
+        initial_empty: bool = False,
+    ) -> None:
         """Object to be used as a context manager for commiting changes to the repo.
 
         This class provides low-level access to the git repository in order to
@@ -469,9 +472,9 @@ class CommitBuilder:
 
         # State set for the life of the context manager
         self.lock = RepoLock(repo)
-        self.parents: list[str] | None = None
+        self.parents: list[str | Oid] | None = None
         self.commit = None
-        self.index: pygit2.Index = None
+        self.index: Optional[pygit2.Index] = None
         self.has_changes = False
 
     def __enter__(self) -> CommitBuilder:
@@ -490,14 +493,16 @@ class CommitBuilder:
             except KeyError:
                 self.parents = []
             else:
-                self.parents = [ref.peel().id]
+                self.parents = [ref.peel(None).id]
                 if not self.initial_empty:
-                    self.index.read_tree(ref.peel().tree)
+                    self.index.read_tree(ref.peel(None).tree)
         else:
             self.parents = []
         return self
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
+        assert self.index is not None
+        assert self.parents is not None
         self._count -= 1
         if self._count != 0:
             return
@@ -510,23 +515,27 @@ class CommitBuilder:
         else:
             tree_id = self.index.write_tree(self.pygit2_repo)
 
-            sha1 = self.pygit2_repo.create_commit(self.ref,
-                                                  self.pygit2_repo.default_signature,
-                                                  self.pygit2_repo.default_signature,
-                                                  self.message.encode("utf8"),
-                                                  tree_id,
-                                                  self.parents)
+            sha1 = self.pygit2_repo.create_commit(
+                self.ref,
+                self.pygit2_repo.default_signature,
+                self.pygit2_repo.default_signature,
+                self.message.encode("utf8"),
+                tree_id,
+                self.parents,
+            )
         self.lock.__exit__(*args, **kwargs)
         self.commit = self.commit_cls(self.repo, sha1)
 
     def add_tree(self, tree: dict[str, bytes]) -> None:
+        assert self.index is not None
         self.has_changes = True
         for path, data in tree.items():
             blob = self.pygit2_repo.create_blob(data)
-            index_entry = pygit2.IndexEntry(path, blob, pygit2.GIT_FILEMODE_BLOB)
+            index_entry = pygit2.IndexEntry(path, blob, pygit2.enums.FileMode.BLOB)
             self.index.add(index_entry)
 
     def delete(self, delete: list[str]) -> None:
+        assert self.index is not None
         self.has_changes = True
         if delete:
             for path in delete:
@@ -570,6 +579,7 @@ class ProcessData(metaclass=IdentityMap):
         message = "Update %s\n\n" % self.path
         with CommitBuilder(self.repo, message=message, ref=self.ref.path) as commit:
             from . import index
+
             if self._delete:
                 self._delete_data("Delete %s" % self.path)
                 self._delete = False
@@ -590,16 +600,16 @@ class ProcessData(metaclass=IdentityMap):
                 idx.save(commit_builder=commit)
 
     @classmethod
-    @constructor(lambda args: (args["process_name"].subtype,
-                               args["process_name"].obj_id))
-    def create(cls,
-               lock: SyncLock,
-               repo: Repo,
-               process_name: ProcessName,
-               data: dict[str, Any],
-               message: str = "Sync data",
-               commit_builder: Optional[CommitBuilder] = None
-               ) -> ProcessData:
+    @constructor(lambda args: (args["process_name"].subtype, args["process_name"].obj_id))
+    def create(
+        cls,
+        lock: SyncLock,
+        repo: Repo,
+        process_name: ProcessName,
+        data: dict[str, Any],
+        message: str = "Sync data",
+        commit_builder: Optional[CommitBuilder] = None,
+    ) -> ProcessData:
         assert process_name.obj_type == cls.obj_type
         path = cls.get_path(process_name)
 
@@ -631,33 +641,29 @@ class ProcessData(metaclass=IdentityMap):
         return process_name.path()
 
     @classmethod
-    def load_by_obj(cls,
-                    repo: Repo,
-                    subtype: str,
-                    obj_id: int,
-                    seq_id=None  # Type: Optional[int]
-                    ) -> set[ProcessData]:
-        process_names = ProcessNameIndex(repo).get(cls.obj_type,
-                                                   subtype,
-                                                   str(obj_id))
+    def load_by_obj(
+        cls, repo: Repo, subtype: str, obj_id: int, seq_id: Optional[int] = None
+    ) -> set[Self]:
+        process_names = ProcessNameIndex(repo).get(cls.obj_type, subtype, str(obj_id))
         if seq_id is not None:
-            process_names = {item for item in process_names
-                             if item.seq_id == seq_id}
+            process_names = {item for item in process_names if item.seq_id == seq_id}
         return {cls(repo, process_name) for process_name in process_names}
 
     @classmethod
-    def load_by_status(cls, repo, subtype, status):
+    def load_by_status(
+        cls: type[ProcessData], repo: Repo, subtype: str, status: str
+    ) -> set[ProcessData]:
         from . import index
-        process_names = index.SyncIndex(repo).get((cls.obj_type,
-                                                   subtype,
-                                                   status))
+
+        process_names = index.SyncIndex(repo).get((cls.obj_type, subtype, status))
         rv = set()
         for process_name in process_names:
             rv.add(cls(repo, process_name))
         return rv
 
-    def _save(self, data: dict[str, Any], message: str,
-              commit_builder: CommitBuilder | None = None) -> Any | None:
+    def _save(
+        self, data: dict[str, Any], message: str, commit_builder: CommitBuilder | None = None
+    ) -> Any | None:
         if commit_builder is None:
             commit_builder = CommitBuilder(self.repo, message=message, ref=self.ref.path)
         else:
@@ -677,7 +683,7 @@ class ProcessData(metaclass=IdentityMap):
         ref = self.pygit2_repo.references[self.ref.path]
         repo = self.pygit2_repo
         try:
-            data = repo[repo[ref.peel().tree.id][self.path].id].data
+            data = repo[repo[ref.peel(None).tree.id][self.path].id].data
         except KeyError:
             return {}
         return json.loads(data)
@@ -744,11 +750,11 @@ class FrozenDict(Mapping):
 
 
 class entry_point:
-    def __init__(self, task):
+    def __init__(self, task: str) -> None:
         self.task = task
 
-    def __call__(self, f):
-        def inner(*args: Any, **kwargs: Any) -> LandingSync | None:
+    def __call__(self, f: Callable[..., Any]) -> Callable[..., Any]:
+        def inner(*args: Any, **kwargs: Any) -> Any:
             logger.info(f"Called entry point {f.__module__}.{f.__name__}")
             logger.debug(f"Called args {args!r} kwargs {kwargs!r}")
 

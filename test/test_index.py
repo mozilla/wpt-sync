@@ -43,15 +43,11 @@ def test_insert_multiple(git_gecko):
     idx = TestIndex.create(git_gecko)
     idx.insert(("key1", "key2"), "some_example_data")
     idx.insert(("key1", "key2"), "more_example_data")
-    assert idx.get(("key1", "key2")) == {"some_example_data",
-                                         "more_example_data"}
-    assert idx.get(("key1",)) == {"some_example_data",
-                                  "more_example_data"}
+    assert idx.get(("key1", "key2")) == {"some_example_data", "more_example_data"}
+    assert idx.get(("key1",)) == {"some_example_data", "more_example_data"}
     idx.save()
-    assert idx.get(("key1", "key2")) == {"some_example_data",
-                                         "more_example_data"}
-    assert idx.get(("key1",)) == {"some_example_data",
-                                  "more_example_data"}
+    assert idx.get(("key1", "key2")) == {"some_example_data", "more_example_data"}
+    assert idx.get(("key1",)) == {"some_example_data", "more_example_data"}
 
 
 def test_delete(git_gecko):
@@ -103,8 +99,7 @@ def test_build(git_gecko):
     assert idx.get(("key1", "key2")) == {"some_example_data"}
     assert idx.get(("key1", "key3")) == {"more_example_data"}
 
-    idx.build([(("key1", "key2"), "some_example_data"),
-               (("key1", "key4"), "new_data")], [])
+    idx.build([(("key1", "key2"), "some_example_data"), (("key1", "key4"), "new_data")], [])
     assert idx.get(("key1", "key2")) == {"some_example_data"}
     assert idx.get(("key1", "key3")) == set()
     assert idx.get(("key1", "key4")) == {"new_data"}

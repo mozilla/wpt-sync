@@ -20,6 +20,7 @@ def test_ref_duplicate(git_gecko):
         p = base.ProcessName("sync", "upstream", "1", "0")
         with SyncLock("upstream", None) as lock:
             sync.SyncData.create(lock, git_gecko, p, {"test": 1})
+
     create_initial()
     # Ensure that the p object has been gc'd
     gc.collect()
@@ -35,10 +36,7 @@ def test_processname_seq_id(git_gecko, local_gecko_commit):
     with SyncLock("upstream", None) as lock:
         sync.SyncData.create(lock, git_gecko, process_name_no_seq_id, {"test": 1})
 
-    process_name_seq_id = base.ProcessName.with_seq_id(git_gecko,
-                                                       "sync",
-                                                       "upstream",
-                                                       "1234")
+    process_name_seq_id = base.ProcessName.with_seq_id(git_gecko, "sync", "upstream", "1234")
     assert process_name_seq_id.seq_id == 1
 
 

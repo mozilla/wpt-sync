@@ -15,12 +15,9 @@ def test_remove(env, directory):
         with open(path, "w") as f:
             f.write("test")
 
-    moz_build_path = os.path.join(wpt_root,
-                                  os.pardir,
-                                  "moz.build")
+    moz_build_path = os.path.join(wpt_root, os.pardir, "moz.build")
 
-    moves = {"tests/e/1.html": "tests/b/1.html",
-             "2.html": "3.html"}
+    moves = {"tests/e/1.html": "tests/b/1.html", "2.html": "3.html"}
 
     initial = """
 # -*- Mode: python; indent-tabs-mode: nil; tab-width: 40 -*-
