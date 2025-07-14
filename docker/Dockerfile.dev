@@ -6,6 +6,7 @@ ENV PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:
     SHELL=/bin/bash \
     WPTSYNC_ROOT=/app/workspace \
     WPTSYNC_REPO_ROOT=/app/repos/ \
+    WPTSYNC_APP_ROOT=/app/wpt-sync/ \
     DEBIAN_FRONTEND=noninteractive \
     UV_REQUIRE_HASHES=1 \
     UV_LINK_MODE=copy \
