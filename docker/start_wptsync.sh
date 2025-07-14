@@ -95,8 +95,7 @@ elif [ "$1" == "--worker" ]; then
     # TODO: need to configure the API key correctly to record deploys
     # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
 
-    newrelic-admin run-program \
-                   uv run \
+    uv run newrelic-admin run-program \
                    celery \
                      --app sync.worker \
                      beat \
@@ -108,8 +107,7 @@ elif [ "$1" == "--worker" ]; then
 
     echo "Starting celery worker"
 
-    newrelic-admin run-program \
-                   uv run \
+    uv run newrelic-admin run-program \
                    celery \
                      --app sync.worker \
                      worker \
@@ -125,14 +123,14 @@ elif [ "$1" == "--worker" ]; then
     if [ "$2" == "--phab" ]; then
         echo "Starting phab listener"
 
-        newrelic-admin run-program \
-             uv run wptsync phab-listen &
+        uv run newrelic-admin run-program \
+             wptsync phab-listen &
         pids+=($!)
     fi
     echo "Starting pulse listener"
 
-    newrelic-admin run-program \
-         uv run wptsync listen &
+    uv run newrelic-admin run-program \
+         wptsync listen &
     pids+=($!)
 
     # Wait for the listeners to finish
