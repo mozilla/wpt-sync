@@ -16,6 +16,8 @@ CELERY_PID_FILE=${WPTSYNC_ROOT}/%n.pid
 CELERY_LOG_FILE=${WPTSYNC_ROOT}/logs/%n%I.log
 CELERYBEAT_PID_FILE=${WPTSYNC_ROOT}/celerybeat.pid
 
+cd "$WPTSYNC_APP_ROOT"
+
 cleanup() {
     echo "Stopping celery..."
     uv run celery multi stopwait ${CELERY_WORKER} \
@@ -138,7 +140,6 @@ elif [ "$1" == "--worker" ]; then
 
 elif [ "$1" == "--test" ]; then
     shift 1;
-    cd /app/wpt-sync
     uv sync
     uv run --extra=test wptsync test "$@"
 else
