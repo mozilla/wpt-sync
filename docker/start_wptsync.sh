@@ -68,9 +68,9 @@ if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
     ssh-add /app/.ssh/id_github
     ssh-add /app/.ssh/id_hgmo
     if [ "$1" != "--shell" ]; then
-        wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/config/wpt_config}
-        wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/config/gecko_config}
-        wptsync repo-config wpt-metadata ${WPTSYNC_WPT_METADATA_CONFIG:-/app/config/wpt-metadata_config}
+        uv run wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/config/wpt_config}
+        uv run wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/config/gecko_config}
+        uv run wptsync repo-config wpt-metadata ${WPTSYNC_WPT_METADATA_CONFIG:-/app/config/wpt-metadata_config}
     fi
 fi
 
@@ -126,13 +126,13 @@ elif [ "$1" == "--worker" ]; then
         echo "Starting phab listener"
 
         newrelic-admin run-program \
-             wptsync phab-listen &
+             uv run wptsync phab-listen &
         pids+=($!)
     fi
     echo "Starting pulse listener"
 
     newrelic-admin run-program \
-         wptsync listen &
+         uv run wptsync listen &
     pids+=($!)
 
     # Wait for the listeners to finish
