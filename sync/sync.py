@@ -709,7 +709,7 @@ class SyncProcess(metaclass=IdentityMap):
             self.git_wpt.merge_base(self.data["wpt-base"], self.wpt_commits.head.sha1)[0]
         )
         for item in diff_blobs:
-            if item.rename_from:
+            if item.rename_from and item.rename_to:
                 renames[item.rename_from] = item.rename_to
         return renames
 
