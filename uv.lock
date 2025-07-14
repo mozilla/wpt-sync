@@ -523,16 +523,16 @@ wheels = [
 
 [[package]]
 name = "lando-cli"
-version = "0.0.9"
+version = "0.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "requests" },
     { name = "tomli" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/58/d129ebaf1dcfce65f0d630a3d0c76a4d4d4c338ec8f0605c7ccea3f0a0e4/lando_cli-0.0.9.tar.gz", hash = "sha256:6a87fee3b2fd427ea9843a98d5c03f3dd6a5ea703086395769c3930cc0830900", size = 16591, upload-time = "2025-06-17T17:30:20.688Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/38/23ae0412bd22d8fe7b2055a9a69de286d3e67622a23f7faee11ce639b57a/lando_cli-0.1.0.tar.gz", hash = "sha256:56e1420986719d17a629086a7e0760925677a37597df07053a8cf3b84a603763", size = 17645, upload-time = "2025-06-23T18:47:10.373Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/57/9eeed71719024a02ddea61e1ed547af56e3236bbdf7ca64250a5a461273e/lando_cli-0.0.9-py3-none-any.whl", hash = "sha256:411fa50ad0581fbd9c39dee0fdc6e5221275ccb9c6605f00a4cdc06f6d79bb6a", size = 14425, upload-time = "2025-06-17T17:30:19.648Z" },
+    { url = "https://files.pythonhosted.org/packages/73/04/213261627b19fe2d3cbe8be39b626d71dce4c0dfac91a18858920c37eee2/lando_cli-0.1.0-py3-none-any.whl", hash = "sha256:f1058bd2a454ab2f302eecb456499682e8f810fa8e2e5c5d1937c15bfffb22d7", size = 14690, upload-time = "2025-06-23T18:47:09.313Z" },
 ]
 
 [[package]]
@@ -1263,7 +1263,7 @@ requires-dist = [
     { name = "filelock", specifier = "==3.18.0" },
     { name = "gitpython", specifier = "==3.1.43" },
     { name = "kombu", specifier = "==5.5.4" },
-    { name = "lando-cli", specifier = "==0.0.9" },
+    { name = "lando-cli", specifier = "==0.1.0" },
     { name = "mercurial", specifier = "==7.0.2" },
     { name = "mozautomation", git = "https://github.com/mozilla/version-control-tools.git?subdirectory=pylib%2Fmozautomation&rev=c40d7a3be799b3c23ebe6289def25bef0f51893a" },
     { name = "mypy", marker = "extra == 'test'", specifier = "==1.16.1" },
