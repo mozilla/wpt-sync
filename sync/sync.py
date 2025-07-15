@@ -673,8 +673,6 @@ class SyncProcess(metaclass=IdentityMap):
             self.git_gecko, self.sync_type, int(self.process_name.obj_id)
         )
 
-        # I tried cast(Set[TryPush], try_pushes) here but it didn't work
-
         if status is not None:
             try_pushes_for_status: set[TryPush] = set()
             for item in try_pushes:

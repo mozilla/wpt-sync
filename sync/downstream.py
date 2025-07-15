@@ -155,6 +155,7 @@ class DownstreamSync(SyncProcess):
                 env.gh_wpt.add_labels(self.pr, "mozilla:gecko-blocked")
             elif self.error is not None:
                 env.gh_wpt.remove_labels(self.pr, "mozilla:gecko-blocked")
+        assert SyncProcess.error.fset is not None
         return SyncProcess.error.fset(self, value)
 
     @property
