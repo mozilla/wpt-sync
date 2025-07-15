@@ -74,6 +74,8 @@ class Mach(Command):
             cmd_env = opts["env"]
         else:
             cmd_env = os.environ.copy()
+        if ["UV_REQUIRE_HASHES"] in cmd_env:
+            del cmd_env["UV_REQUIRE_HASHES"]
         cmd_env["MOZBUILD_STATE_PATH"] = state_path
         opts["env"] = cmd_env
         return super().get(*subcommand, **opts)
