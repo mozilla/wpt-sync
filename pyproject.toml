@@ -25,7 +25,7 @@ dependencies = [
   "gitpython==3.1.44",
   "kombu==5.5.4",
   "lando-cli==0.1.0",
-  "mercurial==7.0.2",
+  "mercurial==7.0.3",
   "mozautomation",
   "newrelic==10.14.0",
   "phabricator==0.9.1",
