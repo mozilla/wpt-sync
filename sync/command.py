@@ -650,14 +650,14 @@ def do_status(
 def do_test(**kwargs: Any) -> None:
     if kwargs.pop("ruff", True):
         logger.info("Running ruff")
-        cmd = ["uv", "run", "ruff", "check"]
+        cmd = ["ruff", "check"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
-        cmd = ["uv", "run", "ruff", "format", "--check"]
+        cmd = ["ruff", "format", "--check"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
     if kwargs.pop("mypy", True):
         logger.info("Running mypy")
-        cmd = ["uv", "run", "mypy", "sync"]
+        cmd = ["mypy", "sync"]
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
     if kwargs.pop("pytest", True):
@@ -666,7 +666,7 @@ def do_test(**kwargs: Any) -> None:
             args.append("test")
 
         logger.info("Running pytest")
-        cmd = ["uv", "run", "pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
+        cmd = ["pytest", "-s", "-v", "-p", "no:cacheprovider"] + args
         subprocess.check_call(cmd, cwd="/app/wpt-sync/")
 
 
