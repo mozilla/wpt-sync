@@ -20,7 +20,7 @@ cd "$WPTSYNC_APP_ROOT"
 
 cleanup() {
     echo "Stopping celery..."
-    uv run celery multi stopwait ${CELERY_WORKER} \
+    celery multi stopwait ${CELERY_WORKER} \
         --pidfile=${CELERY_PID_FILE} \
         --logfile=${CELERY_LOG_FILE}
     echo "Stopping celery beat..."
@@ -68,9 +68,9 @@ if [ "$1" != "--test" ] && [ "$1" != "--shell" ]; then
     ssh-add /app/.ssh/id_github
     ssh-add /app/.ssh/id_hgmo
     if [ "$1" != "--shell" ]; then
-        uv run wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/config/wpt_config}
-        uv run wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/config/gecko_config}
-        uv run wptsync repo-config wpt-metadata ${WPTSYNC_WPT_METADATA_CONFIG:-/app/config/wpt-metadata_config}
+        wptsync repo-config web-platform-tests ${WPTSYNC_WPT_CONFIG:-/app/config/wpt_config}
+        wptsync repo-config gecko ${WPTSYNC_GECKO_CONFIG:-/app/config/gecko_config}
+        wptsync repo-config wpt-metadata ${WPTSYNC_WPT_METADATA_CONFIG:-/app/config/wpt-metadata_config}
     fi
 fi
 
@@ -95,7 +95,7 @@ elif [ "$1" == "--worker" ]; then
     # TODO: need to configure the API key correctly to record deploys
     # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
 
-    uv run newrelic-admin run-program \
+    newrelic-admin run-program \
                    celery \
                      --app sync.worker \
                      beat \
@@ -107,7 +107,7 @@ elif [ "$1" == "--worker" ]; then
 
     echo "Starting celery worker"
 
-    uv run newrelic-admin run-program \
+    newrelic-admin run-program \
                    celery \
                      --app sync.worker \
                      worker \
@@ -123,13 +123,13 @@ elif [ "$1" == "--worker" ]; then
     if [ "$2" == "--phab" ]; then
         echo "Starting phab listener"
 
-        uv run newrelic-admin run-program \
+        newrelic-admin run-program \
              wptsync phab-listen &
         pids+=($!)
     fi
     echo "Starting pulse listener"
 
-    uv run newrelic-admin run-program \
+    newrelic-admin run-program \
          wptsync listen &
     pids+=($!)
 
@@ -138,8 +138,8 @@ elif [ "$1" == "--worker" ]; then
 
 elif [ "$1" == "--test" ]; then
     shift 1;
-    uv sync
-    uv run --extra=test wptsync test "$@"
+    uv sync --extra test
+    wptsync test "$@"
 else
-    uv run wptsync "$@"
+    wptsync "$@"
 fi
