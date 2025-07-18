@@ -53,7 +53,8 @@ test = [
   "types-PyYAML==6.0.12.20250516"
 ]
 deploy = [
-  "ansible==8.5.0"
+  "ansible==8.5.0",
+  "ansible-core==2.15.5",
 ]
 
 [project.scripts]

@@ -98,7 +98,7 @@ wheels = [
 
 [[package]]
 name = "ansible-core"
-version = "2.15.13"
+version = "2.15.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -107,9 +107,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "resolvelib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/69/dd/05343f635cb26df641c8366c5feb868ef5e2b893c625b04a6cb0cf1c7bfe/ansible_core-2.15.13.tar.gz", hash = "sha256:f542e702ee31fb049732143aeee6b36311ca48b7d13960a0685afffa0d742d7f", size = 3141067, upload-time = "2024-11-04T18:38:06.834Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/4b/6a25ee293ee4886cb6e1782bec5e70c20468e5dc4db092d2075f56b9d88b/ansible-core-2.15.5.tar.gz", hash = "sha256:8cc539cb8d4349af3ffd901c70722f7a7a203ae6427ddac95ffdf546a6e41602", size = 3154868, upload-time = "2023-10-09T15:53:07.284Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/2c/19ac50eca9d32a9524329f023a459ebb6ca5a546380eb15af384306c170a/ansible_core-2.15.13-py3-none-any.whl", hash = "sha256:e7f50bbb61beae792f5ecb86eff82149d3948d078361d70aedb01d76bc483c30", size = 2251441, upload-time = "2024-11-04T18:38:04.381Z" },
+    { url = "https://files.pythonhosted.org/packages/51/4a/21dd7477ff981c400894bdcfaaacb9183f7ce9653f6d143baea9ebd97225/ansible_core-2.15.5-py3-none-any.whl", hash = "sha256:3efa234de5fce79ec98853f3369535b27cacd7ce498495b996030cd15c373735", size = 2246571, upload-time = "2023-10-09T15:52:58.775Z" },
 ]
 
 [[package]]
@@ -1241,6 +1241,7 @@ dependencies = [
 [package.optional-dependencies]
 deploy = [
     { name = "ansible" },
+    { name = "ansible-core" },
 ]
 test = [
     { name = "celery-stubs" },
@@ -1258,6 +1259,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "ansible", marker = "extra == 'deploy'", specifier = "==8.5.0" },
+    { name = "ansible-core", marker = "extra == 'deploy'", specifier = "==2.15.5" },
     { name = "bugsy", specifier = "==0.12.0" },
     { name = "celery", specifier = "==5.5.3" },
     { name = "celery-stubs", marker = "extra == 'test'", specifier = "==0.1.3" },
