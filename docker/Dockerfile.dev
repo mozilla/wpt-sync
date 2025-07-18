@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 
-ENV PATH=/app/wpt-sync/.venv/bin:/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
+ENV PATH=/app/third_party/git-cinnabar:/app/third_party/fzf/bin:/app/.local/bin:$PATH \
     RABBITMQ_CONFIG_FILE=/etc/rabbitmq/rabbitmq \
     # Mach requires that this is set
     SHELL=/bin/bash \
