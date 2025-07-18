@@ -35,6 +35,8 @@ if [ ! -z ${WPT_CREDENTIALS} ]; then
     fi
 fi
 
+uv sync --extra deploy
+
 img="wptsync_dev:$(git rev-parse HEAD)"
 tag="${1-}"
 msg="${2-}"
