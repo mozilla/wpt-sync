@@ -79,6 +79,10 @@ env
 if [ "$1" == "--shell" ]; then
     bash
 elif [ "$1" == "--worker" ]; then
+    # This should be unnecessary because the dependencies are in the container. But this
+    # allows things to work if we override the /app/wpt-sync directory with a mount.
+    uv sync
+
     clean_pid "${WPTSYNC_ROOT}/${CELERY_WORKER}.pid"
     clean_pid "$CELERYBEAT_PID_FILE"
     service --status-all
