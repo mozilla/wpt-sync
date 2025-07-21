@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import traceback
 
 import git
@@ -1202,6 +1203,12 @@ def main() -> None:
         func_name = args.func.__name__
     except AttributeError:
         func_name = None
+
+    if func_name is None:
+        print("Error: Missing a subcommand name")
+        parser.print_usage()
+        sys.exit(1)
+
     if func_name == "do_test":
 
         def func(**kwargs: Any) -> Any:
