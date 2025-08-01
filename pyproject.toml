@@ -30,7 +30,7 @@ dependencies = [
   "newrelic==10.14.0",
   "phabricator==0.9.1",
   "pygit2==1.18.0",
-  "pygithub==2.6.1",
+  "pygithub==2.7.0",
   "pyyaml==6.0.2",
   "requests==2.32.4",
   "setuptools==80.9.0",
