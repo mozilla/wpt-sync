@@ -21,7 +21,7 @@ classifiers = [
 dependencies = [
   "bugsy==0.12.0",
   "celery==5.5.3",
-  "filelock==3.18.0",
+  "filelock==3.19.1",
   "gitpython==3.1.44",
   "kombu==5.5.4",
   "lando-cli==0.1.0",
