@@ -47,7 +47,7 @@ test = [
   "pytest-cov==6.2.1",
   "pytest-env==1.1.5",
   "requests-mock==1.12.1",
-  "ruff==0.12.4",
+  "ruff==0.12.10",
   "types-filelock==3.2.7",
   "types-requests==2.32.4.20250611",
   "types-PyYAML==6.0.12.20250516"
