@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 
 [[package]]
@@ -523,16 +523,16 @@ wheels = [
 
 [[package]]
 name = "lando-cli"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "requests" },
     { name = "tomli" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/46/38/23ae0412bd22d8fe7b2055a9a69de286d3e67622a23f7faee11ce639b57a/lando_cli-0.1.0.tar.gz", hash = "sha256:56e1420986719d17a629086a7e0760925677a37597df07053a8cf3b84a603763", size = 17645, upload-time = "2025-06-23T18:47:10.373Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/d2/4b88f3204a6d41b119e37fb01d337b9d3061efb49f6cc591521316d36c6f/lando_cli-0.2.0.tar.gz", hash = "sha256:1318a96c3ffca22b95145127853616ddcbedd74ebcad1e844f634346f0d0b67f", size = 18392, upload-time = "2025-09-08T01:50:45.014Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/73/04/213261627b19fe2d3cbe8be39b626d71dce4c0dfac91a18858920c37eee2/lando_cli-0.1.0-py3-none-any.whl", hash = "sha256:f1058bd2a454ab2f302eecb456499682e8f810fa8e2e5c5d1937c15bfffb22d7", size = 14690, upload-time = "2025-06-23T18:47:09.313Z" },
+    { url = "https://files.pythonhosted.org/packages/af/f0/e90a1118e1dc974ccb05b643d59dc136c26b95960d1d66d9d55d17e23fc9/lando_cli-0.2.0-py3-none-any.whl", hash = "sha256:67fb2ab47fb1d21fb97b68e0063952a6eeb87128501acb4b20f24306ea366a73", size = 14782, upload-time = "2025-09-08T01:50:43.457Z" },
 ]
 
 [[package]]
@@ -1266,7 +1266,7 @@ requires-dist = [
     { name = "filelock", specifier = "==3.18.0" },
     { name = "gitpython", specifier = "==3.1.44" },
     { name = "kombu", specifier = "==5.5.4" },
-    { name = "lando-cli", specifier = "==0.1.0" },
+    { name = "lando-cli", specifier = "==0.2.0" },
     { name = "mercurial", specifier = "==7.0.3" },
     { name = "mozautomation", git = "https://github.com/mozilla/version-control-tools.git?subdirectory=pylib%2Fmozautomation&rev=c40d7a3be799b3c23ebe6289def25bef0f51893a" },
     { name = "mypy", marker = "extra == 'test'", specifier = "==1.17.0" },
