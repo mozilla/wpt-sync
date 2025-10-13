@@ -97,7 +97,7 @@ def handle(self: Task, task: str, body: Mapping[str, Any]) -> None:
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
-        newrelic.agent.add_custom_parameter("task", task)
+        newrelic.agent.add_custom_attribute("task", task)
         git_gecko, git_wpt = setup()
         try:
             handlers[task](git_gecko, git_wpt, body)
