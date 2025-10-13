@@ -11,7 +11,7 @@ import pygit2
 from . import log
 from . import commit as sync_commit
 from .env import Environment
-from .lock import MutGuard, RepoLock, mut, constructor
+from .lock import MutGuard, RepoLock, SyncLock, mut, constructor
 from .repos import pygit2_get
 
 from typing import Any, Callable, DefaultDict, Iterator, Optional, Self, Set, Tuple, TYPE_CHECKING
@@ -19,10 +19,6 @@ from git.refs.reference import Reference
 from git.repo.base import Repo
 
 if TYPE_CHECKING:
-    from pygit2.repository import Repository
-    from pygit2 import Commit as PyGit2Commit, Object, Oid
-    from sync.commit import Commit
-    from sync.lock import SyncLock
     from sync.sync import SyncPointName
 
 ProcessNameIndexData = DefaultDict[str, DefaultDict[str, DefaultDict[str, Set]]]
@@ -88,17 +84,17 @@ class IdentityMap(type):
 
 
 def iter_tree(
-    pygit2_repo: Repository,
+    pygit2_repo: pygit2.Repository,
     root_path: str = "",
-    rev: PyGit2Commit | None = None,
-) -> Iterator[tuple[tuple[str, ...], Object]]:
+    rev: pygit2.Commit | None = None,
+) -> Iterator[tuple[tuple[str, ...], pygit2.Object]]:
     """Iterator over all paths in a tree"""
     if rev is None:
         ref_name = env.config["sync"]["ref"]
         ref = pygit2_repo.references[ref_name]
         rev_obj = ref.peel(None)
     else:
-        rev_obj = pygit2_repo[rev.id]
+        rev_obj = pygit2_repo[rev.id].peel(pygit2.Commit)
 
     assert isinstance(rev_obj, pygit2.Commit)
     root_obj = rev_obj.tree
@@ -124,20 +120,20 @@ def iter_tree(
 
 
 def iter_process_names(
-    pygit2_repo: Repository,
+    pygit2_repo: pygit2.Repository,
     kind: list[str] = ["sync", "try"],
 ) -> Iterator[ProcessName]:
     """Iterator over all ProcessName objects"""
     ref = pygit2_repo.references[env.config["sync"]["ref"]]
-    root = ref.peel(None).tree
+    root = ref.peel(pygit2.Commit).tree
     stack = []
     for root_path in kind:
         try:
             tree = root[root_path]
         except KeyError:
             continue
-
-        stack.append((root_path, tree))
+        if isinstance(tree, pygit2.Tree):
+            stack.append((root_path, tree))
 
     while stack:
         path, tree = stack.pop()
@@ -400,7 +396,7 @@ class VcsRefObject(metaclass=IdentityMap):
         return None
 
     @property
-    def commit(self) -> Commit | None:
+    def commit(self) -> sync_commit.Commit | None:
         ref = self.ref
         if ref is not None:
             commit = self.commit_cls(self.repo, ref.commit)
@@ -409,7 +405,7 @@ class VcsRefObject(metaclass=IdentityMap):
 
     @commit.setter
     @mut()
-    def commit(self, commit: Commit | str) -> None:
+    def commit(self, commit: sync_commit.Commit | str) -> None:
         if isinstance(commit, sync_commit.Commit):
             sha1 = commit.sha1
         else:
@@ -472,7 +468,7 @@ class CommitBuilder:
 
         # State set for the life of the context manager
         self.lock = RepoLock(repo)
-        self.parents: list[str | Oid] | None = None
+        self.parents: list[str | pygit2.Oid] | None = None
         self.commit = None
         self.index: Optional[pygit2.Index] = None
         self.has_changes = False
@@ -681,9 +677,9 @@ class ProcessData(metaclass=IdentityMap):
 
     def _load(self) -> dict[str, Any]:
         ref = self.pygit2_repo.references[self.ref.path]
-        repo = self.pygit2_repo
         try:
-            data = repo[repo[ref.peel(None).tree.id][self.path].id].data
+            tree = ref.peel(pygit2.Commit).tree
+            data = tree[self.path].peel(pygit2.Blob).data
         except KeyError:
             return {}
         return json.loads(data)

@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import enum
 import git
+import pygit2
 from celery.exceptions import OperationalError
 
 from . import bug
@@ -958,7 +959,7 @@ def load_sync_point(git_gecko: Repo, git_wpt: Repo) -> SyncPoint:
     pygit2_repo = pygit2_get(git_gecko)
     integration_sha = pygit2_repo.revparse_single(LandingSync.gecko_integration_branch()).id
     blob_id = pygit2_repo[integration_sha].tree["testing/web-platform/meta/mozilla-sync"].id
-    mozilla_data = pygit2_repo[blob_id].data
+    mozilla_data = pygit2_repo[blob_id].peel(pygit2.Blob).data
     sync_point = SyncPoint()
     sync_point.loads(mozilla_data)
     return sync_point
