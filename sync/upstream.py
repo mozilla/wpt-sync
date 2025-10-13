@@ -1153,7 +1153,7 @@ def commit_check_changed(git_gecko: Repo, git_wpt: Repo, sync: UpstreamSync) -> 
             # Sometimes needinfos fail because emails addresses in bugzilla don't
             # match the commits. That's non-fatal, but record the exception here in
             # case something more unexpected happens
-            newrelic.agent.record_exception()
+            newrelic.agent.notice_error()
             sync.error = "Checks failed"
         else:
             logger.info("Some upstream web-platform-tests status checks still pending.")

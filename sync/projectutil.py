@@ -56,8 +56,12 @@ class Command:
         try:
             return subprocess.check_output(command, cwd=self.path, **opts)
         except subprocess.CalledProcessError as e:
-            newrelic.agent.record_exception(
-                params={"command": self.name, "exit_code": e.returncode, "command_output": e.output}
+            newrelic.agent.notice_error(
+                attributes={
+                    "command": self.name,
+                    "exit_code": e.returncode,
+                    "command_output": e.output,
+                }
             )
             raise e
 

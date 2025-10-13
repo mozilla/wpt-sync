@@ -163,7 +163,7 @@ class Metadata:
                 break
 
         if err:
-            newrelic.agent.record_exception(*err, params={"ref_name": ref_name})
+            newrelic.agent.record_exception(error=err, attributes={"ref_name": ref_name})
         else:
             self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter()

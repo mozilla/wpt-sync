@@ -506,7 +506,7 @@ class DownstreamSync(SyncProcess):
             raise
         except Exception:
             # Just log errors trying to update the check status, but otherwise don't fail
-            newrelic.agent.record_exception()
+            newrelic.agent.notice_error()
             import traceback
 
             logger.error("Creating PR status check failed")
