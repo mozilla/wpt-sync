@@ -1,4 +1,9 @@
-deb http://ppa.launchpad.net/rabbitmq/rabbitmq-erlang/ubuntu jammy main
-deb-src http://ppa.launchpad.net/rabbitmq/rabbitmq-erlang/ubuntu jammy main
-deb https://packagecloud.io/rabbitmq/rabbitmq-server/ubuntu/ jammy main
-deb-src https://packagecloud.io/rabbitmq/rabbitmq-server/ubuntu/ jammy main
+## Modern Erlang/OTP releases
+##
+deb [arch=amd64 signed-by=/usr/share/keyrings/com.rabbitmq.team.gpg] https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble noble main
+deb [arch=amd64 signed-by=/usr/share/keyrings/com.rabbitmq.team.gpg] https://deb2.rabbitmq.com/rabbitmq-erlang/ubuntu/noble noble main
+
+## Provides modern RabbitMQ releases
+##
+deb [arch=amd64 signed-by=/usr/share/keyrings/com.rabbitmq.team.gpg] https://deb1.rabbitmq.com/rabbitmq-server/ubuntu/noble noble main
+deb [arch=amd64 signed-by=/usr/share/keyrings/com.rabbitmq.team.gpg] https://deb2.rabbitmq.com/rabbitmq-server/ubuntu/noble noble main

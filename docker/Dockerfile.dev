@@ -44,16 +44,8 @@ RUN set -eux; \
 
 ## Add apt repositories maintained by Team RabbitMQ
 COPY ./docker/rabbitmq.list /etc/apt/sources.list.d/rabbitmq.list
-COPY ./docker/rabbitmq-server.gpg /app/rabbitmq-server.gpg
+COPY ./docker/com.rabbitmq.team.gpg /usr/share/keyrings/com.rabbitmq.team.gpg
 RUN set -eux; \
-    ## Team RabbitMQ's main signing key
-    sudo apt-key adv --keyserver "hkps://keys.openpgp.org" --recv-keys "0x0A9AF2115F4687BD29803A206B73A36E6026DFCA"; \
-    ## Launchpad PPA that provides modern Erlang releases
-    sudo apt-key adv --keyserver "keyserver.ubuntu.com" --recv-keys "F77F1EDA57EBB1CC"; \
-    ## PackageCloud RabbitMQ repository
-    sudo apt-key add /app/rabbitmq-server.gpg; \
-    rm /app/rabbitmq-server.gpg; \
-    sudo cat /etc/apt/sources.list.d/rabbitmq.list; \
     ## Update package indices
     sudo apt-get update -y; \
     ## Install Erlang packages
@@ -62,10 +54,11 @@ RUN set -eux; \
        erlang-mnesia erlang-os-mon erlang-parsetools erlang-public-key \
        erlang-runtime-tools erlang-snmp erlang-ssl \
        erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl; \
-    sudo apt-get install rabbitmq-server -y --fix-missing;
+    sudo apt-get install rabbitmq-server -y --fix-missing; \
+    sudo rm /usr/share/keyrings/com.rabbitmq.team.gpg
 
 # install tini for process management so we can use its -g option
-ENV TINI_VERSION v0.17.0
+ENV TINI_VERSION=v0.17.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
