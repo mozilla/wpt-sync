@@ -9,7 +9,7 @@ import os
 import subprocess
 import types
 from os import PathLike
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Mapping, Optional, Tuple
 
 import newrelic
 
@@ -20,6 +20,17 @@ from sync.env import Environment
 env = Environment()
 
 logger = logging.getLogger(__name__)
+
+
+def get_env(state_path: str, env_template: Optional[Mapping[str, str]] = None) -> Mapping[str, str]:
+    if env_template is not None:
+        cmd_env = {**env_template}
+    else:
+        cmd_env = os.environ.copy()
+    cmd_env["MOZBUILD_STATE_PATH"] = state_path
+    if "UV_REQUIRE_HASHES" in cmd_env:
+        del cmd_env["UV_REQUIRE_HASHES"]
+    return cmd_env
 
 
 class Command:
@@ -70,14 +81,7 @@ class Mach(Command):
     def get(self, *subcommand: str, **opts: Any) -> bytes:
         state_path = repos.Gecko.get_state_path(env.config, self.path)
 
-        if "env" in opts:
-            cmd_env = opts["env"]
-        else:
-            cmd_env = os.environ.copy()
-        cmd_env["MOZBUILD_STATE_PATH"] = state_path
-        if "UV_REQUIRE_HASHES" in cmd_env:
-            del cmd_env["UV_REQUIRE_HASHES"]
-        opts["env"] = cmd_env
+        opts["env"] = get_env(state_path, opts.get("env"))
         return super().get(*subcommand, **opts)
 
 
