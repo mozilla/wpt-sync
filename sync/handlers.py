@@ -367,9 +367,11 @@ def taskgroup_complete(
                     try_push.taskgroup_id,
                 )
                 logger.error(msg)
-                exc = ValueError(msg)
-                newrelic.agent.record_exception(exc=exc)
-                raise exc
+                try:
+                    raise ValueError(msg)
+                except ValueError:
+                    newrelic.agent.notice_error()
+                    raise
 
             if sync:
                 logger.info("Updating try push for sync %r" % sync)

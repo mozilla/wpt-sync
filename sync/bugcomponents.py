@@ -74,7 +74,7 @@ def remove_obsolete(path: str, moves: Optional[Mapping[str, str]] = None) -> str
                     "Path {} is outside {}".format(full_path, base_dir)
                 )
             except AssertionError:
-                newrelic.agent.record_exception(params={"path": full_path})
+                newrelic.agent.notice_error(attributes={"path": full_path})
                 continue
 
             if path[:2] == "./":
