@@ -27,7 +27,7 @@ dependencies = [
   "lando-cli==0.3.0",
   "mercurial==7.1.1",
   "mozautomation",
-  "newrelic==10.14.0",
+  "newrelic==11.0.1",
   "phabricator==0.9.1",
   "pygit2==1.18.2",
   "pygithub==2.8.1",
