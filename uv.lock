@@ -1113,7 +1113,7 @@ wheels = [
 
 [[package]]
 name = "taskcluster"
-version = "87.1.1"
+version = "90.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1124,9 +1124,9 @@ dependencies = [
     { name = "slugid" },
     { name = "taskcluster-urls" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/89/d9/bff49d19a01e61c498ef5adf6cf151663f614a8f3b2f53f68818f394dc0f/taskcluster-87.1.1.tar.gz", hash = "sha256:becf9199d08dfaaabee1bd2fb2eae43e79ecce95b79da7029810360c570225c4", size = 129177, upload-time = "2025-07-16T19:20:43.59Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/9a/f28142083e024bce75ebbc6ac5de0b3ce8a0b5989c83493a172718fde986/taskcluster-90.0.5.tar.gz", hash = "sha256:3529b62d05b3a869669e7c128cf46849de6641d50d598e8ce81cd4ed7ba756f6", size = 129199, upload-time = "2025-10-08T13:55:23.916Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/e2/feae0b915cdce387f31f97dc5ed7b9bc724f74e741093776716445cd25cf/taskcluster-87.1.1-py3-none-any.whl", hash = "sha256:6682c8d3f7a9f44f014d37ec9cea16c574c3af782020a9afb4e0eaadf80b4c56", size = 147339, upload-time = "2025-07-16T19:20:41.927Z" },
+    { url = "https://files.pythonhosted.org/packages/31/4c/7c4473080e9e74666e49fa3477f601d7188bb6bd1db68ec5e4c875829505/taskcluster-90.0.5-py3-none-any.whl", hash = "sha256:d4ca28ffa391fbd2f6553b5c390a606a01748ba12791ad90675efd65b734a3c7", size = 147341, upload-time = "2025-10-08T13:55:21.866Z" },
 ]
 
 [[package]]
@@ -1311,7 +1311,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'test'", specifier = "==0.12.4" },
     { name = "setuptools", specifier = "==80.9.0" },
     { name = "slugid", specifier = "==2.0.0" },
-    { name = "taskcluster", specifier = "==87.1.1" },
+    { name = "taskcluster", specifier = "==90.0.5" },
     { name = "types-filelock", marker = "extra == 'test'", specifier = "==3.2.7" },
     { name = "types-pyyaml", marker = "extra == 'test'", specifier = "==6.0.12.20250516" },
     { name = "types-requests", marker = "extra == 'test'", specifier = "==2.32.4.20250913" },
