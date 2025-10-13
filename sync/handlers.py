@@ -36,8 +36,8 @@ class Handler:
 def handle_pr(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> None:
     newrelic.agent.set_transaction_name("handle_pr")
     pr_id = event["number"]
-    newrelic.agent.add_custom_parameter("pr", pr_id)
-    newrelic.agent.add_custom_parameter("action", event["action"])
+    newrelic.agent.add_custom_attribute("pr", pr_id)
+    newrelic.agent.add_custom_attribute("action", event["action"])
     env.gh_wpt.load_pull(event["pull_request"])
 
     sync = get_pr_sync(git_gecko, git_wpt, pr_id)
@@ -85,10 +85,10 @@ def handle_check_run(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> N
 
     check_run = event["check_run"]
 
-    newrelic.agent.add_custom_parameter("sha", check_run["head_sha"])
-    newrelic.agent.add_custom_parameter("name", check_run["name"])
-    newrelic.agent.add_custom_parameter("status", check_run["status"])
-    newrelic.agent.add_custom_parameter("conclusion", check_run["conclusion"])
+    newrelic.agent.add_custom_attribute("sha", check_run["head_sha"])
+    newrelic.agent.add_custom_attribute("name", check_run["name"])
+    newrelic.agent.add_custom_attribute("status", check_run["status"])
+    newrelic.agent.add_custom_attribute("conclusion", check_run["conclusion"])
 
     if check_run["name"] not in env.gh_wpt.required_checks("master"):
         logger.info("Check %s is not required" % check_run["name"])
@@ -131,7 +131,7 @@ class GitHubHandler(Handler):
     def __call__(self, git_gecko: Repo, git_wpt: Repo, body: Dict[str, Any]) -> None:
         newrelic.agent.set_transaction_name("GitHubHandler")
         handler = self.dispatch_event[body["event"]]
-        newrelic.agent.add_custom_parameter("event", body["event"])
+        newrelic.agent.add_custom_attribute("event", body["event"])
         if handler is not None:
             return handler(git_gecko, git_wpt, body["payload"])
         # TODO: other events to check if we can merge a PR
@@ -156,8 +156,8 @@ class PushHandler(Handler):
         rev = body["payload"]["data"]["heads"][0]
         logger.info(f"Handling commit {rev} to repo {repo}")
 
-        newrelic.agent.add_custom_parameter("repo", repo)
-        newrelic.agent.add_custom_parameter("rev", rev)
+        newrelic.agent.add_custom_attribute("repo", repo)
+        newrelic.agent.add_custom_attribute("rev", rev)
 
         update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
         try:
@@ -187,11 +187,11 @@ class DecisionTaskHandler(Handler):
         msg = "Expected kind decision-task, got %s" % body["task"]["tags"]["kind"]
         assert body["task"]["tags"]["kind"] == "decision-task", msg
 
-        newrelic.agent.add_custom_parameter("tc_task", task_id)
-        newrelic.agent.add_custom_parameter("tc_taskgroup", taskgroup_id)
+        newrelic.agent.add_custom_attribute("tc_task", task_id)
+        newrelic.agent.add_custom_attribute("tc_taskgroup", taskgroup_id)
 
         state = body["status"]["state"]
-        newrelic.agent.add_custom_parameter("state", state)
+        newrelic.agent.add_custom_attribute("state", state)
 
         # Enforce the invariant that the taskgroup id is not set until
         # the decision task is complete. This allows us to determine if a
@@ -284,7 +284,7 @@ class TryTaskHandler(Handler):
     def __call__(self, git_gecko: Repo, git_wpt: Repo, body: Dict[str, Any]) -> None:
         newrelic.agent.set_transaction_name("TryTaskHandler")
         taskgroup_id = body["status"]["taskGroupId"]
-        newrelic.agent.add_custom_parameter("tc_taskgroup", taskgroup_id)
+        newrelic.agent.add_custom_attribute("tc_taskgroup", taskgroup_id)
 
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
         if not try_push:
@@ -317,7 +317,7 @@ class TaskGroupHandler(Handler):
         newrelic.agent.set_transaction_name("TaskGroupHandler")
         taskgroup_id = tc.normalize_task_id(body["taskGroupId"])
 
-        newrelic.agent.add_custom_parameter("tc_task", taskgroup_id)
+        newrelic.agent.add_custom_attribute("tc_task", taskgroup_id)
 
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
         if not try_push:
