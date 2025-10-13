@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 
 [[package]]
@@ -575,26 +575,26 @@ wheels = [
 
 [[package]]
 name = "mercurial"
-version = "7.0.3"
+version = "7.1.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/04/ac/d526af69836382fc3b084bf7221475f18440c26eba68f8efee76fb92db50/mercurial-7.0.3.tar.gz", hash = "sha256:59fc84640524da6f1938ea7e4eb0cd579fc7fedaaf563a916cb4f9dac0eacf6c", size = 8984723, upload-time = "2025-07-15T18:40:47.533Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/a5/3c1f5d0706de691ffa8fd2fdb45bb0f8dc793da3a996c5ce5701596063b6/mercurial-7.1.1.tar.gz", hash = "sha256:47cf66ba89c175536faf844c9b4cd962eb432afb516c073e51f436bf3f0bc148", size = 9029304, upload-time = "2025-09-12T09:09:04.583Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/3e/49a963ab7e1ec394a6e63d5918c4f129894d581f9dd54e0194671c4b0be5/mercurial-7.0.3-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:cd33e0f66a33687e9fb78f7c5ad7358d1a0ba9893b88be6a0990aa494e710fb3", size = 5229731, upload-time = "2025-07-15T18:42:04.315Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/00/7059b1e65465ba5cbb7abc9d69bc109892166b23061c92d263d59a6fa795/mercurial-7.0.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b38063caabeda4d79277a0b5b87861ee6d960ba0335797a213804f72240193a2", size = 7433795, upload-time = "2025-07-15T18:40:17.146Z" },
-    { url = "https://files.pythonhosted.org/packages/10/75/59dc05bdd2ae5873715d840f5a6b8342f4cdd43d8d164c656d1d24f96f62/mercurial-7.0.3-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:15b76fe0a1bd1a9ea7ca95c77540c5961ecad2e1928a06d28064f47556f7d8f4", size = 7126592, upload-time = "2025-07-15T18:40:19.517Z" },
-    { url = "https://files.pythonhosted.org/packages/8a/c0/c79c2ef062cc7c02eb7e69d82ed3eb80cabd6d84da259c802e3f3cb2413f/mercurial-7.0.3-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:14488a534ed1e9d277c52ed4f9e5332c3f688856280cafd496cfe5cf13425aed", size = 7095911, upload-time = "2025-07-15T18:40:21.198Z" },
-    { url = "https://files.pythonhosted.org/packages/04/00/f2a768a92fd20a455f77054abd6b55ab937e7f79c9f9829915b4d8fd54c5/mercurial-7.0.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:89802ae2ffaed6762a536c42762a1b2acebdf9e0a9432dde19ffc1f90c178b94", size = 7320409, upload-time = "2025-07-15T18:40:23.329Z" },
-    { url = "https://files.pythonhosted.org/packages/ea/15/842e07bc84a040246b572e7d1bffc9d8c3a3fa4a805e69bb9d5fc3e8f2da/mercurial-7.0.3-cp312-cp312-win32.whl", hash = "sha256:4cfcea7a3f7dcf83bf4c1dc13c5353264cc62203f4ab39815882f35d028b54d3", size = 6893343, upload-time = "2025-07-15T18:42:24.718Z" },
-    { url = "https://files.pythonhosted.org/packages/91/5d/038ab8795ba2825c61b72f2b4d5d278a6fd805ea4b55b7c748e99f9a18a0/mercurial-7.0.3-cp312-cp312-win_amd64.whl", hash = "sha256:6b87856811a5042cafc28848864d71bcf9f8c848f5c85525b752421aca427090", size = 7217450, upload-time = "2025-07-15T18:42:26.575Z" },
-    { url = "https://files.pythonhosted.org/packages/63/08/0792467b540d6544c062c1be1154925c6bd6ca7c688665f175184ba541e1/mercurial-7.0.3-cp312-cp312-win_arm64.whl", hash = "sha256:8aee550a4d330934cc72dc43eccde8695de1bd389559710b21871104b585532d", size = 7182042, upload-time = "2025-07-15T18:42:29.355Z" },
-    { url = "https://files.pythonhosted.org/packages/e5/d3/af97c2ef0ae568efdf3492fb6ce9660201d0f218537b8c701305fd8aa0bb/mercurial-7.0.3-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:c3f30d3b512476fed2a0c73b32f7336980c7e36ff1bd2239afea9ee61c9f18c4", size = 5229550, upload-time = "2025-07-15T18:42:06.035Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/2b/46e423902f111d1c8b7a2cdc27635fc274fb1cd9361c6e5f95c8b4215456/mercurial-7.0.3-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:57ba0cd8329aa393397526cfa9c92557a46813d7fa3f3eb3d5616d3e49b43678", size = 7434216, upload-time = "2025-07-15T18:40:25.102Z" },
-    { url = "https://files.pythonhosted.org/packages/66/48/c6288e88d00405e7cddfc9eca07fde12c902cd7f6c3e247063e90bc8c189/mercurial-7.0.3-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c751a7a424198ffbee3695ee98e5e60d6c50cab884e42ae16cdb229cb9d90f74", size = 7126513, upload-time = "2025-07-15T18:40:26.811Z" },
-    { url = "https://files.pythonhosted.org/packages/64/95/3396e5bd885f0a64d2d280bf144399aac1d6dbfeef6c17f065487160ee61/mercurial-7.0.3-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:14e1c2292372f0ca9e95db38637da47d2114a34d910d6b4f276c5f0aa37e1f74", size = 7096315, upload-time = "2025-07-15T18:40:28.811Z" },
-    { url = "https://files.pythonhosted.org/packages/4c/af/675c03b7e21407c74ed6e249c435559ea291871416f1ceb614c00381d8a1/mercurial-7.0.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e1ab6d3e16d5741a52eaf9bd5d86f5daeb5e9c5d474cfb6796233c7bbb5206c7", size = 7320758, upload-time = "2025-07-15T18:40:30.532Z" },
-    { url = "https://files.pythonhosted.org/packages/a6/ac/2dc91adf495451cbc03b49377d9dd2ae2303f120b933a1b4d2f405fe6f33/mercurial-7.0.3-cp313-cp313-win32.whl", hash = "sha256:8430814eea2bb7d345e848577b2293da3df58f9eefa681d64fcc8274823ada1e", size = 6754553, upload-time = "2025-07-15T18:42:31.234Z" },
-    { url = "https://files.pythonhosted.org/packages/e4/1c/73b2edf090450d5da78f174d5f9680123bb84573b480dc0d0616bcc35d42/mercurial-7.0.3-cp313-cp313-win_amd64.whl", hash = "sha256:a50ccca1f0ccee6378961f89eec87a385f0fe05479c3e3255cde5b86243b45fb", size = 7148554, upload-time = "2025-07-15T18:42:33.402Z" },
-    { url = "https://files.pythonhosted.org/packages/5b/14/903e6bbf96b642d6b6cac1db806d35a1140a95b16a9be106651dfe1d3604/mercurial-7.0.3-cp313-cp313-win_arm64.whl", hash = "sha256:f76515bbcee4d050cba54139f2775ad76bb31ff7d9ac9b284c72708f5497df82", size = 7113093, upload-time = "2025-07-15T18:42:36.235Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/77/35732e2f5ce548f2fd486aa550ac58dcbf7153f46364c01199f28649e1e7/mercurial-7.1.1-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:20515b19d6b28d2bbec55bdf5a1ddc4cffd27b4ec53db3c4be2a502fb9dfe440", size = 5259577, upload-time = "2025-09-12T09:43:17.765Z" },
+    { url = "https://files.pythonhosted.org/packages/11/81/487277886b4210343a993ea01e8b9165d93bc7091a4f9d68131dc8786f79/mercurial-7.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e533f4c5d93902f39f374aa930e6807d385948c4215bd450ee1696fedfe2fe2f", size = 7463476, upload-time = "2025-09-12T09:08:38.502Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/1d/3c786474c9352fa17a9154b31c27ae494097e3839f6cd01e7ca2e5b138b1/mercurial-7.1.1-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:263ea156d878dab9293827050692e0c148dceed3fb2ff808e0092fed0a3b502f", size = 7155502, upload-time = "2025-09-12T09:08:41.021Z" },
+    { url = "https://files.pythonhosted.org/packages/71/89/6c92f26dc42214412c8e7b097a7b33c43bc0c059f58e8355e31b6e3e1e65/mercurial-7.1.1-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:86089a578da8d9b821db8aacc936a6a535a0dffdbdb71e991d0786b46946ccf0", size = 7125232, upload-time = "2025-09-12T09:08:43.065Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/bc/32a9a5bd85217af28f355fbbba1889307bdfd81b3a4344b2c84d2a9218bf/mercurial-7.1.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:581ec647dc56b4d4fdc56dc81c2c5e9b04932c60af0befcdecd14fe28de5970c", size = 7350232, upload-time = "2025-09-12T09:08:44.766Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/90/1e723905196a207dff4ea312886beb6446d744c4e012e939ef5e8309e5d7/mercurial-7.1.1-cp312-cp312-win32.whl", hash = "sha256:c29aa1a59eef34960eb13b8b7d3183a9711eb845863bcc08c4b316b41ef10689", size = 6929667, upload-time = "2025-09-12T09:43:35.117Z" },
+    { url = "https://files.pythonhosted.org/packages/87/f5/59914b706a2e00012eb092218dcc282502aee32b30016ff82e4c73df8533/mercurial-7.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:d0d643aa4412a283dbdd6c87be18f375500bd2c95f1007703eb97169f28b6add", size = 7255466, upload-time = "2025-09-12T09:43:37.301Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/17/2b7ac8b7904449aaf516094ab96ef20efe85ecb7279956ec85cd133f809c/mercurial-7.1.1-cp312-cp312-win_arm64.whl", hash = "sha256:b250e32015fb418f63ee403556b18b492e8133d5735d2bc140741fe9b9818d1b", size = 7220122, upload-time = "2025-09-12T09:43:39.347Z" },
+    { url = "https://files.pythonhosted.org/packages/55/db/a8ea8ae8d719405fd56667b1772f0f6af8e47e623e1334973f5e796a5939/mercurial-7.1.1-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:14597c9957f4a32593b14b24f832abead451f62ebdcb9828c851301228af4888", size = 5259413, upload-time = "2025-09-12T09:43:19.469Z" },
+    { url = "https://files.pythonhosted.org/packages/90/fd/6af5dc76164a5c057d0667d26ed3bc18424d271fec912014467cece5063c/mercurial-7.1.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:93e912815b96b8e57195ab69b436d36911a87db4029e3bb7af26c566b012f60f", size = 7463914, upload-time = "2025-09-12T09:08:46.835Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/7e/ca1a81822b9a3ba68706cf38774c1cbb3cb5d6beba3fabb814aea0152cd9/mercurial-7.1.1-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:2d87876220c0228212d04b3a18763612b0c37a49d24eb6c8fddf162a61383d17", size = 7155348, upload-time = "2025-09-12T09:08:48.903Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/bb/9ebe27bb9bd4ebea7bce0c7c64bb68427b94b21b5adb524d7ae242439808/mercurial-7.1.1-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:4a453703e9eb8d48e936a75fd887e10ab0e2873d5a522690514817ad0c6c1b1d", size = 7125673, upload-time = "2025-09-12T09:08:50.546Z" },
+    { url = "https://files.pythonhosted.org/packages/92/fc/8b0710e0030c908f5f40b34cb4dccff4f35b70304053f256171de8b0b28e/mercurial-7.1.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:0409e3218c9b2025800bca3f8d0576bd28fddd449b23ea189f17028c32bd3bb6", size = 7350534, upload-time = "2025-09-12T09:08:52.805Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/2d/df40e4cc5c3dfdcc118b33d8c3d3623dc90311b2cd9592507fc0f4da6afa/mercurial-7.1.1-cp313-cp313-win32.whl", hash = "sha256:ed7d1a3a076ab7c2e6f1ed91926d8cb2239ab72359581a09314c5c604a78dd4d", size = 6801372, upload-time = "2025-09-12T09:43:41.312Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/74/af6c42e6e795a7963a229f312a4f8558a6533867ecb0bc281f9d89cd15ca/mercurial-7.1.1-cp313-cp313-win_amd64.whl", hash = "sha256:42fc3178ce493ee6630186597447ee2560f612d28972f1b14c54d2f3e7769c29", size = 7191398, upload-time = "2025-09-12T09:43:43.726Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/19/a13c8ef2936370f335d60e506cfdea1df9cd7f40009bc73009f02ab90a29/mercurial-7.1.1-cp313-cp313-win_arm64.whl", hash = "sha256:81a076e222416d12aee7e204709a55ca0194fb7d45f7d47799f4959e9bebb67e", size = 7156011, upload-time = "2025-09-12T09:43:45.701Z" },
 ]
 
 [[package]]
@@ -1267,7 +1267,7 @@ requires-dist = [
     { name = "gitpython", specifier = "==3.1.45" },
     { name = "kombu", specifier = "==5.5.4" },
     { name = "lando-cli", specifier = "==0.1.0" },
-    { name = "mercurial", specifier = "==7.0.3" },
+    { name = "mercurial", specifier = "==7.1.1" },
     { name = "mozautomation", git = "https://github.com/mozilla/version-control-tools.git?subdirectory=pylib%2Fmozautomation&rev=c40d7a3be799b3c23ebe6289def25bef0f51893a" },
     { name = "mypy", marker = "extra == 'test'", specifier = "==1.17.0" },
     { name = "newrelic", specifier = "==10.14.0" },
