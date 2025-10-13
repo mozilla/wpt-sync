@@ -524,7 +524,7 @@ def iter_blobs(repo: Repository, path: str) -> Iterator[pygit2.Blob]:
             if isinstance(item, pygit2.Blob):
                 yield item
             else:
-                stack.append(item)
+                stack.append(item.peel(pygit2.Tree))
 
 
 indicies = {

@@ -234,7 +234,7 @@ class UpstreamSync(SyncProcess):
             if self.branch_name in pygit2_gecko.branches:
                 upstream = pygit2_gecko.branches[self.branch_name].upstream
                 if upstream:
-                    self.remote_branch = upstream.shortname
+                    self.remote_branch = upstream.branch_name
 
         if not self.remote_branch:
             count = 0

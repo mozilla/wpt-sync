@@ -6,7 +6,7 @@ import subprocess
 import git
 from mozautomation import commitparser
 from git.objects.commit import Commit as GitPythonCommit
-from pygit2 import Commit as PyGit2Commit, Oid
+from pygit2 import Blob, Commit as PyGit2Commit, Oid
 
 from . import log
 from .env import Environment
@@ -108,7 +108,7 @@ class GitNotes:
     def _read(self) -> dict[str, str]:
         try:
             note_sha = self.pygit2_repo.lookup_note(self.commit.sha1).id
-            note_data = self.pygit2_repo[note_sha].data
+            note_data = self.pygit2_repo[note_sha].peel(Blob).data
         except KeyError:
             return {}
         return get_metadata(note_data)
@@ -191,7 +191,7 @@ class Commit:
     @property
     def pygit2_commit(self) -> PyGit2Commit:
         if self._pygit2_commit is None:
-            self._pygit2_commit = self.pygit2_repo[self.sha1]
+            self._pygit2_commit = self.pygit2_repo[self.sha1].peel(PyGit2Commit)
         return self._pygit2_commit
 
     @property
