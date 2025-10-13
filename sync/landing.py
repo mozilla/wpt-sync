@@ -24,7 +24,7 @@ from .env import Environment
 from .gitutils import update_repositories
 from .lock import SyncLock, constructor, mut
 from .errors import AbortError
-from .projectutil import Mach
+from .projectutil import Mach, get_env
 from .repos import cinnabar, pygit2_get
 from .sync import LandableStatus, SyncProcess
 
@@ -574,11 +574,7 @@ Automatic update from web-platform-tests\n%s
                 logger.info("Running mergetool")
                 worktree.git.mergetool(
                     tool="metamerge",
-                    env={
-                        "MOZBUILD_STATE_PATH": repos.Gecko.get_state_path(
-                            env.config, worktree.working_dir
-                        )
-                    },
+                    env=get_env(repos.Gecko.get_state_path(env.config, worktree.working_dir)),
                 )
                 worktree.git.commit(c=sync.metadata_commit.sha1, no_edit=True)
                 worktree.git.clean(f=True)
