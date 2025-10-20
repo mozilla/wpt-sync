@@ -55,7 +55,7 @@ def test_ids_to_paths(git_work: Repo, test_ids: list[str]) -> dict[str, list[str
             data.update(json.loads(data_str))
             min_idx += group
     except subprocess.CalledProcessError:
-        newrelic.agent.record_exception()
+        newrelic.agent.notice_error()
         # Fall back to a manual mapping of test ids to paths
         data = fallback_test_ids_to_paths(test_ids)
     return data
