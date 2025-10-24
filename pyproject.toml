@@ -29,7 +29,7 @@ dependencies = [
   "mozautomation",
   "newrelic==11.0.1",
   "phabricator==0.9.1",
-  "pygit2==1.18.2",
+  "pygit2==1.19.0",
   "pygithub==2.8.1",
   "pyyaml==6.0.3",
   "requests==2.32.5",
