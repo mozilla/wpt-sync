@@ -122,7 +122,9 @@ COPY --from=ghcr.io/astral-sh/uv:0.6.6 /uv /uvx /bin/
 RUN set -eux; \
     git config --global user.name moz-wptsync-bot; \
     git config --global user.email wptsync@mozilla.com; \
-    git config --global pack.windowMemory 1g;
+    git config --global pack.windowMemory "1g"; \
+    git config --global pack.packSizeLimit "1g"; \
+    git config --global pack.threads "3";
 
 # /app/workspace: bind mount to [empty] dir where service will write working data, logs
 # /app/repos: bind mount to ebs volume for gecko and wpt repos (or local dev repos)
