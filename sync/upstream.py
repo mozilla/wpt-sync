@@ -326,9 +326,12 @@ class UpstreamSync(SyncProcess):
     def add_commit(self, gecko_commit: GeckoCommit) -> tuple[Commit | None, bool]:
         git_work = self.wpt_worktree.get()
 
-        metadata = {"gecko-commit": gecko_commit.canonical_rev}
+        metadata = {
+            "gecko-commit": gecko_commit.canonical_rev,
+            "gecko-commit-git": gecko_commit.git_rev,
+        }
 
-        if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
+        if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.git_rev + ".diff")):
             # If there's already a patch file here then don't try to create a new one
             # because we'll presumbaly fail again
             raise AbortError("Skipping due to existing patch")
@@ -849,7 +852,7 @@ def create_syncs(
                 # TODO: Loading the commits doesn't work in this case, because we depend on the bug
                 commit = sync_commit.GeckoCommit(git_gecko, endpoint.head)
                 bug = env.bz.new(
-                    "Upstream commit %s to web-platform-tests" % commit.canonical_rev,
+                    "Upstream commit %s to web-platform-tests" % commit.git_rev,
                     "",
                     "Testing",
                     "web-platform-tests",
@@ -878,8 +881,7 @@ def update_sync_heads(
         if sync.status not in ("open", "incomplete"):
             # TODO: Create a new sync with a non-zero seq-id in this case
             raise ValueError(
-                "Tried to modify a closed sync for bug %s with commit %s"
-                % (bug, commit.canonical_rev)
+                "Tried to modify a closed sync for bug %s with commit %s" % (bug, commit.git_rev)
             )
         with sync.as_mut(lock):
             sync.gecko_commits.head = commit

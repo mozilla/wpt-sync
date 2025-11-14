@@ -454,13 +454,13 @@ Automatic update from web-platform-tests\n%s
         commits = [
             item
             for item in self.unlanded_gecko_commits()
-            if item.canonical_rev not in gecko_commits_landed
+            if item.git_rev not in gecko_commits_landed
         ]
 
         landing_commit = self.gecko_commits[-1]
         git_work_gecko = self.gecko_worktree.get()
 
-        logger.debug("Reapplying commits: %s" % " ".join(item.canonical_rev for item in commits))
+        logger.debug("Reapplying commits: %s" % " ".join(item.git_rev for item in commits))
 
         if not commits:
             return
@@ -473,7 +473,7 @@ Automatic update from web-platform-tests\n%s
         already_applied_set = set(already_applied)
 
         unapplied_gecko_commits = [
-            item for item in commits if item.canonical_rev not in already_applied_set
+            item for item in commits if item.git_rev not in already_applied_set
         ]
 
         try:
@@ -482,7 +482,7 @@ Automatic update from web-platform-tests\n%s
                 def msg_filter(_: Any) -> tuple[bytes, dict[str, str]]:
                     msg = landing_commit.msg
                     reapplied_commits = already_applied + [
-                        commit.canonical_rev for commit in commits[: i + 1]
+                        commit.git_rev for commit in commits[: i + 1]
                     ]
                     metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
                     return msg, metadata

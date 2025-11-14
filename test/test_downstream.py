@@ -398,7 +398,10 @@ def test_next_try_push_infra_fail_try_rebase(
                     bookmarks="mozilla/central",
                 )
                 downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-                upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
+                with patch("sync.commit.hg2git", return_value="test_revision"):
+                    upstream.gecko_push(
+                        git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True
+                    )
 
                 sync.data["affected-tests"] = {"testharness": ["example"]}
                 sync.data["skip"] = False
@@ -475,7 +478,10 @@ def test_next_try_push_infra_fail_try_rebase_failed(
                     bookmarks="mozilla/central",
                 )
                 downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-                upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
+                with patch("sync.commit.hg2git", return_value="test_revision"):
+                    upstream.gecko_push(
+                        git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True
+                    )
 
                 try_push = sync.next_try_push(try_cls=MockTryCls)
                 with try_push.as_mut(lock):

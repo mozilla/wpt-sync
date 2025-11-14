@@ -11,6 +11,7 @@ from pygit2 import Blob, Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
+from .lando import hg2git
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
 from typing import Dict
@@ -205,6 +206,13 @@ class Commit:
     def canonical_rev(self) -> str:
         if self.cinnabar:
             return self.cinnabar.git2hg(self.sha1)
+        return self.sha1
+
+    @property
+    def git_rev(self) -> str:
+        if self.cinnabar:
+            hg_rev = self.cinnabar.git2hg(self.sha1)
+            return hg2git(hg_rev)
         return self.sha1
 
     @property
@@ -524,7 +532,7 @@ class GeckoCommit(Commit):
         if len(bugs) > 1:
             logger.warning(
                 "Got multiple bugs for commit %s: %s"
-                % (self.canonical_rev, ", ".join(str(item) for item in bugs))
+                % (self.git_rev, ", ".join(str(item) for item in bugs))
             )
         if not bugs:
             return None
