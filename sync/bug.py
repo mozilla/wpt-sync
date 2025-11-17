@@ -6,7 +6,6 @@ import traceback
 import urllib.parse
 
 import bugsy
-import newrelic
 
 from . import log
 from .env import Environment
@@ -120,7 +119,6 @@ class Bugzilla:
                 return None
             except Exception as e:
                 logger.error(f"Failed to retrieve bug with id {bug_id}: {e}")
-                newrelic.agent.notice_error()
                 return None
 
             self.bug_cache[bug_id] = bug
@@ -203,7 +201,6 @@ class Bugzilla:
             logger.warning(traceback.format_exc())
         except Exception as e:
             logger.warning(f"Problem setting Bug {bug.id} Whiteboard: {e}")
-            newrelic.agent.notice_error()
 
     def get_whiteboard(self, bug: Bug | int) -> Optional[str]:
         if not isinstance(bug, bugsy.Bug):

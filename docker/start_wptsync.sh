@@ -91,50 +91,36 @@ elif [ "$1" == "--worker" ]; then
 
     echo "Starting celerybeat"
 
-    set +x
-    export NEW_RELIC_LICENSE_KEY=$(/app/get_ini.py /app/config/prod/credentials.ini newrelic license_key)
-    set -x
-    export NEW_RELIC_CONFIG_FILE=/app/config/newrelic.ini
-
-    # TODO: need to configure the API key correctly to record deploys
-    # newrelic-admin record-deploy ${NEW_RELIC_CONFIG_FILE} $(git --git-dir=/app/wpt-sync/.git rev-parse HEAD)
-
-    newrelic-admin run-program \
-                   celery \
-                     --app sync.worker \
-                     beat \
-                       --detach \
-                       --schedule=${WPTSYNC_ROOT}/celerybeat-schedule \
-                       --pidfile=${CELERYBEAT_PID_FILE} \
-                       --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log \
-                       --loglevel=DEBUG
+    celery --app sync.worker \
+           beat \
+           --detach \
+           --schedule=${WPTSYNC_ROOT}/celerybeat-schedule \
+           --pidfile=${CELERYBEAT_PID_FILE} \
+           --logfile=${WPTSYNC_ROOT}/logs/celerybeat.log \
+           --loglevel=DEBUG
 
     echo "Starting celery worker"
 
-    newrelic-admin run-program \
-                   celery \
-                     --app sync.worker \
-                     worker \
-                       --detach \
-                       --concurrency=1 \
-                       --pidfile=${CELERY_PID_FILE} \
-                       --logfile=${CELERY_LOG_FILE} \
-                       --loglevel=DEBUG \
-                       -P prefork \
-                       -n ${CELERY_WORKER}
+    celery --app sync.worker \
+           worker \
+           --detach \
+           --concurrency=1 \
+           --pidfile=${CELERY_PID_FILE} \
+           --logfile=${CELERY_LOG_FILE} \
+           --loglevel=DEBUG \
+           -P prefork \
+           -n ${CELERY_WORKER}
 
     # ./bin/run_docker_dev.sh run --worker --phab
     if [ "$2" == "--phab" ]; then
         echo "Starting phab listener"
 
-        newrelic-admin run-program \
-             wptsync phab-listen &
+        wptsync phab-listen &
         pids+=($!)
     fi
     echo "Starting pulse listener"
 
-    newrelic-admin run-program \
-         wptsync listen &
+    wptsync listen &
     pids+=($!)
 
     # Wait for the listeners to finish

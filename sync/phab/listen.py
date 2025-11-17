@@ -1,9 +1,8 @@
 import time
 import re
-from typing import Any, Iterable, Mapping, MutableMapping, Optional
+from typing import Any, Mapping, MutableMapping, Optional
 
 from phabricator import Phabricator
-import newrelic.agent
 
 from .. import log
 from ..settings import Config
@@ -70,8 +69,7 @@ class PhabEventListener:
             self.parse(feed)
             time.sleep(self.timer_in_seconds)
 
-    @newrelic.agent.background_task(name="feed-fetching", group="Phabricator")
-    def get_feed(self, before: Optional[int] = None) -> list[Mapping[str, Any]]:
+    def get_feed(self, before: Optional[int] = None) -> list[MutableMapping[str, Any]]:
         """ """
         if self.latest and before is None:
             before = int(self.latest["chronologicalKey"])
@@ -95,8 +93,7 @@ class PhabEventListener:
             break
         return feed
 
-    @newrelic.agent.background_task(name="feed-parsing", group="Phabricator")
-    def parse(self, feed: Iterable[MutableMapping[str, Any]]) -> None:
+    def parse(self, feed: list[MutableMapping[str, Any]]) -> None:
         # Go through rows in reverse order, and ignore first row as it has the table headers
         for event in feed:
             if RE_COMMIT.search(event["text"]):
@@ -127,14 +124,6 @@ class PhabEventListener:
                 return mapping
 
         logger.warning("Unknown phabricator event type: %s" % event_text)
-        newrelic.agent.record_custom_event(
-            "unknown_phabricator_event",
-            params={
-                "event_text": event_text,
-                "event": event,
-            },
-            application=newrelic.agent.application(),
-        )
         return None
 
     @staticmethod

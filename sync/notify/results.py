@@ -3,7 +3,6 @@ import json
 import os
 from collections import defaultdict
 
-import newrelic
 import requests
 
 from .. import log
@@ -380,8 +379,6 @@ def get_push_changeset(commit: sync_commit.GeckoCommit) -> str | None:
     try:
         resp.raise_for_status()
     except requests.exceptions.RequestException:
-        if resp.status_code != 404:
-            newrelic.agent.notice_error()
         return None
 
     result = resp.json()
@@ -404,7 +401,6 @@ def get_central_tasks(git_gecko: Repo, sync: DownstreamSync) -> TaskGroupView | 
     try:
         git_push_sha = cinnabar(git_gecko).hg2git(hg_push_sha)
     except ValueError:
-        newrelic.agent.notice_error()
         return None
     push_commit = sync_commit.GeckoCommit(git_gecko, git_push_sha)
     if push_commit is None:

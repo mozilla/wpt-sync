@@ -15,7 +15,6 @@ from datetime import datetime
 
 import enum
 import git
-import newrelic
 
 from . import bugcomponents
 from . import gitutils
@@ -506,7 +505,6 @@ class DownstreamSync(SyncProcess):
             raise
         except Exception:
             # Just log errors trying to update the check status, but otherwise don't fail
-            newrelic.agent.notice_error()
             import traceback
 
             logger.error("Creating PR status check failed")
@@ -991,10 +989,6 @@ class DownstreamSync(SyncProcess):
 
     @mut()
     def try_notify(self, force: bool = False) -> None:
-        newrelic.agent.record_custom_event(
-            "try_notify", params={"sync_bug": self.bug, "sync_pr": self.pr}
-        )
-
         if self.results_notified and not force:
             return
 
@@ -1006,9 +1000,6 @@ class DownstreamSync(SyncProcess):
             logger.debug(
                 "PR %s doesn't have affected tests so skipping results notification" % self.pr
             )
-            newrelic.agent.record_custom_event(
-                "try_notify_no_affected", params={"sync_bug": self.bug, "sync_pr": self.pr}
-            )
             return
 
         logger.info("Trying to generate results notification for PR %s" % self.pr)
@@ -1018,9 +1009,6 @@ class DownstreamSync(SyncProcess):
         if not results:
             # TODO handle errors here better, perhaps
             logger.error("Failed to get results notification for PR %s" % self.pr)
-            newrelic.agent.record_custom_event(
-                "try_notify_failed", params={"sync_bug": self.bug, "sync_pr": self.pr}
-            )
             return
 
         message, truncated = notify.msg.for_results(results)

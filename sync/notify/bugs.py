@@ -5,8 +5,6 @@ import os
 import subprocess
 from collections import defaultdict
 
-import newrelic
-
 from .msg import detail_part
 from .. import log
 from ..bugcomponents import components_for_wpt_paths
@@ -55,7 +53,6 @@ def test_ids_to_paths(git_work: Repo, test_ids: list[str]) -> dict[str, list[str
             data.update(json.loads(data_str))
             min_idx += group
     except subprocess.CalledProcessError:
-        newrelic.agent.notice_error()
         # Fall back to a manual mapping of test ids to paths
         data = fallback_test_ids_to_paths(test_ids)
     return data
@@ -125,13 +122,6 @@ def for_sync(
               (test_id, subtest, results, status)"""
     rv: MutableMapping[int, list[ResultsEntryStatus]] = {}
 
-    newrelic.agent.record_custom_event(
-        "sync_bug",
-        params={
-            "sync_bug": sync.bug,
-        },
-    )
-
     new_crashes = list(
         results.iter_filter(
             lambda _test, _subtest, result: (
@@ -143,12 +133,6 @@ def for_sync(
     new_failures = list(results.iter_filter(filter_test_failures))
 
     if not new_failures and not new_crashes:
-        newrelic.agent.record_custom_event(
-            "sync_bug_nothing_relevant",
-            params={
-                "sync_bug": sync.bug,
-            },
-        )
         return rv
 
     existing = sync.notify_bugs
@@ -210,9 +194,6 @@ def for_sync(
 
             if require_opt_in and component not in opt_in_components:
                 logger.info("Not filing bugs for component %s" % component)
-                newrelic.agent.record_custom_event(
-                    "sync_bug_not_enabled", params={"sync_bug": sync.bug, "component": component}
-                )
                 continue
 
             if component_key not in existing:
@@ -225,13 +206,7 @@ def for_sync(
                     depends = [sync.bug]
                 bug_id = make_bug(summary, comment, product, component, depends)
                 sync.notify_bugs = sync.notify_bugs.copy(**{component_key: bug_id})
-                newrelic.agent.record_custom_event(
-                    "sync_bug_filing", params={"sync_bug": sync.bug, "component": component}
-                )
             else:
-                newrelic.agent.record_custom_event(
-                    "sync_bug_existing", params={"sync_bug": sync.bug, "component": component}
-                )
                 bug_id = existing[component_key]
 
             rv[bug_id] = [item + (link_status,) for item in test_results]
@@ -523,10 +498,6 @@ def update_metadata(
     sync: DownstreamSync,
     bugs: dict[int, list[ResultsEntryStatus]],
 ) -> None:
-    newrelic.agent.record_custom_event(
-        "sync_bug_metadata",
-        params={"sync_bug": sync.bug, "bugs": [bug_id for bug_id, _ in bugs.items()]},
-    )
     # TODO: Ensure that the metadata is added to the meta repo
     if not bugs:
         return
