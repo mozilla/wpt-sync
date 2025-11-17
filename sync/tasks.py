@@ -4,7 +4,6 @@ import time
 from typing import Any, Callable, Mapping
 
 import filelock
-import newrelic.agent
 from celery.app.task import Task
 
 from . import bug
@@ -97,7 +96,6 @@ def handle(self: Task, task: str, body: Mapping[str, Any]) -> None:
     handlers = get_handlers()
     if task in handlers:
         logger.info("Running task %s" % task)
-        newrelic.agent.add_custom_attribute("task", task)
         git_gecko, git_wpt = setup()
         try:
             handlers[task](git_gecko, git_wpt, body)

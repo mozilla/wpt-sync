@@ -11,8 +11,6 @@ import types
 from os import PathLike
 from typing import Any, Callable, Mapping, Optional, Tuple
 
-import newrelic
-
 from sync import repos
 from sync.env import Environment
 
@@ -53,17 +51,7 @@ class Command:
         assert subcommand and len(subcommand)
         command = [os.path.join(self.path, self.name)] + list(subcommand)
         logger.info("Running command:\n %s" % " ".join(command))
-        try:
-            return subprocess.check_output(command, cwd=self.path, **opts)
-        except subprocess.CalledProcessError as e:
-            newrelic.agent.notice_error(
-                attributes={
-                    "command": self.name,
-                    "exit_code": e.returncode,
-                    "command_output": e.output,
-                }
-            )
-            raise e
+        return subprocess.check_output(command, cwd=self.path, **opts)
 
     def __getattr__(self, name: str) -> Callable:
         if name.endswith("_"):

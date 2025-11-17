@@ -2,7 +2,6 @@ from __future__ import annotations
 import sys
 
 import git
-import newrelic
 import pygit2
 
 from . import gh
@@ -130,8 +129,6 @@ class Metadata:
         MAX_RETRY = 5
         err = None
         while retry < MAX_RETRY:
-            newrelic.agent.record_custom_event("metadata_update", params={})
-
             self.repo.remotes.origin.fetch()
             self.pygit2_repo.create_reference(
                 ref_name, self.pygit2_repo.revparse_single("origin/%s" % self.branch).id, True
@@ -162,9 +159,7 @@ class Metadata:
             else:
                 break
 
-        if err:
-            newrelic.agent.notice_error(error=err, attributes={"ref_name": ref_name})
-        else:
+        if not err:
             self.pygit2_repo.references.delete(ref_name)
         self.metadata.writer = NullWriter()
 

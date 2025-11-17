@@ -27,7 +27,6 @@ dependencies = [
   "lando-cli==0.3.0",
   "mercurial==7.1.1",
   "mozautomation",
-  "newrelic==11.0.1",
   "phabricator==0.9.1",
   "pygit2==1.19.0",
   "pygithub==2.8.1",
@@ -73,7 +72,7 @@ disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 ignore_missing_imports = true
-module = "bugsy.*,newrelic.*,lib2to3.*,pygit2.*,kombu.*,mozautomation.*,phabricator.*,slugid.*,taskcluster.*"
+module = "bugsy.*,lib2to3.*,pygit2.*,kombu.*,mozautomation.*,phabricator.*,slugid.*,taskcluster.*"
 
 [tool.pytest.ini_options]
 env = [

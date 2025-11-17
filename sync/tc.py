@@ -8,7 +8,6 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-import newrelic.agent
 import slugid
 import taskcluster
 
@@ -217,7 +216,6 @@ class TaskGroupView:
                 rv[name].append(task)
         return rv
 
-    @newrelic.agent.function_trace()
     def download_logs(self, destination: str, file_names: list[str], retry: int = 5) -> None:
         if not os.path.exists(destination):
             os.makedirs(destination)

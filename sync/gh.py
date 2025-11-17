@@ -6,7 +6,6 @@ import urllib.parse
 from io import StringIO
 
 import github
-import newrelic
 
 
 from . import log
@@ -185,7 +184,6 @@ class GitHub:
                     msg = e.data
                 if msg != "Label does not exist":
                     logger.warning("Error handling label removal: %s" % e)
-                    newrelic.agent.notice_error()
 
     def _convert_pr_id(self, pr_id: Union[str, int]) -> int:
         if not isinstance(pr_id, int):

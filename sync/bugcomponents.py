@@ -3,8 +3,6 @@ import os
 from ast import literal_eval
 from collections import defaultdict
 
-import newrelic
-
 from . import log
 from .env import Environment
 from .projectutil import Mach
@@ -74,7 +72,6 @@ def remove_obsolete(path: str, moves: Optional[Mapping[str, str]] = None) -> str
                     "Path {} is outside {}".format(full_path, base_dir)
                 )
             except AssertionError:
-                newrelic.agent.notice_error(attributes={"path": full_path})
                 continue
 
             if path[:2] == "./":
