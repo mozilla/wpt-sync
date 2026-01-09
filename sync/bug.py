@@ -322,7 +322,7 @@ class BugContext:
     def needinfo(self, *requestees: str) -> None:
         if not requestees:
             return
-        bug: Bug = self.bugzilla._get_bug(self.bug_id)
+        bug: Bug = self.bugzilla._get_bug(self.bug_id, True)
         flags = bug._bug.get("flags", [])
         existing = {
             item["requestee"]
