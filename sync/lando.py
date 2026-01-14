@@ -1,9 +1,10 @@
 import requests
+
+from .env import Environment
+from . import log
 from . import tc
 
-from . import log
-
-LANDO_API_URL = "https://lando.moz.tools/api/"
+env = Environment()
 
 logger = log.get_logger(__name__)
 
@@ -11,7 +12,10 @@ logger = log.get_logger(__name__)
 def hg2git(hg_hash: str) -> str:
     session = requests.Session()
     try:
-        response = tc.fetch_json(LANDO_API_URL + "hg2git/firefox/" + hg_hash, session=session)
+        response = tc.fetch_json(
+            env.config["lando"]["api_url"] + env.config["lando"]["hg2git"] + hg_hash,
+            session=session,
+        )
     except requests.HTTPError as e:
         logger.warning(str(e))
 
@@ -24,7 +28,10 @@ def hg2git(hg_hash: str) -> str:
 def git2hg(git_hash: str) -> str:
     session = requests.Session()
     try:
-        response = tc.fetch_json(LANDO_API_URL + "git2hg/firefox/" + git_hash, session=session)
+        response = tc.fetch_json(
+            env.config["lando"]["api_url"] + env.config["lando"]["git2hg"] + git_hash,
+            session=session,
+        )
     except requests.HTTPError as e:
         logger.warning(str(e))
 
