@@ -113,14 +113,7 @@ class GitNotes:
             return {}
         return get_metadata(note_data)
 
-    def __getitem__(self, key: str) -> str:
-        return self._data[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self._data
-
-    def __setitem__(self, key: str, value: str) -> None:
-        self._data[key] = value
+    def _write(self) -> None:
         data = "\n".join("%s: %s" % item for item in self._data.items())
         self.pygit2_repo.create_note(
             data,
@@ -130,6 +123,20 @@ class GitNotes:
             "refs/notes/commits",
             True,
         )
+
+    def __getitem__(self, key: str) -> str:
+        return self._data[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._data
+
+    def __delitem__(self, key: str) -> None:
+        del self._data[key]
+        self._write()
+
+    def __setitem__(self, key: str, value: str) -> None:
+        self._data[key] = value
+        self._write()
 
 
 class Commit:
@@ -631,22 +638,28 @@ class GeckoCommit(Commit):
 
 class WptCommit(Commit):
     def pr(self) -> int | None:
-        if "wpt_pr" not in self.notes:
+        pr = None
+        if "wpt_pr" not in self.notes or not self.notes["wpt_pr"]:
             tags = [item.rsplit("_", 1)[1] for item in self.tags() if item.startswith("merge_pr_")]
             if tags and len(tags) == 1:
                 logger.info("Using tagged PR for commit %s" % self.sha1)
-                pr = tags[0]
-            else:
-                pr = str(env.gh_wpt.pr_for_commit(self.sha1))
-            if not pr:
-                pr == ""
-            logger.info("Setting PR to %s" % pr)
-            self.notes["wpt_pr"] = pr
-        pr = self.notes["wpt_pr"]
-        try:
-            return int(pr)
-        except (TypeError, ValueError):
-            return None
+                try:
+                    pr = int(tags[0])
+                except ValueError:
+                    pass
+
+            if pr is None:
+                pr = env.gh_wpt.pr_for_commit(self.sha1)
+
+            if pr is not None:
+                logger.info("Setting PR to %s" % pr)
+                self.notes["wpt_pr"] = str(pr)
+        else:
+            try:
+                pr = int(self.notes["wpt_pr"])
+            except ValueError:
+                del self.notes["wpt_pr"]
+        return pr
 
 
 class Store:
