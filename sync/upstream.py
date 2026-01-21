@@ -665,8 +665,9 @@ def remove_complete_backouts(commits: Iterable[Commit]) -> Sequence[Commit]:
         if commit.is_backout:
             backed_out_commits, _ = commit.wpt_commits_backed_out()
             backed_out = {item.sha1 for item in backed_out_commits}
-            if backed_out.issubset(commits_remaining):
-                commits_remaining -= backed_out
+            intersecion = backed_out.intersection(commits_remaining)
+            if len(intersecion) > 0:
+                commits_remaining -= intersecion
                 continue
         commits_remaining.add(commit.sha1)
 
@@ -721,9 +722,9 @@ def updates_for_backout(
         if syncs:
             sync = syncs.pop()
             if commit in sync.gecko_commits:
-                # This commit was already processed
-                backed_out_commit_shas = set()
-                return {}, {}
+                # This commit was already processed for this sync
+                backed_out_commit_shas.remove(backed_out_commit.sha1)
+                continue
             if backed_out_commit in sync.upstreamed_gecko_commits:
                 backed_out_commit_shas.remove(backed_out_commit.sha1)
                 assert sync.bug is not None
