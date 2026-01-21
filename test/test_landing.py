@@ -326,6 +326,12 @@ def test_landing_reapply(
 
     trypush.Mach = mock_mach
 
+    # Add an upstream commit that has metadata
+    pr = pull_request([(b"Upstream change 1", {"upstream1": b"UPSTREAM1\n"})])
+    head_rev = pr._commits[0]["sha"]
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    downstream_sync = set_pr_status(pr.number, "success")
+
     # Add first gecko change
     test_changes = {"change1": b"CHANGE1\n"}
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1111, message=b"Add change1 file")
@@ -365,11 +371,6 @@ def test_landing_reapply(
     git_wpt_upstream.git.checkout("master")
     git_wpt_upstream.git.merge(remote_branch, ff_only=True)
 
-    # Add an upstream commit that has metadata
-    pr = pull_request([(b"Upstream change 1", {"upstream1": b"UPSTREAM1\n"})])
-    head_rev = pr._commits[0]["sha"]
-    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
-    downstream_sync = set_pr_status(pr.number, "success")
     git_wpt_upstream.head.commit = head_rev
     git_wpt_upstream.git.reset(hard=True)
     with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
@@ -550,6 +551,12 @@ def create_and_upstream_gecko_bug(
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
     upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
+
+    # Set commits PR number so they will be skipped.
+    for commit_item in git_wpt.iter_commits(sync.wpt_commits.head.sha1):
+        wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
+        if wpt_commit.pr() is None:
+            wpt_commit.notes["wpt_pr"] = 0
 
     return sync
 
@@ -773,3 +780,136 @@ def test_landing_push_failed(
 
     assert sync.status != "complete"
     assert downstream_sync.status != "complete"
+
+
+def test_upstream_commit_missing_pr_number(
+    env, git_gecko, git_wpt, git_wpt_upstream, pull_request, set_pr_status, mock_mach
+):
+    trypush.Mach = mock_mach
+
+    pr = pull_request(
+        [
+            (
+                b"Test commit",
+                {"README": b"example_change", "resources/testdriver_vendor.js": b"Some change"},
+            )
+        ]
+    )
+    head_rev = pr._commits[0]["sha"]
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr.number, "success")
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    # Reset PR number.
+    for commit_item in git_wpt.iter_commits(sync.wpt_commits.head.sha1):
+        wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
+        wpt_commit.notes["wpt_pr"] = None
+
+    with SyncLock.for_process(sync.process_name) as downstream_lock:
+        with sync.as_mut(downstream_lock):
+            sync.data["force-metadata-ready"] = True
+
+    landing_sync = None
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        with pytest.raises(AbortError):
+            landing_sync = landing.update_landing(git_gecko, git_wpt)
+
+    # Make sure that landing was not created.
+    assert landing_sync is None
+
+    # Set the PR number back.
+    for commit_item in git_wpt.iter_commits(sync.wpt_commits.head.sha1):
+        wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
+        wpt_commit.notes["wpt_pr"] = pr["number"]
+
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        landing_sync = landing.update_landing(git_gecko, git_wpt)
+
+    # Make sure that landing was created this time.
+    assert landing_sync is not None
+
+
+def test_upstream_commit_missing_pr_number_with_has_no_pr(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    set_pr_status,
+    mock_mach,
+):
+    trypush.Mach = mock_mach
+
+    pr = pull_request(
+        [
+            (
+                b"Test commit",
+                {"resources/testdriver_vendor.js": b"Some change"},
+            )
+        ]
+    )
+    head_rev = pr._commits[0]["sha"]
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = set_pr_status(pr.number, "success")
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    # Reset PR number.
+    for commit_item in git_wpt.iter_commits(sync.wpt_commits.head.sha1):
+        wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
+        wpt_commit.notes["wpt_pr"] = None
+
+    with SyncLock.for_process(sync.process_name) as downstream_lock:
+        with sync.as_mut(downstream_lock):
+            sync.data["force-metadata-ready"] = True
+
+    pr_2 = pull_request(
+        [
+            (
+                b"Test commit 2",
+                {"README": b"example_change2"},
+            )
+        ]
+    )
+    head_rev_2 = pr_2._commits[0]["sha"]
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr_2)
+    sync_2 = set_pr_status(pr_2.number, "success")
+
+    git_wpt_upstream.head.commit = head_rev_2
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev_2], create_missing=False)
+
+    with SyncLock.for_process(sync_2.process_name) as downstream_lock:
+        with sync_2.as_mut(downstream_lock):
+            sync_2.data["force-metadata-ready"] = True
+
+    landing_sync = None
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        with pytest.raises(AbortError):
+            landing_sync = landing.update_landing(git_gecko, git_wpt)
+
+    # Make sure that landing was not created.
+    assert landing_sync is None
+
+    # Set the PR number to `0` to indicate that it has to be skipped.
+    for commit_item in git_wpt.iter_commits(sync.wpt_commits.head.sha1):
+        wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
+        wpt_commit.notes["wpt_pr"] = 0
+
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        landing_sync = landing.update_landing(git_gecko, git_wpt)
+
+    # Make sure that landing was created this time.
+    assert landing_sync is not None
