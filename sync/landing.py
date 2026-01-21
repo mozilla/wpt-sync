@@ -1011,6 +1011,7 @@ def landable_commits(
     prev_wpt_head: str,
     wpt_head: str | None = None,
     include_incomplete: bool = False,
+    landing: LandingSync | None = None,
 ) -> tuple[str, LandableCommits] | None:
     """Get the list of commits that are able to land.
 
@@ -1026,8 +1027,12 @@ def landable_commits(
     landable_commits = []
     for pr, commits in pr_commits:
         last = False
-        if not pr:
-            # Assume this was some trivial fixup:
+        if pr is None:
+            message = record_missing_pr_number(commits, landing)
+            raise AbortError(message)
+
+        if pr == 0:
+            # If PR number is set to `0`, it means that the commit really doesn't have an assosieted PR.
             continue
 
         first_commit = first_non_merge(commits)
@@ -1209,6 +1214,7 @@ def update_landing(
                 landing.wpt_commits.base.sha1,
                 landing.wpt_commits.head.sha1,
                 include_incomplete=include_incomplete,
+                landing=landing,
             )
             if landable is None:
                 raise AbortError("No new commits are landable")
@@ -1367,16 +1373,19 @@ def needinfo_users() -> list[str]:
 
 
 def record_failure(
-    sync: LandingSync, log_msg: str, bug_msg: str, fixup_msg: Any | None = None
+    sync: LandingSync | None, log_msg: str, bug_msg: str, fixup_msg: Any | None = None
 ) -> str:
     if fixup_msg is None:
         fixup_msg = "Run `wptsync landing` with either --accept-failures or --retry"
-    logger.error(f"Bug {sync.bug}:{log_msg}\n{fixup_msg}")
-    sync.error = log_msg
-    assert sync.bug is not None
-    with env.bz.bug_ctx(sync.bug) as bug:
-        bug.add_comment(f"{bug_msg}\nThis requires fixup from a wpt sync admin.")
-        bug.needinfo(*needinfo_users())
+    if sync is not None:
+        logger.error(f"Bug {sync.bug}:{log_msg}\n{fixup_msg}")
+        sync.error = log_msg
+        assert sync.bug is not None
+        with env.bz.bug_ctx(sync.bug) as bug:
+            bug.add_comment(f"{bug_msg}\nThis requires fixup from a wpt sync admin.")
+            bug.needinfo(*needinfo_users())
+    else:
+        logger.error(f"{log_msg}\n{fixup_msg}")
     return log_msg
 
 
@@ -1405,6 +1414,15 @@ def record_rebase_failure(sync: LandingSync) -> str:
     bug_msg = "Landing failed due to conficts during rebase"
     fixup_msg = "Resolve the conflicts in the worktree and run `wptsync landing`"
     return record_failure(sync, log_msg, bug_msg, fixup_msg)
+
+
+def record_missing_pr_number(commits: list[WptCommit], sync: LandingSync | None) -> str:
+    commit_hashes = [commit.sha1 for commit in commits]
+    commit_hashes_string = ", ".join(commit_hashes)
+
+    msg = f"""The PR number is missing for {commit_hashes_string}"""
+    fixup_msg = "Add the PR number with `wptsync set-pr` and run `wptsync landing`"
+    return record_failure(sync, msg, msg, fixup_msg)
 
 
 def update_metadata(
