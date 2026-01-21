@@ -48,7 +48,7 @@ test = [
   "requests-mock==1.12.1",
   "ruff==0.14.2",
   "types-filelock==3.2.7",
-  "types-requests==2.32.4.20250913",
+  "types-requests==2.32.4.20260107",
   "types-PyYAML==6.0.12.20250516"
 ]
 deploy = [
