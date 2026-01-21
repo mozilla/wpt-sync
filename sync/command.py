@@ -12,6 +12,7 @@ import git
 
 from . import listen
 from .base import ProcessData
+from .commit import WptCommit
 from .phab import listen as phablisten
 from . import log
 from .tasks import setup
@@ -307,6 +308,16 @@ def get_parser() -> argparse.ArgumentParser:
 
     parser_migrate = subparsers.add_parser("migrate", help="Migrate to latest data storage format")
     parser_migrate.set_defaults(func=do_migrate)
+
+    parser_set_pr = subparsers.add_parser(
+        "set-pr",
+        help="Set PR number for a wpt commit (set to `0` if the commit really doesn't have an associated PR)",
+    )
+    parser_set_pr.add_argument("pr_number", default=None, type=int, help="The PR number")
+    parser_set_pr.add_argument(
+        "commits", default=None, type=str, nargs="*", help="The wpt commit hash"
+    )
+    parser_set_pr.set_defaults(func=do_set_pr)
 
     return parser
 
@@ -1171,6 +1182,20 @@ def do_migrate(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
     git2_repo = repo_map[git_gecko]
     for ref_name in delete:
         git2_repo.references.delete(ref_name)
+
+
+def do_set_pr(git_gecko: Repo, git_wpt: Repo, pr_number: int, commits: list[str]) -> None:
+    if pr_number is None or commits is None:
+        logger.error("No PR number or commits is not provided")
+    else:
+        if pr_number != 0:
+            pr = env.gh_wpt.get_pull(pr_number)
+            if pr is None:
+                logger.error(f"PR {pr_number} not found")
+        else:
+            for commit in commits:
+                wpt_commit = WptCommit(git_wpt, commit)
+                wpt_commit.notes["wpt_pr"] = str(pr_number)
 
 
 def set_config(opts: list[str]) -> None:
