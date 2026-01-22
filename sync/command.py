@@ -1184,7 +1184,9 @@ def do_migrate(git_gecko: Repo, git_wpt: Repo, **kwargs: Any) -> None:
         git2_repo.references.delete(ref_name)
 
 
-def do_set_pr(git_gecko: Repo, git_wpt: Repo, pr_number: int, commits: list[str]) -> None:
+def do_set_pr(
+    git_gecko: Repo, git_wpt: Repo, pr_number: int, commits: list[str], **kwargs: Any
+) -> None:
     if pr_number is None or commits is None:
         logger.error("No PR number or commits is not provided")
     else:
