@@ -1194,10 +1194,11 @@ def do_set_pr(
             pr = env.gh_wpt.get_pull(pr_number)
             if pr is None:
                 logger.error(f"PR {pr_number} not found")
-        else:
-            for commit in commits:
-                wpt_commit = WptCommit(git_wpt, commit)
-                wpt_commit.notes["wpt_pr"] = str(pr_number)
+                return
+
+        for commit in commits:
+            wpt_commit = WptCommit(git_wpt, commit)
+            wpt_commit.notes["wpt_pr"] = str(pr_number)
 
 
 def set_config(opts: list[str]) -> None:
