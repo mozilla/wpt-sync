@@ -980,7 +980,10 @@ def unlanded_wpt_commits_by_pr(
         wpt_commit = sync_commit.WptCommit(git_wpt, commit.hexsha)
         pr = wpt_commit.pr()
         extra_commits = []
-        if pr not in index_by_pr:
+
+        # If we fail to identify the PR number or the PR number is set to `0`,
+        # do not try to group it with other commits.
+        if pr is None or pr == 0 or pr not in index_by_pr:
             pr_data: tuple[int | None, list[WptCommit]] = (pr, [])
             # If we have a merge commit, also get the commits merged in
             if len(commit.parents) > 1:
