@@ -337,7 +337,8 @@ def test_landing_reapply(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1111, message=b"Add change1 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync_1 = pushed.pop()
 
     # Update central
@@ -359,7 +360,8 @@ def test_landing_reapply(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1112, message=b"Add change2 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync_2 = pushed.pop()
 
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
@@ -393,7 +395,8 @@ def test_landing_reapply(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1113, message=b"Add change3 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     # Now start a landing
     with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
@@ -541,7 +544,8 @@ def create_and_upstream_gecko_bug(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change CONFIG")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     sync = syncs["open"].pop()
@@ -550,7 +554,8 @@ def create_and_upstream_gecko_bug(
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
 
     # Set commits PR number so they will be skipped.
     for commit_item in git_wpt.iter_commits(sync.wpt_commits.head.sha1):
