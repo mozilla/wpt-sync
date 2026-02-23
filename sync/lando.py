@@ -10,7 +10,7 @@ logger = log.get_logger(__name__)
 
 
 def hg2git(hg_hash: str) -> str:
-    response = urllib.request.urlopen(env.config["lando"]["api_url"] + "/hg2git/firefox/" + hg_hash)
+    response = urllib.request.urlopen(env.config["lando"]["api_url"] + "/hg2git/firefox/" + hg_hash)  # nosec B310
     data = response.read()
     map = json.loads(data.decode("utf-8"))
     assert isinstance(map, dict)
@@ -22,7 +22,7 @@ def hg2git(hg_hash: str) -> str:
 def git2hg(git_hash: str) -> str:
     response = urllib.request.urlopen(
         env.config["lando"]["api_url"] + "/git2hg/firefox/" + git_hash
-    )
+    )  # nosec B310
     data = response.read()
     map = json.loads(data.decode("utf-8"))
     assert isinstance(map, dict)
