@@ -11,6 +11,7 @@ from pygit2 import Blob, Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
+from .lando import git2hg
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
 from typing import Dict
@@ -544,7 +545,15 @@ class GeckoCommit(Commit):
 
     @property
     def is_backout(self) -> bool:
+        return self.is_hg_backout or self.is_git_revert
+
+    @property
+    def is_hg_backout(self) -> bool:
         return commitparser.is_backout(self.msg)
+
+    @property
+    def is_git_revert(self) -> bool:
+        return commitparser.parse_reverts(self.msg) is not None
 
     @property
     def is_downstream(self) -> bool:
@@ -558,12 +567,20 @@ class GeckoCommit(Commit):
 
         return landing.LandingSync.has_metadata(self.msg)
 
+    def parse_backouts(self) -> tuple[list[bytes], list[int]] | None:
+        if self.is_hg_backout:
+            nodes_bugs = commitparser.parse_backouts(self.msg)
+        elif self.is_git_revert:
+            nodes_bugs = commitparser.parse_reverts(self.msg)
+
+        return nodes_bugs
+
     def commits_backed_out(self) -> tuple[list[GeckoCommit], set[int]]:
         # TODO: should bugs be int here
         commits: list[GeckoCommit] = []
         bugs: list[int] = []
         if self.is_backout:
-            nodes_bugs = commitparser.parse_backouts(self.msg)
+            nodes_bugs = self.parse_backouts()
             if nodes_bugs is None:
                 # We think this a backout, but have no idea what it backs out
                 # it's not clear how to handle that case so for now we pretend it isn't
@@ -573,7 +590,11 @@ class GeckoCommit(Commit):
             nodes, bugs = nodes_bugs
             # Assuming that all commits are listed.
             for node in nodes:
-                git_sha = cinnabar(self.repo).hg2git(node.decode("ascii"))
+                hg_revision = node.decode("ascii")
+                if self.is_git_revert:
+                    # Convert original git hash to mercurial
+                    hg_revision = git2hg(hg_revision)
+                git_sha = cinnabar(self.repo).hg2git(hg_revision)
                 commits.append(GeckoCommit(self.repo, git_sha))
 
         return commits, set(bugs)
