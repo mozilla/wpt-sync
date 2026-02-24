@@ -86,7 +86,7 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit, upstream_g
     assert backout_commit.upstream_sync(git_gecko, git_wpt) == sync
 
 
-def test_create_pr_revert(git_gecko, git_wpt, upstream_gecko_commit, upstream_gecko_backout):
+def test_create_pr_revert(git_gecko, git_wpt, upstream_gecko_commit, upstream_gecko_revert):
     bug = 1234
     test_changes = {"README": b"Change README\n"}
     message = f"Bug {bug} - Change README"
@@ -105,12 +105,7 @@ def test_create_pr_revert(git_gecko, git_wpt, upstream_gecko_commit, upstream_ge
     assert len(sync.wpt_commits) == 1
     assert sync.pr
 
-    print("rev", rev)
-    backout_rev = upstream_gecko_backout(
-        rev,
-        bug,
-        f"""Revert \"{message}\"\nThis reverts commit bd771e8b679de5312fbb0e8bfa24edc1ca87b1e5.""".encode(),
-    )
+    backout_rev = upstream_gecko_revert(message, rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
     with patch("sync.commit.git2hg", return_value=rev):

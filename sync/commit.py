@@ -567,20 +567,18 @@ class GeckoCommit(Commit):
 
         return landing.LandingSync.has_metadata(self.msg)
 
-    def parse_backouts(self) -> tuple[list[bytes], list[int]] | None:
-        if self.is_hg_backout:
-            nodes_bugs = commitparser.parse_backouts(self.msg)
-        elif self.is_git_revert:
-            nodes_bugs = commitparser.parse_reverts(self.msg)
-
-        return nodes_bugs
-
     def commits_backed_out(self) -> tuple[list[GeckoCommit], set[int]]:
         # TODO: should bugs be int here
         commits: list[GeckoCommit] = []
         bugs: list[int] = []
         if self.is_backout:
-            nodes_bugs = self.parse_backouts()
+            nodes_bugs = None
+
+            if self.is_hg_backout:
+                nodes_bugs = commitparser.parse_backouts(self.msg)
+            elif self.is_git_revert:
+                nodes_bugs = commitparser.parse_reverts(self.msg)
+
             if nodes_bugs is None:
                 # We think this a backout, but have no idea what it backs out
                 # it's not clear how to handle that case so for now we pretend it isn't
