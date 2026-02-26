@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from sync import commit as sync_commit, upstream
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
@@ -77,6 +79,44 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit, upstream_g
     sync = syncs["incomplete"].pop()
     assert sync.bug == 1234
     assert len(sync.gecko_commits) == 0
+    assert len(sync.wpt_commits) == 1
+    assert len(sync.upstreamed_gecko_commits) == 1
+    assert sync.status == "incomplete"
+    backout_commit = sync_commit.GeckoCommit(git_gecko, cinnabar(git_gecko).hg2git(rev))
+    assert backout_commit.upstream_sync(git_gecko, git_wpt) == sync
+
+
+def test_create_pr_revert(git_gecko, git_wpt, upstream_gecko_commit, upstream_gecko_revert):
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
+    message = f"Bug {bug} - Change README"
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=message.encode())
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert list(syncs.keys()) == ["open"]
+    assert len(syncs["open"]) == 1
+    sync = syncs["open"].pop()
+    assert sync.bug == 1234
+    assert sync.status == "open"
+    assert len(sync.gecko_commits) == 1
+    assert len(sync.wpt_commits) == 1
+    assert sync.pr
+
+    backout_rev = upstream_gecko_revert(message, rev)
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
+    with patch("sync.commit.git2hg", return_value=rev):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", backout_rev, raise_on_error=True)
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    assert list(syncs.keys()) == ["incomplete"]
+    assert len(syncs["incomplete"]) == 1
+    sync = syncs["incomplete"].pop()
+    assert sync.bug == 1234
+    with patch("sync.commit.git2hg", return_value=rev):
+        assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 1
     assert len(sync.upstreamed_gecko_commits) == 1
     assert sync.status == "incomplete"
