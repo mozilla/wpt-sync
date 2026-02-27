@@ -11,7 +11,7 @@ from pygit2 import Blob, Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
-from .lando import git2hg
+from .lando import git2hg, hg2git
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
 from typing import Dict
@@ -147,6 +147,7 @@ class Commit:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
         self.cinnabar = cinnabar_map.get(repo)
+        self._git_rev: str | None = None
         _commit = None
         _pygit2_commit = None
         if hasattr(commit, "hexsha"):
@@ -213,6 +214,17 @@ class Commit:
     def canonical_rev(self) -> str:
         if self.cinnabar:
             return self.cinnabar.git2hg(self.sha1)
+        return self.sha1
+
+    @property
+    def git_rev(self) -> str:
+        if self.cinnabar:
+            if self._git_rev is None:
+                hg_rev = self.cinnabar.git2hg(self.sha1)
+                self._git_rev = hg2git(hg_rev)
+
+            return self._git_rev
+
         return self.sha1
 
     @property
