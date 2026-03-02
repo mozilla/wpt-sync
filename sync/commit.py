@@ -147,7 +147,6 @@ class Commit:
         self.repo = repo
         self.pygit2_repo = pygit2_get(repo)
         self.cinnabar = cinnabar_map.get(repo)
-        self._git_rev: str | None = None
         _commit = None
         _pygit2_commit = None
         if hasattr(commit, "hexsha"):
@@ -217,14 +216,9 @@ class Commit:
         return self.sha1
 
     @property
-    def git_rev(self) -> str:
+    def canonical_rev_git(self) -> str:
         if self.cinnabar:
-            if self._git_rev is None:
-                hg_rev = self.cinnabar.git2hg(self.sha1)
-                self._git_rev = hg2git(hg_rev)
-
-            return self._git_rev
-
+            raise ValueError(f"Commit {self.sha1} doesn't have a canonical git SHA1")
         return self.sha1
 
     @property
@@ -550,6 +544,16 @@ class GeckoCommit(Commit):
             return None
         assert isinstance(bugs[0], int)
         return bugs[0]
+
+    @property
+    def canonical_rev_git(self) -> str:
+        if self.cinnabar:
+            if "gecko-commit-git" not in self.notes:
+                self.notes["gecko-commit-git"] = hg2git(self.sha1)
+            sha1 = self.notes["gecko-commit-git"]
+            assert sha1 is not None
+            return sha1
+        return self.sha1
 
     def has_wpt_changes(self) -> bool:
         prefix = env.config["gecko"]["path"]["wpt"]

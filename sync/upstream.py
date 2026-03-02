@@ -328,7 +328,7 @@ class UpstreamSync(SyncProcess):
 
         metadata = {
             "gecko-commit": gecko_commit.canonical_rev,
-            "gecko-commit-git": gecko_commit.git_rev,
+            "gecko-commit-git": gecko_commit.canonical_rev_git,
         }
 
         if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
