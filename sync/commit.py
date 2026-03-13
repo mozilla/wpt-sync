@@ -11,7 +11,7 @@ from pygit2 import Blob, Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
-from .lando import git2hg
+from .lando import git2hg, hg2git
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
 from typing import Dict
@@ -213,6 +213,12 @@ class Commit:
     def canonical_rev(self) -> str:
         if self.cinnabar:
             return self.cinnabar.git2hg(self.sha1)
+        return self.sha1
+
+    @property
+    def canonical_rev_git(self) -> str:
+        if self.cinnabar:
+            raise ValueError(f"Commit {self.sha1} doesn't have a canonical git SHA1")
         return self.sha1
 
     @property
@@ -538,6 +544,16 @@ class GeckoCommit(Commit):
             return None
         assert isinstance(bugs[0], int)
         return bugs[0]
+
+    @property
+    def canonical_rev_git(self) -> str:
+        if self.cinnabar:
+            if "gecko-commit-git" not in self.notes:
+                self.notes["gecko-commit-git"] = hg2git(self.sha1)
+            sha1 = self.notes["gecko-commit-git"]
+            assert sha1 is not None
+            return sha1
+        return self.sha1
 
     def has_wpt_changes(self) -> bool:
         prefix = env.config["gecko"]["path"]["wpt"]

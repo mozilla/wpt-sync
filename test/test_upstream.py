@@ -15,9 +15,11 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
 
     initial_data_commits = list(git_gecko.iter_commits(env.config["sync"]["ref"]))
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev, raise_on_error=True
-    )
+    git_rev = "test_revision"
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, landed, failed = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", rev, raise_on_error=True
+        )
     assert len(pushed) == 1
     assert len(landed) == 0
     assert len(failed) == 0
@@ -44,6 +46,7 @@ def test_create_pr(env, git_gecko, git_wpt, upstream_gecko_commit):
     assert wpt_commit.metadata == {
         "bugzilla-url": "https://bugzilla-dev.allizom.org/show_bug.cgi?id=1234",
         "gecko-commit": rev,
+        "gecko-commit-git": git_rev,
     }
     assert sync.pr
     assert "Posting to bug %s" % bug in env.bz.output.getvalue()
@@ -57,7 +60,8 @@ def test_create_pr_backout(git_gecko, git_wpt, upstream_gecko_commit, upstream_g
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["open"]
@@ -93,7 +97,8 @@ def test_create_pr_revert(git_gecko, git_wpt, upstream_gecko_commit, upstream_ge
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=message.encode())
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["open"]
@@ -132,7 +137,8 @@ def test_create_pr_backout_reland(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     backout_rev = upstream_gecko_backout(rev, bug)
 
@@ -157,7 +163,8 @@ def test_create_pr_backout_reland(
     )
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", relanding_rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value=relanding_rev):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", relanding_rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["open"]
@@ -183,7 +190,8 @@ def test_create_partial_backout_reland(
     )
 
     update_repositories(git_gecko, git_wpt)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev1, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev1, raise_on_error=True)
 
     upstream_gecko_backout(rev1, bug)
 
@@ -197,7 +205,8 @@ def test_create_partial_backout_reland(
     )
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=relanding_rev)
-    upstream.gecko_push(git_gecko, git_wpt, "autoland", relanding_rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value=relanding_rev):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", relanding_rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["open"]
@@ -217,9 +226,9 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev, raise_on_error=True
-    )
+    git_rev = "test_revision"
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["open"]
@@ -231,9 +240,8 @@ def test_land_pr(env, git_gecko, git_wpt, hg_gecko_upstream, upstream_gecko_comm
     hg_gecko_upstream.bookmark("mozilla/central", "-r", rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert syncs == {"wpt-merged": {sync}}
@@ -267,9 +275,9 @@ def test_land_pr_after_status_change(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["open"]
     assert len(syncs["open"]) == 1
@@ -312,9 +320,11 @@ wpt-pr: 1
 wpt-commits: 0000000000000000000000000000000000000000""",
     )
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=hg_rev)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", hg_rev, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        pushed, landed, failed = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", hg_rev, raise_on_error=True
+        )
+
     assert not pushed
     assert not landed
     assert not failed
@@ -337,9 +347,11 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
 
     upstream_wpt_commit(file_data=test_changes_1)
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=gecko_rev_2)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", gecko_rev_2, raise_on_error=True
-    )
+    git_rev = "test_revision"
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, landed, failed = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", gecko_rev_2, raise_on_error=True
+        )
     assert len(pushed) == 1
     assert len(landed) == 0
     assert len(failed) == 0
@@ -360,6 +372,7 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     assert wpt_commit.metadata == {
         "bugzilla-url": "https://bugzilla-dev.allizom.org/show_bug.cgi?id=1234",
         "gecko-commit": gecko_rev_2,
+        "gecko-commit-git": git_rev,
     }
 
     # Now make another push to the same bug and check we handle it correctly
@@ -367,9 +380,10 @@ def test_upstream_existing(env, git_gecko, git_wpt, upstream_gecko_commit, upstr
     test_changes_3 = {"YET_ANOTHER": b"Add more files\n"}
     gecko_rev_3 = upstream_gecko_commit(test_changes=test_changes_3, bug=bug, message=b"Add more")
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=gecko_rev_3)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", gecko_rev_3, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, landed, failed = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", gecko_rev_3, raise_on_error=True
+        )
     assert len(sync.gecko_commits) == 3
     assert len(sync.wpt_commits) == 2
     assert [item.metadata.get("gecko-commit") for item in sync.wpt_commits] == [
@@ -384,9 +398,11 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     rev_0 = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Add README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_0)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev_0, raise_on_error=True
-    )
+    git_rev = "test_revision"
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, _, _ = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", rev_0, raise_on_error=True
+        )
     assert len(pushed) == 1
     sync_0 = pushed.pop()
 
@@ -394,9 +410,10 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     rev_1 = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Add README1")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_1)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev_1, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, _, _ = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", rev_1, raise_on_error=True
+        )
     assert len(pushed) == 1
     assert pushed == {sync_0}
     assert len(sync_0.upstreamed_gecko_commits) == 2
@@ -413,9 +430,10 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     rev_2 = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Add README2")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_2)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev_2, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, _, _ = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", rev_2, raise_on_error=True
+        )
 
     assert len(pushed) == 1
     sync_1 = pushed.pop()
@@ -436,9 +454,10 @@ def test_upstream_multi(env, git_gecko, git_wpt, upstream_gecko_commit):
     rev_3 = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Add README3")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev_3)
-    pushed, landed, failed = upstream.gecko_push(
-        git_gecko, git_wpt, "autoland", rev_3, raise_on_error=True
-    )
+    with patch("sync.commit.hg2git", return_value=git_rev):
+        pushed, landed, failed = upstream.gecko_push(
+            git_gecko, git_wpt, "autoland", rev_3, raise_on_error=True
+        )
     assert len(pushed) == 1
     sync_2 = pushed.pop()
     assert sync_2.process_name not in (sync_1.process_name, sync_0.process_name)
@@ -458,7 +477,8 @@ def test_upstream_reprocess_commits(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync = pushed.pop()
     assert sync.gecko_commits[0].upstream_sync(git_gecko, git_wpt) == sync
 
@@ -521,9 +541,10 @@ def test_pr_commits_merge(
     upstream_gecko_commit,
     set_pr_status,
 ):
-    sync = setup_repo(
-        env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit, set_pr_status
-    )
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        sync = setup_repo(
+            env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit, set_pr_status
+        )
 
     # Make changes on master
     git_wpt_upstream.branches.master.checkout()
@@ -569,9 +590,10 @@ def test_pr_commits_squash_merge(
     upstream_gecko_commit,
     set_pr_status,
 ):
-    sync = setup_repo(
-        env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit, set_pr_status
-    )
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        sync = setup_repo(
+            env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit, set_pr_status
+        )
 
     # Make changes on master
     git_wpt_upstream.branches.master.checkout()
@@ -618,9 +640,10 @@ def test_pr_commits_fast_forward(
     upstream_gecko_commit,
     set_pr_status,
 ):
-    sync = setup_repo(
-        env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit, set_pr_status
-    )
+    with patch("sync.commit.hg2git", return_value="test_revision"):
+        sync = setup_repo(
+            env, git_wpt, git_gecko, hg_gecko_upstream, upstream_gecko_commit, set_pr_status
+        )
 
     base = git_wpt_upstream.head.commit.hexsha
 

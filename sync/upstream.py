@@ -326,7 +326,10 @@ class UpstreamSync(SyncProcess):
     def add_commit(self, gecko_commit: GeckoCommit) -> tuple[Commit | None, bool]:
         git_work = self.wpt_worktree.get()
 
-        metadata = {"gecko-commit": gecko_commit.canonical_rev}
+        metadata = {
+            "gecko-commit": gecko_commit.canonical_rev,
+            "gecko-commit-git": gecko_commit.canonical_rev_git,
+        }
 
         if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
             # If there's already a patch file here then don't try to create a new one
