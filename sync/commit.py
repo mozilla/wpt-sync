@@ -549,7 +549,7 @@ class GeckoCommit(Commit):
     def canonical_rev_git(self) -> str:
         if self.cinnabar:
             if "gecko-commit-git" not in self.notes:
-                self.notes["gecko-commit-git"] = hg2git(self.sha1)
+                self.notes["gecko-commit-git"] = hg2git(self.canonical_rev)
             sha1 = self.notes["gecko-commit-git"]
             assert sha1 is not None
             return sha1
