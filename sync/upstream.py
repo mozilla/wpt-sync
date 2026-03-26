@@ -267,24 +267,42 @@ class UpstreamSync(SyncProcess):
         if len(self.gecko_commits) == 0:
             return False
 
-        # Find the commits that were already upstreamed. Some gecko commits may not
-        # result in an upstream commit, if the patch has no effect. But if we find
-        # the last commit that was previously upstreamed then all earlier ones must
-        # also match.
-        upstreamed_commits = {item.sha1 for item in self.upstreamed_gecko_commits}
-        matching_commits = list(self.gecko_commits[:])
-        for gecko_commit in reversed(list(self.gecko_commits)):
-            if gecko_commit.sha1 in upstreamed_commits:
+        matching_commits: List[Commit] = list()
+
+        # Verify that all commits contain "gecko-commit-git" in the metadata.
+        has_canonical_git_hash = True
+        for wpt_commit in self.wpt_commits:
+            if not wpt_commit.metadata.get("gecko-commit-git"):
+                has_canonical_git_hash = False
                 break
-            matching_commits.pop()
 
-        if len(matching_commits) == len(self.gecko_commits) == len(self.upstreamed_gecko_commits):
-            return False
+        if has_canonical_git_hash:
+            # Find the commits that were already upstreamed. Some gecko commits may not
+            # result in an upstream commit, if the patch has no effect. But if we find
+            # the last commit that was previously upstreamed then all earlier ones must
+            # also match.
+            upstreamed_commits = {item.sha1 for item in self.upstreamed_gecko_commits}
+            matching_commits = list(self.gecko_commits[:])
 
-        if len(matching_commits) == 0:
+            for gecko_commit in reversed(list(self.gecko_commits)):
+                if gecko_commit.sha1 in upstreamed_commits:
+                    break
+                matching_commits.pop()
+
+            if (
+                len(matching_commits)
+                == len(self.gecko_commits)
+                == len(self.upstreamed_gecko_commits)
+            ):
+                return False
+
+            if len(matching_commits) == 0:
+                self.wpt_commits.head = self.wpt_commits.base
+            elif len(matching_commits) < len(self.upstreamed_gecko_commits):
+                self.wpt_commits.head = self.wpt_commits[len(matching_commits) - 1]
+        else:
+            # Reset wpt commits to reapply all gecko commits with updated metadata.
             self.wpt_commits.head = self.wpt_commits.base
-        elif len(matching_commits) < len(self.upstreamed_gecko_commits):
-            self.wpt_commits.head = self.wpt_commits[len(matching_commits) - 1]
 
         # Ensure the worktree is clean
         wpt_work = self.wpt_worktree.get()
@@ -325,11 +343,10 @@ class UpstreamSync(SyncProcess):
     @mut()
     def add_commit(self, gecko_commit: GeckoCommit) -> tuple[Commit | None, bool]:
         git_work = self.wpt_worktree.get()
+        metadata = {"gecko-commit": gecko_commit.canonical_rev}
 
-        metadata = {
-            "gecko-commit": gecko_commit.canonical_rev,
-            "gecko-commit-git": gecko_commit.canonical_rev_git,
-        }
+        if gecko_commit.canonical_rev_git:
+            metadata["gecko-commit-git"] = gecko_commit.canonical_rev_git
 
         if os.path.exists(os.path.join(git_work.working_dir, gecko_commit.canonical_rev + ".diff")):
             # If there's already a patch file here then don't try to create a new one
