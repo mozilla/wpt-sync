@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, PropertyMock
 
 from sync import commit as sync_commit, upstream
 from sync.gitutils import update_repositories
@@ -675,3 +675,38 @@ def test_pr_commits_fast_forward(
 
     for wpt_commit, pr_commit in zip(sync.wpt_commits._commits, pr_commits):
         assert wpt_commit.commit == pr_commit.commit
+
+
+def test_backfill_git_hashes(env, git_gecko, git_wpt, upstream_gecko_commit):
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+
+    with patch(
+        "sync.upstream.GeckoCommit.canonical_rev_git",
+        new_callable=PropertyMock,
+        return_value=None,
+    ):
+        upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+
+    syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
+    sync = syncs["open"].pop()
+
+    wpt_commit = sync.wpt_commits[0]
+
+    # Verify that "gecko-commit-git" is not set in metadata
+    assert wpt_commit.metadata.get("gecko-commit-git") is None
+
+    backfill_git_rev = "git_revision"
+    for commit in sync.gecko_commits:
+        commit.notes["gecko-commit-git"] = backfill_git_rev
+
+    # Run the update to backfill
+    with SyncLock.for_process(sync.process_name) as upstream_sync_lock:
+        with sync.as_mut(upstream_sync_lock):
+            upstream.update_sync(git_gecko, git_wpt, sync, repo_update=False)
+
+    # Verify that "gecko-commit-git" is now in metadata
+    assert sync.wpt_commits[0].metadata.get("gecko-commit-git") == backfill_git_rev
