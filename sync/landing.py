@@ -870,7 +870,7 @@ MANUAL PUSH: wpt sync bot
 
 
 def push(landing: LandingSync) -> None:
-    """Push from git_work_gecko to inbound."""
+    """Push from git_work_gecko to autoland."""
     success = False
 
     old_head = None
@@ -1197,19 +1197,20 @@ def update_landing(
                     "Existing landing head commit %s doesn't match"
                     "supplied wpt head %s" % (landing.wpt_commits.head.sha1, new_wpt_head)
                 )
-            head = landing.gecko_commits.head
-            if git_gecko.is_ancestor(
-                head.commit, git_gecko.rev_parse(env.config["gecko"]["refs"]["central"])
-            ):
-                logger.info("Landing reached central")
-                with landing.as_mut(lock):
-                    landing.finish()
-                return None
-            elif git_gecko.is_ancestor(
-                head.commit, git_gecko.rev_parse(landing.gecko_integration_branch())
-            ):
-                logger.info("Landing is on inbound but not yet on central")
-                return None
+            if len(landing.gecko_commits) > 0 and landing.landing_commit is not None:
+                head = landing.gecko_commits.head
+                if git_gecko.is_ancestor(
+                    head.commit, git_gecko.rev_parse(env.config["gecko"]["refs"]["central"])
+                ):
+                    logger.info("Landing reached central")
+                    with landing.as_mut(lock):
+                        landing.finish()
+                    return None
+                elif git_gecko.is_ancestor(
+                    head.commit, git_gecko.rev_parse(landing.gecko_integration_branch())
+                ):
+                    logger.info("Landing is on autoland but not yet on main")
+                    return None
 
             landable = landable_commits(
                 git_gecko,

@@ -275,6 +275,7 @@ def test_download_logs_after_retriggers_complete(
             with (
                 patch.object(tc.TaskGroup, "tasks", property(tasks)),
                 patch("sync.landing.push_to_gecko"),
+                patch("sync.landing.update_landing"),
             ):
                 try_push.download_logs = Mock(return_value=[])
                 try_push["stability"] = True
@@ -294,6 +295,7 @@ def test_no_download_logs_after_all_try_tasks_success(
             with (
                 patch.object(tc.TaskGroup, "tasks", property(tasks)),
                 patch("sync.landing.push_to_gecko"),
+                patch("sync.landing.update_landing"),
             ):
                 try_push.download_logs = Mock(return_value=[])
                 landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
@@ -919,3 +921,48 @@ def test_upstream_commit_missing_pr_number_with_has_no_pr(
 
     # Make sure that landing was created this time.
     assert landing_sync is not None
+
+
+def test_update_landing_interrupted_before_patches(
+    env,
+    git_gecko,
+    git_wpt,
+    git_wpt_upstream,
+    pull_request,
+    set_pr_status,
+    hg_gecko_try,
+    mock_mach,
+):
+    pr = pull_request([(b"Test commit", {"README": b"example_change"})])
+    head_rev = pr._commits[0]["sha"]
+
+    trypush.Mach = mock_mach
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    downstream_sync = set_pr_status(pr.number, "success")
+
+    git_wpt_upstream.head.commit = head_rev
+    git_wpt.remotes.origin.fetch()
+    landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
+
+    with SyncLock.for_process(downstream_sync.process_name) as downstream_lock:
+        with downstream_sync.as_mut(downstream_lock):
+            downstream_sync.data["force-metadata-ready"] = True
+
+    # Create a LandingSync without applying patches.
+    sync_point = landing.load_sync_point(git_gecko, git_wpt)
+    prev_wpt_head = sync_point["upstream"]
+
+    with SyncLock("landing", None) as lock:
+        landing_sync = landing.LandingSync.new(lock, git_gecko, git_wpt, prev_wpt_head, head_rev)
+
+    assert list(landing_sync.gecko_commits) == []
+    assert landing_sync.landing_commit is None
+
+    # Invoke update_landing and confirm that the patches are applied
+    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        mock_read.return_value = "0000000000000000"
+        result = landing.update_landing(git_gecko, git_wpt, new_wpt_head=head_rev)
+
+    # The landing should have progressed (patches applied), not returned None.
+    assert result is not None
+    assert list(result.gecko_commits) != []
