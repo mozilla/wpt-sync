@@ -174,30 +174,28 @@ class Result:
     def has_crash(self, target_browser: str = "firefox") -> bool:
         return any(
             self.iter_filter_status(
-                lambda browser, _, status: (browser == target_browser and status.is_crash())
+                lambda browser, _, status: browser == target_browser and status.is_crash()
             )
         )
 
     def has_new_non_passing(self, target_browser: str = "firefox") -> bool:
         return any(
             self.iter_filter_status(
-                lambda browser, _, status: (
-                    browser == target_browser and status.is_new_non_passing()
-                )
+                lambda browser, _, status: browser == target_browser and status.is_new_non_passing()
             )
         )
 
     def has_regression(self, target_browser: str = "firefox") -> bool:
         return any(
             self.iter_filter_status(
-                lambda browser, _, status: (browser == target_browser and status.is_regression())
+                lambda browser, _, status: browser == target_browser and status.is_regression()
             )
         )
 
     def has_disabled(self, target_browser: str = "firefox") -> bool:
         return any(
             self.iter_filter_status(
-                lambda browser, _, status: (browser == target_browser and status.is_disabled())
+                lambda browser, _, status: browser == target_browser and status.is_disabled()
             )
         )
 
