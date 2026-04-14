@@ -24,7 +24,7 @@ dependencies = [
   "filelock==3.25.2",
   "gitpython==3.1.46",
   "kombu==5.5.4",
-  "lando-cli==0.3.0",
+  "lando-cli==0.4.0",
   "mercurial==7.2.1",
   "mozautomation",
   "phabricator==0.9.1",
