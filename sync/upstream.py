@@ -270,8 +270,9 @@ class UpstreamSync(SyncProcess):
         matching_commits: List[Commit] = list()
 
         # Verify that all commits contain "gecko-commit-git" in the metadata.
-        has_canonical_git_hash = all(wpt_commit.metadata.get("gecko-commit-git") for wpt_commit in self.wpt_commits)
-                break
+        has_canonical_git_hash = all(
+            wpt_commit.metadata.get("gecko-commit-git") for wpt_commit in self.wpt_commits
+        )
 
         if has_canonical_git_hash:
             # Find the commits that were already upstreamed. Some gecko commits may not
