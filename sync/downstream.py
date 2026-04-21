@@ -1231,19 +1231,25 @@ def update_pr(
             if sync.bug:
                 env.bz.set_status(sync.bug, "RESOLVED", "INVALID")
             sync.finish()
-        elif action == "closed":
-            # We are storing the wpt base as a reference
-            sync.data["wpt-base"] = base_sha
-            sync.next_try_push()
-        elif action == "reopened" or action == "open":
-            sync.status = "open"
-            sync.pr_status = "open"
-            sync.next_try_push()
-            assert sync.bug is not None
-            if sync.bug:
-                status = env.bz.get_status(sync.bug)
-                if status is not None and status[0] == "RESOLVED":
-                    env.bz.set_status(sync.bug, "REOPENED")
+        else:
+            # If a bug creation failed previously, try to create it again.
+            if sync.bug is None and sync.pr:
+                pr = env.gh_wpt.get_pull(sync.pr)
+                sync.create_bug(git_wpt, sync.pr, pr.title, pr.body or "")
+
+            if action == "closed":
+                # We are storing the wpt base as a reference
+                sync.data["wpt-base"] = base_sha
+                sync.next_try_push()
+            elif action == "reopened" or action == "open":
+                sync.status = "open"
+                sync.pr_status = "open"
+                sync.next_try_push()
+                assert sync.bug is not None
+                if sync.bug:
+                    status = env.bz.get_status(sync.bug)
+                    if status is not None and status[0] == "RESOLVED":
+                        env.bz.set_status(sync.bug, "REOPENED")
         sync.update_github_check()
     except Exception as e:
         sync.error = e
