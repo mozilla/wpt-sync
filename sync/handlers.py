@@ -40,14 +40,13 @@ def handle_pr(git_gecko: Repo, git_wpt: Repo, event: Dict[str, Any]) -> None:
 
     if not sync:
         # If we don't know about this sync then it's a new thing that we should
-        # set up state for
-        # TODO: maybe want to create a new sync here irrespective of the event
-        # type because we missed some events.
-        if event["action"] == "opened":
-            downstream.new_wpt_pr(
-                git_gecko, git_wpt, event["pull_request"], repo_update=repo_update
-            )
-    else:
+        # set up state for.
+        # Create a new sync here irrespective of the event type
+        # because we might have missed some events.
+        downstream.new_wpt_pr(git_gecko, git_wpt, event["pull_request"], repo_update=repo_update)
+        sync = get_pr_sync(git_gecko, git_wpt, pr_id)
+
+    if sync:
         if isinstance(sync, downstream.DownstreamSync):
             update_func = downstream.update_pr
         elif isinstance(sync, upstream.UpstreamSync):

@@ -166,6 +166,42 @@ def test_wpt_pr_approved(
         assert try_push.stability
 
 
+@pytest.mark.parametrize("action,state", [("opened", "open"), ("closed", "closed")])
+def test_handle_pr_without_prior_sync(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    mock_wpt,
+    mock_mach,
+    action,
+    state,
+):
+    mock_wpt.set_data("tests-affected", "")
+
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
+
+    assert load.get_pr_sync(git_gecko, git_wpt, pr["number"]) is None
+
+    pr["state"] = state
+    pr["base"]["sha"] = "b" * 40
+
+    with patch("sync.tree.is_open", Mock(return_value=True)), patch("sync.trypush.Mach", mock_mach):
+        handlers.handle_pr(
+            git_gecko,
+            git_wpt,
+            {
+                "action": action,
+                "number": pr["number"],
+                "pull_request": pr,
+            },
+        )
+
+    # Verify that sync was created.
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+    assert isinstance(sync, downstream.DownstreamSync)
+
+
 def test_revert_pr(
     env,
     git_gecko,
