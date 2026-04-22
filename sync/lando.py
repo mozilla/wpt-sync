@@ -4,6 +4,8 @@ from .env import Environment
 
 env = Environment()
 
+git2hg_cache: dict[str, str] = {}
+
 
 def hg2git(hg_hash: str) -> str:
     response = requests.get(env.config["lando"]["api_url"] + "/hg2git/firefox/" + hg_hash)
@@ -15,9 +17,12 @@ def hg2git(hg_hash: str) -> str:
 
 
 def git2hg(git_hash: str) -> str:
-    response = requests.get(env.config["lando"]["api_url"] + "/git2hg/firefox/" + git_hash)
-    data = response.json()
-    assert isinstance(data, dict)
-    assert isinstance(data["hg_hash"], str)
+    if git_hash not in git2hg_cache:
+        response = requests.get(env.config["lando"]["api_url"] + "/git2hg/firefox/" + git_hash)
+        data = response.json()
+        assert isinstance(data, dict)
+        assert isinstance(data["hg_hash"], str)
 
-    return data["hg_hash"]
+        git2hg_cache[git_hash] = data["hg_hash"]
+
+    return git2hg_cache[git_hash]
