@@ -1234,9 +1234,13 @@ def update_pr(
         else:
             # If a bug creation failed previously, try to create it again.
             if sync.bug is None and sync.pr:
-                pr = env.gh_wpt.get_pull(sync.pr)
-                sync.create_bug(git_wpt, sync.pr, pr.title, pr.body or "")
-
+                try:
+                    pr = env.gh_wpt.get_pull(sync.pr)
+                    sync.create_bug(git_wpt, sync.pr, pr.title, pr.body or "")
+                except Exception:
+                    logger.error(
+                        f"The bug creation for the downstream sync with PR: {sync.pr} failed"
+                    )
             if action == "closed":
                 # We are storing the wpt base as a reference
                 sync.data["wpt-base"] = base_sha
@@ -1245,7 +1249,6 @@ def update_pr(
                 sync.status = "open"
                 sync.pr_status = "open"
                 sync.next_try_push()
-                assert sync.bug is not None
                 if sync.bug:
                     status = env.bz.get_status(sync.bug)
                     if status is not None and status[0] == "RESOLVED":
