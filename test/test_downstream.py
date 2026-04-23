@@ -705,3 +705,33 @@ def test_github_next_action_on_error(
                 sync.try_rebase()
 
     assert sync.next_action == downstream.DownstreamAction.manual_fix
+
+
+def test_update_pr_retries_bug_creation(env, git_gecko, git_wpt, pull_request):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+    sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
+    assert sync is not None
+    assert sync.bug is not None
+
+    with SyncLock.for_process(sync.process_name) as lock:
+        # Simulate a prior bug creation failure by clearing the stored bug.
+        with sync.as_mut(lock):
+            sync.data["bug"] = None
+
+    assert sync.bug is None
+
+    # Handle the notification of the PR being merged.
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            downstream.update_pr(
+                git_gecko,
+                git_wpt,
+                sync,
+                action="closed",
+                merge_sha="b" * 25,
+                base_sha="b" * 25,
+            )
+
+    assert sync.bug is not None
