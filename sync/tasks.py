@@ -40,10 +40,6 @@ def with_lock(f: Callable[..., Any]) -> Callable[..., Any]:
         try:
             with _lock:
                 return f(*args, **kwargs)
-            # If some other task is waiting on the lock, give it a chance to
-            # run before this task completes. That means that manual commands
-            # will always  win over celery tasks, which we want
-            time.sleep(0.1)
         except Exception:
             logger.error("".join(traceback.format_exc()))
             raise
