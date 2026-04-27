@@ -1047,7 +1047,7 @@ def gecko_push(
 
     assert last_sync_point.commit is not None
     if base_rev is None and git_gecko.is_ancestor(rev, last_sync_point.commit.commit):
-        logger.info("Last sync point moved past commit")
+        logger.info(f"Last sync point {last_sync_point.commit.commit} moved past commit {rev}")
         return None
 
     with SyncLock("upstream", None) as lock:
