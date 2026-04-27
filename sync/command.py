@@ -550,7 +550,7 @@ def do_push(
     from . import update
 
     if rev is None:
-        rev = git_gecko.commit(env.config["gecko"]["refs"]["mozilla-inbound"]).hexsha
+        rev = git_gecko.commit(env.config["gecko"]["refs"]["autoland"]).hexsha
 
     update.update_push(git_gecko, git_wpt, rev, base_rev=base_rev, processes=processes)
 
