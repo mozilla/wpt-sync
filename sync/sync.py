@@ -410,9 +410,9 @@ class SyncProcess(metaclass=IdentityMap):
         bug_str = str(bug)
         statuses = set(statuses) if statuses is not None else set(cls.statuses)
         rv = defaultdict(set)
-        idx_key = (bug_str,)
+        idx_key: tuple[str] | tuple[str, str] = (bug_str,)
         if len(statuses) == 1:
-            idx_key == (bug_str, list(statuses)[0])
+            idx_key = (bug_str, list(statuses)[0])
         idx = index.BugIdIndex(git_gecko)
 
         process_names = idx.get(idx_key)
@@ -645,12 +645,10 @@ class SyncProcess(metaclass=IdentityMap):
                 return item
             if isinstance(item, str):
                 return item
-            if isinstance(item, str):
-                return item.encode("utf8", "replace")
             return repr(item)
 
         if value is not None:
-            if isinstance(value, (str, str)):
+            if isinstance(value, str):
                 message = value
                 stack = None
             else:

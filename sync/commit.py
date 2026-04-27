@@ -181,11 +181,9 @@ class Commit:
     def __eq__(self, other: Any) -> bool:
         if hasattr(other, "sha1"):
             return self.sha1 == other.sha1
-        elif hasattr(other, "hexsha"):
+        if hasattr(other, "hexsha"):
             return self.sha1 == other.hexsha
-        else:
-            return self.sha1 == other
-        return False
+        return self.sha1 == other
 
     def __ne__(self, other: Any) -> bool:
         return not self == other

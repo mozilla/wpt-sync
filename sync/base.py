@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-import sys
 import weakref
 from collections import defaultdict
 from collections.abc import Mapping
@@ -189,9 +188,9 @@ class ProcessNameIndex(metaclass=IdentityMap):
 
         target = self._data
         for key in [obj_type, subtype, obj_id]:
-            assert isinstance(key, str)
             if key is None:
                 break
+            assert isinstance(key, str)
             target = target[key]  # type: ignore
 
         rv: set[ProcessName] = set()
@@ -241,8 +240,6 @@ class ProcessName(metaclass=IdentityMap):
 
     def __str__(self) -> str:
         data = "%s/%s/%s/%s" % self.as_tuple()
-        if sys.version_info[0] == 2:
-            data = data.encode("utf8")
         return data
 
     def key(self) -> tuple[str, str, str, str]:

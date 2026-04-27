@@ -1,6 +1,5 @@
 import os
 import traceback
-import time
 from typing import Any, Callable, Mapping
 
 import filelock

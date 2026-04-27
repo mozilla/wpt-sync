@@ -1127,7 +1127,7 @@ def try_push_complete(
         logger.error(f"No bug set for sync {sync}")
         return
 
-    if not try_push.status == "complete":
+    if try_push.status != "complete":
         # Ensure we don't have some old set of tasks
 
         tasks = try_push.tasks()

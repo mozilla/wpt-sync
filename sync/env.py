@@ -13,17 +13,26 @@ _gh_wpt: GitHub | None = None
 class Environment:
     @property
     def config(self) -> dict[str, Any]:
-        assert _config is not None
+        if _config is None:
+            raise ValueError(
+                "Tried to get config before it was set; call set_env() before this method"
+            )
         return _config
 
     @property
     def bz(self) -> Bugzilla:
-        assert _bz is not None
+        if _bz is None:
+            raise ValueError(
+                "Tried to get Bugzilla client before it was set; call set_env() before this method"
+            )
         return _bz
 
     @property
     def gh_wpt(self) -> GitHub:
-        assert _gh_wpt is not None
+        if _gh_wpt is None:
+            raise ValueError(
+                "Tried to get GitHub Client before it was set; call set_env() before this method"
+            )
         return _gh_wpt
 
 

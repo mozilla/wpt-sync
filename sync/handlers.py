@@ -323,10 +323,7 @@ def taskgroup_complete(
                     try_push.taskgroup_id,
                 )
                 logger.error(msg)
-                try:
-                    raise ValueError(msg)
-                except ValueError:
-                    raise
+                raise ValueError(msg)
 
             if sync:
                 logger.info("Updating try push for sync %r" % sync)
