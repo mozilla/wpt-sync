@@ -1,28 +1,56 @@
+from urllib.parse import urljoin
+from typing import Any, Mapping, Optional
+
 import requests
 
-from .env import Environment
-
-env = Environment()
 
 git2hg_cache: dict[str, str] = {}
 
 
-def hg2git(hg_hash: str) -> str:
-    response = requests.get(env.config["lando"]["api_url"] + "/hg2git/firefox/" + hg_hash)
-    data = response.json()
-    assert isinstance(data, dict)
-    assert isinstance(data["git_hash"], str)
+class Lando:
+    def __init__(self, config: Mapping[str, Any]):
+        self.base_url = config["lando"]["api_url"]
 
-    return data["git_hash"]
+    def get(self, path: str) -> Optional[Mapping[str, Any]]:
+        resp = requests.get(urljoin(self.base_url, path))
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected map, got {data}")
+        return data
+
+    def hg2git(self, hg_hash: str) -> Optional[str]:
+        data = self.get(f"/hg2git/firefox/{hg_hash}")
+        if data is None:
+            return None
+        if not isinstance(data.get("git_hash"), str):
+            raise ValueError(f"Lando response missing git_hash property: {data}")
+
+        return data["git_hash"]
+
+    def git2hg(self, git_hash: str) -> Optional[str]:
+        if git_hash not in git2hg_cache:
+            data = self.get(f"/git2hg/firefox/{git_hash}")
+            if data is None:
+                return None
+            if not isinstance(data.get("hg_hash"), str):
+                raise ValueError(f"Lando response missing hg_hash property: {data}")
+
+            git2hg_cache[git_hash] = data["hg_hash"]
+
+        return git2hg_cache[git_hash]
 
 
-def git2hg(git_hash: str) -> str:
-    if git_hash not in git2hg_cache:
-        response = requests.get(env.config["lando"]["api_url"] + "/git2hg/firefox/" + git_hash)
-        data = response.json()
-        assert isinstance(data, dict)
-        assert isinstance(data["hg_hash"], str)
+class MockLando(Lando):
+    def __init__(self, config: Mapping[str, Any]):
+        super().__init__(config)
+        self.hg_to_git: dict[str, Optional[str]] = {}
+        self.git_to_hg: dict[str, Optional[str]] = {}
 
-        git2hg_cache[git_hash] = data["hg_hash"]
+    def hg2git(self, hg_hash: str) -> Optional[str]:
+        return self.hg_to_git.get(hg_hash)
 
-    return git2hg_cache[git_hash]
+    def git2hg(self, git_hash: str) -> Optional[str]:
+        return self.git_to_hg.get(git_hash)

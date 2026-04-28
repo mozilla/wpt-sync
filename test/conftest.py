@@ -105,17 +105,19 @@ def env(request, mock_mach, mock_wpt):
     config = settings.load()
     cleanup(config)
 
-    from sync import bug, gh
+    from sync import bug, gh, lando
 
     gh_wpt = gh.MockGitHub()
 
     bz = bug.MockBugzilla(config)
     bz.output = StringIO()
 
+    lando_client = lando.MockLando(config)
+
     bugcomponents.Mach = downstream.Mach = landing.Mach = mock_mach
     downstream.WPT = mock_wpt
 
-    set_env(config, bz, gh_wpt)
+    set_env(config, bz, gh_wpt, lando_client)
 
     for name, dir in config["paths"].items():
         path = os.path.join(config["root"], dir)

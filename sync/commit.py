@@ -11,10 +11,9 @@ from pygit2 import Blob, Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
-from .lando import git2hg, hg2git
 from .repos import cinnabar, cinnabar_map, pygit2_get
 
-from typing import Dict
+from typing import Dict, Optional
 from git.repo.base import Repo
 from typing import Any, Callable, Self, Tuple
 from typing import TYPE_CHECKING
@@ -216,7 +215,7 @@ class Commit:
         return self.sha1
 
     @property
-    def canonical_rev_git(self) -> str:
+    def canonical_rev_git(self) -> Optional[str]:
         if self.cinnabar:
             raise ValueError(f"Commit {self.sha1} doesn't have a canonical git SHA1")
         return self.sha1
@@ -546,10 +545,13 @@ class GeckoCommit(Commit):
         return bugs[0]
 
     @property
-    def canonical_rev_git(self) -> str:
+    def canonical_rev_git(self) -> Optional[str]:
         if self.cinnabar:
             if "gecko-commit-git" not in self.notes:
-                self.notes["gecko-commit-git"] = hg2git(self.canonical_rev)
+                canonical_rev_git = env.lando.hg2git(self.canonical_rev)
+                if canonical_rev_git is None:
+                    return None
+                self.notes["gecko-commit-git"] = canonical_rev_git
             sha1 = self.notes["gecko-commit-git"]
             assert sha1 is not None
             return sha1
@@ -604,11 +606,22 @@ class GeckoCommit(Commit):
             nodes, bugs = nodes_bugs
             # Assuming that all commits are listed.
             for node in nodes:
-                hg_revision = node.decode("ascii")
+                backout_revision = node.decode("ascii")
                 if self.is_git_revert:
                     # Convert original git hash to mercurial
-                    hg_revision = git2hg(hg_revision)
-                git_sha = cinnabar(self.repo).hg2git(hg_revision)
+                    hg_revision = env.lando.git2hg(backout_revision)
+                    if hg_revision is None:
+                        # If we have an old commit where someone did a git revert on a cinnibar revision
+                        try:
+                            hg_revision = self.cinnabar.git2hg(backout_revision)
+                        except ValueError:
+                            logger.warning(
+                                f"Unable to get git commit for {backout_revision} which was backed out in hg {self.canonical_rev}"
+                            )
+                            continue
+                else:
+                    hg_revision = backout_revision
+                git_sha = self.cinnabar.hg2git(hg_revision)
                 commits.append(GeckoCommit(self.repo, git_sha))
 
         return commits, set(bugs)

@@ -1,6 +1,5 @@
 import git
 import pytest
-from unittest.mock import patch
 from sync import index, upstream
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
@@ -13,8 +12,8 @@ def test_delete(env, git_gecko, git_wpt, upstream_gecko_commit):
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    with patch("sync.commit.hg2git", return_value="test_revision"):
-        _, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+    env.lando.hg_to_git[rev] = "test_revision"
+    _, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug, flat=True).pop()
     process_name = sync.process_name

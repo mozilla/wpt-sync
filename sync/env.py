@@ -4,10 +4,12 @@ from typing import Any, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from sync.bug import Bugzilla
     from sync.gh import GitHub
+    from sync.lando import Lando
 
 _config: dict | None = None
 _bz: Bugzilla | None = None
 _gh_wpt: GitHub | None = None
+_lando: Lando | None = None
 
 
 class Environment:
@@ -26,14 +28,26 @@ class Environment:
         assert _gh_wpt is not None
         return _gh_wpt
 
+    @property
+    def lando(self) -> Lando:
+        if _lando is None:
+            raise ValueError(
+                "Tried to get Lando Client before it was set; call set_env() before this method"
+            )
+        return _lando
 
-def set_env(config: dict, bz: Optional[Bugzilla], gh_wpt: Optional[GitHub]) -> None:
+
+def set_env(
+    config: dict, bz: Optional[Bugzilla], gh_wpt: Optional[GitHub], lando: Optional[Lando]
+) -> None:
     global _config
     global _bz
     global _gh_wpt
+    global _lando
     _config = config
     _bz = bz
     _gh_wpt = gh_wpt
+    _lando = lando
 
 
 def clear_env() -> None:
@@ -41,6 +55,8 @@ def clear_env() -> None:
     global _config
     global _bz
     global _gh_wpt
+    global _lando
     _config = None
     _bz = None
     _gh_wpt = None
+    _lando = None
