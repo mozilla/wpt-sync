@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import os
 import re
 import subprocess
@@ -11,7 +12,7 @@ from pygit2 import Blob, Commit as PyGit2Commit, Oid
 from . import log
 from .env import Environment
 from .errors import AbortError
-from .repos import cinnabar, cinnabar_map, pygit2_get
+from .repos import cinnabar_map, pygit2_get
 
 from typing import Dict, Optional
 from git.repo.base import Repo
@@ -586,16 +587,39 @@ class GeckoCommit(Commit):
         return landing.LandingSync.has_metadata(self.msg)
 
     def commits_backed_out(self) -> tuple[list[GeckoCommit], set[int]]:
-        # TODO: should bugs be int here
         commits: list[GeckoCommit] = []
         bugs: list[int] = []
+        if "commits-backed-out" in self.notes:
+            try:
+                data = json.loads(self.notes["commits-backed-out"])
+            except json.JSONDecodeError:
+                data = None
+            if data is not None:
+                try:
+                    commit_shas = data["git_commits"]
+                    if not isinstance(commit_shas, list):
+                        raise ValueError("git_commits key was not a list")
+                    commits = [GeckoCommit(self.repo, git_sha) for git_sha in commit_shas]
+                    bugs = data["bugs"]
+                    if not isinstance(bugs, list):
+                        raise ValueError("bugs' key was not a list")
+                    for item in bugs:
+                        if not isinstance(item, int):
+                            raise ValueError(f"bug_id {item} is not an int")
+                except (KeyError, ValueError):
+                    pass
+                else:
+                    return commits, set(bugs)
+        assert self.cinnabar is not None
         if self.is_backout:
             nodes_bugs = None
 
+            is_git_revert = False
             if self.is_hg_backout:
                 nodes_bugs = commitparser.parse_backouts(self.msg)
             elif self.is_git_revert:
                 nodes_bugs = commitparser.parse_reverts(self.msg)
+                is_git_revert = True
 
             if nodes_bugs is None:
                 # We think this a backout, but have no idea what it backs out
@@ -607,11 +631,14 @@ class GeckoCommit(Commit):
             # Assuming that all commits are listed.
             for node in nodes:
                 backout_revision = node.decode("ascii")
-                if self.is_git_revert:
+                if is_git_revert:
                     # Convert original git hash to mercurial
                     hg_revision = env.lando.git2hg(backout_revision)
                     if hg_revision is None:
-                        # If we have an old commit where someone did a git revert on a cinnibar revision
+                        # If we have an old commit where someone did a git revert on a cinnabar revision
+                        logger.debug(
+                            f"{backout_revision} is not a known native git revision, trying cinnabar"
+                        )
                         try:
                             hg_revision = self.cinnabar.git2hg(backout_revision)
                         except ValueError:
@@ -624,6 +651,9 @@ class GeckoCommit(Commit):
                 git_sha = self.cinnabar.hg2git(hg_revision)
                 commits.append(GeckoCommit(self.repo, git_sha))
 
+        self.notes["commits-backed-out"] = json.dumps(
+            {"git_commits": [item.sha1 for item in commits], "bugs": bugs}
+        )
         return commits, set(bugs)
 
     def wpt_commits_backed_out(

@@ -1,3 +1,6 @@
+import hashlib
+import os
+
 from unittest.mock import patch, PropertyMock
 
 from sync import commit as sync_commit, upstream
@@ -97,7 +100,9 @@ def test_create_pr_revert(env, git_gecko, git_wpt, upstream_gecko_commit, upstre
     rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=message.encode())
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    env.lando.hg_to_git[rev] = "test_revision"
+    git_rev = hashlib.sha1(os.urandom(20)).hexdigest()
+    env.lando.hg_to_git[rev] = git_rev
+    env.lando.git_to_hg[git_rev] = rev
     upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
@@ -113,15 +118,17 @@ def test_create_pr_revert(env, git_gecko, git_wpt, upstream_gecko_commit, upstre
     backout_rev = upstream_gecko_revert(message, rev)
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
-    env.lando.hg_to_git[backout_rev] = "test_revision"
+    git_rev = hashlib.sha1(os.urandom(20)).hexdigest()
+    env.lando.hg_to_git[backout_rev] = git_rev
+    env.lando.git_to_hg[git_rev] = backout_rev
+
     upstream.gecko_push(git_gecko, git_wpt, "autoland", backout_rev, raise_on_error=True)
     syncs = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)
     assert list(syncs.keys()) == ["incomplete"]
     assert len(syncs["incomplete"]) == 1
     sync = syncs["incomplete"].pop()
     assert sync.bug == 1234
-    with patch("sync.commit.git2hg", return_value=rev):
-        assert len(sync.gecko_commits) == 0
+    assert len(sync.gecko_commits) == 0
     assert len(sync.wpt_commits) == 1
     assert len(sync.upstreamed_gecko_commits) == 1
     assert sync.status == "incomplete"

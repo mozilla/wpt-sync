@@ -1,6 +1,5 @@
 import copy
 import glob
-import hashlib
 import io
 import json
 import os
@@ -389,11 +388,9 @@ def upstream_gecko_backout(env, hg_gecko_upstream):
 @pytest.fixture
 def upstream_gecko_revert(env, hg_gecko_upstream):
     def inner(message, rev, bookmarks="mozilla/autoland"):
-        # Git hash has to be converted to hg hash with API.
-        # Since we going to mock this API call, this git hash
-        # can have a random value that just looks like git hash.
-        random_hash = hashlib.sha1(os.urandom(20)).hexdigest()
-        commit_message = f"""Revert \"{message}\"\nThis reverts commit {random_hash}.""".encode()
+        # Caller needs to provide the value in LandoMock
+        git_rev = env.lando.hg2git(rev)
+        commit_message = f"""Revert \"{message}\"\nThis reverts commit {git_rev}.""".encode()
         hg_gecko_upstream.backout("--no-commit", rev)
         return hg_commit(hg_gecko_upstream, commit_message, bookmarks)
 

@@ -1,7 +1,13 @@
-import pytest
+import hashlib
+import json
+import os
 from unittest.mock import patch, PropertyMock
 
+import pytest
+
 from sync import commit as sync_commit
+from sync.gitutils import update_repositories
+from sync.repos import cinnabar
 
 
 def test_wpt_empty(git_gecko, local_gecko_commit):
@@ -51,3 +57,65 @@ def test_move_utf16(git_gecko, git_wpt_upstream, git_wpt, wpt_worktree, local_ge
 )
 def test_metadata(msg, expected):
     assert sync_commit.get_metadata(msg) == expected
+
+
+def test_commits_backed_out(env, git_gecko, git_wpt, upstream_gecko_commit, upstream_gecko_backout):
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
+
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
+    git_rev = hashlib.sha1(os.urandom(20)).hexdigest()
+    env.lando.hg_to_git[rev] = git_rev
+    backout_rev = upstream_gecko_backout([rev], [bug])
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
+    git_rev_cinnabar = cinnabar(git_gecko).hg2git(rev)
+
+    backout_commit = sync_commit.GeckoCommit(git_gecko, cinnabar(git_gecko).hg2git(backout_rev))
+    commits, bugs = backout_commit.commits_backed_out()
+
+    assert commits == [sync_commit.GeckoCommit(git_gecko, git_rev_cinnabar)]
+    assert bugs == {bug}
+    assert json.loads(backout_commit.notes["commits-backed-out"]) == {
+        "git_commits": [git_rev_cinnabar],
+        "bugs": [bug],
+    }
+
+    # Re-getting the property should return the same result without lando
+    del env.lando.hg_to_git[rev]
+    assert backout_commit.commits_backed_out() == (
+        [sync_commit.GeckoCommit(git_gecko, git_rev_cinnabar)],
+        {bug},
+    )
+
+
+def test_commits_backed_out_revert(
+    env, git_gecko, git_wpt, upstream_gecko_commit, upstream_gecko_revert
+):
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
+
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    git_rev = hashlib.sha1(os.urandom(20)).hexdigest()
+    env.lando.git_to_hg[git_rev] = rev
+    env.lando.hg_to_git[rev] = git_rev
+    backout_rev = upstream_gecko_revert(f"Bug {bug} - Change README", rev)
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=backout_rev)
+    git_rev_cinnabar = cinnabar(git_gecko).hg2git(rev)
+
+    backout_commit = sync_commit.GeckoCommit(git_gecko, cinnabar(git_gecko).hg2git(backout_rev))
+    assert backout_commit.commits_backed_out() == (
+        [sync_commit.GeckoCommit(git_gecko, git_rev_cinnabar)],
+        {bug},
+    )
+    assert json.loads(backout_commit.notes["commits-backed-out"]) == {
+        "git_commits": [git_rev_cinnabar],
+        "bugs": [bug],
+    }
+
+    # Re-getting the property should return the same result without lando
+    del env.lando.hg_to_git[rev]
+    assert backout_commit.commits_backed_out() == (
+        [sync_commit.GeckoCommit(git_gecko, git_rev_cinnabar)],
+        {bug},
+    )
