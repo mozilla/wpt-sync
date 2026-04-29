@@ -1,3 +1,4 @@
+import time
 from urllib.parse import urljoin
 from typing import Any, Mapping, Optional
 
@@ -12,14 +13,26 @@ class Lando:
         self.base_url = config["lando"]["api_url"]
 
     def get(self, path: str) -> Optional[Mapping[str, Any]]:
-        resp = requests.get(urljoin(self.base_url, path))
-        if resp.status_code == 404:
-            return None
-        resp.raise_for_status()
-        data = resp.json()
-        if not isinstance(data, dict):
-            raise ValueError(f"Expected map, got {data}")
-        return data
+        exc = None
+        for _retry_count in range(5):
+            resp = requests.get(urljoin(self.base_url, path))
+            if resp.status_code == 404:
+                return None
+            try:
+                resp.raise_for_status()
+            except Exception as e:
+                exc = e
+                if resp.status_code == 502:
+                    # retry
+                    time.sleep(1)
+                    continue
+                raise
+            data = resp.json()
+            if not isinstance(data, dict):
+                raise ValueError(f"Expected map, got {data}")
+            return data
+        assert exc is not None
+        raise exc
 
     def hg2git(self, hg_hash: str) -> Optional[str]:
         data = self.get(f"/hg2git/firefox/{hg_hash}")
