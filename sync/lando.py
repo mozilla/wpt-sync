@@ -10,7 +10,7 @@ git2hg_cache: dict[str, str] = {}
 
 class Lando:
     def __init__(self, config: Mapping[str, Any]):
-        self.base_url = config["lando"]["api_url"]
+        self.base_url = config["lando"]["url"]
 
     def get(self, path: str) -> Optional[Mapping[str, Any]]:
         exc = None
@@ -35,7 +35,7 @@ class Lando:
         raise exc
 
     def hg2git(self, hg_hash: str) -> Optional[str]:
-        data = self.get(f"/hg2git/firefox/{hg_hash}")
+        data = self.get(f"/api/hg2git/firefox/{hg_hash}")
         if data is None:
             return None
         if not isinstance(data.get("git_hash"), str):
@@ -45,7 +45,7 @@ class Lando:
 
     def git2hg(self, git_hash: str) -> Optional[str]:
         if git_hash not in git2hg_cache:
-            data = self.get(f"/git2hg/firefox/{git_hash}")
+            data = self.get(f"/api/git2hg/firefox/{git_hash}")
             if data is None:
                 return None
             if not isinstance(data.get("hg_hash"), str):
