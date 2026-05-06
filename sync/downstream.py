@@ -1241,7 +1241,10 @@ def update_pr(
             if sync.bug is None and sync.pr:
                 try:
                     pr = env.gh_wpt.get_pull(sync.pr)
-                    sync.create_bug(git_wpt, sync.pr, pr.title, pr.body or "")
+                    with SyncLock.for_process(sync.process_name) as lock:
+                        assert isinstance(lock, SyncLock)
+                        with sync.as_mut(lock):
+                            sync.create_bug(git_wpt, sync.pr, pr.title, pr.body or "")
                 except Exception:
                     logger.error(
                         f"The bug creation for the downstream sync with PR: {sync.pr} failed"
