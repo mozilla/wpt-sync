@@ -638,7 +638,7 @@ def test_metadata_update(env, git_gecko, git_wpt, pull_request, pull_request_com
 
 
 def test_gecko_rebase(env, git_gecko, git_wpt, pull_request):
-    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], b"Test PR")
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 
     downstream.new_wpt_pr(git_gecko, git_wpt, pr)
     sync = load.get_pr_sync(git_gecko, git_wpt, pr["number"])
