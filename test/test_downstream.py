@@ -53,6 +53,41 @@ def test_new_wpt_pr(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     assert "Creating a bug in component Testing :: web-platform" in env.bz.output.getvalue()
 
 
+def test_new_wpt_pr_escapes_angle_brackets(
+    env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt
+):
+    # Angle brackets in PR-sourced text must be escaped before being sent to
+    # Bugzilla — the request with HTTP 406 as a suspected tag-injection payload.
+    mock_mach.set_data(
+        "file-info",
+        b"""Testing :: web-platform-tests
+  testing/web-platform/tests/README
+""",
+    )
+    mock_wpt.set_data("files-changed", b"README\n")
+
+    title = "Add <html> tag when x < 5"
+    body = "Equivalent to `<head/>` and a < b."
+
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], title, body)
+
+    downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+
+    output = env.bz.output.getvalue()
+
+    # Tag-like substrings from the PR must not appear raw in the bug request.
+    assert "<html>" not in output
+    assert "<head/>" not in output
+
+    # Their escaped versions must be present instead.
+    assert "&lt; html&gt;" in output
+    assert "&lt; head/&gt;" in output
+
+    # Bare angle brackets used as comparisons must be left untouched.
+    assert "x < 5" in output
+    assert "a < b" in output
+
+
 def test_new_pr_existing_branch(env, git_gecko, git_wpt, pull_request, mock_mach, mock_wpt):
     pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
 

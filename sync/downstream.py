@@ -40,6 +40,18 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 
+def _escape_pr_text(text: str) -> str:
+    # Escape HTML-tag-like substrings in PR text so the request body
+    # doesn't contain tokens that Bugzilla API rejects with HTTP 406. Bare
+    # angle brackets used for comparisons or arrows (e.g. `x < 5`, `->`) are
+    # left untouched.
+    _html_tag_re = re.compile(r"</?[a-zA-Z][^>]*>")
+    return _html_tag_re.sub(
+        lambda m: m.group(0).replace("<", "&lt; ").replace(">", "&gt;"),
+        text,
+    )
+
+
 @enum.unique
 class DownstreamAction(enum.Enum):
     ready = 0
@@ -114,11 +126,11 @@ class DownstreamSync(SyncProcess):
             "Details from upstream follow.",
             "",
             "%s wrote:" % author.decode("utf8", "ignore"),
-            ">  %s" % pr_title,
+            ">  %s" % _escape_pr_text(pr_title),
         ]
         if pr_msg:
             msg.append(">  ")
-            msg.extend(">  %s" % line for line in pr_msg.split("\n"))
+            msg.extend(">  %s" % _escape_pr_text(line) for line in pr_msg.split("\n"))
         return "\n".join(msg)
 
     @classmethod
@@ -419,7 +431,7 @@ class DownstreamSync(SyncProcess):
         if self.bug is not None:
             return
         comment = self.make_bug_comment(git_wpt, pr_id, pr_title, pr_body)
-        summary = f"[wpt-sync] Sync PR {pr_id} - {pr_title}"
+        summary = f"[wpt-sync] Sync PR {pr_id} - {_escape_pr_text(pr_title)}"
         if len(summary) > 255:
             summary = summary[:254] + "\u2026"
         bug = env.bz.new(
