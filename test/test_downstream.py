@@ -80,8 +80,8 @@ def test_new_wpt_pr_escapes_angle_brackets(
     assert "<head/>" not in output
 
     # Their escaped versions must be present instead.
-    assert "&lt; html&gt;" in output
-    assert "&lt; head/&gt;" in output
+    assert "&lt;html&gt;" in output
+    assert "&lt;head/&gt;" in output
 
     # Bare angle brackets used as comparisons must be left untouched.
     assert "x < 5" in output

@@ -11,6 +11,7 @@ import subprocess
 import traceback
 from collections import defaultdict
 from datetime import datetime
+import html
 
 
 import enum
@@ -47,7 +48,7 @@ def _escape_pr_text(text: str) -> str:
     # left untouched.
     _html_tag_re = re.compile(r"</?[a-zA-Z][^>]*>")
     return _html_tag_re.sub(
-        lambda m: m.group(0).replace("<", "&lt; ").replace(">", "&gt;"),
+        lambda m: html.escape(m.group(0)),
         text,
     )
 
