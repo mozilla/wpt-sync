@@ -454,13 +454,15 @@ Automatic update from web-platform-tests\n%s
         commits = [
             item
             for item in self.unlanded_gecko_commits()
-            if item.canonical_rev not in gecko_commits_landed
+            if item.require_canonical_rev_git not in gecko_commits_landed
         ]
 
         landing_commit = self.gecko_commits[-1]
         git_work_gecko = self.gecko_worktree.get()
 
-        logger.debug("Reapplying commits: %s" % " ".join(item.canonical_rev for item in commits))
+        logger.debug(
+            "Reapplying commits: %s" % " ".join(item.require_canonical_rev_git for item in commits)
+        )
 
         if not commits:
             return
@@ -473,7 +475,7 @@ Automatic update from web-platform-tests\n%s
         already_applied_set = set(already_applied)
 
         unapplied_gecko_commits = [
-            item for item in commits if item.canonical_rev not in already_applied_set
+            item for item in commits if item.require_canonical_rev_git not in already_applied_set
         ]
 
         try:
@@ -482,7 +484,8 @@ Automatic update from web-platform-tests\n%s
                 def msg_filter(_: Any) -> tuple[bytes, dict[str, str]]:
                     msg = landing_commit.msg
                     reapplied_commits = already_applied + [
-                        commit.canonical_rev for commit in commits[: i + 1]
+                        commit.require_canonical_rev_git
+                        for commit in unapplied_gecko_commits[: i + 1]
                     ]
                     metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
                     return msg, metadata
@@ -645,7 +648,7 @@ Automatic update from web-platform-tests\n%s
         ) -> None:
             if isinstance(sync, upstream.UpstreamSync):
                 for commit in commits:
-                    gecko_commit = commit.metadata.get("gecko-commit")
+                    gecko_commit = commit.metadata.get("gecko-commit-git")
                     if gecko_commit:
                         gecko_commits_landed.add(gecko_commit)
 
@@ -1060,8 +1063,10 @@ def landable_commits(
                             )
 
                 # Only check the first commit since later ones could be added in the PR
-                sync_revs = {item.canonical_rev for item in sync.upstreamed_gecko_commits}
-                if any(commit.metadata.get("gecko-commit") in sync_revs for commit in commits):
+                sync_revs = {
+                    item.require_canonical_rev_git for item in sync.upstreamed_gecko_commits
+                }
+                if any(commit.metadata.get("gecko-commit-git") in sync_revs for commit in commits):
                     break
             else:
                 sync = None
