@@ -939,11 +939,6 @@ class DownstreamSync(SyncProcess):
                     item = item_bytes.decode("utf8", "replace")
                     path, test_type = item.strip().split("\t")
                     tests_by_type[test_type].append(path)
-
-            # TODO: Temporary exclude accessibility tests until we fixed the mozharness.
-            if "aamtest" in tests_by_type:
-                del tests_by_type["aamtest"]
-
             self.data["affected-tests"] = tests_by_type
         return self.data["affected-tests"]
 
