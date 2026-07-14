@@ -6,14 +6,14 @@ from collections import defaultdict
 from . import log
 from .env import Environment
 from .projectutil import Mach
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Pattern, Union
 from git.repo.base import Repo
 
 logger = log.get_logger(__name__)
 env = Environment()
 
 # Copied from mozpack.path
-re_cache = {}
+re_cache: dict[str, Pattern[str]] = {}
 
 
 def match(path: str, pattern: str) -> bool:
