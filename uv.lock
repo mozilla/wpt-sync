@@ -1393,7 +1393,7 @@ wheels = [
 
 [[package]]
 name = "taskcluster"
-version = "100.2.0"
+version = "104.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1404,9 +1404,9 @@ dependencies = [
     { name = "slugid" },
     { name = "taskcluster-urls" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/48/26276dcf89a4c31675ea3183e779683ac8f61f4f4f59c639ee571f980fd3/taskcluster-100.2.0.tar.gz", hash = "sha256:1eba10caec69fd0bb6668674de174ff22c85454ce3ef0cbea2e15eff62492ede", size = 254855, upload-time = "2026-05-28T13:25:34.293Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/72/2d2b2c9718a975a4470fd0c23e78d7e566fc9bf39b74e54f569f715a2325/taskcluster-104.0.0.tar.gz", hash = "sha256:365fc02c187a4e8e0c04f287236fd0cc7ec46738a2f6a0ec55a78b9323deecca", size = 242212, upload-time = "2026-08-06T12:12:34.607Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/66/7bdc997cdc2e8ab1beb39ca6e1888ef9f8fcf48e37e0540e6a7366f8f7e2/taskcluster-100.2.0-py3-none-any.whl", hash = "sha256:b7864d71af86262d1563a34545532165e784565b65979f28485f9fbfe85913d5", size = 150895, upload-time = "2026-05-28T13:25:32.531Z" },
+    { url = "https://files.pythonhosted.org/packages/be/0a/980321498d317f6c1ed2a70768fb4a5e9a5fc29a618b41e8afa56a780ef4/taskcluster-104.0.0-py3-none-any.whl", hash = "sha256:b79458eb419628d8cfbf7d56b2bccee1a9e3eaa17ac56c345f2e42d9e0135b08", size = 151106, upload-time = "2026-08-06T12:12:33.192Z" },
 ]
 
 [[package]]
@@ -1604,7 +1604,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'test'", specifier = "==0.15.21" },
     { name = "setuptools", specifier = "==82.0.1" },
     { name = "slugid", specifier = "==2.0.0" },
-    { name = "taskcluster", specifier = "==100.2.0" },
+    { name = "taskcluster", specifier = "==104.0.0" },
     { name = "types-filelock", marker = "extra == 'test'", specifier = "==3.2.7" },
     { name = "types-pyyaml", marker = "extra == 'test'", specifier = "==6.0.12.20250516" },
     { name = "types-requests", marker = "extra == 'test'", specifier = "==2.33.0.20260712" },
