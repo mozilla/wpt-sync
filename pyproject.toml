@@ -28,7 +28,7 @@ dependencies = [
   "mercurial==7.2.4",
   "mozautomation",
   "phabricator==0.9.1",
-  "pygit2==1.19.3",
+  "pygit2==1.20.0",
   "pygithub==2.10.0",
   "pyyaml==6.0.3",
   "requests==2.34.2",
