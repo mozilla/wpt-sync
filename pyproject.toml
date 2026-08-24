@@ -29,7 +29,7 @@ dependencies = [
   "mozautomation",
   "phabricator==0.9.1",
   "pygit2==1.19.3",
-  "pygithub==2.9.1",
+  "pygithub==2.10.0",
   "pyyaml==6.0.3",
   "requests==2.34.2",
   "setuptools==82.0.1",
