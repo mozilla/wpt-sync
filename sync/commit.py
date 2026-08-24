@@ -73,8 +73,11 @@ def create_commit(repo: Repo, msg: bytes, **kwargs: Any) -> GitPythonCommit:
     exec_kwargs = {k: v for k, v in kwargs.items() if k in git.cmd.execute_kwargs}
     opts_kwargs = {k: v for k, v in kwargs.items() if k not in git.cmd.execute_kwargs}
 
-    cmd: list[str | bytes | None] = [repo.git.GIT_PYTHON_GIT_EXECUTABLE]
-    cmd.extend(repo.git._persistent_git_options)
+    git_executable = repo.git.GIT_PYTHON_GIT_EXECUTABLE
+    if git_executable is None:
+        raise ValueError("git is not configured")
+    cmd: list[bytes] = [git_executable]
+    cmd.extend(item.encode("utf8") for item in repo.git._persistent_git_options)
     cmd.append(b"commit")
     cmd.append(b"--message=%s" % msg)
     for name, value in opts_kwargs.items():
@@ -93,7 +96,13 @@ def create_commit(repo: Repo, msg: bytes, **kwargs: Any) -> GitPythonCommit:
                 cmd.append(value)
             else:
                 cmd.append(b"--%s=%s" % (name_bytes, value))
-    repo.git.execute(cmd, **exec_kwargs)
+
+    env = os.environ.copy()
+    env["LANGUAGE"] = "C"
+    env["LC_ALL"] = "C"
+    env.update(repo.git._environment)
+
+    subprocess.check_call(cmd, env=env, **exec_kwargs)
 
     head = repo.head.commit
     assert prev_head != head
