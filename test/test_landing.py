@@ -339,7 +339,7 @@ def test_landing_reapply(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1111, message=b"Add change1 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    env.lando.hg_to_git[rev] = "test_revision"
+    env.lando.hg_to_git[rev] = "test_revision_1"
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync_1 = pushed.pop()
 
@@ -362,7 +362,7 @@ def test_landing_reapply(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1112, message=b"Add change2 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    env.lando.hg_to_git[rev] = "test_revision"
+    env.lando.hg_to_git[rev] = "test_revision_2"
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
     sync_2 = pushed.pop()
 
@@ -397,7 +397,7 @@ def test_landing_reapply(
     rev = upstream_gecko_commit(test_changes=test_changes, bug=1113, message=b"Add change3 file")
 
     update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
-    env.lando.hg_to_git[rev] = "test_revision"
+    env.lando.hg_to_git[rev] = "test_revision_3"
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     # Now start a landing
@@ -444,6 +444,93 @@ def test_landing_reapply(
     )
     sync_point = landing.load_sync_point(git_gecko, git_wpt)
     assert sync_point["upstream"] == landing_rev
+
+
+def test_reapply_local_commits_uses_canonical_git_revs(
+    env, git_gecko, git_wpt, git_wpt_upstream, local_gecko_commit
+):
+    git_wpt.remotes.origin.fetch()
+    wpt_rev = git_wpt_upstream.head.commit.hexsha
+
+    landed_commit = sync_commit.GeckoCommit(
+        git_gecko,
+        local_gecko_commit(
+            test_changes={"landed": b"LANDED\n"},
+            bug=1111,
+            message=b"Already landed",
+        ).hexsha,
+    )
+    already_reapplied_commit = sync_commit.GeckoCommit(
+        git_gecko,
+        local_gecko_commit(
+            test_changes={"already": b"ALREADY\n"},
+            bug=1112,
+            message=b"Already reapplied",
+        ).hexsha,
+    )
+    unapplied_commit = sync_commit.GeckoCommit(
+        git_gecko,
+        local_gecko_commit(
+            test_changes={"unapplied": b"UNAPPLIED\n"},
+            bug=1113,
+            message=b"Still needs reapplying",
+        ).hexsha,
+    )
+
+    landed_git_rev = "git-rev-landed"
+    already_reapplied_git_rev = "git-rev-already-reapplied"
+    unapplied_git_rev = "git-rev-unapplied"
+
+    landed_commit.notes["gecko-commit-git"] = landed_git_rev
+    already_reapplied_commit.notes["gecko-commit-git"] = already_reapplied_git_rev
+    unapplied_commit.notes["gecko-commit-git"] = unapplied_git_rev
+
+    with SyncLock("landing", None) as lock:
+        landing_sync = landing.LandingSync.new(lock, git_gecko, git_wpt, wpt_rev, wpt_rev)
+        with landing_sync.as_mut(lock):
+            git_work = landing_sync.gecko_worktree.get()
+            landing_msg = sync_commit.Commit.make_commit_msg(
+                b"Landing commit",
+                {
+                    "reapplied-commits": already_reapplied_git_rev,
+                    "wpt-head": wpt_rev,
+                    "wpt-type": "landing",
+                },
+            )
+            sync_commit.create_commit(git_work, landing_msg, allow_empty=True)
+            landing_commit = landing_sync.gecko_commits[-1]
+
+            landing_sync._unlanded_gecko_commits = [
+                landed_commit,
+                already_reapplied_commit,
+                unapplied_commit,
+            ]
+
+            captured_metadata = []
+
+            def fake_move(dest_repo, msg_filter=None, **kwargs):
+                assert msg_filter is not None
+                msg, metadata = msg_filter(None)
+                assert msg == landing_commit.msg
+                captured_metadata.append(metadata)
+                return sync_commit.GeckoCommit(git_gecko, dest_repo.head.commit.hexsha)
+
+            landed_move = Mock(side_effect=AssertionError("landed commit was reapplied"))
+            already_reapplied_move = Mock(
+                side_effect=AssertionError("already reapplied commit was reapplied")
+            )
+            unapplied_move = Mock(side_effect=fake_move)
+
+            with (
+                patch.object(landed_commit, "move", landed_move),
+                patch.object(already_reapplied_commit, "move", already_reapplied_move),
+                patch.object(unapplied_commit, "move", unapplied_move),
+            ):
+                landing_sync.reapply_local_commits({landed_git_rev})
+
+            assert captured_metadata == [
+                {"reapplied-commits": f"{already_reapplied_git_rev}, {unapplied_git_rev}"}
+            ]
 
 
 def test_landing_pr_on_central(
