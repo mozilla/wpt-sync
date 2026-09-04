@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+build-backend = "setuptools*"
 
 [tool.setuptools]
 packages = ["sync"]
@@ -32,7 +32,7 @@ dependencies = [
   "pygithub==2.10.0",
   "pyyaml==6.0.3",
   "requests==2.34.2",
-  "setuptools==82.0.1",
+  "setuptools==84.0.0",
   "slugid==2.0.0",
   "taskcluster==107.0.0",
 ]
