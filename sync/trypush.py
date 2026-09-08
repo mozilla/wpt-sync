@@ -122,18 +122,18 @@ class TryCommit:
                  Lando hasn't landed the commits yet.
         """
         job_id = self._push()
-        return job_id, self.read_try_rev(job_id)
+        return job_id, self.read_try_rev(job_id, 60)
 
     def _push(self) -> int:
         raise NotImplementedError
 
-    def read_try_rev(self, job_id: int) -> str | None:
+    def read_try_rev(self, job_id: int, timeout: int) -> str | None:
         """Wait for Lando to apply the patches we pushed and return the revision
         it created on try.
 
         :return: The revision on try, or None if the job hasn't landed yet
         """
-        deadline = time.monotonic() + 60
+        deadline = time.monotonic() + timeout
         while True:
             job = env.lando.landing_job(job_id)
             try_rev = try_rev_from_job(job_id, job)
