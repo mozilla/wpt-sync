@@ -506,6 +506,7 @@ class TryPush(base.ProcessData):
         self["try-rev"] = value
         idx.insert(idx.make_key(value), self.process_name)
 
+    @mut()
     def poll_try_rev(self) -> str | None:
         """Ask Lando once for the revision it created on try, if we don't have it yet.
 
@@ -523,14 +524,11 @@ class TryPush(base.ProcessData):
         try:
             try_rev = try_rev_from_job(job_id, env.lando.landing_job(job_id))
         except AbortError as e:
-            with SyncLock.for_process(self.process_name) as lock:
-                assert isinstance(lock, SyncLock)
-                with self.as_mut(lock):
-                    self.status = "complete"
-                    self.infra_fail = True
-                    bug = self.get("bug")
-                    if bug is not None:
-                        env.bz.comment(bug, "Try push failed to land: %s" % e.message)
+            self.status = "complete"
+            self.infra_fail = True
+            bug = self.get("bug")
+            if bug is not None:
+                env.bz.comment(bug, "Try push failed to land: %s" % e.message)
             return None
         except Exception:
             # Don't allow a problem with one try push to stop us handling the others
@@ -546,11 +544,8 @@ class TryPush(base.ProcessData):
             )
             return None
 
-        with SyncLock.for_process(self.process_name) as lock:
-            assert isinstance(lock, SyncLock)
-            with self.as_mut(lock):
-                logger.info("Try push %s landed on try as %s" % (self.process_name, try_rev))
-                self.try_rev = try_rev
+        logger.info("Try push %s landed on try as %s" % (self.process_name, try_rev))
+        self.try_rev = try_rev
         return try_rev
 
     @property

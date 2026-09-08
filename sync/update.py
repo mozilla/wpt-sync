@@ -292,7 +292,10 @@ def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo, try_push: TryPush | Non
     for try_push_item in try_pushes:
         if not try_push_item.taskgroup_id:
             logger.info("Setting taskgroup id for try push %s" % try_push_item)
-            try_rev = try_push_item.poll_try_rev()
+            with SyncLock.for_process(try_push_item.process_name) as lock:
+                assert isinstance(lock, SyncLock)
+                with try_push_item.as_mut(lock):
+                    try_rev = try_push_item.poll_try_rev()
             if try_rev is None:
                 logger.warning(
                     "Try push %s has no associated revision" % try_push_item.process_name
