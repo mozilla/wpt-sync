@@ -40,6 +40,12 @@ env = Environment()
 auth_tc = tc.TaskclusterClient()
 
 
+class MachTooOldError(Exception):
+    """The mach in the worktree doesn't support the arguments we need to push to try.
+
+    Rebasing the sync onto a more recent gecko revision is expected to fix this."""
+
+
 def try_rev_from_job(job_id: int, job: Mapping[str, Any]) -> str | None:
     status = job.get("status")
     if status == "LANDED":
@@ -242,7 +248,15 @@ class TryFuzzyCommit(TryCommit):
 
         logger.info("Creating try commit with fuzzy query: %s" % " ".join(query_args))
 
-        can_push_routes = b"--route " in mach.try_("fuzzy", "--help")
+        try_help = mach.try_("fuzzy", "--help")
+
+        if b"--write-task-config" not in try_help:
+            raise MachTooOldError("mach try fuzzy doesn't support --write-task-config")
+
+        if b"--env" not in try_help:
+            raise MachTooOldError("mach try fuzzy doesn't support --env")
+
+        can_push_routes = b"--route " in try_help
 
         args = ["fuzzy"] + query_args
         if self.rebuild:
@@ -373,8 +387,6 @@ class TryPush(base.ProcessData):
         TaskGroupIndex.get_or_create(sync.git_gecko)
         try_idx = TryCommitIndex.get_or_create(sync.git_gecko)
 
-        git_work = sync.gecko_worktree.get()
-
         sync_id = str(getattr(sync, sync.obj_id))
         token = f"{sync.sync_type}/{sync_id}/{uuid.uuid4()}"
 
@@ -383,17 +395,36 @@ class TryPush(base.ProcessData):
             if not isinstance(rebuild_count, int):
                 logger.error("Could not find config for Stability rebuild count, using default 5")
                 rebuild_count = 5
-        with try_cls(
-            sync.git_gecko,
-            git_work,
-            affected_tests,
-            rebuild_count,
-            hacks=hacks,
-            base=sync.gecko_commits.base.sha1,
-            token=token,
-            **kwargs,
-        ) as c:
-            job_id, try_rev = c.push()
+
+        def push() -> tuple[int, str | None]:
+            with try_cls(
+                sync.git_gecko,
+                sync.gecko_worktree.get(),
+                affected_tests,
+                rebuild_count,
+                hacks=hacks,
+                base=sync.gecko_commits.base.sha1,
+                token=token,
+                **kwargs,
+            ) as c:
+                return c.push()
+
+        try:
+            job_id, try_rev = push()
+        except MachTooOldError as e:
+            # The sync is based on a gecko revision that predates the mach features we
+            # rely on, so rebase onto the tip of the landing branch and try again
+            landing_branch = sync.gecko_landing_branch()
+            logger.info(f"{e}; rebasing onto {landing_branch}")
+
+            sync.gecko_rebase(landing_branch, abort_on_fail=True)
+
+            try:
+                job_id, try_rev = push()
+            except MachTooOldError as e:
+                msg = f"{e}, even after rebasing onto {landing_branch}"
+                logger.error(msg)
+                raise AbortError(msg)
 
         data = {
             "try-rev": try_rev,

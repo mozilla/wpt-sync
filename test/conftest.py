@@ -52,9 +52,24 @@ try_task_config = """{
 """
 
 
+try_fuzzy_help = b"""usage: mach [global arguments] try fuzzy [command arguments]
+
+Command Arguments:
+  --full                Use the full task graph
+  --artifact            Force artifact builds
+  --no-artifact         Disable artifact builds
+  --env ENV             Set an environment variable in the task
+  --write-task-config   Write try_task_config.json to the root of the source
+                        tree instead of pushing to try
+"""
+
+
 def mach_try(mach, *args, **kwargs):
     """Mock `mach try`, which with --write-task-config writes try_task_config.json
     to the root of the source tree instead of pushing to try"""
+    if "--help" in args:
+        return try_fuzzy_help
+
     if "--write-task-config" not in args:
         return b""
 
@@ -556,6 +571,15 @@ def mock_mach():
     cls.set_data("try", mach_try)
     projectutil.Mach = cls
     return cls
+
+
+@pytest.fixture
+def mock_mach_no_write_task_config():
+    """Mock mach for a gecko revision that predates `mach try --write-task-config`,
+    so `mach try fuzzy --help` doesn't list the flag"""
+    from sync import projectutil
+
+    return projectutil.create_mock("mach")
 
 
 @pytest.fixture(scope="function")
