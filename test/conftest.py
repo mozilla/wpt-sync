@@ -33,6 +33,62 @@ from sync.lock import SyncLock
 
 here = os.path.abspath(os.path.dirname(__file__))
 
+try_task_config = """{
+    "parameters": {
+        "optimize_target_tasks": false,
+        "try_task_config": {
+            "env": {
+                "TRY_SELECTOR": "fuzzy"
+            },
+            "tasks": [
+                "test-linux2404-64/debug-web-platform-tests-1",
+                "test-linux2404-64/opt-web-platform-tests-1"
+            ],
+            "use-artifact-builds": true
+        }
+    },
+    "version": 2
+}
+"""
+
+
+try_fuzzy_help = b"""usage: mach [global arguments] try fuzzy [command arguments]
+
+Command Arguments:
+  --full                Use the full task graph
+  --artifact            Force artifact builds
+  --no-artifact         Disable artifact builds
+  --env ENV             Set an environment variable in the task
+  --write-task-config   Write try_task_config.json to the root of the source
+                        tree instead of pushing to try
+"""
+
+
+def mach_try(mach, *args, **kwargs):
+    """Mock `mach try`, which with --write-task-config writes try_task_config.json
+    to the root of the source tree instead of pushing to try"""
+    if "--help" in args:
+        return try_fuzzy_help
+
+    if "--write-task-config" not in args:
+        return b""
+
+    task_config = json.loads(try_task_config)
+    task_env = task_config["parameters"]["try_task_config"]["env"]
+    for idx, arg in enumerate(args):
+        if arg == "--env":
+            name, value = args[idx + 1].split("=", 1)
+            task_env[name] = value
+
+    path = os.path.join(mach.path, "try_task_config.json")
+    with open(path, "w") as f:
+        json.dump(task_config, f, indent=4, sort_keys=True)
+        f.write("\n")
+    return b"""warning: paths to individual tests may not work, re-writing to \
+testing/web-platform/tests/example. Pass --allow-testfile-path to override
+Wrote %s
+""" % path.encode("utf8")
+
 
 def create_file_data(file_data, repo_workdir, repo_prefix=None):
     add_paths = []
@@ -512,8 +568,18 @@ def mock_mach():
     from sync import projectutil
 
     cls = projectutil.create_mock("mach")
+    cls.set_data("try", mach_try)
     projectutil.Mach = cls
     return cls
+
+
+@pytest.fixture
+def mock_mach_no_write_task_config():
+    """Mock mach for a gecko revision that predates `mach try --write-task-config`,
+    so `mach try fuzzy --help` doesn't list the flag"""
+    from sync import projectutil
+
+    return projectutil.create_mock("mach")
 
 
 @pytest.fixture(scope="function")
@@ -533,7 +599,7 @@ def mock_try_push(git_gecko):
 
     def push(self):
         log.append(f"Pushing to try with message:\n{self.worktree.head.commit.message}")
-        return repos.cinnabar(git_gecko).git2hg(self.worktree.commit("HEAD~").hexsha)
+        return None, repos.cinnabar(git_gecko).git2hg(self.worktree.commit("HEAD~").hexsha)
 
     trypush.TryCommit.push = push
 
@@ -680,7 +746,7 @@ def try_push(
 
     trypush.Mach = mock_mach
     with patch("sync.tree.is_open", Mock(return_value=True)):
-        with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
             mock_read.return_value = "0000000000000000"
             downstream.new_wpt_pr(git_gecko, git_wpt, pr)
             sync = set_pr_status(pr.number, "success")
@@ -742,7 +808,8 @@ def MockTryCls():
             pass
 
         def push(self):
-            return "".join(hex(random.randint(0, 15))[2:] for _ in range(40))
+            try_rev = "".join(hex(random.randint(0, 15))[2:] for _ in range(40))
+            return 1, try_rev
 
     return MockTryPush
 

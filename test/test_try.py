@@ -1,7 +1,53 @@
+import base64
+import re
 from unittest.mock import Mock, patch
 
-from sync import tc
+from sync import tc, trypush
 from sync.lock import SyncLock
+
+
+def test_read_try_rev(env, git_gecko):
+    try_commit = trypush.TryFuzzyCommit(git_gecko, git_gecko, None, 0, hacks=False)
+    job_id = env.lando.try_push(["patch"], "0" * 40)
+
+    assert try_commit.read_try_rev(job_id) == "%040x" % job_id
+
+
+def test_try_push_patches(env, try_push):
+    assert len(env.lando.try_pushes) == 1
+    lando_push = env.lando.try_pushes[0]
+
+    assert lando_push["repo_name"] == "try"
+    assert lando_push["patch_format"] == "git-format-patch"
+    assert lando_push["base_commit_vcs"] == "hg"
+    assert re.match("^[0-9a-f]{40}$", lando_push["base_commit"])
+
+    patches = [base64.b64decode(item).decode("utf8") for item in lando_push["patches"]]
+    assert patches
+    # The try commit contains the try_task_config.json written by mach try
+    assert "try_task_config.json" in patches[-1]
+    assert "test-linux2404-64/opt-web-platform-tests-1" in patches[-1]
+
+
+def test_try_push_for_task(git_gecko, try_push):
+    task = {"payload": {"env": {"WPTSYNC_TRY_PUSH_TOKEN": try_push.token}}}
+
+    assert trypush.TryPush.for_task(git_gecko, task) == try_push
+
+
+def test_try_push_for_task_selects_exact_push(git_gecko, git_wpt, try_push, MockTryCls):
+    sync = try_push.sync(git_gecko, git_wpt)
+    assert sync is not None
+    with SyncLock.for_process(sync.process_name) as lock:
+        with sync.as_mut(lock):
+            second_try_push = trypush.TryPush.create(
+                lock, sync, hacks=False, try_cls=MockTryCls, check_open=False
+            )
+
+    task = {"payload": {"env": {"WPTSYNC_TRY_PUSH_TOKEN": second_try_push.token}}}
+
+    assert second_try_push.token != try_push.token
+    assert trypush.TryPush.for_task(git_gecko, task) == second_try_push
 
 
 def test_try_task_states(mock_tasks, try_push):

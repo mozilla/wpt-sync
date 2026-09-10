@@ -931,8 +931,9 @@ def do_try_push_add(
         def __exit__(self, *args: Any) -> None:
             pass
 
-        def push(self) -> str:
-            return try_rev
+        def push(self) -> tuple[int | None, str]:
+            # There's no Lando job for a try push added manually
+            return None, try_rev
 
     with SyncLock.for_process(sync.process_name) as lock:
         assert isinstance(lock, SyncLock)

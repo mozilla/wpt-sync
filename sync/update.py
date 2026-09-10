@@ -292,12 +292,22 @@ def update_taskgroup_ids(git_gecko: Repo, git_wpt: Repo, try_push: TryPush | Non
     for try_push_item in try_pushes:
         if not try_push_item.taskgroup_id:
             logger.info("Setting taskgroup id for try push %s" % try_push_item)
-            if try_push_item.try_rev is None:
+            with SyncLock.for_process(try_push_item.process_name) as lock:
+                assert isinstance(lock, SyncLock)
+                with try_push_item.as_mut(lock):
+                    try_rev = try_push_item.poll_try_rev()
+            if try_rev is None:
                 logger.warning(
                     "Try push %s has no associated revision" % try_push_item.process_name
                 )
                 continue
-            taskgroup_id, state, runs = tc.get_taskgroup_id("try", try_push_item.try_rev)
+            try:
+                taskgroup_id, state, runs = tc.get_taskgroup_id("try", try_rev)
+            except ValueError:
+                logger.warning(
+                    f"Try push {try_push_item.process_name} has no decision task for revision {try_rev} yet"
+                )
+                continue
             logger.info("Got taskgroup id %s" % taskgroup_id)
             if state in ("completed", "failed", "exception"):
                 msg = {
