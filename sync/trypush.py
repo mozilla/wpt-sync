@@ -3,7 +3,6 @@ import base64
 import os
 import shutil
 import subprocess
-import time
 import traceback
 import uuid
 from collections import defaultdict
@@ -128,32 +127,27 @@ class TryCommit:
                  Lando hasn't landed the commits yet.
         """
         job_id = self._push()
-        return job_id, self.read_try_rev(job_id, 60)
+        return job_id, self.read_try_rev(job_id)
 
     def _push(self) -> int:
         raise NotImplementedError
 
-    def read_try_rev(self, job_id: int, timeout: int) -> str | None:
-        """Wait for Lando to apply the patches we pushed and return the revision
+    def read_try_rev(self, job_id: int) -> str | None:
+        """Check if Lando applied the patches we pushed and return the revision
         it created on try.
 
         :return: The revision on try, or None if the job hasn't landed yet
         """
-        deadline = time.monotonic() + timeout
-        while True:
-            job = env.lando.landing_job(job_id)
-            try_rev = try_rev_from_job(job_id, job)
-            if try_rev is not None:
-                return try_rev
-            status = job.get("status")
-            if time.monotonic() > deadline:
-                logger.info(
-                    f"Lando job {job_id} hasn't landed the try push yet; last status was "
-                    f"{status}. Waiting for the decision task instead. See {job.get('url')}"
-                )
-                return None
-            logger.info(f"Waiting for Lando job {job_id} to land the try push, status {status}")
-            time.sleep(10)
+        job = env.lando.landing_job(job_id)
+        try_rev = try_rev_from_job(job_id, job)
+        if try_rev is not None:
+            return try_rev
+        status = job.get("status")
+        logger.info(
+            f"Lando job {job_id} hasn't landed the try push yet; last status was "
+            f"{status}. Waiting for the decision task instead. See {job.get('url')}"
+        )
+        return None
 
 
 class TryFuzzyCommit(TryCommit):

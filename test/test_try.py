@@ -10,7 +10,7 @@ def test_read_try_rev(env, git_gecko):
     try_commit = trypush.TryFuzzyCommit(git_gecko, git_gecko, None, 0, hacks=False)
     job_id = env.lando.try_push(["patch"], "0" * 40)
 
-    assert try_commit.read_try_rev(job_id, 10) == "%040x" % job_id
+    assert try_commit.read_try_rev(job_id) == "%040x" % job_id
 
 
 def test_try_push_patches(env, try_push):
