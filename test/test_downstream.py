@@ -144,7 +144,7 @@ def test_wpt_pr_approved(
         assert sync.latest_try_push is None
 
         # If we 'merge' the PR, then we will see a stability try push
-        with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+        with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
             mock_read.return_value = "0000000000000000"
             handlers.handle_pr(
                 git_gecko,
@@ -523,6 +523,57 @@ def test_next_try_push_infra_fail_try_rebase_failed(
                     try_push["stability"] = False
 
                 assert sync.next_action == downstream.DownstreamAction.manual_fix
+
+
+def test_try_push_rebases_old_mach(
+    env,
+    git_gecko,
+    git_wpt,
+    pull_request,
+    set_pr_status,
+    hg_gecko_try,
+    mock_mach,
+    mock_mach_no_write_task_config,
+    upstream_gecko_commit,
+):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Test PR")
+
+    with patch("sync.tree.is_open", Mock(return_value=True)):
+        downstream.new_wpt_pr(git_gecko, git_wpt, pr)
+        sync = set_pr_status(pr.number, "success")
+        env.gh_wpt.get_pull(sync.pr).merged = True
+
+        # Add a commit to central so that rebasing the sync changes its base
+        rev = upstream_gecko_commit(
+            test_changes={"OTHER_CHANGES": b"TEST"},
+            message=b"Other changes",
+            bookmarks="mozilla/central",
+        )
+        downstream.update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+        env.lando.hg_to_git[rev] = "test_revision"
+        upstream.gecko_push(git_gecko, git_wpt, "mozilla-central", rev, raise_on_error=True)
+
+        central = git_gecko.rev_parse(downstream.DownstreamSync.gecko_landing_branch())
+
+        with SyncLock.for_process(sync.process_name) as lock:
+            with sync.as_mut(lock):
+                sync.data["affected-tests"] = {"testharness": ["example"]}
+                assert not git_gecko.is_ancestor(central, sync.gecko_commits.head.commit)
+
+                # The first attempt to push gets a mach that predates
+                # --write-task-config; the attempt after the rebase doesn't
+                mach_clss = iter([mock_mach_no_write_task_config, mock_mach])
+                with (
+                    patch("sync.trypush.Mach", lambda path: next(mach_clss)(path)),
+                    patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read,
+                ):
+                    mock_read.return_value = "0000000000000000"
+                    try_push = sync.next_try_push()
+
+                assert try_push is not None
+                # The sync was rebased onto central and the push retried with both machs
+                assert git_gecko.is_ancestor(central, sync.gecko_commits.head.commit)
+                assert next(mach_clss, None) is None
 
 
 def test_dependent_commit(

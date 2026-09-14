@@ -1,9 +1,10 @@
 from __future__ import annotations
+import base64
 import os
-import re
 import shutil
 import subprocess
 import traceback
+import uuid
 from collections import defaultdict
 
 import taskcluster
@@ -17,7 +18,7 @@ from .env import Environment
 from .errors import AbortError, RetryableError
 from .index import TaskGroupIndex, TryCommitIndex
 from .load import get_syncs
-from .lock import constructor, mut
+from .lock import SyncLock, constructor, mut
 from .projectutil import Mach
 from .repos import cinnabar
 from .sync import SyncProcess
@@ -29,7 +30,6 @@ from git.repo.base import Repo
 if TYPE_CHECKING:
     from sync.downstream import DownstreamSync
     from sync.landing import LandingSync
-    from sync.lock import SyncLock
     from sync.tc import TaskGroup
 
 
@@ -37,7 +37,28 @@ logger = log.get_logger(__name__)
 env = Environment()
 
 auth_tc = tc.TaskclusterClient()
-rev_re = re.compile("revision=(?P<rev>[0-9a-f]{40})")
+
+
+class MachTooOldError(Exception):
+    """The mach in the worktree doesn't support the arguments we need to push to try.
+
+    Rebasing the sync onto a more recent gecko revision is expected to fix this."""
+
+
+def try_rev_from_job(job_id: int, job: Mapping[str, Any]) -> str | None:
+    status = job.get("status")
+    if status == "LANDED":
+        try_rev = job.get("commit_id")
+        if not isinstance(try_rev, str):
+            msg = f"Lando job {job_id} landed without a revision:\n{job}"
+            logger.error(msg)
+            raise AbortError(msg)
+        return try_rev
+    if status in ("FAILED", "CANCELLED"):
+        msg = f"Lando job {job_id} for the try push is {status}:\n{job.get('error')}"
+        logger.error(msg)
+        raise AbortError(msg)
+    return None
 
 
 class TryCommit:
@@ -48,6 +69,8 @@ class TryCommit:
         tests_by_type: Mapping[str, list[str]] | None,
         rebuild: int,
         hacks: bool = True,
+        base: str | None = None,
+        token: str | None = None,
         **kwargs: Any,
     ) -> None:
         self.git_gecko = git_gecko
@@ -55,6 +78,8 @@ class TryCommit:
         self.tests_by_type = tests_by_type
         self.rebuild = rebuild
         self.hacks = hacks
+        self.base = base
+        self.token = token
         self.try_rev = None
         self.extra_args = kwargs
         self.reset: str | None = None
@@ -95,35 +120,34 @@ class TryCommit:
 
                 self.worktree.index.add([tc_config])
 
-    def push(self) -> str:
-        status, output = self._push()
-        return self.read_treeherder(status, output)
+    def push(self) -> tuple[int, str | None]:
+        """Push to try.
 
-    def _push(self) -> tuple[int, str]:
+        :return: Tuple of (Lando job id, revision on try). The revision is None if
+                 Lando hasn't landed the commits yet.
+        """
+        job_id = self._push()
+        return job_id, self.read_try_rev(job_id)
+
+    def _push(self) -> int:
         raise NotImplementedError
 
-    def read_treeherder(self, status: int, output: str) -> str:
-        msg = f"Failed to push to try:\n{output}"
-        try_rev: str | None = None
-        if status != 0:
-            logger.error(msg)
-            raise RetryableError(AbortError(msg))
-        rev_match = rev_re.search(output)
-        if not rev_match:
-            logger.warning(f"No revision found in string:\n\n{output}\n")
-            # Assume that the revision is HEAD
-            # This happens in tests and isn't a problem, but would be in real code,
-            # so that's not ideal
-            try:
-                try_rev = cinnabar(self.git_gecko).git2hg(self.worktree.head.commit.hexsha)
-            except ValueError:
-                pass
-        else:
-            try_rev = rev_match.group("rev")
-        if try_rev is None:
-            logger.error(msg)
-            raise AbortError(msg)
-        return try_rev
+    def read_try_rev(self, job_id: int) -> str | None:
+        """Check if Lando applied the patches we pushed and return the revision
+        it created on try.
+
+        :return: The revision on try, or None if the job hasn't landed yet
+        """
+        job = env.lando.landing_job(job_id)
+        try_rev = try_rev_from_job(job_id, job)
+        if try_rev is not None:
+            return try_rev
+        status = job.get("status")
+        logger.info(
+            f"Lando job {job_id} hasn't landed the try push yet; last status was "
+            f"{status}. Waiting for the decision task instead. See {job.get('url')}"
+        )
+        return None
 
 
 class TryFuzzyCommit(TryCommit):
@@ -134,9 +158,20 @@ class TryFuzzyCommit(TryCommit):
         tests_by_type: Mapping[str, list[str]] | None,
         rebuild: int,
         hacks: bool = True,
+        base: str | None = None,
+        token: str | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(git_gecko, worktree, tests_by_type, rebuild, hacks=hacks, **kwargs)
+        super().__init__(
+            git_gecko,
+            worktree,
+            tests_by_type,
+            rebuild,
+            hacks=hacks,
+            base=base,
+            token=token,
+            **kwargs,
+        )
         self.queries = self.extra_args.get(
             "queries", ["web-platform-tests !macosx !shippable !asan !tsan"]
         )
@@ -147,14 +182,46 @@ class TryFuzzyCommit(TryCommit):
         self.artifact = self.extra_args.get("artifact", True)
 
     def create(self) -> None:
+        self.reset = self.worktree.head.commit.hexsha
         if self.hacks:
-            self.reset = self.worktree.head.commit.hexsha
             self.apply_hacks()
             # TODO add something useful to the commit message here since that will
             # appear in email &c.
             self.worktree.index.commit(message="Apply task hacks before running try")
 
-    def _push(self) -> tuple[int, str]:
+    def _push(self) -> int:
+        paths = self.test_paths()
+        status, output = self.run_mach_try(paths)
+        if status != 0:
+            msg = f"Failed to run mach try:\n{output}"
+            logger.error(msg)
+            raise RetryableError(AbortError(msg))
+        self.create_try_commit(self.commit_message(paths))
+        return self.push_to_lando()
+
+    def test_paths(self) -> list[str]:
+        """Paths of the affected tests to pass to mach try, capped at the
+        configured maximum number of tests."""
+        if self.tests_by_type is None:
+            return []
+
+        working_dir = self.worktree.working_dir
+        assert working_dir is not None
+
+        paths = []
+        all_paths = set()
+        for values in self.tests_by_type.values():
+            for item in values:
+                if item not in all_paths and os.path.exists(os.path.join(working_dir, item)):
+                    paths.append(item)
+                all_paths.add(item)
+        max_tests = env.config["gecko"]["try"].get("max-tests")
+        if max_tests and len(paths) > max_tests:
+            logger.warning("Capping number of affected tests at %d" % max_tests)
+            paths = paths[:max_tests]
+        return paths
+
+    def run_mach_try(self, paths: list[str]) -> tuple[int, str]:
         self.worktree.git.reset("--hard")
 
         working_dir = self.worktree.working_dir
@@ -172,9 +239,18 @@ class TryFuzzyCommit(TryCommit):
         query_args = []
         for query in self.queries:
             query_args.extend(["-q", query])
-        logger.info("Pushing to try with fuzzy query: %s" % " ".join(query_args))
 
-        can_push_routes = b"--route " in mach.try_("fuzzy", "--help")
+        logger.info("Creating try commit with fuzzy query: %s" % " ".join(query_args))
+
+        try_help = mach.try_("fuzzy", "--help")
+
+        if b"--write-task-config" not in try_help:
+            raise MachTooOldError("mach try fuzzy doesn't support --write-task-config")
+
+        if b"--env" not in try_help:
+            raise MachTooOldError("mach try fuzzy doesn't support --env")
+
+        can_push_routes = b"--route " in try_help
 
         args = ["fuzzy"] + query_args
         if self.rebuild:
@@ -184,6 +260,8 @@ class TryFuzzyCommit(TryCommit):
             args.append("--full")
         if self.disable_target_task_filter:
             args.append("--disable-target-task-filter")
+        if self.token is not None:
+            args.extend(["--env", f"WPTSYNC_TRY_PUSH_TOKEN={self.token}"])
         if can_push_routes:
             args.append("--route=notify.pulse.wptsync.try-task.on-any")
         if self.artifact:
@@ -191,28 +269,77 @@ class TryFuzzyCommit(TryCommit):
         else:
             args.append("--no-artifact")
 
-        # --push-to-vcs is required to push directly to hgmo
-        args.append("--push-to-vcs")
+        # --write-task-config means mach only writes try_task_config.json to the root
+        # of the worktree; making the commit and pushing it to try is handled here
+        # instead
+        args.append("--write-task-config")
 
-        if self.tests_by_type is not None:
-            paths = []
-            all_paths = set()
-            for values in self.tests_by_type.values():
-                for item in values:
-                    if item not in all_paths and os.path.exists(os.path.join(working_dir, item)):
-                        paths.append(item)
-                    all_paths.add(item)
-            max_tests = env.config["gecko"]["try"].get("max-tests")
-            if max_tests and len(paths) > max_tests:
-                logger.warning("Capping number of affected tests at %d" % max_tests)
-                paths = paths[:max_tests]
-            args.extend(paths)
+        args.extend(paths)
 
         try:
             output = mach.try_(*args, stderr=subprocess.STDOUT)
             return 0, output.decode("utf8", "replace")
         except subprocess.CalledProcessError as e:
-            return e.returncode, e.output
+            return e.returncode, e.output.decode("utf8", "replace")
+
+    def commit_message(self, paths: list[str]) -> str:
+        """Message for the try commit, in the same format as the one `mach try fuzzy`
+        generates when it makes the commit itself."""
+        args = [f"query={query}" for query in self.queries]
+        if paths:
+            args.append("paths={}".format(":".join(paths)))
+        return "Fuzzy {}".format("&".join(args))
+
+    def create_try_commit(self, message: str) -> None:
+        working_dir = self.worktree.working_dir
+        assert working_dir is not None
+
+        try_task_config_path = "try_task_config.json"
+
+        if not os.path.exists(os.path.join(working_dir, try_task_config_path)):
+            msg = f"mach try didn't write {try_task_config_path}"
+            logger.error(msg)
+            raise AbortError(msg)
+
+        self.worktree.index.add([try_task_config_path])
+        self.worktree.index.commit(message=message)
+        logger.info(
+            "Created try commit %s with message:\n%s" % (self.worktree.head.commit.hexsha, message)
+        )
+
+    def push_to_lando(self) -> int:
+        if self.base is None:
+            raise AbortError("Can't push to try without a base commit")
+
+        try:
+            base_commit = cinnabar(self.git_gecko).git2hg(self.base)
+        except ValueError as e:
+            msg = f"Failed to get the hg revision of the base commit {self.base}:\n{e}"
+            logger.error(msg)
+            raise AbortError(msg)
+        patches = [
+            base64.b64encode(patch).decode("ascii") for patch in self.commit_patches(self.base)
+        ]
+        logger.info("Pushing %d commits to try on top of %s" % (len(patches), base_commit))
+        try:
+            job_id = env.lando.try_push(patches, base_commit)
+        except Exception as e:
+            msg = f"Failed to push to try:\n{e}"
+            logger.error(msg)
+            raise RetryableError(AbortError(msg))
+        logger.info("Pushed to try as Lando job %s" % job_id)
+        return job_id
+
+    def commit_patches(self, base: str) -> list[bytes]:
+        commits = list(self.worktree.iter_commits(f"{base}..HEAD", reverse=True))
+        if not commits:
+            raise AbortError(f"No commits to push to try between {base} and the try commit")
+        return [
+            self.worktree.git.format_patch(
+                commit.hexsha, "-1", "--always", "--stdout", "--no-base", stdout_as_string=False
+            )
+            for commit in commits
+        ]
 
 
 class TryPush(base.ProcessData):
@@ -254,20 +381,49 @@ class TryPush(base.ProcessData):
         TaskGroupIndex.get_or_create(sync.git_gecko)
         try_idx = TryCommitIndex.get_or_create(sync.git_gecko)
 
-        git_work = sync.gecko_worktree.get()
+        sync_id = str(getattr(sync, sync.obj_id))
+        token = f"{sync.sync_type}/{sync_id}/{uuid.uuid4()}"
 
         if rebuild_count is None:
             rebuild_count = 0 if not stability else env.config["gecko"]["try"]["stability_count"]
             if not isinstance(rebuild_count, int):
                 logger.error("Could not find config for Stability rebuild count, using default 5")
                 rebuild_count = 5
-        with try_cls(
-            sync.git_gecko, git_work, affected_tests, rebuild_count, hacks=hacks, **kwargs
-        ) as c:
-            try_rev = c.push()
+
+        def push() -> tuple[int, str | None]:
+            with try_cls(
+                sync.git_gecko,
+                sync.gecko_worktree.get(),
+                affected_tests,
+                rebuild_count,
+                hacks=hacks,
+                base=sync.gecko_commits.base.sha1,
+                token=token,
+                **kwargs,
+            ) as c:
+                return c.push()
+
+        try:
+            job_id, try_rev = push()
+        except MachTooOldError as e:
+            # The sync is based on a gecko revision that predates the mach features we
+            # rely on, so rebase onto the tip of the landing branch and try again
+            landing_branch = sync.gecko_landing_branch()
+            logger.info(f"{e}; rebasing onto {landing_branch}")
+
+            sync.gecko_rebase(landing_branch, abort_on_fail=True)
+
+            try:
+                job_id, try_rev = push()
+            except MachTooOldError as e:
+                msg = f"{e}, even after rebasing onto {landing_branch}"
+                logger.error(msg)
+                raise AbortError(msg)
 
         data = {
             "try-rev": try_rev,
+            "try-token": token,
+            "lando-job-id": job_id,
             "stability": stability,
             "gecko-head": sync.gecko_commits.head.sha1,
             "wpt-head": sync.wpt_commits.head.sha1,
@@ -278,16 +434,24 @@ class TryPush(base.ProcessData):
             sync.git_gecko, cls.obj_type, sync.sync_type, str(getattr(sync, sync.obj_id))
         )
         rv = super().create(lock, sync.git_gecko, process_name, data)
-        try_idx.insert(try_idx.make_key(try_rev), process_name)
+        if try_rev is not None:
+            try_idx.insert(try_idx.make_key(try_rev), process_name)
 
         with rv.as_mut(lock):
             rv.created = taskcluster.fromNowJSON("0 days")
 
         if sync.bug is not None:
-            env.bz.comment(
-                sync.bug,
-                "Pushed to try%s %s" % (" (stability)" if stability else "", rv.treeherder_url),
-            )
+            if try_rev is not None:
+                env.bz.comment(
+                    sync.bug,
+                    f"Pushed to try{' (stability)' if stability else ''} {rv.treeherder_url}",
+                )
+            else:
+                env.bz.comment(
+                    sync.bug,
+                    f"Pushed to try{' (stability)' if stability else ''} "
+                    + f"https://treeherder.mozilla.org/jobs?repo=try&landoInstance=lando-prod-2025&landoCommitID={job_id}",
+                )
 
         return rv
 
@@ -315,6 +479,32 @@ class TryPush(base.ProcessData):
             return cls(git_gecko, process_name)
         return None
 
+    @classmethod
+    def for_task(cls, git_gecko: Repo, task: Mapping[str, Any]) -> Optional[Self]:
+        token = task.get("payload", {}).get("env", {}).get("WPTSYNC_TRY_PUSH_TOKEN")
+        if not isinstance(token, str):
+            return None
+
+        parts = token.split("/")
+        if len(parts) != 3:
+            logger.warning(f"Unexpected try push token {token}")
+            return None
+        subtype, obj_id, _ = parts
+        # The token contains the sync, so only its try pushes can match
+        process_names = base.ProcessNameIndex(git_gecko).get(cls.obj_type, subtype, obj_id)
+        for process_name in process_names:
+            try_push = cls(git_gecko, process_name)
+            if try_push.token == token:
+                logger.info(f"Found try push {process_name!r} for token {token}")
+                return try_push
+        logger.info(f"No try push for token {token}")
+        return None
+
+    @property
+    def token(self) -> str | None:
+        """ID identifying this try push in Taskcluster task environments."""
+        return self.get("try-token")
+
     @property
     def treeherder_url(self) -> str:
         return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % self.try_rev
@@ -338,9 +528,50 @@ class TryPush(base.ProcessData):
         idx = TryCommitIndex(self.repo)
         if self.try_rev is not None:
             idx.delete(idx.make_key(self.try_rev), self.process_name)
-        self._data["try-rev"] = value
-        assert self.try_rev is not None
-        idx.insert(idx.make_key(self.try_rev), self.process_name)
+        self["try-rev"] = value
+        idx.insert(idx.make_key(value), self.process_name)
+
+    @mut()
+    def poll_try_rev(self) -> str | None:
+        """Ask Lando once for the revision it created on try, if we don't have it yet.
+
+        :return: The revision on try, or None if it's still unknown
+        """
+        if self.try_rev is not None or self.status != "open":
+            return self.try_rev
+        job_id = self.get("lando-job-id")
+        if job_id is None:
+            logger.warning(
+                "Try push %s has no revision and no Lando job to get it from" % self.process_name
+            )
+            return None
+
+        try:
+            try_rev = try_rev_from_job(job_id, env.lando.landing_job(job_id))
+        except AbortError as e:
+            self.status = "complete"
+            self.infra_fail = True
+            bug = self.get("bug")
+            if bug is not None:
+                env.bz.comment(bug, "Try push failed to land: %s" % e.message)
+            return None
+        except Exception:
+            # Don't allow a problem with one try push to stop us handling the others
+            logger.error(
+                "Failed to get Lando job %s for try push %s:\n%s"
+                % (job_id, self.process_name, traceback.format_exc())
+            )
+            return None
+
+        if try_rev is None:
+            logger.info(
+                "Lando job %s for try push %s hasn't landed yet" % (job_id, self.process_name)
+            )
+            return None
+
+        logger.info("Try push %s landed on try as %s" % (self.process_name, try_rev))
+        self.try_rev = try_rev
+        return try_rev
 
     @property
     def taskgroup_id(self) -> str | None:

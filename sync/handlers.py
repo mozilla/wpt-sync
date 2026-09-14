@@ -204,6 +204,8 @@ class DecisionTaskHandler(Handler):
                     return
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
+        if try_push is None:
+            try_push = trypush.TryPush.for_task(git_gecko, task)
         if not try_push:
             logger.debug(f"No try push for SHA1 {sha1} taskId {task_id}")
             # This could be a race condition if the decision task completes before this
@@ -213,6 +215,8 @@ class DecisionTaskHandler(Handler):
         with SyncLock.for_process(try_push.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with try_push.as_mut(lock):
+                if try_push.try_rev is None:
+                    try_push.try_rev = sha1
                 # If we retrigger, we create a new taskgroup, with id equal to the new task_id.
                 # But the retriggered decision task itself is still in the original taskgroup
                 if state == "completed":

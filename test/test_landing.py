@@ -55,7 +55,7 @@ def test_land_try(
         with sync.as_mut(downstream_lock):
             sync.data["force-metadata-ready"] = True
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -91,9 +91,12 @@ def test_land_try(
         "-q",
         "web-platform-tests mac !debug shippable",
         "--disable-target-task-filter",
+        "--env",
+        ANY,
         "--artifact",
-        "--push-to-vcs",
+        "--write-task-config",
     )
+    assert mach_command["args"][-3].startswith("WPTSYNC_TRY_PUSH_TOKEN=landing/")
 
 
 def test_land_commit(
@@ -123,7 +126,7 @@ def test_land_commit(
         with downstream_sync.as_mut(downstream_lock):
             downstream_sync.data["force-metadata-ready"] = True
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -140,7 +143,7 @@ def test_land_commit(
                     property(Mock(return_value=mock_tasks(completed=["foo"]))),
                 ):
                     with patch.object(
-                        trypush.TryCommit, "read_treeherder", autospec=True
+                        trypush.TryCommit, "read_try_rev", autospec=True
                     ) as mock_read:
                         mock_read.return_value = "0000000000000001"
                         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
@@ -401,7 +404,7 @@ def test_landing_reapply(
     pushed, _, _ = upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
 
     # Now start a landing
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -419,7 +422,7 @@ def test_landing_reapply(
                     property(Mock(return_value=mock_tasks(completed=["foo"]))),
                 ):
                     with patch.object(
-                        trypush.TryCommit, "read_treeherder", autospec=True
+                        trypush.TryCommit, "read_try_rev", autospec=True
                     ) as mock_read:
                         mock_read.return_value = "0000000000000001"
                         with patch.object(landing, "push_with_lando", Mock(side_effect=mock_push)):
@@ -479,7 +482,7 @@ def test_landing_pr_on_central(
     # Repeat the changes in m-c
     upstream_gecko_commit(test_changes=test_changes, bug=1234, message=b"Change README")
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -523,7 +526,7 @@ def test_landing_metadata(
 
     landing.wpt_push(git_gecko, git_wpt, [head_rev], create_missing=False)
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -622,7 +625,7 @@ def test_relanding_unchanged_upstreamed_pr(
     m = Mock(side_effect=mock_create, wraps=sync_commit.Commit.create)
     with (
         patch("sync.commit.Commit.create", m),
-        patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read,
+        patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read,
     ):
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
@@ -680,7 +683,7 @@ def test_relanding_changed_upstreamed_pr(
         for _ in git_wpt.references[sync.branch_name].log():
             git_wpt.git.reflog("delete", f"{sync.branch_name}@{{0}}")
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt, include_incomplete=True)
     commits = landing_sync.gecko_commits._commits
@@ -734,7 +737,7 @@ def test_landing_push_failed(
         with downstream_sync.as_mut(downstream_lock):
             downstream_sync.data["force-metadata-ready"] = True
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -751,7 +754,7 @@ def test_landing_push_failed(
                     property(Mock(return_value=mock_tasks(completed=["foo"]))),
                 ):
                     with patch.object(
-                        trypush.TryCommit, "read_treeherder", autospec=True
+                        trypush.TryCommit, "read_try_rev", autospec=True
                     ) as mock_read:
                         mock_read.return_value = "0000000000000001"
                         landing.try_push_complete(git_gecko, git_wpt, try_push, sync)
@@ -822,7 +825,7 @@ def test_upstream_commit_missing_pr_number(
             sync.data["force-metadata-ready"] = True
 
     landing_sync = None
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         with pytest.raises(AbortError):
             landing_sync = landing.update_landing(git_gecko, git_wpt)
@@ -835,7 +838,7 @@ def test_upstream_commit_missing_pr_number(
         wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
         wpt_commit.notes["wpt_pr"] = pr["number"]
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -902,7 +905,7 @@ def test_upstream_commit_missing_pr_number_with_has_no_pr(
             sync_2.data["force-metadata-ready"] = True
 
     landing_sync = None
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         with pytest.raises(AbortError):
             landing_sync = landing.update_landing(git_gecko, git_wpt)
@@ -915,7 +918,7 @@ def test_upstream_commit_missing_pr_number_with_has_no_pr(
         wpt_commit = sync_commit.WptCommit(git_wpt, commit_item)
         wpt_commit.notes["wpt_pr"] = 0
 
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         landing_sync = landing.update_landing(git_gecko, git_wpt)
 
@@ -959,7 +962,7 @@ def test_update_landing_interrupted_before_patches(
     assert landing_sync.landing_commit is None
 
     # Invoke update_landing and confirm that the patches are applied
-    with patch.object(trypush.TryCommit, "read_treeherder", autospec=True) as mock_read:
+    with patch.object(trypush.TryCommit, "read_try_rev", autospec=True) as mock_read:
         mock_read.return_value = "0000000000000000"
         result = landing.update_landing(git_gecko, git_wpt, new_wpt_head=head_rev)
 

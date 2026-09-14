@@ -84,7 +84,7 @@ class WPT(Command):
 
 def create_mock(name: str) -> type[Command]:
     class MockCommand(Command):
-        _data: dict[str, bytes] = {}
+        _data: dict[str, bytes | Callable[..., bytes]] = {}
         _log: list[dict[str, Any]] = []
 
         def __init__(self, path: str) -> None:
@@ -92,7 +92,7 @@ def create_mock(name: str) -> type[Command]:
             self.path = path
 
         @classmethod
-        def set_data(cls, command: str, value: bytes) -> None:
+        def set_data(cls, command: str, value: bytes | Callable[..., bytes]) -> None:
             cls._data[command] = value
 
         @classmethod
@@ -100,9 +100,8 @@ def create_mock(name: str) -> type[Command]:
             return cls._log
 
         def get(self, *args: str, **kwargs: Any) -> bytes:
-            data = self._data.get(args[0], b"")
-            if callable(data):
-                data = data(*args[1:], **kwargs)
+            value = self._data.get(args[0], b"")
+            data = value(self, *args[1:], **kwargs) if callable(value) else value
 
             self._log.append(
                 {"command": self.name, "cwd": self.path, "args": args, "kwargs": kwargs, "rv": data}
