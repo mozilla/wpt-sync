@@ -441,17 +441,10 @@ class TryPush(base.ProcessData):
             rv.created = taskcluster.fromNowJSON("0 days")
 
         if sync.bug is not None:
-            if try_rev is not None:
-                env.bz.comment(
-                    sync.bug,
-                    f"Pushed to try{' (stability)' if stability else ''} {rv.treeherder_url}",
-                )
-            else:
-                env.bz.comment(
-                    sync.bug,
-                    f"Pushed to try{' (stability)' if stability else ''} "
-                    + f"https://treeherder.mozilla.org/jobs?repo=try&landoInstance=lando-prod-2025&landoCommitID={job_id}",
-                )
+            env.bz.comment(
+                sync.bug,
+                f"Pushed to try{' (stability)' if stability else ''} {rv.treeherder_url}",
+            )
 
         return rv
 
@@ -506,8 +499,17 @@ class TryPush(base.ProcessData):
         return self.get("try-token")
 
     @property
+    def job_id(self) -> int | None:
+        return self.get("lando-job-id")
+
+    @property
     def treeherder_url(self) -> str:
-        return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % self.try_rev
+        if self.try_rev is not None:
+            return "https://treeherder.mozilla.org/#/jobs?repo=try&revision=%s" % self.try_rev
+        return (
+            "https://treeherder.mozilla.org/jobs?repo=try&landoInstance=lando-prod-2025"
+            "&landoCommitID=%s" % self.job_id
+        )
 
     @property
     def created(self) -> Any | None:
@@ -539,7 +541,7 @@ class TryPush(base.ProcessData):
         """
         if self.try_rev is not None or self.status != "open":
             return self.try_rev
-        job_id = self.get("lando-job-id")
+        job_id = self.job_id
         if job_id is None:
             logger.warning(
                 "Try push %s has no revision and no Lando job to get it from" % self.process_name
