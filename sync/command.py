@@ -441,7 +441,17 @@ def do_landing(
             assert isinstance(lock, SyncLock)
             try_push = current_landing.latest_try_push
             logger.info("Found try push %s" % try_push.treeherder_url)
-            if try_push.taskgroup_id is None:
+            with try_push.as_mut(lock):
+                # Check whether Lando actually landed the push
+                try_rev = try_push.poll_try_rev()
+            if try_rev is None and try_push.status != "open":
+                # The push was closed without ever getting a revision, so Lando
+                # failed to land it and there's no taskgroup to wait for.
+                logger.info(
+                    "Try push %s never landed on try, not waiting for try results"
+                    % try_push.process_name
+                )
+            elif try_push.taskgroup_id is None:
                 update.update_taskgroup_ids(git_gecko, git_wpt, try_push)
                 assert try_push.taskgroup_id is not None
             with try_push.as_mut(lock), current_landing.as_mut(lock):
