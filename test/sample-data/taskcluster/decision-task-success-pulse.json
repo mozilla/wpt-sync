@@ -26,7 +26,7 @@
   },
   "task": {
     "tags": {
-      "createdForUser": "wptsync@mozilla.com",
+      "createdForUser": "wptsync-try@mozilla.bugs",
       "kind": "decision-task"
     }
   },

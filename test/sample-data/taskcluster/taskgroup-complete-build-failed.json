@@ -136,7 +136,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-asan/opt-web-platform-tests-e10s-1"
@@ -144,7 +144,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-asan/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -311,7 +311,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-asan/opt-web-platform-tests-e10s-1"
@@ -319,7 +319,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-asan/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -434,7 +434,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/debug-web-platform-tests-e10s-1"
@@ -442,7 +442,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -557,7 +557,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/debug-web-platform-tests-e10s-1"
@@ -565,7 +565,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -734,7 +734,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run with serviceworker-e10s redesign enabled ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-sw-e10s-1"
@@ -742,7 +742,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-sw-e10s-1",
           "os": "linux"
@@ -857,7 +857,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/debug-web-platform-tests-e10s-1"
@@ -865,7 +865,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -980,7 +980,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/opt-web-platform-tests-e10s-1"
@@ -988,7 +988,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -1156,7 +1156,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/opt-web-platform-tests-e10s-1"
@@ -1164,7 +1164,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -1234,9 +1234,9 @@
           "index.gecko.v2.try.latest.taskgraph.decision",
           "index.gecko.v2.try.revision.0b445bf4228a963505183b157758c37664921791.taskgraph.decision",
           "index.gecko.v2.try.pushlog-id.432115.decision",
-          "notify.email.wptsync@mozilla.com.on-failed",
-          "notify.email.wptsync@mozilla.com.on-exception",
-          "notify.email.wptsync@mozilla.com.on-completed",
+          "notify.email.wptsync-try@mozilla.bugs.on-failed",
+          "notify.email.wptsync-try@mozilla.bugs.on-exception",
+          "notify.email.wptsync-try@mozilla.bugs.on-completed",
           "index.gecko.v2.try.latest.firefox.decision",
           "index.gecko.v2.try.revision.0b445bf4228a963505183b157758c37664921791.firefox.decision"
         ],
@@ -1247,7 +1247,7 @@
         "expires": "2019-11-04T10:36:46.921Z",
         "scopes": [
           "assume:repo:hg.mozilla.org/try:branch:default",
-          "queue:route:notify.email.wptsync@mozilla.com.*",
+          "queue:route:notify.email.wptsync-try@mozilla.bugs.*",
           "in-tree:hook-action:project-gecko/in-tree-action-1-*"
         ],
         "payload": {
@@ -1277,7 +1277,7 @@
             "--",
             "bash",
             "-cx",
-            "cd /builds/worker/checkouts/gecko && ln -s /builds/worker/artifacts artifacts && ./mach --log-no-times taskgraph decision --pushlog-id='432115' --pushdate='1570444556' --project='try' --owner='wptsync@mozilla.com' --level='1' --tasks-for='hg-push' --base-repository=\"$GECKO_BASE_REPOSITORY\" --head-repository=\"$GECKO_HEAD_REPOSITORY\" --head-ref=\"$GECKO_HEAD_REF\" --head-rev=\"$GECKO_HEAD_REV\" \n"
+            "cd /builds/worker/checkouts/gecko && ln -s /builds/worker/artifacts artifacts && ./mach --log-no-times taskgraph decision --pushlog-id='432115' --pushdate='1570444556' --project='try' --owner='wptsync-try@mozilla.bugs' --level='1' --tasks-for='hg-push' --base-repository=\"$GECKO_BASE_REPOSITORY\" --head-repository=\"$GECKO_HEAD_REPOSITORY\" --head-ref=\"$GECKO_HEAD_REF\" --head-rev=\"$GECKO_HEAD_REV\" \n"
           ],
           "artifacts": {
             "public": {
@@ -1288,13 +1288,13 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/raw-file/0b445bf4228a963505183b157758c37664921791/.taskcluster.yml",
           "name": "Gecko Decision Task",
           "description": "The task that creates all of the other tasks in the task graph"
         },
         "tags": {
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "kind": "decision-task"
         },
         "extra": {
@@ -1463,7 +1463,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1"
@@ -1471,7 +1471,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -1586,7 +1586,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/opt-web-platform-tests-e10s-1"
@@ -1594,7 +1594,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -1764,7 +1764,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/debug-web-platform-tests-e10s-1"
@@ -1772,7 +1772,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -1952,7 +1952,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Linux64 Opt ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-linux64/opt"
@@ -1960,7 +1960,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-linux64/opt",
           "os": "linux"
@@ -2125,7 +2125,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-asan/opt-web-platform-tests-e10s-1"
@@ -2133,7 +2133,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-asan/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -2301,7 +2301,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Win32 Opt ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-win32/opt"
@@ -2309,7 +2309,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-win32/opt",
           "os": "windows"
@@ -2417,7 +2417,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/opt-web-platform-tests-e10s-1"
@@ -2425,7 +2425,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -2540,7 +2540,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/opt-web-platform-tests-e10s-1"
@@ -2548,7 +2548,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -2716,7 +2716,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/opt-web-platform-tests-e10s-1"
@@ -2724,7 +2724,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -2891,7 +2891,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-asan/opt-web-platform-tests-e10s-1"
@@ -2899,7 +2899,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-asan/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -3067,7 +3067,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/opt-web-platform-tests-e10s-1"
@@ -3075,7 +3075,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -3252,7 +3252,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1"
@@ -3260,7 +3260,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -3429,7 +3429,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run with serviceworker-e10s redesign enabled ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-sw-e10s-1"
@@ -3437,7 +3437,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-sw-e10s-1",
           "os": "linux"
@@ -3605,7 +3605,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Win32 Debug ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-win32/debug"
@@ -3613,7 +3613,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-win32/debug",
           "os": "windows"
@@ -3783,7 +3783,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1"
@@ -3791,7 +3791,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -3960,7 +3960,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run with serviceworker-e10s redesign enabled ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-sw-e10s-1"
@@ -3968,7 +3968,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-sw-e10s-1",
           "os": "linux"
@@ -4083,7 +4083,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/debug-web-platform-tests-e10s-1"
@@ -4091,7 +4091,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -4206,7 +4206,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/opt-web-platform-tests-e10s-1"
@@ -4214,7 +4214,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -4329,7 +4329,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/debug-web-platform-tests-e10s-1"
@@ -4337,7 +4337,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -4452,7 +4452,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/debug-web-platform-tests-e10s-1"
@@ -4460,7 +4460,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -4630,7 +4630,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/debug-web-platform-tests-e10s-1"
@@ -4638,7 +4638,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -4778,7 +4778,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/source-test",
           "description": "JS lint check ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "source-test-mozlint-eslint"
@@ -4786,7 +4786,7 @@
         "tags": {
           "kind": "source-test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "source-test-mozlint-eslint",
           "os": "linux"
@@ -4949,7 +4949,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/opt-web-platform-tests-e10s-1"
@@ -4957,7 +4957,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -5125,7 +5125,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Win64 Opt ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-win64/opt"
@@ -5133,7 +5133,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-win64/opt",
           "os": "windows"
@@ -5293,7 +5293,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-asan/opt-web-platform-tests-e10s-1"
@@ -5301,7 +5301,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-asan/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -5478,7 +5478,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1"
@@ -5486,7 +5486,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -5656,7 +5656,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/opt-web-platform-tests-e10s-1"
@@ -5664,7 +5664,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -5841,7 +5841,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1"
@@ -5849,7 +5849,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -5964,7 +5964,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/debug-web-platform-tests-e10s-1"
@@ -5972,7 +5972,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -6149,7 +6149,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1"
@@ -6157,7 +6157,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -6272,7 +6272,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/debug-web-platform-tests-e10s-1"
@@ -6280,7 +6280,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -6448,7 +6448,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Win64 Debug ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-win64/debug"
@@ -6456,7 +6456,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-win64/debug",
           "os": "windows"
@@ -6564,7 +6564,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/debug-web-platform-tests-e10s-1"
@@ -6572,7 +6572,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -6742,7 +6742,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/opt-web-platform-tests-e10s-1"
@@ -6750,7 +6750,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -6865,7 +6865,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/debug-web-platform-tests-e10s-1"
@@ -6873,7 +6873,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -7054,7 +7054,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Linux64 Debug ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-linux64/debug"
@@ -7062,7 +7062,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-linux64/debug",
           "os": "linux"
@@ -7175,7 +7175,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/opt-web-platform-tests-e10s-1"
@@ -7183,7 +7183,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -7360,7 +7360,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1"
@@ -7368,7 +7368,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -7508,7 +7508,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/source-test",
           "description": "lint test manifests ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "source-test-mozlint-test-manifest"
@@ -7516,7 +7516,7 @@
         "tags": {
           "kind": "source-test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "source-test-mozlint-test-manifest",
           "os": "linux"
@@ -7714,7 +7714,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Android 5.0 x86-64 Opt ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-android-x86_64/opt"
@@ -7722,7 +7722,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-android-x86_64/opt",
           "os": "linux"
@@ -7835,7 +7835,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/debug-web-platform-tests-e10s-1"
@@ -7843,7 +7843,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -7983,7 +7983,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/source-test",
           "description": "Check for license blocks in source files. ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "source-test-mozlint-license"
@@ -7991,7 +7991,7 @@
         "tags": {
           "kind": "source-test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "source-test-mozlint-license",
           "os": "linux"
@@ -8101,7 +8101,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/debug-web-platform-tests-e10s-1"
@@ -8109,7 +8109,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -8279,7 +8279,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/opt-web-platform-tests-e10s-1"
@@ -8287,7 +8287,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -8402,7 +8402,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/opt-web-platform-tests-e10s-1"
@@ -8410,7 +8410,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -8580,7 +8580,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/debug-web-platform-tests-e10s-1"
@@ -8588,7 +8588,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -8756,7 +8756,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-e10s-1"
@@ -8764,7 +8764,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -8879,7 +8879,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/debug-web-platform-tests-e10s-1"
@@ -8887,7 +8887,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -9070,7 +9070,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Linux64 Opt ASAN ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-linux64-asan/opt"
@@ -9078,7 +9078,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-linux64-asan/opt",
           "os": "linux"
@@ -9191,7 +9191,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/opt-web-platform-tests-e10s-1"
@@ -9199,7 +9199,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -9376,7 +9376,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1"
@@ -9384,7 +9384,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -9552,7 +9552,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-e10s-1"
@@ -9560,7 +9560,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -9675,7 +9675,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/opt-web-platform-tests-e10s-1"
@@ -9683,7 +9683,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -9798,7 +9798,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64-qr/opt-web-platform-tests-e10s-1"
@@ -9806,7 +9806,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64-qr/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -9921,7 +9921,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/opt-web-platform-tests-e10s-1"
@@ -9929,7 +9929,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -10099,7 +10099,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/opt-web-platform-tests-e10s-1"
@@ -10107,7 +10107,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -10222,7 +10222,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/opt-web-platform-tests-e10s-1"
@@ -10230,7 +10230,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -10370,7 +10370,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/source-test",
           "description": "web-platform-tests linter ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "source-test-mozlint-wptlint-gecko"
@@ -10378,7 +10378,7 @@
         "tags": {
           "kind": "source-test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "source-test-mozlint-wptlint-gecko",
           "os": "linux"
@@ -10541,7 +10541,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-e10s-1"
@@ -10549,7 +10549,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -10717,7 +10717,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-e10s-1"
@@ -10725,7 +10725,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -10902,7 +10902,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1"
@@ -10910,7 +10910,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/opt-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -11078,7 +11078,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-e10s-1"
@@ -11086,7 +11086,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -11289,7 +11289,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/build",
           "description": "Android 5.0 x86-64 Debug ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "build-android-x86_64/debug"
@@ -11297,7 +11297,7 @@
         "tags": {
           "kind": "build",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "false",
           "label": "build-android-x86_64/debug",
           "os": "linux"
@@ -11410,7 +11410,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/debug-web-platform-tests-e10s-1"
@@ -11418,7 +11418,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -11533,7 +11533,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/opt-web-platform-tests-e10s-1"
@@ -11541,7 +11541,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -11711,7 +11711,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/debug-web-platform-tests-e10s-1"
@@ -11719,7 +11719,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -11889,7 +11889,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/debug-web-platform-tests-e10s-1"
@@ -11897,7 +11897,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/debug-web-platform-tests-e10s-1",
           "os": "linux"
@@ -12066,7 +12066,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run with serviceworker-e10s redesign enabled ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-sw-e10s-1"
@@ -12074,7 +12074,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-sw-e10s-1",
           "os": "linux"
@@ -12244,7 +12244,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64-qr/opt-web-platform-tests-e10s-1"
@@ -12252,7 +12252,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64-qr/opt-web-platform-tests-e10s-1",
           "os": "linux"
@@ -12429,7 +12429,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1"
@@ -12437,7 +12437,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-android-em-7.0-x86_64/debug-geckoview-web-platform-tests-e10s-1",
           "os": "linux"
@@ -12552,7 +12552,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/debug-web-platform-tests-e10s-1"
@@ -12560,7 +12560,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/debug-web-platform-tests-e10s-1",
           "os": "windows"
@@ -12700,7 +12700,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/source-test",
           "description": "Check for incorrect permissions on source files ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "source-test-mozlint-file-perm"
@@ -12708,7 +12708,7 @@
         "tags": {
           "kind": "source-test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "source-test-mozlint-file-perm",
           "os": "linux"
@@ -12843,7 +12843,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/source-test",
           "description": "Checks for misspellings in text files ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "source-test-mozlint-codespell"
@@ -12851,7 +12851,7 @@
         "tags": {
           "kind": "source-test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "source-test-mozlint-codespell",
           "os": "linux"
@@ -12961,7 +12961,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows7-32/opt-web-platform-tests-e10s-1"
@@ -12969,7 +12969,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows7-32/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -13138,7 +13138,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run with serviceworker-e10s redesign enabled ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/debug-web-platform-tests-sw-e10s-1"
@@ -13146,7 +13146,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/debug-web-platform-tests-sw-e10s-1",
           "os": "linux"
@@ -13261,7 +13261,7 @@
           ]
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-windows10-64/opt-web-platform-tests-e10s-1"
@@ -13269,7 +13269,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "generic-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-windows10-64/opt-web-platform-tests-e10s-1",
           "os": "windows"
@@ -13437,7 +13437,7 @@
           }
         },
         "metadata": {
-          "owner": "wptsync@mozilla.com",
+          "owner": "wptsync-try@mozilla.bugs",
           "source": "https://hg.mozilla.org/try/file/0b445bf4228a963505183b157758c37664921791/taskcluster/ci/test",
           "description": "Web platform test run ([Treeherder push](https://treeherder.mozilla.org/#/jobs?repo=try&revision=0b445bf4228a963505183b157758c37664921791))",
           "name": "test-linux64/opt-web-platform-tests-e10s-1"
@@ -13445,7 +13445,7 @@
         "tags": {
           "kind": "test",
           "worker-implementation": "docker-worker",
-          "createdForUser": "wptsync@mozilla.com",
+          "createdForUser": "wptsync-try@mozilla.bugs",
           "retrigger": "true",
           "label": "test-linux64/opt-web-platform-tests-e10s-1",
           "os": "linux"
