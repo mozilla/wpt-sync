@@ -260,18 +260,16 @@ class DecisionTaskFilter(Filter):
     name = "decision-task"
 
     def accept(self, body: MsgBody) -> bool:
-        return is_decision_task(body)
+        return is_decision_task(body, self.config["lando"]["user_email_for_try"])
 
 
 class TryTaskFilter(Filter):
     name = "try-task"
 
     def accept(self, body: MsgBody) -> bool:
-        return not is_decision_task(body)
+        return not is_decision_task(body, self.config["lando"]["user_email_for_try"])
 
 
-def is_decision_task(body: MsgBody) -> bool:
+def is_decision_task(body: MsgBody, user_email: str) -> bool:
     tags = body.get("task", {}).get("tags", {})
-    return (
-        tags.get("kind") == "decision-task" and tags.get("createdForUser") == "wptsync@mozilla.com"
-    )
+    return tags.get("kind") == "decision-task" and tags.get("createdForUser") == user_email

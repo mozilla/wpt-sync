@@ -31,7 +31,7 @@
       "kind": "source-test",
       "label": "source-test-mozlint-file-whitespace",
       "retrigger": "true",
-      "createdForUser": "wptsync@mozilla.com",
+      "createdForUser": "wptsync-try@mozilla.bugs",
       "worker-implementation": "docker-worker"
     }
   },
