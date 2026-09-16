@@ -204,8 +204,6 @@ class DecisionTaskHandler(Handler):
                     return
 
         try_push = trypush.TryPush.for_commit(git_gecko, sha1)
-        if try_push is None:
-            try_push = trypush.TryPush.for_task(git_gecko, task)
         if not try_push:
             logger.debug(f"No try push for SHA1 {sha1} taskId {task_id}")
             # This could be a race condition if the decision task completes before this
@@ -265,6 +263,15 @@ class TryTaskHandler(Handler):
         taskgroup_id = body["status"]["taskGroupId"]
 
         try_push = trypush.TryPush.for_taskgroup(git_gecko, taskgroup_id)
+        task = None
+        if try_push is None:
+            # The --env token is only added to jobs created by the decision task,
+            # so use a child job to match pushes whose Lando revision is unknown.
+            task_id = body["status"]["taskId"]
+            task = tc.get_task(task_id)
+            if task is None:
+                raise ValueError("Failed to get task for task_id %s" % task_id)
+            try_push = trypush.TryPush.for_task(git_gecko, task)
         if not try_push:
             logger.debug("No try push for taskgroup %s" % taskgroup_id)
             # this is not one of our try_pushes
@@ -273,18 +280,37 @@ class TryTaskHandler(Handler):
         if try_push.status == "complete":
             return
 
+        if try_push.taskgroup_id not in (None, taskgroup_id):
+            logger.info("Ignoring task for old taskgroup %s" % taskgroup_id)
+            return
+
         logger.info("Found try push for taskgroup %s" % taskgroup_id)
+
+        if try_push.taskgroup_id is None:
+            with SyncLock.for_process(try_push.process_name) as lock:
+                assert isinstance(lock, SyncLock)
+                with try_push.as_mut(lock):
+                    if try_push.try_rev is None and task is not None:
+                        sha1 = task.get("payload", {}).get("env", {}).get("GECKO_HEAD_REV")
+                        if sha1 is None:
+                            raise ValueError("Failed to get commit sha1 from task message")
+                        try_push.try_rev = sha1
+
+                    # A child job can finish while the decision task is still
+                    # creating jobs. Wait for it before checking for completion.
+                    decision_status = tc.get_task_status(taskgroup_id)
+                    if (
+                        decision_status is None
+                        or decision_status["state"] not in DecisionTaskHandler.complete_states
+                    ):
+                        raise RetryableError(Exception("Decision task is not yet complete"))
+                    try_push.taskgroup_id = taskgroup_id
 
         # Check if the taskgroup has all tasks complete, excluding unscheduled tasks.
         # This allows us to tell if the taskgroup is complete (per the treeherder definition)
         # even when there are tasks that won't be scheduled because the task they depend on
         # failed. Otherwise we'd have to wait until those unscheduled tasks time out, which
         # usually takes 24hr
-        if try_push.taskgroup_id is None:
-            with SyncLock.for_process(try_push.process_name) as lock:
-                assert isinstance(lock, SyncLock)
-                with try_push.as_mut(lock):
-                    try_push.taskgroup_id = taskgroup_id
         tasks = try_push.tasks()
         if tasks is not None and tasks.complete(allow_unscheduled=True):
             taskgroup_complete(git_gecko, git_wpt, taskgroup_id, try_push)
