@@ -145,7 +145,7 @@ class TryCommit:
         status = job.get("status")
         logger.info(
             f"Lando job {job_id} hasn't landed the try push yet; last status was "
-            f"{status}. Waiting for the decision task instead. See {job.get('url')}"
+            f"{status}. Waiting for a try task instead. See {job.get('url')}"
         )
         return None
 
