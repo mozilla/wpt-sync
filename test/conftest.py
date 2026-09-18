@@ -58,7 +58,6 @@ Command Arguments:
   --full                Use the full task graph
   --artifact            Force artifact builds
   --no-artifact         Disable artifact builds
-  --env ENV             Set an environment variable in the task
   --write-task-config   Write try_task_config.json to the root of the source
                         tree instead of pushing to try
 """
@@ -74,12 +73,6 @@ def mach_try(mach, *args, **kwargs):
         return b""
 
     task_config = json.loads(try_task_config)
-    task_env = task_config["parameters"]["try_task_config"]["env"]
-    for idx, arg in enumerate(args):
-        if arg == "--env":
-            name, value = args[idx + 1].split("=", 1)
-            task_env[name] = value
-
     path = os.path.join(mach.path, "try_task_config.json")
     with open(path, "w") as f:
         json.dump(task_config, f, indent=4, sort_keys=True)
@@ -189,7 +182,9 @@ def env(request, mock_mach, mock_wpt):
 
 @pytest.fixture
 def initial_gecko_content():
-    return {"README": b"Initial text\n"}
+    with open(os.path.join(here, "sample-data", "taskcluster", "decision-task.yml"), "rb") as f:
+        tc_config = f.read()
+    return {"README": b"Initial text\n", ".taskcluster.yml": tc_config}
 
 
 @pytest.fixture

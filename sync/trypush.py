@@ -1,6 +1,8 @@
 from __future__ import annotations
 import base64
+import json
 import os
+import re
 import shutil
 import subprocess
 import traceback
@@ -247,9 +249,6 @@ class TryFuzzyCommit(TryCommit):
         if b"--write-task-config" not in try_help:
             raise MachTooOldError("mach try fuzzy doesn't support --write-task-config")
 
-        if b"--env" not in try_help:
-            raise MachTooOldError("mach try fuzzy doesn't support --env")
-
         can_push_routes = b"--route " in try_help
 
         args = ["fuzzy"] + query_args
@@ -260,8 +259,6 @@ class TryFuzzyCommit(TryCommit):
             args.append("--full")
         if self.disable_target_task_filter:
             args.append("--disable-target-task-filter")
-        if self.token is not None:
-            args.extend(["--env", f"WPTSYNC_TRY_PUSH_TOKEN={self.token}"])
         if can_push_routes:
             args.append("--route=notify.pulse.wptsync.try-task.on-any")
         if self.artifact:
@@ -301,7 +298,31 @@ class TryFuzzyCommit(TryCommit):
             logger.error(msg)
             raise AbortError(msg)
 
-        self.worktree.index.add([try_task_config_path])
+        paths = [try_task_config_path]
+        if self.token is not None:
+            tc_config_path = ".taskcluster.yml"
+            path = os.path.join(working_dir, tc_config_path)
+            with open(path) as f:
+                tc_config = f.read()
+
+            # Add the token to the decision task's environment, inside the JSON
+            # $merge alongside GECKO_HEAD_REV. Preserve the template's formatting.
+            tc_config, count = re.subn(
+                r"^( +)GECKO_HEAD_REV:.*$",
+                lambda match: (
+                    f"{match[0]}\n{match[1]}WPTSYNC_TRY_PUSH_TOKEN: {json.dumps(self.token)}"
+                ),
+                tc_config,
+                flags=re.MULTILINE,
+            )
+            if not count:
+                raise AbortError(f"Can't find the decision task environment in {tc_config_path}")
+
+            with open(path, "w") as f:
+                f.write(tc_config)
+            paths.append(tc_config_path)
+
+        self.worktree.index.add(paths)
         self.worktree.index.commit(message=message)
         logger.info(
             "Created try commit %s with message:\n%s" % (self.worktree.head.commit.hexsha, message)
