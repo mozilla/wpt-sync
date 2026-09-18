@@ -91,12 +91,9 @@ def test_land_try(
         "-q",
         "web-platform-tests mac !debug shippable",
         "--disable-target-task-filter",
-        "--env",
-        ANY,
         "--artifact",
         "--write-task-config",
     )
-    assert mach_command["args"][-3].startswith("WPTSYNC_TRY_PUSH_TOKEN=landing/")
 
 
 def test_land_commit(

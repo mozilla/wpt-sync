@@ -2,8 +2,21 @@ import base64
 import re
 from unittest.mock import Mock, patch
 
+import git
+import pytest
+
 from sync import tc, trypush
 from sync.lock import SyncLock
+
+
+@pytest.fixture
+def try_worktree(tmp_path, initial_gecko_content):
+    repo = git.Repo.init(tmp_path)
+    for path, content in initial_gecko_content.items():
+        (tmp_path / path).write_bytes(content)
+    repo.index.add(list(initial_gecko_content))
+    repo.index.commit("Initial commit")
+    return repo
 
 
 def test_read_try_rev(env, git_gecko):
@@ -27,6 +40,8 @@ def test_try_push_patches(env, try_push):
     # The try commit contains the try_task_config.json written by mach try
     assert "try_task_config.json" in patches[-1]
     assert "test-linux2404-64/opt-web-platform-tests-1" in patches[-1]
+    assert ".taskcluster.yml" in patches[-1]
+    assert f'WPTSYNC_TRY_PUSH_TOKEN: "{try_push.token}"' in patches[-1]
 
 
 def test_try_push_for_task(git_gecko, try_push):

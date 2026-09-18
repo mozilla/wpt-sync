@@ -1,0 +1,28 @@
+version: 1
+tasks:
+    - $switch:
+          'tasks_for == "hg-push"':
+              $let:
+                  repoUrl: {$eval: 'repository.url'}
+              in:
+                  payload:
+                      env:
+                          # Keep the token inside the environment merge.
+                          $merge:
+                              - GECKO_HEAD_REPOSITORY: '${repoUrl}'
+                                GECKO_HEAD_REV: '${push.revision}'
+                                MOZ_AUTOMATION: '1'
+                              - $if: 'tasks_for == "action"'
+                                then:
+                                    ACTION_CALLBACK: '${action.cb_name}'
+          'tasks_for == "github-push"':
+              $let:
+                  headRev: {$eval: 'event.after'}
+              in:
+                  payload:
+                      env:
+                          $merge:
+                              - GECKO_HEAD_REPOSITORY: '${repository.url}'
+                                GECKO_HEAD_REV: '${headRev}'
+                                GECKO_REPOSITORY_TYPE: git
+                                MOZ_AUTOMATION: '1'
