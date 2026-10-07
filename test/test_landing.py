@@ -495,7 +495,7 @@ def test_reapply_local_commits_uses_canonical_git_revs(
             landing_msg = sync_commit.Commit.make_commit_msg(
                 b"Landing commit",
                 {
-                    "reapplied-commits": already_reapplied_git_rev,
+                    "reapplied-commits-git": already_reapplied_git_rev,
                     "wpt-head": wpt_rev,
                     "wpt-type": "landing",
                 },
@@ -532,7 +532,7 @@ def test_reapply_local_commits_uses_canonical_git_revs(
                 landing_sync.reapply_local_commits({landed_git_rev})
 
             assert captured_metadata == [
-                {"reapplied-commits": f"{already_reapplied_git_rev}, {unapplied_git_rev}"}
+                {"reapplied-commits-git": f"{already_reapplied_git_rev}, {unapplied_git_rev}"}
             ]
 
 

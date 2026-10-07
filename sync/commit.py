@@ -558,22 +558,11 @@ class GeckoCommit(Commit):
 
     @property
     def require_canonical_rev_git(self) -> str:
-        if self.cinnabar:
-            if "gecko-commit-git" not in self.notes:
-                canonical_rev_git = env.lando.hg2git(self.canonical_rev)
-
-                if canonical_rev_git is None:
-                    raise ValueError(
-                        f"The commit with hg hash {self.canonical_rev} is missing canonical git hash"
-                    )
-                self.notes["gecko-commit-git"] = canonical_rev_git
-            sha1 = self.notes["gecko-commit-git"]
-            if sha1 is None:
-                raise ValueError(
-                    f"The commit with hg hash {self.canonical_rev} is missing canonical git hash"
-                )
-            return sha1
-        return self.sha1
+        if self.canonical_rev_git is None:
+            raise ValueError(
+                f"The commit with hg hash {self.canonical_rev} is missing canonical git hash"
+            )
+        return self.canonical_rev_git
 
     def has_wpt_changes(self) -> bool:
         prefix = env.config["gecko"]["path"]["wpt"]
