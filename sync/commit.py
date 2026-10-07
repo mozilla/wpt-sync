@@ -556,6 +556,14 @@ class GeckoCommit(Commit):
             return sha1
         return self.sha1
 
+    @property
+    def require_canonical_rev_git(self) -> str:
+        if self.canonical_rev_git is None:
+            raise ValueError(
+                f"The commit with hg hash {self.canonical_rev} is missing canonical git hash"
+            )
+        return self.canonical_rev_git
+
     def has_wpt_changes(self) -> bool:
         prefix = env.config["gecko"]["path"]["wpt"]
         return not self.is_empty(prefix)
