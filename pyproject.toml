@@ -34,7 +34,7 @@ dependencies = [
   "requests==2.34.2",
   "setuptools==82.0.1",
   "slugid==2.0.0",
-  "taskcluster==110.1.0",
+  "taskcluster==111.0.0",
 ]
 
 
