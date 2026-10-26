@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -1469,7 +1469,7 @@ wheels = [
 
 [[package]]
 name = "taskcluster"
-version = "110.1.0"
+version = "113.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1480,9 +1480,9 @@ dependencies = [
     { name = "slugid" },
     { name = "taskcluster-urls" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/14/1f79f8caf6202075bb7ae53c051f21f8b0c0b594d72f526c5ac3d4be7581/taskcluster-110.1.0.tar.gz", hash = "sha256:84bdc694ca11e9d6d5fc1ccb26ae514ea12b0fef1611e2f037f8120d11b0d1bb", size = 242486, upload-time = "2026-09-21T18:54:24.669Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/0d/f91b301f51746621d49919666e80bde31681480dd68f0091fa96fc75185f/taskcluster-113.2.0.tar.gz", hash = "sha256:eb388c7c67d678a82951884e8f423e79bde2e9abe081f8e7ede0f1d896a2f58c", size = 242303, upload-time = "2026-10-21T15:47:56.993Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/5a/9898240e0cb56fed982e64b905223877be0b82c78bd831f3d47b8dd31bca/taskcluster-110.1.0-py3-none-any.whl", hash = "sha256:b4e4d120068bdbb75fdae0e703073b32dd551587cf66fff8db0e142e895a5172", size = 151701, upload-time = "2026-09-21T18:54:23.221Z" },
+    { url = "https://files.pythonhosted.org/packages/77/69/92bc2d0cc1733584f04a5cf0b3ac399a4f72939e0cd48c819fb00e8b9077/taskcluster-113.2.0-py3-none-any.whl", hash = "sha256:8707787a9d861023809dde7512dc1033b004cf8fe1094e7bd569dc94340c1ac0", size = 152105, upload-time = "2026-10-21T15:47:55.365Z" },
 ]
 
 [[package]]
@@ -1680,7 +1680,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'test'", specifier = "==0.15.21" },
     { name = "setuptools", specifier = "==82.0.1" },
     { name = "slugid", specifier = "==2.0.0" },
-    { name = "taskcluster", specifier = "==110.1.0" },
+    { name = "taskcluster", specifier = "==113.2.0" },
     { name = "types-filelock", marker = "extra == 'test'", specifier = "==3.2.7" },
     { name = "types-pyyaml", marker = "extra == 'test'", specifier = "==6.0.12.20250516" },
     { name = "types-requests", marker = "extra == 'test'", specifier = "==2.33.0.20260906" },
