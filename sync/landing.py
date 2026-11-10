@@ -449,23 +449,40 @@ Automatic update from web-platform-tests\n%s
 
     @mut()
     def reapply_local_commits(self, gecko_commits_landed: set[str]) -> None:
+        landing_commit = self.gecko_commits[-1]
+        landing_metadata = landing_commit.metadata
+
+        metadata_key_for_cinnabar = "reapplied-commits"
+        metadata_key_for_git = "reapplied-commits-git"
+        use_canonical_rev_git = (
+            metadata_key_for_git in landing_metadata
+            or metadata_key_for_cinnabar not in landing_metadata
+        )
+        reapplied_commits_key = (
+            metadata_key_for_git if use_canonical_rev_git else metadata_key_for_cinnabar
+        )
+
+        def reapplied_rev(commit: sync_commit.GeckoCommit) -> str:
+            if use_canonical_rev_git:
+                return commit.require_canonical_rev_git
+            return commit.canonical_rev
+
         # The local commits to apply are everything that hasn't been landed at this
         # point in the process
         commits = [
             item
             for item in self.unlanded_gecko_commits()
-            if item.canonical_rev not in gecko_commits_landed
+            if item.require_canonical_rev_git not in gecko_commits_landed
         ]
 
-        landing_commit = self.gecko_commits[-1]
         git_work_gecko = self.gecko_worktree.get()
 
-        logger.debug("Reapplying commits: %s" % " ".join(item.canonical_rev for item in commits))
+        logger.debug("Reapplying commits: %s" % " ".join(reapplied_rev(item) for item in commits))
 
         if not commits:
             return
 
-        already_applied_meta = landing_commit.metadata.get("reapplied-commits")
+        already_applied_meta = landing_metadata.get(reapplied_commits_key)
         if already_applied_meta:
             already_applied = [item.strip() for item in already_applied_meta.split(",")]
         else:
@@ -473,7 +490,7 @@ Automatic update from web-platform-tests\n%s
         already_applied_set = set(already_applied)
 
         unapplied_gecko_commits = [
-            item for item in commits if item.canonical_rev not in already_applied_set
+            item for item in commits if reapplied_rev(item) not in already_applied_set
         ]
 
         try:
@@ -482,9 +499,9 @@ Automatic update from web-platform-tests\n%s
                 def msg_filter(_: Any) -> tuple[bytes, dict[str, str]]:
                     msg = landing_commit.msg
                     reapplied_commits = already_applied + [
-                        commit.canonical_rev for commit in commits[: i + 1]
+                        reapplied_rev(item) for item in unapplied_gecko_commits[: i + 1]
                     ]
-                    metadata = {"reapplied-commits": ", ".join(reapplied_commits)}
+                    metadata = {reapplied_commits_key: ", ".join(reapplied_commits)}
                     return msg, metadata
 
                 logger.info(f"Reapplying {commit.sha1} - {commit.msg.decode('utf8')}")
@@ -645,7 +662,7 @@ Automatic update from web-platform-tests\n%s
         ) -> None:
             if isinstance(sync, upstream.UpstreamSync):
                 for commit in commits:
-                    gecko_commit = commit.metadata.get("gecko-commit")
+                    gecko_commit = commit.metadata.get("gecko-commit-git")
                     if gecko_commit:
                         gecko_commits_landed.add(gecko_commit)
 
@@ -1060,8 +1077,10 @@ def landable_commits(
                             )
 
                 # Only check the first commit since later ones could be added in the PR
-                sync_revs = {item.canonical_rev for item in sync.upstreamed_gecko_commits}
-                if any(commit.metadata.get("gecko-commit") in sync_revs for commit in commits):
+                sync_revs = {
+                    item.require_canonical_rev_git for item in sync.upstreamed_gecko_commits
+                }
+                if any(commit.metadata.get("gecko-commit-git") in sync_revs for commit in commits):
                     break
             else:
                 sync = None
