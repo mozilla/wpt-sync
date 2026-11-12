@@ -476,21 +476,25 @@ class CommitBuilder:
             return self
 
         self.lock.__enter__()
+        try:
+            # First we create an empty index
+            self.index = pygit2.Index()
 
-        # First we create an empty index
-        self.index = pygit2.Index()
-
-        if self.ref is not None:
-            try:
-                ref = self.pygit2_repo.lookup_reference(self.ref)
-            except KeyError:
-                self.parents = []
+            if self.ref is not None:
+                try:
+                    ref = self.pygit2_repo.lookup_reference(self.ref)
+                except KeyError:
+                    self.parents = []
+                else:
+                    self.parents = [ref.peel(None).id]
+                    if not self.initial_empty:
+                        self.index.read_tree(ref.peel(None).tree)
             else:
-                self.parents = [ref.peel(None).id]
-                if not self.initial_empty:
-                    self.index.read_tree(ref.peel(None).tree)
-        else:
-            self.parents = []
+                self.parents = []
+        except Exception:
+            self._count -= 1
+            self.lock.__exit__(None, None, None)
+            raise
         return self
 
     def __exit__(self, *args: Any, **kwargs: Any) -> None:
@@ -500,23 +504,25 @@ class CommitBuilder:
         if self._count != 0:
             return
 
-        if not self.has_changes:
-            if self.parents:
-                sha1 = self.parents[0]
+        try:
+            if not self.has_changes:
+                if self.parents:
+                    sha1 = self.parents[0]
+                else:
+                    return None
             else:
-                return None
-        else:
-            tree_id = self.index.write_tree(self.pygit2_repo)
+                tree_id = self.index.write_tree(self.pygit2_repo)
 
-            sha1 = self.pygit2_repo.create_commit(
-                self.ref,
-                self.pygit2_repo.default_signature,
-                self.pygit2_repo.default_signature,
-                self.message.encode("utf8"),
-                tree_id,
-                self.parents,
-            )
-        self.lock.__exit__(*args, **kwargs)
+                sha1 = self.pygit2_repo.create_commit(
+                    self.ref,
+                    self.pygit2_repo.default_signature,
+                    self.pygit2_repo.default_signature,
+                    self.message.encode("utf8"),
+                    tree_id,
+                    self.parents,
+                )
+        finally:
+            self.lock.__exit__(*args, **kwargs)
         self.commit = self.commit_cls(self.repo, sha1)
 
     def add_tree(self, tree: dict[str, bytes]) -> None:
