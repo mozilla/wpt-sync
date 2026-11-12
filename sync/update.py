@@ -176,8 +176,9 @@ def update_pr(
             else:
                 if pr.state != "open" and not pr.merged:
                     return
-            schedule_pr_task("opened", pr, repo_update=repo_update)
-            update_for_status(pr, repo_update=repo_update)
+
+        schedule_pr_task("opened", pr, repo_update=repo_update)
+        update_for_status(pr, repo_update=repo_update)
     elif isinstance(sync, downstream.DownstreamSync):
         with SyncLock.for_process(sync.process_name) as lock:
             assert isinstance(lock, SyncLock)
