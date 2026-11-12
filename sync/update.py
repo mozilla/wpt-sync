@@ -178,8 +178,18 @@ def update_pr(
                     return
 
         schedule_pr_task("opened", pr, repo_update=repo_update)
-        update_for_status(pr, repo_update=repo_update)
-    elif isinstance(sync, downstream.DownstreamSync):
+
+        sync = get_pr_sync(git_gecko, git_wpt, pr.number)
+        if not isinstance(sync, downstream.DownstreamSync):
+            update_for_status(pr, repo_update=repo_update)
+            return
+
+    if not pr.merged:
+        # Nothing to do for a new downstream sync until the PR merges;
+        # the first try push is scheduled on the "closed" action.
+        return
+
+    if isinstance(sync, downstream.DownstreamSync):
         with SyncLock.for_process(sync.process_name) as lock:
             assert isinstance(lock, SyncLock)
             with sync.as_mut(lock):
