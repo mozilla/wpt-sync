@@ -251,11 +251,12 @@ class TryFuzzyCommit(TryCommit):
             raise MachTooOldError("mach try fuzzy doesn't support --env")
 
         can_push_routes = b"--route " in try_help
+        can_use_repeat = b"--repeat" in try_help
 
         args = ["fuzzy"] + query_args
         if self.rebuild:
-            args.append("--rebuild")
-            args.append(str(self.rebuild))
+            arg = "--repeat" if can_use_repeat else "--rebuild"
+            args.extend([arg, str(self.rebuild)])
         if self.full:
             args.append("--full")
         if self.disable_target_task_filter:
