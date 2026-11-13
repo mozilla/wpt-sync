@@ -130,6 +130,19 @@ class UpstreamSync(SyncProcess):
         return self
 
     @classmethod
+    def pr_from_gecko(cls, git_wpt: Repo, pr_id: int, body: str | None) -> bool:
+        """Check whether a wpt PR contains changes that originated in gecko.
+
+        PRs created by the sync carry the gecko metadata both in the PR body
+        and in the commit messages."""
+        if body is None or not cls.has_metadata(body.encode("utf8", "replace")):
+            return False
+        commits = env.gh_wpt.get_commits(pr_id)
+        if not commits:
+            return False
+        return cls.has_metadata(sync_commit.WptCommit(git_wpt, commits[0].sha).msg)
+
+    @classmethod
     def from_pr(
         cls, lock: SyncLock, git_gecko: Repo, git_wpt: Repo, pr_id: int, body: str | None
     ) -> UpstreamSync | None:
@@ -137,7 +150,7 @@ class UpstreamSync(SyncProcess):
         bug = None
         integration_branch = None
 
-        if body is None or not cls.has_metadata(body.encode("utf8", "replace")):
+        if not cls.pr_from_gecko(git_wpt, pr_id, body):
             return None
 
         commits = env.gh_wpt.get_commits(pr_id)
