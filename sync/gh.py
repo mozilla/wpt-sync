@@ -459,6 +459,9 @@ class MockGitHub(GitHub):
         self._log("Getting PR %s" % id)
         return self.prs.get(int(id))
 
+    def get_commits(self, pr_id: int) -> list[Any]:
+        return list(self.get_pull(pr_id)["_commits"])
+
     def create_pull(
         self,
         title: str,

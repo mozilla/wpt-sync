@@ -164,18 +164,19 @@ def update_pr(
     if not sync:
         # If this looks like something that came from gecko, create
         # a corresponding sync
-        with SyncLock("upstream", None) as lock:
-            assert isinstance(lock, SyncLock)
-            upstream_sync = upstream.UpstreamSync.from_pr(
-                lock, git_gecko, git_wpt, pr.number, pr.body
-            )
-            if upstream_sync is not None:
-                with upstream_sync.as_mut(lock):
-                    assert isinstance(lock, SyncLock)
-                    upstream.update_pr(git_gecko, git_wpt, upstream_sync, pr.state, pr.merged)
-            else:
-                if pr.state != "open" and not pr.merged:
-                    return
+        upstream_sync: upstream.UpstreamSync | None = None
+        if upstream.UpstreamSync.pr_from_gecko(git_wpt, pr.number, pr.body):
+            with SyncLock("upstream", None) as lock:
+                assert isinstance(lock, SyncLock)
+                upstream_sync = upstream.UpstreamSync.from_pr(
+                    lock, git_gecko, git_wpt, pr.number, pr.body
+                )
+                if upstream_sync is not None:
+                    with upstream_sync.as_mut(lock):
+                        upstream.update_pr(git_gecko, git_wpt, upstream_sync, pr.state, pr.merged)
+
+        if upstream_sync is None and pr.state != "open" and not pr.merged:
+            return
 
         schedule_pr_task("opened", pr, repo_update=repo_update)
 

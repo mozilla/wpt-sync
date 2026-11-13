@@ -4,6 +4,7 @@ import os
 from unittest.mock import patch, PropertyMock
 
 from sync import commit as sync_commit, upstream
+from sync.gh import AttrDict
 from sync.gitutils import update_repositories
 from sync.lock import SyncLock
 from sync.repos import cinnabar
@@ -709,3 +710,29 @@ def test_backfill_git_hashes(env, git_gecko, git_wpt, upstream_gecko_commit):
 
     # Verify that "gecko-commit-git" is now in metadata
     assert sync.wpt_commits[0].metadata.get("gecko-commit-git") == backfill_git_rev
+
+
+def test_pr_from_gecko(env, git_gecko, git_wpt, upstream_gecko_commit):
+    bug = 1234
+    test_changes = {"README": b"Change README\n"}
+    rev = upstream_gecko_commit(test_changes=test_changes, bug=bug, message=b"Change README")
+
+    update_repositories(git_gecko, git_wpt, wait_gecko_commit=rev)
+    env.lando.hg_to_git[rev] = "test_revision"
+    upstream.gecko_push(git_gecko, git_wpt, "autoland", rev, raise_on_error=True)
+
+    sync = upstream.UpstreamSync.for_bug(git_gecko, git_wpt, bug)["open"].pop()
+    pr = env.gh_wpt.get_pull(sync.pr)
+    # The mock GitHub doesn't derive PR commits from the pushed branch, so
+    # point it at the commits the sync actually pushed
+    pr._commits[:] = [
+        AttrDict(sha=commit.sha1, message=commit.msg.decode("utf8"), _statuses=[], _checks=[])
+        for commit in sync.wpt_commits
+    ]
+    assert upstream.UpstreamSync.pr_from_gecko(git_wpt, pr.number, pr.body)
+
+
+def test_pr_from_gecko_wpt_pr(env, git_gecko, git_wpt, pull_request):
+    pr = pull_request([(b"Test commit", {"README": b"Example change\n"})], "Example PR")
+    assert not upstream.UpstreamSync.pr_from_gecko(git_wpt, pr.number, pr.body)
+    assert not upstream.UpstreamSync.pr_from_gecko(git_wpt, pr.number, None)
