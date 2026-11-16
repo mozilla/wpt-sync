@@ -173,7 +173,7 @@ class TryFuzzyCommit(TryCommit):
             **kwargs,
         )
         self.queries = self.extra_args.get(
-            "queries", ["web-platform-tests !macosx !shippable !asan !tsan"]
+            "queries", ["web-platform-tests !macosx !shippable !asan !tsan !nofis !-pb"]
         )
         if isinstance(self.queries, str):
             self.queries = [self.queries]
