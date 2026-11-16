@@ -150,7 +150,7 @@ class UpstreamSync(SyncProcess):
         bug = None
         integration_branch = None
 
-        if not cls.pr_from_gecko(git_wpt, pr_id, body):
+        if body is None or not cls.has_metadata(body.encode("utf8", "replace")):
             return None
 
         commits = env.gh_wpt.get_commits(pr_id)
