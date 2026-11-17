@@ -53,7 +53,6 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
             unprunable.append(worktree_data)
             continue
 
-        
         worktree_pygit2_repo = get_worktree_repo(worktree.path)
         if worktree_pygit2_repo is None:
             # Removed concurrently
@@ -111,11 +110,6 @@ def delete_worktree(repo: Repo, process_name: ProcessName, worktree: PyGit2Workt
         os.path.join(env.config["root"], env.config["paths"]["worktrees"])
     )
     with SyncLock.for_process(process_name):
-        if not os.path.exists(worktree.path):
-            # Already removed, e.g. by the owning process while we waited for the lock
-            logger.info(f"Worktree path {worktree.path} already removed")
-        else:
-            delete_path(worktree.path)
         prune_worktree(worktree)
 
         wrapper = wrapper_get(repo)
