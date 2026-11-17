@@ -53,17 +53,13 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
             unprunable.append(worktree_data)
             continue
 
-        try:
-            worktree_pygit2_repo = get_worktree_repo(worktree.path)
-            head_branch = worktree_pygit2_repo.head.name if worktree_pygit2_repo else None
-        except pygit2.GitError:
-            if not os.path.exists(worktree.path):
-                # Removed concurrently
-                prune_worktree(worktree)
-                continue
-            logger.warning("Worktree is not a valid repository %s" % worktree.path)
-            maybe_prunable.append(worktree_data)
+        
+        worktree_pygit2_repo = get_worktree_repo(worktree.path)
+        if worktree_pygit2_repo is None:
+            # Removed concurrently
+            prune_worktree(worktree)
             continue
+        head_branch = worktree_pygit2_repo.head.name if worktree_pygit2_repo else None
 
         if not head_branch or head_branch == "HEAD":
             logger.warning("No branch associated with worktree %s" % worktree.path)
@@ -129,10 +125,11 @@ def delete_worktree(repo: Repo, process_name: ProcessName, worktree: PyGit2Workt
 
 def delete_path(path: str) -> None:
     try:
-        logger.info(f"Deleting path %{path}")
+        logger.debug(f"Deleting path %{path}")
         shutil.rmtree(path)
     except Exception:
-        logger.warning(f"Failed to remove worktree {path}:{traceback.format_exc()}")
+        if os.path.exists(path):
+            logger.warning(f"Failed to remove {path}:{traceback.format_exc()}")
 
 
 def get_worktree_repo(path: str) -> Optional[Repository]:
@@ -156,7 +153,8 @@ def prune_worktree(worktree: PyGit2Worktree) -> None:
         worktree.prune(True)
     except pygit2.GitError:
         # Most likely the worktree was already pruned by another process
-        logger.warning(f"Failed to prune worktree {worktree.path}: {traceback.format_exc()}")
+        if os.path.exists(worktree.path):
+            logger.warning(f"Failed to prune worktree {worktree.path}: {traceback.format_exc()}")
 
     delete_path(worktree.path)
 
@@ -239,9 +237,7 @@ class Worktree:
 
             if self.worktree_name in all_worktrees:
                 if path_exists:
-                    try:
-                        get_worktree_repo(self.path)
-                    except pygit2.GitError:
+                    if get_worktree_repo(self.path) is None:
                         logger.warning(
                             f"Worktree {self.path} is not a valid repository, recreating"
                         )
