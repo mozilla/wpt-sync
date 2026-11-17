@@ -54,8 +54,8 @@ def cleanup_repo(repo: Repo, pygit2_repo: Repository, max_count: Optional[int] =
             continue
 
         try:
-            worktree_pygit2_repo = pygit2.Repository(worktree.path)
-            head_branch = worktree_pygit2_repo.head.name
+            worktree_pygit2_repo = get_worktree_repo(worktree.path)
+            head_branch = worktree_pygit2_repo.head.name if worktree_pygit2_repo else None
         except pygit2.GitError:
             if not os.path.exists(worktree.path):
                 # Removed concurrently
@@ -119,20 +119,27 @@ def delete_worktree(repo: Repo, process_name: ProcessName, worktree: PyGit2Workt
             # Already removed, e.g. by the owning process while we waited for the lock
             logger.info(f"Worktree path {worktree.path} already removed")
         else:
-            try:
-                logger.info("Deleting path %s" % worktree.path)
-                shutil.rmtree(worktree.path)
-            except Exception:
-                logger.warning(
-                    "Failed to remove worktree %s:%s" % (worktree.path, traceback.format_exc())
-                )
-            else:
-                logger.info(f"Removed worktree {worktree.path}")
+            delete_path(worktree.path)
         prune_worktree(worktree)
 
         wrapper = wrapper_get(repo)
         assert wrapper is not None
         wrapper.after_worktree_delete(worktree.path)
+
+
+def delete_path(path: str) -> None:
+    try:
+        logger.info(f"Deleting path %{path}")
+        shutil.rmtree(path)
+    except Exception:
+        logger.warning(f"Failed to remove worktree {path}:{traceback.format_exc()}")
+
+
+def get_worktree_repo(path: str) -> Optional[Repository]:
+    try:
+        return pygit2.Repository(path)
+    except pygit2.GitError:
+        return None
 
 
 def worktrees(pygit2_repo: Repository) -> Iterator[PyGit2Worktree]:
@@ -148,8 +155,10 @@ def prune_worktree(worktree: PyGit2Worktree) -> None:
     try:
         worktree.prune(True)
     except pygit2.GitError:
-        # Most likely the worktree metadata was already pruned by another process
+        # Most likely the worktree was already pruned by another process
         logger.warning(f"Failed to prune worktree {worktree.path}: {traceback.format_exc()}")
+
+    delete_path(worktree.path)
 
 
 def prune_worktrees(pygit2_repo: Repository) -> None:
@@ -231,12 +240,12 @@ class Worktree:
             if self.worktree_name in all_worktrees:
                 if path_exists:
                     try:
-                        pygit2.Repository(self.path)
+                        get_worktree_repo(self.path)
                     except pygit2.GitError:
                         logger.warning(
                             f"Worktree {self.path} is not a valid repository, recreating"
                         )
-                        shutil.rmtree(self.path)
+                        delete_path(self.path)
                         path_exists = False
                 else:
                     prune_worktrees(self.pygit2_repo)
@@ -247,7 +256,7 @@ class Worktree:
                     logger.warning(
                         "Found existing content in worktree path %s, removing" % self.path
                     )
-                    shutil.rmtree(self.path)
+                    delete_path(self.path)
                 logger.info(f"Creating worktree {self.worktree_name} at {self.path}")
                 if not os.path.exists(os.path.dirname(self.path)):
                     os.makedirs(os.path.dirname(self.path))
