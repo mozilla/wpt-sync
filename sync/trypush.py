@@ -14,6 +14,7 @@ from . import base
 from . import log
 from . import tc
 from . import tree
+from .commit import Commit
 from .env import Environment
 from .errors import AbortError, RetryableError
 from .index import TaskGroupIndex, TryCommitIndex
@@ -332,7 +333,11 @@ class TryFuzzyCommit(TryCommit):
         return job_id
 
     def commit_patches(self, base: str) -> list[bytes]:
-        commits = list(self.worktree.iter_commits(f"{base}..HEAD", reverse=True))
+        commits = [
+            commit
+            for commit in self.worktree.iter_commits(f"{base}..HEAD", reverse=True)
+            if not Commit(self.worktree, commit).is_empty()
+        ]
         if not commits:
             raise AbortError(f"No commits to push to try between {base} and the try commit")
         return [
