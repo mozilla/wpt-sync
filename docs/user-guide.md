@@ -249,6 +249,24 @@ wptsync bug <bug_id>
 
 commands. Note that these generally don't check taskcluster.
 
+# Sparse Checkouts
+
+Gecko worktrees only contain the files matching the sparse checkout
+patterns in the file configured as `/app/config/try-wpt.sparse`.
+The patterns have to cover everything that's used in a gecko worktree: the wpt tests and metadata, and the files read by the mach commands that are run there,
+including `mach try`. If the file can't be read, worktrees are created with all the files instead.
+
+The patterns are only applied when a worktree is created, so existing
+worktrees aren't affected by changes to them. To use the new patterns
+for a downstream sync, delete and recreate its gecko worktree with
+
+```
+wptsync pr --recreate-worktree <pr_id>
+```
+
+This has to be run from outside the worktree, and any changes in the
+worktree that aren't committed are lost.
+
 # Running the landing code
 
 If the landing code has to be run manually, this can be done using
