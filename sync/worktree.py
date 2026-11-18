@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 import traceback
 from datetime import datetime, timedelta
 
@@ -176,6 +177,46 @@ def get_max_worktree_count(repo: Repo) -> Optional[Any]:
     return max_count
 
 
+def get_sparse_checkout(repo: Repo) -> Optional[str]:
+    """Path to the file containing the sparse checkout patterns for the worktrees
+    of a repo, or None if the worktrees should contain all the files in the repo."""
+    repo_wrapper = wrapper_get(repo)
+    # The patterns are for the paths in gecko, so they mustn't be applied to the
+    # other repos, where they would leave out almost all the files
+    if not repo_wrapper or repo_wrapper.name != "gecko":
+        return None
+    path = "/app/config/try-wpt.sparse"
+    if not path:
+        return None
+    return path
+
+
+def read_sparse_checkout(path: str) -> Optional[bytes]:
+    """Sparse checkout patterns in the file at a path, or None if it can't be read."""
+    try:
+        with open(path, "rb") as f:
+            return f.read()
+    except OSError:
+        logger.error(
+            f"Failed to read sparse checkout patterns from {path}, "
+            f"checking out all the files instead:\n{traceback.format_exc()}"
+        )
+        return None
+
+
+def enable_sparse_checkout(repo: Repo) -> None:
+    """Ensure that git applies the sparse checkout patterns in the worktrees of a repo."""
+
+    try:
+        enabled = repo.git.config("--type=bool", "--get", "core.sparseCheckout") == "true"
+    except git.GitCommandError:
+        # The setting isn't in the config at all
+        enabled = False
+    if not enabled:
+        logger.info("Enabling sparse checkouts in %s" % repo.git_dir)
+        repo.git.config("core.sparseCheckout", "true")
+
+
 class Worktree:
     """Wrapper for accessing a git worktree for a specific process.
 
@@ -213,14 +254,13 @@ class Worktree:
         On first access, the worktree is reset to the current HEAD. Subsequent
         access doesn't perform the same check, so it's possible to retain state
         within a specific process."""
-        # TODO: We can get the worktree to only checkout the paths we actually
-        # need.
-        # To do this we have to
-        # * Enable sparse checkouts by setting core.sparseCheckouts
-        # * Add the worktree with --no-checkout
-        # * Add the list of paths to check out under $REPO/worktrees/info/sparse-checkout
-        # * Go to the worktree and check it out
         if self._worktree is None:
+            sparse_checkout = get_sparse_checkout(self.repo)
+            if sparse_checkout is not None:
+                # This is needed for the existing worktrees too, and the repo config
+                # is replaced whenever it's installed again with repo-config
+                enable_sparse_checkout(self.repo)
+
             all_worktrees = {item.name: item for item in worktrees(self.pygit2_repo)}
             count = len(all_worktrees)
             max_count = get_max_worktree_count(self.repo)
@@ -250,11 +290,17 @@ class Worktree:
                 logger.info(f"Creating worktree {self.worktree_name} at {self.path}")
                 if not os.path.exists(os.path.dirname(self.path)):
                     os.makedirs(os.path.dirname(self.path))
-                worktree = self.pygit2_repo.add_worktree(
-                    self.worktree_name,
-                    os.path.abspath(self.path),
-                    self.pygit2_repo.lookup_reference("refs/heads/%s" % self.process_name),
-                )
+                patterns = None
+                if sparse_checkout is not None:
+                    patterns = read_sparse_checkout(sparse_checkout)
+                if patterns is not None:
+                    worktree = self.add_sparse(patterns)
+                else:
+                    worktree = self.pygit2_repo.add_worktree(
+                        self.worktree_name,
+                        os.path.abspath(self.path),
+                        self.pygit2_repo.lookup_reference("refs/heads/%s" % self.process_name),
+                    )
                 wrapper = wrapper_get(self.repo)
                 assert wrapper is not None
                 wrapper.after_worktree_create(self.path)
@@ -271,8 +317,65 @@ class Worktree:
         assert self._worktree is not None
         return self._worktree
 
+    def add_sparse(self, patterns: bytes) -> PyGit2Worktree:
+        """Create the worktree with only the files matching the sparse checkout
+        patterns checked out."""
+        # A previous attempt to create the worktree could have been killed part way
+        self.remove_incomplete()
+
+        try:
+            # libgit2 can't do sparse checkouts, so this has to use the git cli. That
+            # always names a worktree after the last component of its path, so
+            # create the worktree in a temporary directory to get the name we use,
+            # and move it to the right path before any files are checked out.
+            tmp_dir = tempfile.mkdtemp(prefix="tmp-", dir=os.path.dirname(self.path))
+            try:
+                tmp_path = os.path.join(tmp_dir, self.worktree_name)
+                self.repo.git.worktree("add", "--no-checkout", tmp_path, str(self.process_name))
+                self.repo.git.worktree("move", tmp_path, self.path)
+            finally:
+                delete_path(tmp_dir)
+
+            git_work = git.Repo(self.path)
+
+            with tempfile.TemporaryFile() as f:
+                f.write(patterns)
+                f.seek(0)
+                git_work.git.sparse_checkout("set", "--stdin", istream=f)
+
+            git_work.git.reset(hard=True)
+        except Exception:
+            # Otherwise the next access would use a worktree that's missing files
+            self.remove_incomplete()
+            raise
+
+        return self.pygit2_repo.lookup_worktree(self.worktree_name)
+
+    def remove_incomplete(self) -> None:
+        """Remove anything left by an attempt to create the worktree that didn't finish."""
+        try:
+            worktree = self.pygit2_repo.lookup_worktree(self.worktree_name)
+        except (KeyError, pygit2.GitError):
+            # There's no worktree with this name; which of these we get depends
+            # on the version of pygit2
+            pass
+        else:
+            prune_worktree(worktree)
+        if os.path.exists(self.path):
+            delete_path(self.path)
+
+    @mut()
+    def recreate(self) -> Repo:
+        """Delete the worktree and create it again from the current HEAD of its
+        branch, e.g. to apply a change to the sparse checkout patterns.
+
+        Any changes in the worktree that weren't committed are lost."""
+        self.delete()
+        return self.get()
+
     @mut()
     def delete(self) -> None:
+        self._worktree = None
         if not os.path.exists(self.path):
             return
         try:

@@ -58,6 +58,7 @@ elif [[ $command == "test" ]]; then
          --env WPTSYNC_CREDS=/app/config/test/credentials.ini \
          --mount type=bind,source=$(pwd)/sync,target=/app/wpt-sync/sync \
          --mount type=bind,source=$(pwd)/test/config,target=/app/config/test \
+         --mount type=bind,source=$(pwd)/config/try-wpt.sparse,target=/app/config/try-wpt.sparse \
          --mount type=bind,source=$(pwd)/test,target=/app/wpt-sync/test \
          ${DOCKER_TAG} --test $@
 elif [[ $command == "run" ]]; then
