@@ -453,7 +453,12 @@ def do_landing(
                 )
             elif try_push.taskgroup_id is None:
                 update.update_taskgroup_ids(git_gecko, git_wpt, try_push)
-                assert try_push.taskgroup_id is not None
+                if try_push.taskgroup_id is None and not retry:
+                    logger.info(
+                        f"Try push {try_push.process_name} has no decision task yet, "
+                        "not updating landing"
+                    )
+                    return
             with try_push.as_mut(lock), current_landing.as_mut(lock):
                 if retry:
                     update_landing()

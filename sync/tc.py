@@ -409,6 +409,8 @@ def lookup_treeherder(project: str, revision: str) -> str | None:
     decision_tasks = [
         item for item in jobs_data["results"] if item[idx_name] == "Gecko Decision Task"
     ]
+    if not decision_tasks:
+        return None
     return decision_tasks[-1][idx_task]
 
 
