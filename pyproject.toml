@@ -30,7 +30,7 @@ dependencies = [
   "phabricator==0.9.1",
   "pygit2==1.21.0",
   "pygithub==2.10.0",
-  "pyyaml==6.0.3",
+  "pyyaml==6.0.4",
   "requests==2.34.2",
   "setuptools==82.0.1",
   "slugid==2.0.0",
