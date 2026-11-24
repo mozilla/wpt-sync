@@ -765,13 +765,16 @@ class TryPush(base.ProcessData):
 
     @mut()
     def cleanup_logs(self) -> None:
+        if self.try_rev is None:
+            # Logs can only be downloaded once the try rev is known
+            logger.info("Try push %s has no try rev, no logs to remove" % self.process_name)
+            return
         logger.info("Removing downloaded for try push %s" % self.process_name)
+        log_path = self.log_path()
         try:
-            shutil.rmtree(self.log_path())
+            shutil.rmtree(log_path)
         except Exception:
-            logger.warning(
-                "Failed to remove logs %s:%s" % (self.log_path(), traceback.format_exc())
-            )
+            logger.warning("Failed to remove logs %s:%s" % (log_path, traceback.format_exc()))
 
     @mut()
     def delete(self) -> None:
