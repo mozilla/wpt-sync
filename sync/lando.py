@@ -30,13 +30,13 @@ class Lando:
                 return None
             try:
                 resp.raise_for_status()
-            except Exception as e:
-                exc = e
+            except requests.HTTPError as e:
+                exc = requests.HTTPError(f"{e}\nResponse body: {resp.text}", response=resp)
                 if resp.status_code == 502:
                     # retry
                     time.sleep(1)
                     continue
-                raise
+                raise exc from e
             data = resp.json()
             if not isinstance(data, dict):
                 raise ValueError(f"Expected map, got {data}")
