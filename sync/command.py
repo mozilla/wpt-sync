@@ -18,7 +18,7 @@ from . import log
 from .tasks import setup
 from .env import Environment
 from .gitutils import update_repositories
-from .load import get_syncs
+from .load import get_pr_sync, get_syncs
 from .lock import RepoLock, SyncLock
 
 from typing import Any, Iterable, Set, cast, TYPE_CHECKING
@@ -121,6 +121,14 @@ def get_parser() -> argparse.ArgumentParser:
         default=False,
         action="store_true",
         help="Force the PR to be rebase onto the integration branch",
+    )
+    parser_pr.add_argument(
+        "--recreate-worktree",
+        default=False,
+        action="store_true",
+        help="Delete the gecko worktree for the PR and create it again before updating, "
+        "e.g. to apply a change to the sparse checkout patterns. Changes in the "
+        "worktree that aren't committed are lost",
     )
     parser_pr.set_defaults(func=do_pr)
 
@@ -516,8 +524,33 @@ def do_update_tasks(git_gecko: Repo, git_wpt: Repo, pr_id: int, **kwargs: Any) -
     update.update_tasks(git_gecko, git_wpt, pr_id)
 
 
+def recreate_gecko_worktree(git_gecko: Repo, git_wpt: Repo, pr_id: int) -> bool:
+    """Delete the gecko worktree of the sync for a PR, if it has one, and create
+    it again.
+
+    :return: False if the worktree can't be deleted, otherwise True."""
+    sync = get_pr_sync(git_gecko, git_wpt, pr_id)
+    if sync is None or not os.path.exists(sync.gecko_worktree.path):
+        return True
+    path = os.path.realpath(sync.gecko_worktree.path)
+    if os.path.commonpath([path, os.path.realpath(os.curdir)]) == path:
+        logger.error(f"Can't recreate the worktree {path} from inside it")
+        return False
+    with SyncLock.for_process(sync.process_name) as lock:
+        assert isinstance(lock, SyncLock)
+        with sync.as_mut(lock):
+            logger.info(f"Recreating the worktree {path}")
+            sync.gecko_worktree.recreate()
+    return True
+
+
 def do_pr(
-    git_gecko: Repo, git_wpt: Repo, pr_ids: list[int], rebase: bool = False, **kwargs: Any
+    git_gecko: Repo,
+    git_wpt: Repo,
+    pr_ids: list[int],
+    rebase: bool = False,
+    recreate_worktree: bool = False,
+    **kwargs: Any,
 ) -> None:
     from . import update
 
@@ -536,6 +569,8 @@ def do_pr(
             logger.error("PR %s not found" % pr_id)
             continue
         update_repositories(git_gecko, git_wpt)
+        if recreate_worktree and not recreate_gecko_worktree(git_gecko, git_wpt, pr_id):
+            continue
         update.update_pr(git_gecko, git_wpt, pr, rebase)
 
 
